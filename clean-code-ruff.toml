@@ -1,0 +1,87 @@
+# Canonical Ruff rules for the Clean Code Principles in ~/.claude/CLAUDE.md.
+#
+# Source of truth — edit here. Each project keeps a VENDORED COPY of this file
+# committed to its own repo and extends it, never a cross-machine path pointing
+# outside the project (that breaks `ruff check`/CI for anyone without this exact
+# ~/.claude path — the same failure /code-review caught with the ESLint copy).
+# When this file changes, re-copy it into every project that wired it in.
+# See the clean-code-lint skill.
+#
+# This is the Python peer of ~/.claude/clean-code-eslint-rules.mjs. The two
+# encode the SAME principles; only the mechanism differs. A rule missing here
+# is either not mechanically checkable (SRP, SLA, Law of Demeter, Boy Scout,
+# YAGNI, naming quality, colocation) or genuinely JS-only (Rules 14, 16, 17).
+#
+# SEVERITY POLICY — read before adding rules.
+# Ruff has no warn/error severity levels; every finding is an error. The
+# ESLint config expresses its policy through 'error' vs 'warn', and the Stop
+# hook blocks only on 'error'. To mirror that exactly, the hook
+# (~/.claude/hooks/clean-code-gate.mjs) holds a BLOCKING_RUFF_RULES set and
+# blocks ONLY on those codes; everything else here is advisory and surfaces
+# without stopping the turn. That split is the enforcement policy, not
+# cosmetics — so if you add a rule here, decide deliberately whether it also
+# belongs in the hook's blocking set. Default to advisory.
+#
+# Usage in a project — `ruff.toml` at the repo root:
+#   extend = "clean-code-ruff.toml"
+
+[lint]
+select = [
+  # ---------- BLOCKING (mirrors ESLint 'error') ----------
+  # Rule 10/18: fail loudly. A swallowed exception is the Python spelling of
+  # `catch {}` — the exact thing `no-empty` with allowEmptyCatch:false blocks.
+  "E722",   # bare `except:`
+  "S110",   # try-except-pass
+  "S112",   # try-except-continue
+  "B904",   # `raise` inside `except` without `from` — destroys the cause chain
+  # Rule 6: never mutate directly.
+  "B006",   # mutable default argument
+  # Always a defect, never a style opinion.
+  "F821",   # undefined name
+
+  # ---------- ADVISORY (mirrors ESLint 'warn') ----------
+  # Rule 6: functions under 20 lines.
+  "PLR0915", # too many statements
+  # Rule 2: no long if-else chains; use guard clauses.
+  "C901",    # too complex
+  "PLR0912", # too many branches
+  "RET505",  # superfluous else after return  <- guard-clause style
+  "RET506",  # superfluous else after raise
+  "RET507",  # superfluous else after continue
+  "RET508",  # superfluous else after break
+  "SIM102",  # collapsible nested if
+  "SIM108",  # if-else block that should be a ternary
+  # Rule 12: no magic numbers.
+  "PLR2004", # magic value used in comparison
+  # Rule 6: dependency injection — a long parameter list usually means a
+  # function reaching for more than it should own.
+  "PLR0913", # too many arguments
+  # Rule 19: delete dead code, don't comment it out.
+  "F401",    # unused import
+  "F841",    # unused local variable
+  "ARG001",  # unused function argument
+  "ARG002",  # unused method argument
+  "ERA001",  # commented-out code
+  # Rule 3: intention-revealing names.
+  "N801", "N802", "N803", "N806",
+  # Rule 10: specific error types, not bare Exception.
+  "TRY002",  # raise vanilla Exception
+  "TRY201",  # verbose `raise e` instead of bare `raise`
+]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+# Rule 6: "under 20 lines per function" — statements is the closest
+# mechanical proxy Ruff offers, and is stricter than line count in practice.
+max-statements = 20
+max-branches = 8
+max-args = 5
+
+[lint.per-file-ignores]
+# Literal expected values ARE the point of a test, and pytest fixtures are
+# injected by name rather than used directly in the body.
+"**/tests/**" = ["PLR2004", "ARG001"]
+"**/test_*.py" = ["PLR2004", "ARG001"]
+"**/conftest.py" = ["ARG001"]

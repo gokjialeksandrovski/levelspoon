@@ -1,0 +1,4 @@
+extend = "clean-code-ruff.toml"
+
+# The project's own settings go here and win over the extended file.
+target-version = "py312"
