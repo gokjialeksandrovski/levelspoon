@@ -1,0 +1,9 @@
+services:
+  ocr-service:
+    build: ./ocr-service
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
