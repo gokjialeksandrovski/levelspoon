@@ -53,23 +53,23 @@ def split_energy_row(boxes: tuple[Box, ...]) -> tuple[float, float, tuple[Box, .
     position down the fixed row order (spec §4.3).
     """
     figures: dict[str, float] = {}
-    consumed: list = []
+    consumed_indices: set[int] = set()
 
-    for box in boxes:
+    for index, box in enumerate(boxes):
         found = _energy_figures(box.text)
         if not found:
             continue
         figures.update(found)
-        consumed.append(box)
+        consumed_indices.add(index)
         if "kj" in figures and "kcal" in figures:
             break
 
-    if not consumed:
+    if not consumed_indices:
         raise NormalizationError("No energy row found: no kJ or kcal marker detected")
     if "kcal" not in figures:
         raise NormalizationError(f"Energy row has no kcal figure: {figures}")
     if "kj" not in figures:
         raise NormalizationError(f"Energy row has no kJ figure: {figures}")
 
-    remaining = tuple(box for box in boxes if box not in consumed)
+    remaining = tuple(box for index, box in enumerate(boxes) if index not in consumed_indices)
     return figures["kcal"], figures["kj"], remaining
