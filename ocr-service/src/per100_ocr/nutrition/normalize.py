@@ -7,6 +7,8 @@ returning a zero that would be indistinguishable from a real measurement.
 
 import re
 
+from per100_ocr.boxes import Box
+
 MILLIGRAMS_PER_GRAM = 1000.0
 NUMBER_WITH_UNIT = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mg|g)?\b", re.IGNORECASE)
 
@@ -28,3 +30,46 @@ def to_grams(raw: str) -> float:
     unit = (match.group(2) or "g").lower()
 
     return value / MILLIGRAMS_PER_GRAM if unit == "mg" else value
+
+
+ENERGY_FIGURE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kj|kcal)", re.IGNORECASE)
+
+
+def _energy_figures(text: str) -> dict[str, float]:
+    """Map unit -> value for every kJ/kcal figure in one box's text."""
+    return {
+        unit.lower(): float(number.replace(",", "."))
+        for number, unit in ENERGY_FIGURE.findall(text)
+    }
+
+
+def split_energy_row(boxes: tuple[Box, ...]) -> tuple[float, float, tuple[Box, ...]]:
+    """Consume the energy row as one logical row, however OCR split it.
+
+    EU Regulation 1169/2011 mandates energy in both kJ and kcal, so the row
+    carries two numbers. Detecting it by unit marker - rather than assuming
+    it occupies exactly one box - is what stops a split detection from
+    shifting fat, saturates, carbohydrate, sugars, protein and salt each one
+    position down the fixed row order (spec §4.3).
+    """
+    figures: dict[str, float] = {}
+    consumed: list = []
+
+    for box in boxes:
+        found = _energy_figures(box.text)
+        if not found:
+            continue
+        figures.update(found)
+        consumed.append(box)
+        if "kj" in figures and "kcal" in figures:
+            break
+
+    if not consumed:
+        raise NormalizationError("No energy row found: no kJ or kcal marker detected")
+    if "kcal" not in figures:
+        raise NormalizationError(f"Energy row has no kcal figure: {figures}")
+    if "kj" not in figures:
+        raise NormalizationError(f"Energy row has no kJ figure: {figures}")
+
+    remaining = tuple(box for box in boxes if box not in consumed)
+    return figures["kcal"], figures["kj"], remaining
