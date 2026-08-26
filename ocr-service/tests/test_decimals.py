@@ -69,9 +69,26 @@ def test_recovers_multiple_simultaneously_ambiguous_fields():
     field at its corrected candidate together, which is what actually
     resolves this."""
     candidates = {
-        "fat_g": (20.0, 2.0), "saturates_g": (1.2,), "carbohydrate_g": (40.0, 4.0),
+        "fat_g": (20.0, 2.0), "saturates_g": (12.0, 1.2), "carbohydrate_g": (40.0, 4.0),
         "sugars_g": (40.0, 4.0), "protein_g": (9.0,), "salt_g": (0.18,),
     }
     values, flags = resolve_decimals(candidates, energy_kcal=70.0, energy_kj=295.0)
     assert (values.fat_g, values.carbohydrate_g, values.sugars_g) == (2.0, 4.0, 4.0)
     assert flags == ()
+
+
+def test_flags_a_field_left_unsettled_after_a_composite_wins():
+    """A composite passing as a WHOLE does not mean every ambiguous field in
+    it was actually settled by the rules. Here carbohydrate_g's ambiguity is
+    resolved by Atwater (only 72.0 keeps energy near 350 kcal), but salt_g's
+    two candidates (10.0 vs 1.0) are both silently compatible with every rule
+    once carbohydrate is fixed at 72.0 - salt never affects Atwater, the
+    subset checks, or the component total at this magnitude - so salt_g is
+    genuinely unsettleable and must still be flagged, not silently kept at
+    its literal reading."""
+    candidates = {
+        "fat_g": (1.0,), "saturates_g": (0.5,), "carbohydrate_g": (72.0, 7.2),
+        "sugars_g": (5.0,), "protein_g": (10.0,), "salt_g": (10.0, 1.0),
+    }
+    _, flags = resolve_decimals(candidates, energy_kcal=350.0, energy_kj=None)
+    assert "salt_g" in flags

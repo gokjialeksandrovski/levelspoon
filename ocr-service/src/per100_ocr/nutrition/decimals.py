@@ -34,6 +34,27 @@ def _values_from(readings: dict[str, float], energy_kcal: float) -> NutritionVal
     return NutritionValues(energy_kcal=energy_kcal, **readings)
 
 
+def _unsettled_fields(
+    readings: dict[str, float],
+    candidates: dict[str, tuple[float, ...]],
+    energy_kcal: float,
+    energy_kj: float | None,
+) -> tuple[str, ...]:
+    """Fields whose other candidate also validates against the adopted
+    reading - genuinely ambiguous even though the composite as a whole
+    passed, and must still be flagged rather than silently accepted.
+    """
+    unsettled = []
+    for field, options in candidates.items():
+        if len(options) < MIN_AMBIGUOUS_OPTIONS:
+            continue
+        other = options[0] if readings[field] == options[-1] else options[-1]
+        flipped = _values_from({**readings, field: other}, energy_kcal)
+        if not validate(flipped, energy_kj):
+            unsettled.append(field)
+    return tuple(sorted(unsettled))
+
+
 def resolve_decimals(
     candidates: dict[str, tuple[float, ...]],
     energy_kcal: float,
@@ -61,9 +82,13 @@ def resolve_decimals(
     corrected_passes = not validate(corrected_values, energy_kj)
 
     if literal_passes and not corrected_passes:
-        return literal_values, ()
+        return literal_values, _unsettled_fields(
+            literal_reading, candidates, energy_kcal, energy_kj
+        )
     if corrected_passes and not literal_passes:
-        return corrected_values, ()
+        return corrected_values, _unsettled_fields(
+            corrected_reading, candidates, energy_kcal, energy_kj
+        )
 
     readings = dict(literal_reading)
     ambiguous_flags: list[str] = []
