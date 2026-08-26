@@ -1,0 +1,93 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from per100_ocr.boxes import Box, OcrResult
+from per100_ocr.main import app, get_engine
+
+
+class StubEngine:
+    """Stands in for PaddleOCR so the contract can be tested without a model."""
+
+    model_loaded = True
+
+    def __init__(self, result: OcrResult) -> None:
+        self._result = result
+
+    def read(self, _image_bytes: bytes) -> OcrResult:
+        return self._result
+
+
+def _nutrition_result() -> OcrResult:
+    texts = ["295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g"]
+    boxes = [Box("100 g", 900.0, 100.0, 0.95)]
+    boxes += [Box(text, 900.0, 200.0 + i * 100.0, 0.95) for i, text in enumerate(texts)]
+    return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1400)
+
+
+@pytest.fixture
+def client_with(request):
+    def _build(result: OcrResult) -> TestClient:
+        app.dependency_overrides[get_engine] = lambda: StubEngine(result)
+        request.addfinalizer(app.dependency_overrides.clear)
+        return TestClient(app)
+    return _build
+
+
+def test_health_reports_model_state(client_with):
+    response = client_with(_nutrition_result()).get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "model_loaded": True}
+
+
+def test_nutrition_endpoint_returns_the_spec_contract(client_with):
+    client = client_with(_nutrition_result())
+    response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["values"]["energy_kcal"] == 70.0
+    assert body["values"]["salt_g"] == 0.18
+    assert body["flags"] == []
+    assert set(body["values"]) == {
+        "energy_kcal", "fat_g", "saturates_g", "carbohydrate_g",
+        "sugars_g", "protein_g", "salt_g",
+    }
+
+
+def test_product_name_endpoint_returns_text(client_with):
+    result = OcrResult(
+        boxes=(Box("OLYMPUS", 600.0, 200.0, 0.99), Box("Greek", 600.0, 300.0, 0.99)),
+        image_width=1200, image_height=1600,
+    )
+    response = client_with(result).post(
+        "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert response.json() == {"text": "OLYMPUS Greek"}
+
+
+def test_unreadable_nutrition_table_returns_422_not_zeroes(client_with):
+    """No per-100g header: fail loudly rather than invent values."""
+    blank = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
+    response = client_with(blank).post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert response.status_code == 422
+    assert "detail" in response.json()
+
+
+def test_missing_value_serialises_as_null_not_nan(client_with):
+    """A short table leaves salt unread; the response must stay valid JSON.
+
+    Python's json module emits a bare `NaN` literal, which JSON.parse rejects -
+    so an unsanitised nan would break the M2 client at the confirm step.
+    """
+    texts = ["295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g"]
+    boxes = [Box("100 g", 900.0, 100.0, 0.95)]
+    boxes += [Box(text, 900.0, 200.0 + i * 100.0, 0.95) for i, text in enumerate(texts)]
+    result = OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1400)
+
+    response = client_with(result).post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert "NaN" not in response.text
+    assert response.json()["values"]["salt_g"] is None
+    assert "salt_g" in response.json()["flags"]
