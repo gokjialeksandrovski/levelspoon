@@ -28,3 +28,33 @@ class OcrResult:
     boxes: tuple[Box, ...]
     image_width: int
     image_height: int
+
+
+# A gap wider than this fraction of the image starts a new column. Tuned to
+# separate a nutrition table's label and value columns while keeping
+# multilingual label fragments ("Energija" / "Energy") together.
+COLUMN_GAP_RATIO = 0.05
+
+
+def cluster_columns(
+    boxes: tuple[Box, ...], image_width: int
+) -> tuple[tuple[Box, ...], ...]:
+    """Group boxes into columns by horizontal gaps, left to right.
+
+    Replaces the spike's absolute `x > 800` threshold, which silently broke
+    on any photo of a different resolution, crop, or zoom level (spec §4.2).
+    """
+    if not boxes:
+        return ()
+
+    min_gap = image_width * COLUMN_GAP_RATIO
+    by_x = sorted(boxes, key=lambda box: box.x)
+
+    columns: list[list[Box]] = [[by_x[0]]]
+    for box in by_x[1:]:
+        if box.x - columns[-1][-1].x > min_gap:
+            columns.append([box])
+        else:
+            columns[-1].append(box)
+
+    return tuple(tuple(sorted(column, key=lambda box: box.y)) for column in columns)
