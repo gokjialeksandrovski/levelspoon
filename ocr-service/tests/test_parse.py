@@ -1,3 +1,5 @@
+import math
+
 from per100_ocr.boxes import Box, OcrResult
 from per100_ocr.nutrition.parse import parse_nutrition
 
@@ -44,6 +46,12 @@ def test_flags_a_missing_row_rather_than_defaulting_it():
 
 
 def test_missing_row_is_never_silently_zero():
-    result = _label("295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g")
+    """saturates_g and sugars_g never enter validate()'s component-total sum
+    and only appear in > comparisons (always False for nan), so validate()
+    alone can never catch either missing - proving the `missing`-list union
+    in parse_nutrition is load-bearing, not redundant (spec §4.4).
+    """
+    result = _label("295kJ/70 Kcal", "2,0 g", "od kojih", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
     reading = parse_nutrition(result)
-    assert reading.values.salt_g != 0.0 or "salt_g" in reading.flags
+    assert math.isnan(reading.values.saturates_g)
+    assert "saturates_g" in reading.flags

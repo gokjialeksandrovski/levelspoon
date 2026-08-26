@@ -7,7 +7,7 @@ returning a zero that would be indistinguishable from a real measurement.
 
 import re
 
-from per100_ocr.boxes import Box
+from ..boxes import Box
 
 MILLIGRAMS_PER_GRAM = 1000.0
 NUMBER_WITH_UNIT = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mg|g)?\b", re.IGNORECASE)

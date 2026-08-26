@@ -44,7 +44,7 @@ def _unsettled_fields(
     reading - genuinely ambiguous even though the composite as a whole
     passed, and must still be flagged rather than silently accepted.
     """
-    unsettled = []
+    unsettled: list[str] = []
     for field, options in candidates.items():
         if len(options) < MIN_AMBIGUOUS_OPTIONS:
             continue

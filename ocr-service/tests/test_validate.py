@@ -1,3 +1,5 @@
+import dataclasses
+
 from per100_ocr.nutrition.validate import NutritionValues, validate
 
 GOLDEN = NutritionValues(
@@ -51,5 +53,4 @@ def test_flags_are_sorted_and_deduplicated():
 
 
 def dataclasses_replace(**changes) -> NutritionValues:
-    import dataclasses
     return dataclasses.replace(GOLDEN, **changes)

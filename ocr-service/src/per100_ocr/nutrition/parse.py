@@ -32,7 +32,9 @@ class NutritionReading:
     energy_kj: float | None
 
 
-def _candidates_by_field(value_texts: list[str]) -> tuple[dict, list[str]]:
+def _candidates_by_field(
+    value_texts: list[str],
+) -> tuple[dict[str, tuple[float, ...]], list[str]]:
     """Map the fixed row order onto whatever values were detected."""
     candidates: dict[str, tuple[float, ...]] = {}
     missing: list[str] = []

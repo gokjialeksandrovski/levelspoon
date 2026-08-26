@@ -5,9 +5,9 @@
     "ocr:up": "docker compose -f docker-compose.dev.yml up -d --wait ocr-service",
     "ocr:down": "docker compose -f docker-compose.dev.yml down",
     "ocr:build": "docker compose -f docker-compose.dev.yml build ocr-service",
-    "lint": "ruff check .",
-    "test:ocr": "pytest ocr-service/tests -m \"not real\" -v",
-    "verify:ocr": "npm run ocr:up && pytest ocr-service/tests -m real -v",
-    "fixtures:capture": "python scripts/capture_fixtures.py"
+    "lint": "node scripts/venv-run.mjs -m ruff check .",
+    "test:ocr": "node scripts/venv-run.mjs -m pytest ocr-service/tests -m \"not real\" -v",
+    "verify:ocr": "npm run ocr:up && node scripts/venv-run.mjs -m pytest ocr-service/tests -m real -v",
+    "fixtures:capture": "node scripts/venv-run.mjs scripts/capture_fixtures.py"
   }
 }

@@ -26,6 +26,7 @@ running container.
 | `npm run test:ocr` | Tier-1 unit tests (fast, no Docker) |
 | `npm run verify:ocr` | Tier-4 gate: real photos through the real service |
 | `npm run ocr:down` | Stop the stack |
+| `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
 
 Docker Desktop must be running. It is installed per-user here, so `docker`
 is on the **User** PATH at `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin`.
