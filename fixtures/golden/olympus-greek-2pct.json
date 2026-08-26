@@ -1,0 +1,15 @@
+{
+  "product": "Olympus Greek Recipe Yogurt 2% Fat",
+  "name_tokens_required": ["OLYMPUS", "2%", "YOGURT"],
+  "nutrition_per_100g": {
+    "energy_kcal": 70.0,
+    "energy_kj": 295.0,
+    "fat_g": 2.0,
+    "saturates_g": 1.2,
+    "carbohydrate_g": 4.0,
+    "sugars_g": 4.0,
+    "protein_g": 9.0,
+    "salt_g": 0.18
+  },
+  "expected_flags": []
+}
