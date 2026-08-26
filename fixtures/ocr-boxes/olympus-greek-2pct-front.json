@@ -1,0 +1,60 @@
+{
+  "image_width": 1220,
+  "image_height": 1627,
+  "boxes": [
+    {
+      "text": "OLYMPUS",
+      "x": 811.5,
+      "y": 655.5,
+      "confidence": 0.999960720539093
+    },
+    {
+      "text": "",
+      "x": 720.0,
+      "y": 730.5,
+      "confidence": 0.0
+    },
+    {
+      "text": "Greek",
+      "x": 815.5,
+      "y": 824.5,
+      "confidence": 0.9999812841415405
+    },
+    {
+      "text": "2",
+      "x": 575.5,
+      "y": 846.5,
+      "confidence": 0.9995612502098083
+    },
+    {
+      "text": "FAT",
+      "x": 577.5,
+      "y": 894.0,
+      "confidence": 0.9998025894165039
+    },
+    {
+      "text": "RECIPE YOGURT",
+      "x": 817.5,
+      "y": 883.5,
+      "confidence": 0.9998842477798462
+    },
+    {
+      "text": "LOW FAT",
+      "x": 816.0,
+      "y": 955.5,
+      "confidence": 0.9782427549362183
+    },
+    {
+      "text": "STRAINED",
+      "x": 615.0,
+      "y": 1006.0,
+      "confidence": 0.9998885989189148
+    },
+    {
+      "text": "RICH IN PROTEIN",
+      "x": 822.0,
+      "y": 1016.5,
+      "confidence": 0.9834743738174438
+    }
+  ]
+}

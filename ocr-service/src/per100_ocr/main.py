@@ -64,3 +64,14 @@ async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get
         raise HTTPException(status_code=UNPROCESSABLE, detail=str(error)) from error
 
     return {"values": _serialisable(reading.values), "flags": list(reading.flags)}
+
+
+@app.post("/debug/boxes")
+async def debug_boxes(image: UploadFile = File(...), engine=Depends(get_engine)) -> dict:
+    """Raw detections, for recording fixtures (spec §11 fixtures:capture)."""
+    result = engine.read(await image.read())
+    return {
+        "image_width": result.image_width,
+        "image_height": result.image_height,
+        "boxes": [asdict(box) for box in result.boxes],
+    }

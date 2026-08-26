@@ -1,0 +1,138 @@
+{
+  "image_width": 1220,
+  "image_height": 1627,
+  "boxes": [
+    {
+      "text": "Prosetne nutritivne vrednosti na /Hyn",
+      "x": 609.0,
+      "y": 627.5,
+      "confidence": 0.9304422736167908
+    },
+    {
+      "text": "100g",
+      "x": 865.5,
+      "y": 635.0,
+      "confidence": 0.999905526638031
+    },
+    {
+      "text": "/ Vlerat ushqyse për:",
+      "x": 540.0,
+      "y": 652.5,
+      "confidence": 0.8688877820968628
+    },
+    {
+      "text": "295kJ/70Kcal",
+      "x": 835.0,
+      "y": 666.5,
+      "confidence": 0.9300219416618347
+    },
+    {
+      "text": "neri//Energi",
+      "x": 489.0,
+      "y": 687.5,
+      "confidence": 0.7963724136352539
+    },
+    {
+      "text": "20g",
+      "x": 863.5,
+      "y": 691.5,
+      "confidence": 0.999337375164032
+    },
+    {
+      "text": "Masti/Mac/Yndyrë",
+      "x": 473.5,
+      "y": 710.5,
+      "confidence": 0.9541505575180054
+    },
+    {
+      "text": "12",
+      "x": 861.5,
+      "y": 712.0,
+      "confidence": 0.9975622892379761
+    },
+    {
+      "text": "//",
+      "x": 618.5,
+      "y": 726.0,
+      "confidence": 0.5612976551055908
+    },
+    {
+      "text": "40g",
+      "x": 860.0,
+      "y": 734.0,
+      "confidence": 0.9906541705131531
+    },
+    {
+      "text": "Ugljeni hidrati /arex/Karbohidrate",
+      "x": 559.0,
+      "y": 752.0,
+      "confidence": 0.8932330012321472
+    },
+    {
+      "text": "40g",
+      "x": 857.5,
+      "y": 757.0,
+      "confidence": 0.9998548626899719
+    },
+    {
+      "text": " ee/a  e",
+      "x": 550.0,
+      "y": 776.5,
+      "confidence": 0.5080475807189941
+    },
+    {
+      "text": "9.0g",
+      "x": 855.5,
+      "y": 779.5,
+      "confidence": 0.8988274335861206
+    },
+    {
+      "text": "Proteini/poe/Proteina",
+      "x": 513.5,
+      "y": 800.0,
+      "confidence": 0.9424145817756653
+    },
+    {
+      "text": "0.18g",
+      "x": 850.0,
+      "y": 799.5,
+      "confidence": 0.97297602891922
+    },
+    {
+      "text": "So/Con/Kripe",
+      "x": 465.5,
+      "y": 823.5,
+      "confidence": 0.9719842076301575
+    },
+    {
+      "text": "",
+      "x": 644.0,
+      "y": 857.5,
+      "confidence": 0.0
+    },
+    {
+      "text": "",
+      "x": 644.5,
+      "y": 880.5,
+      "confidence": 0.0
+    },
+    {
+      "text": "",
+      "x": 646.5,
+      "y": 903.0,
+      "confidence": 0.0
+    },
+    {
+      "text": "",
+      "x": 646.5,
+      "y": 926.0,
+      "confidence": 0.0
+    },
+    {
+      "text": "pter.2t-6℃",
+      "x": 505.0,
+      "y": 1066.5,
+      "confidence": 0.4657060503959656
+    }
+  ]
+}

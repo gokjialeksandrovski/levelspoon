@@ -9,7 +9,13 @@ construction, so word order need only be stable, not correct.
 
 from .boxes import Box, OcrResult
 
-# Below this, PaddleOCR is typically reading artwork rather than text.
+# Observed on fixtures/ocr-boxes/olympus-greek-2pct-front.json:
+# real tokens >= 0.978 (Greek, OLYMPUS, STRAINED, RECIPE YOGURT, FAT, 2,
+# RICH IN PROTEIN, LOW FAT); the only other detection is one empty-string
+# box at confidence 0.0. No logo-artifact cluster was present in this
+# capture (unlike the spike's photo), so 0.85 is retained unchanged - it
+# already separates real content from the one junk detection with large
+# margin on both sides.
 MIN_NAME_CONFIDENCE = 0.85
 MIN_TOKEN_LENGTH = 2
 
