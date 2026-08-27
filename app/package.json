@@ -9,8 +9,8 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:drop": "tsx scripts/drop.ts",
-    "db:seed": "tsx scripts/seed.ts",
+    "db:drop": "tsx --env-file=.env.local scripts/drop.ts",
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "test": "vitest run"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "15.5.24",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

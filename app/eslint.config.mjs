@@ -67,6 +67,7 @@ const eslintConfig = [
       "playwright.config.*",
       "vitest.config.*",
       "jest.config.*",
+      "drizzle.config.*",
     ],
     rules: { "no-restricted-syntax": "off" },
   },
