@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
@@ -139,4 +139,29 @@ export const createProduct = async (
     .returning({ id: products.id });
 
   return { productId: row.id };
+};
+
+export interface UpdateProductInput {
+  nutritionPer100g: NutritionValues;
+  userId: string;
+}
+
+export const updateProduct = async (
+  productId: string,
+  updates: UpdateProductInput,
+): Promise<void> => {
+  await db
+    .update(products)
+    .set({
+      energyKcal: String(updates.nutritionPer100g.energyKcal),
+      fatG: String(updates.nutritionPer100g.fatG),
+      saturatesG: String(updates.nutritionPer100g.saturatesG),
+      carbohydrateG: String(updates.nutritionPer100g.carbohydrateG),
+      sugarsG: String(updates.nutritionPer100g.sugarsG),
+      proteinG: String(updates.nutritionPer100g.proteinG),
+      saltG: String(updates.nutritionPer100g.saltG),
+      updatedByUserId: updates.userId,
+      updatedAt: new Date(),
+    })
+    .where(eq(products.id, productId));
 };

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
 
-import { createProduct, matchProduct } from "./products";
+import { createProduct, matchProduct, updateProduct } from "./products";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -112,5 +112,33 @@ describe("createProduct", () => {
     const [row] = await db.select().from(products).where(eq(products.id, productId));
     expect(row.name).toBe("Fresh Milk 3.2%");
     expect(row.nutritionPhotoKey).toMatch(/^products\/.+/);
+  });
+});
+
+describe("updateProduct", () => {
+  it("updates nutrition values and stamps the corrector", async () => {
+    const userId = await seedUser();
+    const correctorId = await seedUser();
+    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    const [existing] = await db.select().from(products);
+
+    await updateProduct(existing.id, {
+      nutritionPer100g: {
+        energyKcal: 75,
+        fatG: 2.5,
+        saturatesG: 1.2,
+        carbohydrateG: 4.0,
+        sugarsG: 4.0,
+        proteinG: 9.0,
+        saltG: 0.18,
+      },
+      userId: correctorId,
+    });
+
+    const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
+    expect(Number(updated.energyKcal)).toBe(75);
+    expect(Number(updated.fatG)).toBe(2.5);
+    expect(updated.updatedByUserId).toBe(correctorId);
+    expect(updated.updatedAt).not.toBeNull();
   });
 });
