@@ -7,3 +7,43 @@ services:
       resources:
         limits:
           memory: 2g
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: per100
+      POSTGRES_PASSWORD: per100
+      POSTGRES_DB: per100
+    # Host-side port is 15432, not the standard 5432 (container's internal port stays
+    # 5432, unchanged): on this dev machine, host port 5432 is already bound by a
+    # pre-existing native Windows PostgreSQL 18 service unrelated to this project, and
+    # `5432:5432` would silently route host connections to that service instead of this
+    # container - same port, wrong server, surfacing as a confusing "password
+    # authentication failed" rather than connection-refused. Remapping the host side
+    # avoids the conflict without touching the pre-existing native service. Safe on any
+    # machine, conflict or not.
+    ports:
+      - "15432:5432"
+    volumes:
+      - per100-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U per100"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: per100
+      MINIO_ROOT_PASSWORD: per100_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - per100-minio-data:/data
+
+volumes:
+  per100-postgres-data:
+  per100-minio-data:
