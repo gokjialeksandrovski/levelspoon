@@ -1,8 +1,12 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { products } from "@/lib/db/schema";
+import { uploadPhoto } from "@/lib/s3";
 
 // Spec §1's margin rule: an absolute-threshold-only rule would let two
 // nutritionally-different product variants (e.g. "2% Fat" vs "10% Fat")
@@ -101,4 +105,38 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
     return { kind: "ambiguous", candidates: rows.map(toProductCandidate) };
   }
   return { kind: "no_match" };
+};
+
+export interface CreateProductInput {
+  name: string;
+  nutritionPer100g: NutritionValues;
+  photo: { buffer: Buffer; contentType: string };
+  userId: string;
+}
+
+export const createProduct = async (
+  input: CreateProductInput,
+): Promise<{ productId: string }> => {
+  const extension = input.photo.contentType === "image/png" ? "png" : "jpg";
+  const photoKey = `products/${randomUUID()}.${extension}`;
+
+  await uploadPhoto(photoKey, input.photo.buffer, input.photo.contentType);
+
+  const [row] = await db
+    .insert(products)
+    .values({
+      name: input.name,
+      energyKcal: String(input.nutritionPer100g.energyKcal),
+      fatG: String(input.nutritionPer100g.fatG),
+      saturatesG: String(input.nutritionPer100g.saturatesG),
+      carbohydrateG: String(input.nutritionPer100g.carbohydrateG),
+      sugarsG: String(input.nutritionPer100g.sugarsG),
+      proteinG: String(input.nutritionPer100g.proteinG),
+      saltG: String(input.nutritionPer100g.saltG),
+      nutritionPhotoKey: photoKey,
+      createdByUserId: input.userId,
+    })
+    .returning({ id: products.id });
+
+  return { productId: row.id };
 };

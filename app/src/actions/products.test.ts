@@ -1,10 +1,10 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
 
-import { matchProduct } from "./products";
+import { createProduct, matchProduct } from "./products";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -87,5 +87,30 @@ describe("matchProduct", () => {
   it("returns no_match against an empty products table", async () => {
     const result = await matchProduct("Anything");
     expect(result.kind).toBe("no_match");
+  });
+});
+
+describe("createProduct", () => {
+  it("writes a new product with the uploaded photo's key", async () => {
+    const userId = await seedUser();
+
+    const { productId } = await createProduct({
+      name: "Fresh Milk 3.2%",
+      nutritionPer100g: {
+        energyKcal: 61,
+        fatG: 3.2,
+        saturatesG: 2.0,
+        carbohydrateG: 4.8,
+        sugarsG: 4.8,
+        proteinG: 3.2,
+        saltG: 0.1,
+      },
+      photo: { buffer: Buffer.from("fake-jpeg-bytes"), contentType: "image/jpeg" },
+      userId,
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.name).toBe("Fresh Milk 3.2%");
+    expect(row.nutritionPhotoKey).toMatch(/^products\/.+/);
   });
 });
