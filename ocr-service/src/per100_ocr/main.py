@@ -1,32 +1,56 @@
 """HTTP surface for the OCR service (spec §4.5).
 
-The engine is injected as a dependency so tests can substitute a stub, and
-imported lazily inside the provider so this module stays importable in an
-environment with no paddlepaddle installed.
+The engine is built once at startup (see `lifespan`), before Uvicorn
+starts accepting connections, and injected as a dependency so tests can
+substitute a stub. Building it eagerly at startup rather than lazily on
+the first request is what makes `/health`'s `model_loaded` a real signal
+instead of a value that's already true by the time anything can observe
+it, and rules out two concurrent healthcheck hits racing to construct the
+model twice under the container's memory limit.
 """
 
 import math
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import asdict
-from functools import lru_cache
+from typing import TYPE_CHECKING
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 
 from .nutrition.columns import ColumnDetectionError
 from .nutrition.normalize import NormalizationError
 from .nutrition.parse import parse_nutrition
 from .product_name import extract_product_name
 
-app = FastAPI(title="Per100 OCR", version="0.1.0")
+if TYPE_CHECKING:
+    from .engine import OcrEngine
 
 UNPROCESSABLE = 422
 
 
-@lru_cache(maxsize=1)
-def get_engine():
-    """One warm engine per process; imported here so tests need no paddle."""
-    from .engine import OcrEngine
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Construct the one warm engine before the app starts serving requests.
 
-    return OcrEngine()
+    Imported here, not at module scope, so this module stays importable
+    (and testable) without paddlepaddle installed - the import only ever
+    executes when the real app actually starts up. The `getattr` guard lets
+    a test pre-set `app.state.engine` to a stub before startup runs, so the
+    real (paddle-requiring) construction never happens under test.
+    """
+    if getattr(app.state, "engine", None) is None:
+        from .engine import OcrEngine
+
+        app.state.engine = OcrEngine()
+    yield
+
+
+app = FastAPI(title="Per100 OCR", version="0.1.0", lifespan=lifespan)
+
+
+def get_engine(request: Request) -> "OcrEngine":
+    """Return the engine built once at startup by `lifespan`."""
+    return request.app.state.engine
 
 
 def _serialisable(values) -> dict:
