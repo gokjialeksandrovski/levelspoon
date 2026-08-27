@@ -19,13 +19,18 @@ export const accounts = pgTable(
     type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("provider_account_id").notNull(),
-    refreshToken: text("refresh_token"),
-    accessToken: text("access_token"),
-    expiresAt: integer("expires_at"),
-    tokenType: text("token_type"),
+    // Snake_case property keys (not camelCase) are intentional here: these
+    // mirror the OAuth2/OIDC token response field names that Auth.js's
+    // AdapterAccount type and @auth/drizzle-adapter's linkAccount() use
+    // verbatim (see its own default schema in lib/pg.js) — renaming them to
+    // camelCase silently drops the fields on insert.
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
     scope: text("scope"),
-    idToken: text("id_token"),
-    sessionState: text("session_state"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
   },
   (account) => [
     primaryKey({ columns: [account.provider, account.providerAccountId] }),
