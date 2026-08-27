@@ -42,11 +42,7 @@ export type MatchResult =
   | { kind: "ambiguous"; candidates: ProductCandidate[] }
   | { kind: "no_match" };
 
-// Extends Record<string, unknown> (rather than declaring plain fields) so it
-// satisfies db.execute<TRow extends Record<string, unknown>>'s generic
-// constraint - a plain interface with only fixed properties doesn't
-// structurally satisfy that bound without this.
-interface CandidateRow extends Record<string, unknown> {
+type CandidateRow = {
   id: string;
   name: string;
   brand: string | null;
@@ -59,7 +55,7 @@ interface CandidateRow extends Record<string, unknown> {
   salt_g: string;
   nutrition_photo_key: string;
   score: number;
-}
+};
 
 const toProductCandidate = (row: CandidateRow): ProductCandidate => ({
   id: row.id,

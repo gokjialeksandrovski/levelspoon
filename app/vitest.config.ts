@@ -7,6 +7,9 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
+    // Test files share one live Postgres database and truncate overlapping
+    // tables in beforeEach, so they cannot safely run concurrently.
+    fileParallelism: false,
   },
   resolve: {
     // Mirrors tsconfig.json's "@/*" -> "./src/*" path alias, which Next.js's

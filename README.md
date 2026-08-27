@@ -3,7 +3,7 @@
 Nutrition/meal-logging app. See `docs/superpowers/specs/` for the design spec
 and `docs/superpowers/plans/` for implementation plans.
 
-## Current milestone: M1 — OCR service
+## Current milestone: M1 + M2a — OCR service, backend & data layer
 
 ### Setup
 
@@ -22,11 +22,23 @@ running container.
 | Command | Does |
 |---|---|
 | `npm run ocr:build` | Build the OCR image (slow first time — bakes the model) |
-| `npm run lint` | Ruff, with the Clean Code rules |
+| `npm run lint` | Ruff, with the Clean Code rules (root-level only — see note below) |
 | `npm run test:ocr` | Tier-1 unit tests (fast, no Docker) |
 | `npm run verify:ocr` | Tier-4 gate: real photos through the real service |
 | `npm run ocr:down` | Stop the stack |
 | `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
+| `npm run dev:app` | Run the Next.js app's dev server |
+| `npm run dev:up` | Bring up Postgres, MinIO, and the OCR service for local dev |
+| `npm run dev:down` | Stop the local dev stack |
+| `npm run db:migrate` | Apply Drizzle migrations to the local Postgres |
+| `npm run db:seed` | Seed a test user and the 2%/10% variant pair |
+| `npm run db:reset` | Drop, migrate, seed — a clean slate for a repeatable run |
+| `npm run test` | Tier-2 tests against the real local Postgres (delegates into `app/`) |
+
+`npm run lint` at the repo root only runs Ruff (Python) — it does **not** lint
+the Next.js app. Run `cd app && npm run lint` separately to check the app's
+own ESLint + Clean Code rules; this is a Milestone Exit Criterion for M2a and
+is otherwise easy to miss.
 
 Docker Desktop must be running. It is installed per-user here, so `docker`
 is on the **User** PATH at `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin`.

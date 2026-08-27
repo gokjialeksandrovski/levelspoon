@@ -5,7 +5,7 @@ import { products, users } from "../src/lib/db/schema";
 
 const SEED_USER_EMAIL = "seed-user@per100.local";
 
-async function findOrCreateSeedUser(): Promise<string> {
+const findOrCreateSeedUser = async (): Promise<string> => {
   const [existing] = await db.select().from(users).where(eq(users.email, SEED_USER_EMAIL));
   if (existing) {
     return existing.id;
@@ -16,9 +16,9 @@ async function findOrCreateSeedUser(): Promise<string> {
     .values({ email: SEED_USER_EMAIL, name: "Seed User" })
     .returning();
   return created.id;
-}
+};
 
-async function main() {
+const main = async () => {
   const seedUserId = await findOrCreateSeedUser();
 
   // The deliberate variant pair tier-2's own matchProduct test seeds
@@ -52,7 +52,7 @@ async function main() {
   ]);
 
   console.log("Seeded 1 user and 2 products (including the 2%/10% variant pair).");
-}
+};
 
 main()
   .catch((error) => {

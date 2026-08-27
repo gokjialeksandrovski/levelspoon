@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { meals, products, users } from "@/lib/db/schema";
 
-import { computeContribution, saveMealIngredient } from "./meals";
+import { computeContribution } from "./meals.utils";
+import { saveMealIngredient } from "./meals";
 
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);

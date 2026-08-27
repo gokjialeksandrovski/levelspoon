@@ -40,6 +40,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .where(eq(users.email, email))
           .limit(1);
 
+        // Both branches below throw the identical InvalidCredentialsError -
+        // deliberately. Splitting "no such user" from "wrong password" into
+        // distinct messages would reintroduce account enumeration.
         if (!user?.passwordHash) {
           throw new InvalidCredentialsError();
         }
