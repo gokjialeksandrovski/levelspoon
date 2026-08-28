@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { sql } from "drizzle-orm";
 
 import { db } from "../../src/lib/db";
 import { products, users } from "../../src/lib/db/schema";
 
 const freshEmail = () => `e2e-${crypto.randomUUID()}@example.com`;
+
+test.beforeEach(async () => {
+  await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);
+});
 
 const seedConfidentProduct = async () => {
   const [user] = await db.insert(users).values({ email: freshEmail() }).returning();
