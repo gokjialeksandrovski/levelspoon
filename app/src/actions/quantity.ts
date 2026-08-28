@@ -10,8 +10,9 @@ const getProvider = (): QuantityProvider => {
     : new GeminiQuantityProvider();
 };
 
-export const estimateQuantity = async (photo: Buffer): Promise<{ grams: number }> => {
+export const estimateQuantity = async (photo: Blob): Promise<{ grams: number }> => {
   const provider = getProvider();
-  const grams = await provider.estimateGrams(photo);
+  const buffer = Buffer.from(await photo.arrayBuffer());
+  const grams = await provider.estimateGrams(buffer);
   return { grams };
 };

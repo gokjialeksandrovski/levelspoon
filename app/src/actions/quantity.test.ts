@@ -6,7 +6,7 @@ import { estimateQuantity } from "./quantity";
 
 describe("estimateQuantity", () => {
   it("returns a positive gram estimate from the mock provider", async () => {
-    const result = await estimateQuantity(Buffer.from("fake-photo-bytes"));
+    const result = await estimateQuantity(new Blob([Buffer.from("fake-photo-bytes")]));
     expect(result.grams).toBeGreaterThan(0);
   });
 });
