@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { eq, sql } from "drizzle-orm";
 
+import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
 import { uploadPhoto } from "@/lib/s3";
@@ -38,7 +39,7 @@ export interface ProductCandidate {
 }
 
 export type MatchResult =
-  | { kind: "confident"; product: ProductCandidate }
+  | { kind: "confident"; product: ProductCandidate; alternatives: ProductCandidate[] }
   | { kind: "ambiguous"; candidates: ProductCandidate[] }
   | { kind: "no_match" };
 
@@ -95,7 +96,11 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
   const top2Score = rows.length > 1 ? Number(rows[1].score) : 0;
 
   if (isConfidentMatch(top1Score, top2Score)) {
-    return { kind: "confident", product: toProductCandidate(rows[0]) };
+    return {
+      kind: "confident",
+      product: toProductCandidate(rows[0]),
+      alternatives: rows.slice(1).map(toProductCandidate),
+    };
   }
   if (top1Score >= AMBIGUOUS_SIMILARITY_THRESHOLD) {
     return { kind: "ambiguous", candidates: rows.map(toProductCandidate) };
@@ -106,17 +111,18 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
 export interface CreateProductInput {
   name: string;
   nutritionPer100g: NutritionValues;
-  photo: { buffer: Buffer; contentType: string };
-  userId: string;
+  photo: Blob;
 }
 
 export const createProduct = async (
   input: CreateProductInput,
 ): Promise<{ productId: string }> => {
-  const extension = input.photo.contentType === "image/png" ? "png" : "jpg";
+  const userId = await requireUserId();
+  const extension = input.photo.type === "image/png" ? "png" : "jpg";
   const photoKey = `products/${randomUUID()}.${extension}`;
+  const buffer = Buffer.from(await input.photo.arrayBuffer());
 
-  await uploadPhoto(photoKey, input.photo.buffer, input.photo.contentType);
+  await uploadPhoto(photoKey, buffer, input.photo.type);
 
   const [row] = await db
     .insert(products)
@@ -130,7 +136,7 @@ export const createProduct = async (
       proteinG: String(input.nutritionPer100g.proteinG),
       saltG: String(input.nutritionPer100g.saltG),
       nutritionPhotoKey: photoKey,
-      createdByUserId: input.userId,
+      createdByUserId: userId,
     })
     .returning({ id: products.id });
 
@@ -139,13 +145,13 @@ export const createProduct = async (
 
 export interface UpdateProductInput {
   nutritionPer100g: NutritionValues;
-  userId: string;
 }
 
 export const updateProduct = async (
   productId: string,
   updates: UpdateProductInput,
 ): Promise<void> => {
+  const userId = await requireUserId();
   await db
     .update(products)
     .set({
@@ -156,7 +162,7 @@ export const updateProduct = async (
       sugarsG: String(updates.nutritionPer100g.sugarsG),
       proteinG: String(updates.nutritionPer100g.proteinG),
       saltG: String(updates.nutritionPer100g.saltG),
-      updatedByUserId: updates.userId,
+      updatedByUserId: userId,
       updatedAt: new Date(),
     })
     .where(eq(products.id, productId));

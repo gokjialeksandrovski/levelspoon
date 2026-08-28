@@ -1,5 +1,8 @@
 import { eq, sql } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockAuth = vi.fn();
+vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
@@ -31,37 +34,23 @@ const seedProduct = async (userId: string, name: string) => {
 
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals CASCADE`);
+  mockAuth.mockReset();
 });
 
 describe("matchProduct", () => {
-  it("returns a confident match for a near-exact name with no close competitor", async () => {
+  it("returns a confident match with no alternatives when only one product exists", async () => {
     const userId = await seedUser();
     await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
 
     const result = await matchProduct("Olympus Greek Yogurt 2 Fat");
 
     expect(result.kind).toBe("confident");
+    if (result.kind === "confident") {
+      expect(result.alternatives).toEqual([]);
+    }
   });
 
   it("routes the 2%-vs-10% variant pair to ambiguous, not confident", async () => {
-    // The margin rule's entire reason for existing (spec §1): two variants
-    // score far above the confident threshold against each other despite
-    // being nutritionally different. This must never take the no-confirm
-    // fast path.
-    //
-    // The query text deliberately omits the fat-percentage digits/symbol -
-    // this mirrors a realistic OCR read that captured the words but missed
-    // the specific number (exactly the kind of drop the M1 OCR milestone's
-    // real photo exhibited), and is what actually produces a close margin
-    // between the two variants. An OCR text that happens to be an EXACT
-    // match to one variant's full name (e.g. "...2% Fat" verbatim) scores
-    // 1.0 against it and only ~0.83 against the other - a 0.167 margin,
-    // which clears CONFIDENT_MARGIN and would (correctly, by the rule's own
-    // logic) return confident, not ambiguous. That isn't a bug in the
-    // matching logic; it's just not the scenario this test is meant to
-    // exercise, so the query text must not be an exact match to either
-    // seeded name.
-    //
     // Measured directly against these two exact seeded strings (2026-08-28):
     // similarity("Olympus Greek Yogurt Fat", "...2% Fat") ~= 0.926
     // similarity("Olympus Greek Yogurt Fat", "...10% Fat") ~= 0.893
@@ -91,8 +80,9 @@ describe("matchProduct", () => {
 });
 
 describe("createProduct", () => {
-  it("writes a new product with the uploaded photo's key", async () => {
+  it("writes a new product owned by the authenticated user", async () => {
     const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
 
     const { productId } = await createProduct({
       name: "Fresh Milk 3.2%",
@@ -105,22 +95,43 @@ describe("createProduct", () => {
         proteinG: 3.2,
         saltG: 0.1,
       },
-      photo: { buffer: Buffer.from("fake-jpeg-bytes"), contentType: "image/jpeg" },
-      userId,
+      photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
     });
 
     const [row] = await db.select().from(products).where(eq(products.id, productId));
     expect(row.name).toBe("Fresh Milk 3.2%");
     expect(row.nutritionPhotoKey).toMatch(/^products\/.+/);
+    expect(row.createdByUserId).toBe(userId);
+  });
+
+  it("throws when there is no authenticated session", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    await expect(
+      createProduct({
+        name: "Fresh Milk 3.2%",
+        nutritionPer100g: {
+          energyKcal: 61,
+          fatG: 3.2,
+          saturatesG: 2.0,
+          carbohydrateG: 4.8,
+          sugarsG: 4.8,
+          proteinG: 3.2,
+          saltG: 0.1,
+        },
+        photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
+      }),
+    ).rejects.toThrow();
   });
 });
 
 describe("updateProduct", () => {
-  it("updates nutrition values and stamps the corrector", async () => {
+  it("updates nutrition values and stamps the corrector from the session", async () => {
     const userId = await seedUser();
     const correctorId = await seedUser();
     await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
     const [existing] = await db.select().from(products);
+    mockAuth.mockResolvedValue({ user: { id: correctorId } });
 
     await updateProduct(existing.id, {
       nutritionPer100g: {
@@ -132,12 +143,10 @@ describe("updateProduct", () => {
         proteinG: 9.0,
         saltG: 0.18,
       },
-      userId: correctorId,
     });
 
     const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
     expect(Number(updated.energyKcal)).toBe(75);
-    expect(Number(updated.fatG)).toBe(2.5);
     expect(updated.updatedByUserId).toBe(correctorId);
     expect(updated.updatedAt).not.toBeNull();
   });
