@@ -7,6 +7,36 @@ class OcrServiceError extends Error {
   }
 }
 
+// ocr-service's actual wire shape (per-field, per-100g) - snake_case, matching
+// its validate.py flag naming that confirm-step.tsx's FLAG_TO_FIELD already
+// documents. This never matched NullableNutritionValues's camelCase shape at
+// runtime; only tier-5 (real ocr-service, no mock) can catch that, since
+// MockOcrProvider hardcodes the camelCase shape directly.
+interface RawNutritionValues {
+  energy_kcal: number | null;
+  fat_g: number | null;
+  saturates_g: number | null;
+  carbohydrate_g: number | null;
+  sugars_g: number | null;
+  protein_g: number | null;
+  salt_g: number | null;
+}
+
+interface RawNutritionTableResponse {
+  values: RawNutritionValues;
+  flags: string[];
+}
+
+const toNullableNutritionValues = (raw: RawNutritionValues): NullableNutritionValues => ({
+  energyKcal: raw.energy_kcal,
+  fatG: raw.fat_g,
+  saturatesG: raw.saturates_g,
+  carbohydrateG: raw.carbohydrate_g,
+  sugarsG: raw.sugars_g,
+  proteinG: raw.protein_g,
+  saltG: raw.salt_g,
+});
+
 const ocrServiceUrl = (): string => {
   const url = process.env.OCR_SERVICE_URL;
   if (!url) {
@@ -34,9 +64,7 @@ export class HttpOcrProvider implements OcrProvider {
   async extractNutritionTable(
     photo: Blob,
   ): Promise<{ values: NullableNutritionValues; flags: string[] }> {
-    return (await postImage("/ocr/nutrition-table", photo)) as {
-      values: NullableNutritionValues;
-      flags: string[];
-    };
+    const raw = (await postImage("/ocr/nutrition-table", photo)) as RawNutritionTableResponse;
+    return { values: toNullableNutritionValues(raw.values), flags: raw.flags };
   }
 }
