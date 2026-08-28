@@ -17,6 +17,7 @@
     "db:seed": "npm --prefix app run db:seed",
     "db:reset": "npm run db:drop && npm run db:migrate && npm run db:seed",
     "test": "npm --prefix app run test",
-    "test:e2e": "npm --prefix app run test:e2e"
+    "test:e2e": "npm --prefix app run test:e2e",
+    "test:e2e:real": "npm run ocr:up && npm --prefix app run test:e2e:real"
   }
 }
