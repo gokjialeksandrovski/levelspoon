@@ -1,5 +1,5 @@
 // app/src/app/meals/[mealId]/capture-wizard.types.ts
-import type { MatchResult, NutritionValues } from "@/actions/products";
+import type { MatchResult } from "@/actions/products";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
 export interface SelectedProduct {

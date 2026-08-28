@@ -41,6 +41,7 @@ describe("matchProduct", () => {
   it("returns a confident match with no alternatives when only one product exists", async () => {
     const userId = await seedUser();
     await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
 
     const result = await matchProduct("Olympus Greek Yogurt 2 Fat");
 
@@ -58,6 +59,7 @@ describe("matchProduct", () => {
     const userId = await seedUser();
     await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
     await seedProduct(userId, "Olympus Greek Yogurt 10% Fat");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
 
     const result = await matchProduct("Olympus Greek Yogurt Fat");
 
@@ -67,6 +69,7 @@ describe("matchProduct", () => {
   it("returns no_match when nothing scores above the ambiguous floor", async () => {
     const userId = await seedUser();
     await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
 
     const result = await matchProduct("Completely Unrelated Product Name Zzz");
 
@@ -74,8 +77,17 @@ describe("matchProduct", () => {
   });
 
   it("returns no_match against an empty products table", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
     const result = await matchProduct("Anything");
     expect(result.kind).toBe("no_match");
+  });
+
+  it("throws when there is no authenticated session", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    await expect(matchProduct("Anything")).rejects.toThrow();
   });
 });
 

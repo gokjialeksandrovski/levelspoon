@@ -53,7 +53,11 @@ export const ProductNameStep = ({ dispatch }: ProductNameStepProps) => {
     return (
       <div className="flex flex-col gap-3">
         <h2 className="font-medium">Type the product name</h2>
+        <label htmlFor="manual-product-name" className="text-sm font-medium text-gray-700">
+          Product name
+        </label>
         <input
+          id="manual-product-name"
           value={manualName}
           onChange={(event) => setManualName(event.target.value)}
           className="rounded border border-gray-300 px-3 py-2"

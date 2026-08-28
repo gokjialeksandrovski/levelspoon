@@ -28,7 +28,11 @@ const SignUpPage = () => {
       return;
     }
 
-    await signIn("credentials", { email, password, redirect: false });
+    const result = await signIn("credentials", { email, password, redirect: false });
+    if (result?.error) {
+      setError("Account created, but sign-in failed. Please sign in manually.");
+      return;
+    }
     router.push("/meals/new");
   };
 

@@ -77,7 +77,11 @@ const toProductCandidate = (row: CandidateRow): ProductCandidate => ({
 const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
   top1Score >= CONFIDENT_SIMILARITY_THRESHOLD && top1Score - top2Score >= CONFIDENT_MARGIN;
 
+const isRelevantScore = (row: CandidateRow): boolean =>
+  Number(row.score) >= AMBIGUOUS_SIMILARITY_THRESHOLD;
+
 export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
+  await requireUserId();
   const result = await db.execute<CandidateRow>(sql`
     SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
            sugars_g, protein_g, salt_g, nutrition_photo_key,
@@ -99,11 +103,11 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
     return {
       kind: "confident",
       product: toProductCandidate(rows[0]),
-      alternatives: rows.slice(1).map(toProductCandidate),
+      alternatives: rows.slice(1).filter(isRelevantScore).map(toProductCandidate),
     };
   }
   if (top1Score >= AMBIGUOUS_SIMILARITY_THRESHOLD) {
-    return { kind: "ambiguous", candidates: rows.map(toProductCandidate) };
+    return { kind: "ambiguous", candidates: rows.filter(isRelevantScore).map(toProductCandidate) };
   }
   return { kind: "no_match" };
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.stubEnv("OCR_PROVIDER", "mock");
+vi.mock("@/auth", () => ({ auth: () => Promise.resolve({ user: { id: crypto.randomUUID() } }) }));
 
 import { ocrNutritionTable, ocrProductName } from "./ocr";
 
