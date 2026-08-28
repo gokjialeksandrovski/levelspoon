@@ -52,3 +52,53 @@ test("happy path: confident match through save updates the day total", async ({ 
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
   await expect(page.getByText(/140 kcal/)).toBeVisible();
 });
+
+const seedAmbiguousVariants = async () => {
+  const [user] = await db.insert(users).values({ email: freshEmail() }).returning();
+  const base = {
+    energyKcal: "70",
+    fatG: "2.0",
+    saturatesG: "1.2",
+    carbohydrateG: "4.0",
+    sugarsG: "4.0",
+    proteinG: "9.0",
+    saltG: "0.18",
+    nutritionPhotoKey: "test/placeholder.jpg",
+    createdByUserId: user.id,
+  };
+  await db.insert(products).values([
+    { ...base, name: "Olympus Greek Yogurt 2% Fat" },
+    { ...base, name: "Olympus Greek Yogurt 10% Fat" },
+  ]);
+};
+
+test("ambiguous match: picking a candidate proceeds to the amount step", async ({ page }) => {
+  await seedAmbiguousVariants();
+  await signUp(page);
+
+  await page.getByLabel("Meal name").fill("Lunch");
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+
+  await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/ambiguous-product.jpg");
+  await expect(page.getByText("Which product is this?")).toBeVisible();
+
+  await page.getByRole("button", { name: "Olympus Greek Yogurt 2% Fat" }).click();
+  await expect(page.getByText("Using Olympus Greek Yogurt 2% Fat")).toBeVisible();
+});
+
+test("no match: creating a new product proceeds to the amount step", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByLabel("Meal name").fill("Dinner");
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+
+  await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/no-match-product.jpg");
+  await page.getByLabel("Nutrition table photo").setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
+
+  await expect(page.getByText("Confirm nutrition (per 100g)")).toBeVisible();
+  await page.getByRole("button", { name: "Save product" }).click();
+
+  await expect(page.getByText(/^Using /)).toBeVisible();
+});
