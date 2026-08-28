@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:drop": "tsx --env-file=.env.local scripts/drop.ts",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test -c playwright.config.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
@@ -28,6 +29,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
