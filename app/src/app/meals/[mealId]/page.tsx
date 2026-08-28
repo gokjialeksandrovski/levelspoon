@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getMeal } from "@/actions/meals";
 
+import { CaptureWizard } from "./capture-wizard";
 import { DayTotalBar } from "./day-total-bar";
 
 const MealPage = async ({ params }: { params: Promise<{ mealId: string }> }) => {
@@ -16,7 +17,7 @@ const MealPage = async ({ params }: { params: Promise<{ mealId: string }> }) => 
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold">{meal.name}</h1>
       <DayTotalBar />
-      <p className="text-sm text-gray-500">Capture flow coming in the next task.</p>
+      <CaptureWizard mealId={mealId} />
     </div>
   );
 };
