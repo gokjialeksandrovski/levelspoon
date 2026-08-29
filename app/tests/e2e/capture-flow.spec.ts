@@ -42,6 +42,7 @@ test("happy path: confident match through save updates the day total", async ({ 
   await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
+  await page.getByRole("button", { name: "Add ingredient" }).click();
 
   await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/confident-product.jpg");
   await expect(page.getByText("Using Olympus Greek Yogurt 2% Fat")).toBeVisible();
@@ -50,7 +51,11 @@ test("happy path: confident match through save updates the day total", async ({ 
   await page.getByRole("button", { name: "Save ingredient" }).click();
 
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
-  await expect(page.getByText(/140 kcal/)).toBeVisible();
+  // Matched loosely (/140 kcal/) this also hits the new ingredient row and
+  // "Meal total" line that Task 4 added to the page, both showing the same
+  // value for a single-ingredient meal - scope to the day-total bar's own
+  // "Today: " prefix so this stays a check on the day total, per the test name.
+  await expect(page.getByText(/Today: 140 kcal/)).toBeVisible();
 });
 
 const seedAmbiguousVariants = async () => {
@@ -79,6 +84,7 @@ test("ambiguous match: picking a candidate proceeds to the amount step", async (
   await page.getByLabel("Meal name").fill("Lunch");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
+  await page.getByRole("button", { name: "Add ingredient" }).click();
 
   await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/ambiguous-product.jpg");
   await expect(page.getByText("Which product is this?")).toBeVisible();
@@ -93,6 +99,7 @@ test("no match: creating a new product proceeds to the amount step", async ({ pa
   await page.getByLabel("Meal name").fill("Dinner");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
+  await page.getByRole("button", { name: "Add ingredient" }).click();
 
   await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/no-match-product.jpg");
   await page.getByLabel("Nutrition table photo").setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");

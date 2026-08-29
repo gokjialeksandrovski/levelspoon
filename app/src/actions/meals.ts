@@ -54,15 +54,6 @@ export const createMeal = async (input: CreateMealInput): Promise<{ mealId: stri
   return { mealId: row.id };
 };
 
-export const getMeal = async (mealId: string): Promise<{ id: string; name: string } | null> => {
-  const userId = await requireUserId();
-  const [meal] = await db
-    .select({ id: meals.id, name: meals.name })
-    .from(meals)
-    .where(and(eq(meals.id, mealId), eq(meals.userId, userId)));
-  return meal ?? null;
-};
-
 const ZERO_NUTRITION: NutritionValues = {
   energyKcal: 0,
   fatG: 0,
@@ -172,4 +163,78 @@ export const getDayLog = async (date: string, timezone: string): Promise<DayLog>
   const dayMeals = toDayMealSummaries(rows);
   const dayTotal = dayMeals.reduce((total, meal) => addNutrition(total, meal.total), ZERO_NUTRITION);
   return { meals: dayMeals, dayTotal };
+};
+
+export interface MealIngredientDetail {
+  id: string;
+  productId: string;
+  productName: string;
+  quantityG: number;
+  quantitySource: "ai_estimated" | "manual";
+  contribution: NutritionValues;
+}
+
+export interface MealDetail {
+  id: string;
+  name: string;
+  ingredients: MealIngredientDetail[];
+  total: NutritionValues;
+}
+
+interface MealIngredientRow {
+  id: string;
+  productId: string;
+  productName: string;
+  quantityG: string;
+  quantitySource: "ai_estimated" | "manual";
+  product: ProductNutritionRow;
+}
+
+const MEAL_INGREDIENT_SELECTION = {
+  id: mealIngredients.id,
+  productId: mealIngredients.productId,
+  productName: products.name,
+  quantityG: mealIngredients.quantityG,
+  quantitySource: mealIngredients.quantitySource,
+  product: {
+    energyKcal: products.energyKcal,
+    fatG: products.fatG,
+    saturatesG: products.saturatesG,
+    carbohydrateG: products.carbohydrateG,
+    sugarsG: products.sugarsG,
+    proteinG: products.proteinG,
+    saltG: products.saltG,
+  },
+};
+
+const fetchMealIngredientRows = async (mealId: string): Promise<MealIngredientRow[]> =>
+  db
+    .select(MEAL_INGREDIENT_SELECTION)
+    .from(mealIngredients)
+    .innerJoin(products, eq(mealIngredients.productId, products.id))
+    .where(eq(mealIngredients.mealId, mealId));
+
+const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail => ({
+  id: row.id,
+  productId: row.productId,
+  productName: row.productName,
+  quantityG: Number(row.quantityG),
+  quantitySource: row.quantitySource,
+  contribution: computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG)),
+});
+
+export const getMealDetail = async (mealId: string): Promise<MealDetail | null> => {
+  const userId = await requireUserId();
+  const [meal] = await db
+    .select({ id: meals.id, name: meals.name })
+    .from(meals)
+    .where(and(eq(meals.id, mealId), eq(meals.userId, userId)));
+  if (!meal) {
+    return null;
+  }
+
+  const rows = await fetchMealIngredientRows(mealId);
+  const ingredients = rows.map(toMealIngredientDetail);
+  const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
+  return { id: meal.id, name: meal.name, ingredients, total };
 };

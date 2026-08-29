@@ -9,7 +9,7 @@ import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { computeContribution } from "./meals.utils";
-import { createMeal, getDayLog, getMeal, saveMealIngredient } from "./meals";
+import { createMeal, getDayLog, getMealDetail, saveMealIngredient } from "./meals";
 import { NotAuthorizedError } from "./meals.errors";
 
 const seedUser = async (): Promise<string> => {
@@ -67,15 +67,32 @@ describe("createMeal", () => {
   });
 });
 
-describe("getMeal", () => {
-  it("returns the meal when the authenticated user owns it", async () => {
+describe("getMealDetail", () => {
+  it("returns the meal with its ingredients and total when the authenticated user owns it", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal({ name: "Breakfast" });
+    await saveMealIngredient({ mealId, productId, quantityG: 200, quantitySource: "manual" });
+
+    const meal = await getMealDetail(mealId);
+
+    expect(meal?.name).toBe("Breakfast");
+    expect(meal?.ingredients).toHaveLength(1);
+    expect(meal?.ingredients[0].productName).toBe("Test Product");
+    expect(meal?.ingredients[0].quantityG).toBe(200);
+    expect(meal?.total.energyKcal).toBeCloseTo(140, 5);
+  });
+
+  it("returns an empty ingredient list and zero total for a meal with no ingredients yet", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal({ name: "Breakfast" });
 
-    const meal = await getMeal(mealId);
+    const meal = await getMealDetail(mealId);
 
-    expect(meal).toEqual({ id: mealId, name: "Breakfast" });
+    expect(meal?.ingredients).toEqual([]);
+    expect(meal?.total.energyKcal).toBe(0);
   });
 
   it("returns null when a different user owns the meal", async () => {
@@ -85,7 +102,7 @@ describe("getMeal", () => {
     const { mealId } = await createMeal({ name: "Breakfast" });
 
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
-    const meal = await getMeal(mealId);
+    const meal = await getMealDetail(mealId);
 
     expect(meal).toBeNull();
   });

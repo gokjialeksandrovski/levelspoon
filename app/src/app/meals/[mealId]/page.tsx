@@ -1,14 +1,32 @@
 // app/src/app/meals/[mealId]/page.tsx
 import { notFound } from "next/navigation";
 
-import { getMeal } from "@/actions/meals";
+import { getMealDetail, type MealIngredientDetail } from "@/actions/meals";
 
-import { CaptureWizard } from "./capture-wizard";
+import { AddIngredientSection } from "./add-ingredient-section";
 import { DayTotalBar } from "./day-total-bar";
+
+// Task 7 replaces this read-only list with an interactive IngredientRow component.
+const IngredientList = ({ ingredients }: { ingredients: MealIngredientDetail[] }) => (
+  <ul className="flex flex-col gap-2">
+    {ingredients.map((ingredient) => (
+      <li key={ingredient.id} className="rounded border p-3 text-sm text-gray-700">
+        {ingredient.productName} — {ingredient.quantityG}g — {Math.round(ingredient.contribution.energyKcal)} kcal
+      </li>
+    ))}
+  </ul>
+);
+
+const MealTotal = ({ energyKcal }: { energyKcal: number }) => (
+  <div className="rounded border bg-gray-50 p-3 text-sm">
+    <span className="font-medium">Meal total: </span>
+    {Math.round(energyKcal)} kcal
+  </div>
+);
 
 const MealPage = async ({ params }: { params: Promise<{ mealId: string }> }) => {
   const { mealId } = await params;
-  const meal = await getMeal(mealId);
+  const meal = await getMealDetail(mealId);
   if (!meal) {
     notFound();
   }
@@ -26,7 +44,9 @@ const MealPage = async ({ params }: { params: Promise<{ mealId: string }> }) => 
       */}
       {/* eslint-disable-next-line react-hooks/purity -- Date.now() here is deliberate, not a purity bug: MealPage is a Server Component that executes once per server request/refresh (no client-side re-render or double-invoke to make unstable), so a fresh value per execution is exactly the intended per-request behavior. */}
       <DayTotalBar key={Date.now()} />
-      <CaptureWizard mealId={mealId} />
+      {meal.ingredients.length > 0 && <IngredientList ingredients={meal.ingredients} />}
+      {meal.ingredients.length > 0 && <MealTotal energyKcal={meal.total.energyKcal} />}
+      <AddIngredientSection mealId={mealId} />
     </div>
   );
 };

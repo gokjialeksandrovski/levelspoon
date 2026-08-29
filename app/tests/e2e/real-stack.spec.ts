@@ -25,6 +25,7 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
+  await page.getByRole("button", { name: "Add ingredient" }).click();
 
   await page.getByLabel("Product photo").setInputFiles("../fixtures/photos/olympus-greek-2pct-front.jpg");
 
@@ -49,5 +50,9 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   await page.getByLabel("Amount (g)").fill("150");
   await page.getByRole("button", { name: "Save ingredient" }).click();
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
-  await expect(page.getByText(/105 kcal/)).toBeVisible();
+  // Matched loosely (/105 kcal/) this also hits the new ingredient row and
+  // "Meal total" line that Task 4 added to the page, both showing the same
+  // value for a single-ingredient meal - scope to the day-total bar's own
+  // "Today: " prefix so this stays a check on the day total.
+  await expect(page.getByText(/Today: 105 kcal/)).toBeVisible();
 });
