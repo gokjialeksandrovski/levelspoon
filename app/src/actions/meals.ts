@@ -25,6 +25,17 @@ const assertMealOwnership = async (mealId: string, userId: string): Promise<void
   }
 };
 
+const assertMealIngredientOwnership = async (mealIngredientId: string, userId: string): Promise<void> => {
+  const [row] = await db
+    .select({ mealId: mealIngredients.mealId })
+    .from(mealIngredients)
+    .where(eq(mealIngredients.id, mealIngredientId));
+  if (!row) {
+    throw new NotAuthorizedError();
+  }
+  await assertMealOwnership(row.mealId, userId);
+};
+
 export const saveMealIngredient = async (
   input: SaveMealIngredientInput,
 ): Promise<{ mealIngredientId: string }> => {
@@ -237,4 +248,22 @@ export const getMealDetail = async (mealId: string): Promise<MealDetail | null> 
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
   return { id: meal.id, name: meal.name, ingredients, total };
+};
+
+export const removeMealIngredient = async (mealIngredientId: string): Promise<void> => {
+  const userId = await requireUserId();
+  await assertMealIngredientOwnership(mealIngredientId, userId);
+  await db.delete(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
+};
+
+export const updateMealIngredientQuantity = async (
+  mealIngredientId: string,
+  quantityG: number,
+): Promise<void> => {
+  const userId = await requireUserId();
+  await assertMealIngredientOwnership(mealIngredientId, userId);
+  await db
+    .update(mealIngredients)
+    .set({ quantityG: String(quantityG), quantitySource: "manual" })
+    .where(eq(mealIngredients.id, mealIngredientId));
 };

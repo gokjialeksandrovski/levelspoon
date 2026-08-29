@@ -9,7 +9,7 @@ import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { computeContribution } from "./meals.utils";
-import { createMeal, getDayLog, getMealDetail, saveMealIngredient } from "./meals";
+import { createMeal, getDayLog, getMealDetail, saveMealIngredient, removeMealIngredient, updateMealIngredientQuantity } from "./meals";
 import { NotAuthorizedError } from "./meals.errors";
 
 const seedUser = async (): Promise<string> => {
@@ -194,5 +194,68 @@ describe("getDayLog", () => {
 
     expect(sameUtcDayLog.meals).toEqual([]);
     expect(nextLocalDayLog.meals).toHaveLength(1);
+  });
+});
+
+describe("removeMealIngredient", () => {
+  it("deletes the ingredient when the authenticated user owns the meal", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal({ name: "Breakfast" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantityG: 200, quantitySource: "manual",
+    });
+
+    await removeMealIngredient(mealIngredientId);
+
+    const rows = await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
+    expect(rows).toEqual([]);
+  });
+
+  it("throws NotAuthorizedError when a different user owns the meal", async () => {
+    const ownerId = await seedUser();
+    const intruderId = await seedUser();
+    const productId = await seedProduct(ownerId);
+    mockAuth.mockResolvedValue({ user: { id: ownerId } });
+    const { mealId } = await createMeal({ name: "Breakfast" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantityG: 200, quantitySource: "manual",
+    });
+
+    mockAuth.mockResolvedValue({ user: { id: intruderId } });
+    await expect(removeMealIngredient(mealIngredientId)).rejects.toThrow(NotAuthorizedError);
+  });
+});
+
+describe("updateMealIngredientQuantity", () => {
+  it("updates the quantity and marks the source manual, even if it was ai_estimated", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal({ name: "Breakfast" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantityG: 200, quantitySource: "ai_estimated",
+    });
+
+    await updateMealIngredientQuantity(mealIngredientId, 100);
+
+    const [row] = await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
+    expect(Number(row.quantityG)).toBe(100);
+    expect(row.quantitySource).toBe("manual");
+  });
+
+  it("throws NotAuthorizedError when a different user owns the meal", async () => {
+    const ownerId = await seedUser();
+    const intruderId = await seedUser();
+    const productId = await seedProduct(ownerId);
+    mockAuth.mockResolvedValue({ user: { id: ownerId } });
+    const { mealId } = await createMeal({ name: "Breakfast" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantityG: 200, quantitySource: "manual",
+    });
+
+    mockAuth.mockResolvedValue({ user: { id: intruderId } });
+    await expect(updateMealIngredientQuantity(mealIngredientId, 100)).rejects.toThrow(NotAuthorizedError);
   });
 });
