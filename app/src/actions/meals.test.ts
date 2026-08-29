@@ -6,9 +6,10 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { computeContribution } from "./meals.utils";
-import { createMeal, getMeal, getTodayTotal, saveMealIngredient } from "./meals";
+import { createMeal, getDayLog, getMeal, saveMealIngredient } from "./meals";
 import { NotAuthorizedError } from "./meals.errors";
 
 const seedUser = async (): Promise<string> => {
@@ -122,37 +123,27 @@ describe("saveMealIngredient", () => {
   });
 });
 
-describe("getTodayTotal", () => {
-  it("sums today's ingredients for the authenticated user only", async () => {
+describe("getDayLog", () => {
+  it("sums a user's meals within the local day only", async () => {
     const userId = await seedUser();
-    const otherUserId = await seedUser();
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal({ name: "Breakfast" });
     await saveMealIngredient({ mealId, productId, quantityG: 200, quantitySource: "manual" });
 
-    const otherProductId = await seedProduct(otherUserId);
-    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
-    const { mealId: otherMealId } = await createMeal({ name: "Other" });
-    await saveMealIngredient({ mealId: otherMealId, productId: otherProductId, quantityG: 999, quantitySource: "manual" });
+    const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
 
-    mockAuth.mockResolvedValue({ user: { id: userId } });
-    const total = await getTodayTotal();
-
-    // 200g of a 70kcal/100g product = 140kcal
-    expect(total.energyKcal).toBeCloseTo(140, 5);
+    expect(log.dayTotal.energyKcal).toBeCloseTo(140, 5);
+    expect(log.meals).toEqual([{ id: mealId, name: "Breakfast", total: log.dayTotal }]);
   });
 
-  it("excludes ingredients logged before today", async () => {
+  it("excludes meals from a different local day", async () => {
     const userId = await seedUser();
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    const { mealId } = await createMeal({ name: "Yesterday's meal" });
+    const { mealId } = await createMeal({ name: "Yesterday" });
     const { mealIngredientId } = await saveMealIngredient({
-      mealId,
-      productId,
-      quantityG: 200,
-      quantitySource: "manual",
+      mealId, productId, quantityG: 200, quantitySource: "manual",
     });
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     await db
@@ -160,8 +151,31 @@ describe("getTodayTotal", () => {
       .set({ createdAt: new Date(Date.now() - ONE_DAY_MS) })
       .where(eq(mealIngredients.id, mealIngredientId));
 
-    const total = await getTodayTotal();
+    const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
 
-    expect(total.energyKcal).toBe(0);
+    expect(log.meals).toEqual([]);
+    expect(log.dayTotal.energyKcal).toBe(0);
+  });
+
+  it("assigns a late-evening UTC entry to the correct local day in a positive-offset timezone", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal({ name: "Late snack" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantityG: 100, quantitySource: "manual",
+    });
+    // 2026-01-01T22:00:00Z is already 2026-01-02 local in Asia/Kolkata (UTC+5:30) -
+    // exactly the bug getDayLog exists to fix.
+    await db
+      .update(mealIngredients)
+      .set({ createdAt: new Date("2026-01-01T22:00:00Z") })
+      .where(eq(mealIngredients.id, mealIngredientId));
+
+    const sameUtcDayLog = await getDayLog("2026-01-01", "Asia/Kolkata");
+    const nextLocalDayLog = await getDayLog("2026-01-02", "Asia/Kolkata");
+
+    expect(sameUtcDayLog.meals).toEqual([]);
+    expect(nextLocalDayLog.meals).toHaveLength(1);
   });
 });

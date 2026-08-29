@@ -1,8 +1,9 @@
 "use server";
 
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
+import { dayBoundsInTimezone, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products } from "@/lib/db/schema";
 
@@ -82,51 +83,93 @@ const addNutrition = (a: NutritionValues, b: NutritionValues): NutritionValues =
   saltG: a.saltG + b.saltG,
 });
 
-const startOfTodayUtc = (): Date => {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+export interface DayMealSummary {
+  id: string;
+  name: string;
+  total: NutritionValues;
+}
+
+export interface DayLog {
+  meals: DayMealSummary[];
+  dayTotal: NutritionValues;
+}
+
+interface ProductNutritionRow {
+  energyKcal: string;
+  fatG: string;
+  saturatesG: string;
+  carbohydrateG: string;
+  sugarsG: string;
+  proteinG: string;
+  saltG: string;
+}
+
+const productRowToNutritionValues = (product: ProductNutritionRow): NutritionValues => ({
+  energyKcal: Number(product.energyKcal),
+  fatG: Number(product.fatG),
+  saturatesG: Number(product.saturatesG),
+  carbohydrateG: Number(product.carbohydrateG),
+  sugarsG: Number(product.sugarsG),
+  proteinG: Number(product.proteinG),
+  saltG: Number(product.saltG),
+});
+
+interface DayMealIngredientRow {
+  mealId: string;
+  mealName: string;
+  quantityG: string;
+  product: ProductNutritionRow;
+}
+
+const DAY_MEAL_INGREDIENT_SELECTION = {
+  mealId: meals.id,
+  mealName: meals.name,
+  quantityG: mealIngredients.quantityG,
+  product: {
+    energyKcal: products.energyKcal,
+    fatG: products.fatG,
+    saturatesG: products.saturatesG,
+    carbohydrateG: products.carbohydrateG,
+    sugarsG: products.sugarsG,
+    proteinG: products.proteinG,
+    saltG: products.saltG,
+  },
 };
 
-// "Today" = the server's UTC calendar day. A known simplification, not a
-// real timezone implementation - M3's full day view must revisit it
-// (design spec §10).
-const fetchTodayContributions = async (userId: string): Promise<NutritionValues[]> => {
-  const rows = await db
-    .select({
-      quantityG: mealIngredients.quantityG,
-      product: {
-        energyKcal: products.energyKcal,
-        fatG: products.fatG,
-        saturatesG: products.saturatesG,
-        carbohydrateG: products.carbohydrateG,
-        sugarsG: products.sugarsG,
-        proteinG: products.proteinG,
-        saltG: products.saltG,
-      },
-    })
+const fetchDayMealIngredientRows = async (
+  userId: string,
+  bounds: DayBounds,
+): Promise<DayMealIngredientRow[]> =>
+  db
+    .select(DAY_MEAL_INGREDIENT_SELECTION)
     .from(mealIngredients)
     .innerJoin(meals, eq(mealIngredients.mealId, meals.id))
     .innerJoin(products, eq(mealIngredients.productId, products.id))
-    .where(and(eq(meals.userId, userId), gte(mealIngredients.createdAt, startOfTodayUtc())));
+    .where(
+      and(
+        eq(meals.userId, userId),
+        gte(mealIngredients.createdAt, bounds.start),
+        lt(mealIngredients.createdAt, bounds.end),
+      ),
+    );
 
-  return rows.map((row) =>
-    computeContribution(
-      {
-        energyKcal: Number(row.product.energyKcal),
-        fatG: Number(row.product.fatG),
-        saturatesG: Number(row.product.saturatesG),
-        carbohydrateG: Number(row.product.carbohydrateG),
-        sugarsG: Number(row.product.sugarsG),
-        proteinG: Number(row.product.proteinG),
-        saltG: Number(row.product.saltG),
-      },
-      Number(row.quantityG),
-    ),
-  );
-};
+const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
+  rows.reduce<DayMealSummary[]>((summaries, row) => {
+    const contribution = computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG));
+    const index = summaries.findIndex((summary) => summary.id === row.mealId);
+    if (index === -1) {
+      return [...summaries, { id: row.mealId, name: row.mealName, total: contribution }];
+    }
+    return summaries.map((summary, position) =>
+      position === index ? { ...summary, total: addNutrition(summary.total, contribution) } : summary,
+    );
+  }, []);
 
-export const getTodayTotal = async (): Promise<NutritionValues> => {
+export const getDayLog = async (date: string, timezone: string): Promise<DayLog> => {
   const userId = await requireUserId();
-  const contributions = await fetchTodayContributions(userId);
-  return contributions.reduce(addNutrition, ZERO_NUTRITION);
+  const bounds = dayBoundsInTimezone(date, timezone);
+  const rows = await fetchDayMealIngredientRows(userId, bounds);
+  const dayMeals = toDayMealSummaries(rows);
+  const dayTotal = dayMeals.reduce((total, meal) => addNutrition(total, meal.total), ZERO_NUTRITION);
+  return { meals: dayMeals, dayTotal };
 };
