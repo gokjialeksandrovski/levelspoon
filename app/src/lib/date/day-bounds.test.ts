@@ -27,6 +27,15 @@ describe("dayBoundsInTimezone", () => {
     expect(bounds.start.toISOString()).toBe("2026-03-08T05:00:00.000Z");
     expect(bounds.end.toISOString()).toBe("2026-03-09T04:00:00.000Z");
   });
+
+  it("resolves the correct pre-transition offset for a DST-start date in a positive-offset zone", () => {
+    // 2026-10-04 is Australia's DST-start date (Sydney: clocks jump 02:00 -> 03:00
+    // AEST->AEDT). Local midnight that day is still AEST (+10), before the
+    // transition - a single fixed-sample offset lookup gets this wrong by
+    // reading the post-transition AEDT (+11) offset instead.
+    const bounds = dayBoundsInTimezone("2026-10-04", "Australia/Sydney");
+    expect(bounds.start.toISOString()).toBe("2026-10-03T14:00:00.000Z");
+  });
 });
 
 describe("todayLocalDateString", () => {

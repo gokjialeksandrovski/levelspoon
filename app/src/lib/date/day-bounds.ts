@@ -12,7 +12,12 @@ export interface DayBounds {
 }
 
 const MINUTES_TO_MS = 60_000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
+const SECONDS_PER_MINUTE = 60;
+const MILLISECONDS_PER_SECOND = 1000;
+const ONE_DAY_MS = HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
+const ISO_DATE_LENGTH = 10; // "YYYY-MM-DD".length
 
 const offsetFormatter = (timeZone: string): Intl.DateTimeFormat =>
   new Intl.DateTimeFormat("en-US", {
@@ -48,8 +53,19 @@ const timeZoneOffsetMinutes = (instant: Date, timeZone: string): number => {
 const localMidnightUtcInstant = (date: string, timezone: string): Date => {
   const [year, month, day] = date.split("-").map(Number);
   const naiveGuess = Date.UTC(year, month - 1, day);
-  const offsetMinutes = timeZoneOffsetMinutes(new Date(naiveGuess), timezone);
-  return new Date(naiveGuess - offsetMinutes * MINUTES_TO_MS);
+  // A DST transition between `naiveGuess` and the true local-midnight instant
+  // can mean the offset sampled at `naiveGuess` isn't the offset actually in
+  // effect at local midnight itself (verified against Australia/Sydney's
+  // October DST-start, where a single fixed sample is off by the DST delta).
+  // Resampling at the corrected instant and re-applying converges to the
+  // right offset - real-world zones never have two transitions close enough
+  // together for this to need more than one resample.
+  const firstOffsetMinutes = timeZoneOffsetMinutes(new Date(naiveGuess), timezone);
+  const secondOffsetMinutes = timeZoneOffsetMinutes(
+    new Date(naiveGuess - firstOffsetMinutes * MINUTES_TO_MS),
+    timezone,
+  );
+  return new Date(naiveGuess - secondOffsetMinutes * MINUTES_TO_MS);
 };
 
 // Pure calendar-date arithmetic ("what date is N days from this one"), not
@@ -58,7 +74,7 @@ const localMidnightUtcInstant = (date: string, timezone: string): Date => {
 // calculation share this instead of each reimplementing +/- a day.
 export const addCalendarDays = (date: string, days: number): string => {
   const [year, month, day] = date.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day) + days * ONE_DAY_MS).toISOString().slice(0, 10);
+  return new Date(Date.UTC(year, month - 1, day) + days * ONE_DAY_MS).toISOString().slice(0, ISO_DATE_LENGTH);
 };
 
 export const dayBoundsInTimezone = (date: string, timezone: string): DayBounds => ({
