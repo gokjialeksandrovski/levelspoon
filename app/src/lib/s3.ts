@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const REQUIRED_ENV_VARS = [
   "S3_ENDPOINT",
@@ -37,3 +38,10 @@ export const uploadPhoto = async (
     new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }),
   );
 };
+
+const PHOTO_URL_EXPIRY_SECONDS = 300; // long enough for one page view, short enough to limit exposure
+
+export const getPhotoUrl = async (key: string): Promise<string> =>
+  getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
+    expiresIn: PHOTO_URL_EXPIRY_SECONDS,
+  });

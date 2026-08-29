@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { describe, expect, it } from "vitest";
 
-import { uploadPhoto } from "./s3";
+import { getPhotoUrl, uploadPhoto } from "./s3";
 
 describe("uploadPhoto", () => {
   it("writes an object retrievable at the given key", async () => {
@@ -25,5 +25,18 @@ describe("uploadPhoto", () => {
     const retrieved = await result.Body?.transformToString();
 
     expect(retrieved).toBe("hello per100");
+  });
+});
+
+describe("getPhotoUrl", () => {
+  it("returns a presigned URL that resolves to the uploaded content", async () => {
+    const key = `test/${crypto.randomUUID()}.txt`;
+    await uploadPhoto(key, Buffer.from("hello per100"), "text/plain");
+
+    const url = await getPhotoUrl(key);
+    const response = await fetch(url);
+
+    expect(response.ok).toBe(true);
+    expect(await response.text()).toBe("hello per100");
   });
 });
