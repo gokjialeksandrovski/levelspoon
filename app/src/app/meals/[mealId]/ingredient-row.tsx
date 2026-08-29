@@ -1,0 +1,192 @@
+// app/src/app/meals/[mealId]/ingredient-row.tsx
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import { removeMealIngredient, updateMealIngredientQuantity } from "@/actions/meals";
+import type { MealIngredientDetail } from "@/actions/meals";
+
+interface MutationCallbacks {
+  router: ReturnType<typeof useRouter>;
+  onBusyChange: (isBusy: boolean) => void;
+  onError: (message: string) => void;
+}
+
+const removeIngredient = async (
+  mealIngredientId: string,
+  productName: string,
+  callbacks: MutationCallbacks,
+): Promise<void> => {
+  if (!window.confirm(`Remove ${productName}?`)) {
+    return;
+  }
+  callbacks.onBusyChange(true);
+  try {
+    await removeMealIngredient(mealIngredientId);
+    callbacks.router.refresh();
+  } catch {
+    callbacks.onError("Could not remove this ingredient. Please try again.");
+    callbacks.onBusyChange(false);
+  }
+};
+
+const saveIngredientQuantity = async (
+  mealIngredientId: string,
+  quantityG: number,
+  onSaved: () => void,
+  callbacks: MutationCallbacks,
+): Promise<void> => {
+  callbacks.onBusyChange(true);
+  try {
+    await updateMealIngredientQuantity(mealIngredientId, quantityG);
+    onSaved();
+    callbacks.router.refresh();
+  } catch {
+    callbacks.onError("Could not update this ingredient. Please try again.");
+  } finally {
+    callbacks.onBusyChange(false);
+  }
+};
+
+interface UseIngredientEditingResult {
+  isEditing: boolean;
+  quantityInput: string;
+  isBusy: boolean;
+  error: string | null;
+  startEditing: () => void;
+  setQuantityInput: (value: string) => void;
+  saveQuantity: () => Promise<void>;
+  remove: () => Promise<void>;
+}
+
+const useIngredientEditing = (ingredient: MealIngredientDetail): UseIngredientEditingResult => {
+  const router = useRouter();
+  const [isEditing, setIsEditing] = useState(false);
+  const [quantityInput, setQuantityInput] = useState(String(ingredient.quantityG));
+  const [error, setError] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError };
+
+  return {
+    isEditing,
+    quantityInput,
+    isBusy,
+    error,
+    startEditing: () => setIsEditing(true),
+    setQuantityInput,
+    saveQuantity: () =>
+      saveIngredientQuantity(ingredient.id, Number(quantityInput), () => setIsEditing(false), callbacks),
+    remove: () => removeIngredient(ingredient.id, ingredient.productName, callbacks),
+  };
+};
+
+interface IngredientHeaderProps {
+  productName: string;
+  quantitySource: "ai_estimated" | "manual";
+}
+
+const IngredientHeader = ({ productName, quantitySource }: IngredientHeaderProps) => (
+  <div className="flex items-center justify-between">
+    <span className="font-medium">{productName}</span>
+    <span className="text-sm text-gray-500">{quantitySource === "manual" ? "manual" : "estimated"}</span>
+  </div>
+);
+
+interface QuantityEditorProps {
+  ingredientId: string;
+  quantityInput: string;
+  isBusy: boolean;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}
+
+const QuantityEditor = ({ ingredientId, quantityInput, isBusy, onChange, onSave }: QuantityEditorProps) => (
+  <div className="flex items-center gap-2">
+    <label htmlFor={`quantity-${ingredientId}`} className="sr-only">
+      Amount (g)
+    </label>
+    <input
+      id={`quantity-${ingredientId}`}
+      type="number"
+      value={quantityInput}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-24 rounded border border-gray-300 px-2 py-1"
+    />
+    <button type="button" disabled={isBusy} onClick={onSave} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">
+      Save
+    </button>
+  </div>
+);
+
+interface QuantitySummaryProps {
+  quantityG: number;
+  energyKcal: number;
+  isBusy: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}
+
+const QuantitySummary = ({ quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+  <div className="flex items-center justify-between text-sm text-gray-600">
+    <span>
+      {quantityG}g · {Math.round(energyKcal)} kcal
+    </span>
+    <div className="flex gap-3">
+      <button type="button" onClick={onEdit} className="text-blue-600 underline">
+        Edit
+      </button>
+      <button type="button" disabled={isBusy} onClick={onRemove} className="text-red-600 underline">
+        Remove
+      </button>
+    </div>
+  </div>
+);
+
+interface QuantityControlsProps {
+  ingredient: MealIngredientDetail;
+  editing: UseIngredientEditingResult;
+}
+
+const QuantityControls = ({ ingredient, editing }: QuantityControlsProps) =>
+  editing.isEditing ? (
+    <QuantityEditor
+      ingredientId={ingredient.id}
+      quantityInput={editing.quantityInput}
+      isBusy={editing.isBusy}
+      onChange={editing.setQuantityInput}
+      onSave={editing.saveQuantity}
+    />
+  ) : (
+    <QuantitySummary
+      quantityG={ingredient.quantityG}
+      energyKcal={ingredient.contribution.energyKcal}
+      isBusy={editing.isBusy}
+      onEdit={editing.startEditing}
+      onRemove={editing.remove}
+    />
+  );
+
+const CorrectionLink = ({ productId }: { productId: string }) => (
+  <Link href={`/products/${productId}/correct`} className="text-sm text-blue-600 underline">
+    Values look wrong?
+  </Link>
+);
+
+interface IngredientRowProps {
+  ingredient: MealIngredientDetail;
+}
+
+export const IngredientRow = ({ ingredient }: IngredientRowProps) => {
+  const editing = useIngredientEditing(ingredient);
+
+  return (
+    <li className="flex flex-col gap-2 rounded border p-3">
+      <IngredientHeader productName={ingredient.productName} quantitySource={ingredient.quantitySource} />
+      <QuantityControls ingredient={ingredient} editing={editing} />
+      <CorrectionLink productId={ingredient.productId} />
+      {editing.error && <p className="text-sm text-red-600">{editing.error}</p>}
+    </li>
+  );
+};

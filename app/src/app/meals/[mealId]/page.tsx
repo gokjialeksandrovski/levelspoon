@@ -5,14 +5,12 @@ import { getMealDetail, type MealIngredientDetail } from "@/actions/meals";
 
 import { AddIngredientSection } from "./add-ingredient-section";
 import { DayTotalBar } from "./day-total-bar";
+import { IngredientRow } from "./ingredient-row";
 
-// Task 7 replaces this read-only list with an interactive IngredientRow component.
 const IngredientList = ({ ingredients }: { ingredients: MealIngredientDetail[] }) => (
   <ul className="flex flex-col gap-2">
     {ingredients.map((ingredient) => (
-      <li key={ingredient.id} className="rounded border p-3 text-sm text-gray-700">
-        {ingredient.productName} — {ingredient.quantityG}g — {Math.round(ingredient.contribution.energyKcal)} kcal
-      </li>
+      <IngredientRow key={ingredient.id} ingredient={ingredient} />
     ))}
   </ul>
 );
