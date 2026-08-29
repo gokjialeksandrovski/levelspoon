@@ -7,7 +7,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
-import { uploadPhoto } from "@/lib/s3";
+import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
 
 // Spec §1's margin rule: an absolute-threshold-only rule would let two
 // nutritionally-different product variants (e.g. "2% Fat" vs "10% Fat")
@@ -118,27 +118,48 @@ export interface CreateProductInput {
   photo: Blob;
 }
 
+const uploadProductPhoto = async (photo: Blob): Promise<string> => {
+  const extension = photo.type === "image/png" ? "png" : "jpg";
+  const photoKey = `products/${randomUUID()}.${extension}`;
+  const buffer = Buffer.from(await photo.arrayBuffer());
+  await uploadPhoto(photoKey, buffer, photo.type);
+  return photoKey;
+};
+
+// Shared with updateProduct's photo branch (and the reverse mapping in
+// getProductForCorrection) so the per100g <-> numeric-column conversion
+// lives in exactly one place.
+const toNutritionColumns = (values: NutritionValues) => ({
+  energyKcal: String(values.energyKcal),
+  fatG: String(values.fatG),
+  saturatesG: String(values.saturatesG),
+  carbohydrateG: String(values.carbohydrateG),
+  sugarsG: String(values.sugarsG),
+  proteinG: String(values.proteinG),
+  saltG: String(values.saltG),
+});
+
+const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValues => ({
+  energyKcal: Number(row.energyKcal),
+  fatG: Number(row.fatG),
+  saturatesG: Number(row.saturatesG),
+  carbohydrateG: Number(row.carbohydrateG),
+  sugarsG: Number(row.sugarsG),
+  proteinG: Number(row.proteinG),
+  saltG: Number(row.saltG),
+});
+
 export const createProduct = async (
   input: CreateProductInput,
 ): Promise<{ productId: string }> => {
   const userId = await requireUserId();
-  const extension = input.photo.type === "image/png" ? "png" : "jpg";
-  const photoKey = `products/${randomUUID()}.${extension}`;
-  const buffer = Buffer.from(await input.photo.arrayBuffer());
-
-  await uploadPhoto(photoKey, buffer, input.photo.type);
+  const photoKey = await uploadProductPhoto(input.photo);
 
   const [row] = await db
     .insert(products)
     .values({
       name: input.name,
-      energyKcal: String(input.nutritionPer100g.energyKcal),
-      fatG: String(input.nutritionPer100g.fatG),
-      saturatesG: String(input.nutritionPer100g.saturatesG),
-      carbohydrateG: String(input.nutritionPer100g.carbohydrateG),
-      sugarsG: String(input.nutritionPer100g.sugarsG),
-      proteinG: String(input.nutritionPer100g.proteinG),
-      saltG: String(input.nutritionPer100g.saltG),
+      ...toNutritionColumns(input.nutritionPer100g),
       nutritionPhotoKey: photoKey,
       createdByUserId: userId,
     })
@@ -148,7 +169,9 @@ export const createProduct = async (
 };
 
 export interface UpdateProductInput {
+  name?: string;
   nutritionPer100g: NutritionValues;
+  photo?: Blob;
 }
 
 export const updateProduct = async (
@@ -156,18 +179,42 @@ export const updateProduct = async (
   updates: UpdateProductInput,
 ): Promise<void> => {
   const userId = await requireUserId();
+  // Replacing a photo leaves the old R2/MinIO object as an orphan (never
+  // deleted) - an accepted simplification, consistent with the master
+  // spec's existing risk-acceptance style (spec §4.2).
+  const photoKey = updates.photo ? await uploadProductPhoto(updates.photo) : undefined;
+
   await db
     .update(products)
     .set({
-      energyKcal: String(updates.nutritionPer100g.energyKcal),
-      fatG: String(updates.nutritionPer100g.fatG),
-      saturatesG: String(updates.nutritionPer100g.saturatesG),
-      carbohydrateG: String(updates.nutritionPer100g.carbohydrateG),
-      sugarsG: String(updates.nutritionPer100g.sugarsG),
-      proteinG: String(updates.nutritionPer100g.proteinG),
-      saltG: String(updates.nutritionPer100g.saltG),
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...toNutritionColumns(updates.nutritionPer100g),
+      ...(photoKey ? { nutritionPhotoKey: photoKey } : {}),
       updatedByUserId: userId,
       updatedAt: new Date(),
     })
     .where(eq(products.id, productId));
+};
+
+export interface ProductForCorrection {
+  id: string;
+  name: string;
+  nutritionPer100g: NutritionValues;
+  photoUrl: string | null; // null only when getPhotoUrl itself failed - degrade, don't block
+}
+
+export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
+  await requireUserId();
+  const [product] = await db.select().from(products).where(eq(products.id, productId));
+  if (!product) {
+    return null;
+  }
+
+  const photoUrl = await getPhotoUrl(product.nutritionPhotoKey).catch(() => null);
+  return {
+    id: product.id,
+    name: product.name,
+    nutritionPer100g: fromNutritionColumns(product),
+    photoUrl,
+  };
 };

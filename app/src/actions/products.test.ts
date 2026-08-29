@@ -7,7 +7,7 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
 
-import { createProduct, matchProduct, updateProduct } from "./products";
+import { createProduct, getProductForCorrection, matchProduct, updateProduct } from "./products";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -161,5 +161,63 @@ describe("updateProduct", () => {
     expect(Number(updated.energyKcal)).toBe(75);
     expect(updated.updatedByUserId).toBe(correctorId);
     expect(updated.updatedAt).not.toBeNull();
+  });
+
+  it("updates the name when provided", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    const [existing] = await db.select().from(products);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await updateProduct(existing.id, {
+      name: "Olympus Greek Yogurt 0% Fat",
+      nutritionPer100g: {
+        energyKcal: 75, fatG: 2.5, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      },
+    });
+
+    const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
+    expect(updated.name).toBe("Olympus Greek Yogurt 0% Fat");
+  });
+
+  it("replaces the photo when provided", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    const [existing] = await db.select().from(products);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await updateProduct(existing.id, {
+      nutritionPer100g: {
+        energyKcal: 75, fatG: 2.5, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      },
+      photo: new Blob([Buffer.from("new-photo-bytes")], { type: "image/jpeg" }),
+    });
+
+    const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
+    expect(updated.nutritionPhotoKey).toMatch(/^products\/.+/);
+    expect(updated.nutritionPhotoKey).not.toBe(existing.nutritionPhotoKey);
+  });
+});
+
+describe("getProductForCorrection", () => {
+  it("returns the product's current values and a photo URL", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    const [existing] = await db.select().from(products);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await getProductForCorrection(existing.id);
+
+    expect(result?.name).toBe("Olympus Greek Yogurt 2% Fat");
+    expect(result?.nutritionPer100g.energyKcal).toBe(70);
+    expect(result?.photoUrl).toEqual(expect.stringContaining("http"));
+  });
+
+  it("returns null for a nonexistent product", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await getProductForCorrection(crypto.randomUUID());
+    expect(result).toBeNull();
   });
 });
