@@ -9,7 +9,6 @@ import {
   flaggedFieldSet,
   toFieldValues,
   toNutritionValues,
-  type FieldValues,
 } from "@/lib/ocr/nutrition-fields";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
