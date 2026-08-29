@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { dayBoundsInTimezone, type DayBounds } from "@/lib/date/day-bounds";
@@ -266,4 +266,66 @@ export const updateMealIngredientQuantity = async (
     .update(mealIngredients)
     .set({ quantityG: String(quantityG), quantitySource: "manual" })
     .where(eq(mealIngredients.id, mealIngredientId));
+};
+
+export const HISTORY_PAGE_SIZE = 20;
+
+export interface DayHistoryEntry {
+  date: string; // YYYY-MM-DD, local to the requested timezone
+  totalKcal: number;
+}
+
+export interface DayHistoryPage {
+  entries: DayHistoryEntry[];
+  nextOffset: number | null;
+}
+
+// A `type` alias (not `interface`) so it structurally satisfies db.execute's
+// `Record<string, unknown>` constraint - matching matchProduct's CandidateRow
+// precedent for raw sql`` row shapes.
+type DayHistoryRow = {
+  local_date: string | Date;
+  total_kcal: string;
+};
+
+const ISO_DATE_LENGTH = 10; // "YYYY-MM-DD".length
+
+// Postgres's `date` type comes back from `pg` as a JS Date at UTC midnight in
+// some driver/type-parser configurations and as a string in others; handling
+// both here keeps this correct regardless of which applies. (Verified against
+// this project's actual db.execute path: it returns a string.)
+const toLocalDateString = (value: string | Date): string =>
+  value instanceof Date ? value.toISOString().slice(0, ISO_DATE_LENGTH) : value;
+
+const fetchDayHistoryRows = async (
+  userId: string,
+  timezone: string,
+  offset: number,
+): Promise<DayHistoryRow[]> => {
+  const result = await db.execute<DayHistoryRow>(sql`
+    SELECT date_trunc('day', mi.created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone})::date AS local_date,
+           SUM(p.energy_kcal * (mi.quantity_g / 100)) AS total_kcal
+    FROM meal_ingredients mi
+    JOIN meals m ON m.id = mi.meal_id
+    JOIN products p ON p.id = mi.product_id
+    WHERE m.user_id = ${userId}
+    GROUP BY local_date
+    ORDER BY local_date DESC
+    LIMIT ${HISTORY_PAGE_SIZE} OFFSET ${offset}
+  `);
+  return result.rows;
+};
+
+export const getDayHistory = async (timezone: string, offset: number = 0): Promise<DayHistoryPage> => {
+  const userId = await requireUserId();
+  const rows = await fetchDayHistoryRows(userId, timezone, offset);
+  const entries = rows.map((row) => ({
+    date: toLocalDateString(row.local_date),
+    totalKcal: Number(row.total_kcal),
+  }));
+
+  return {
+    entries,
+    nextOffset: entries.length === HISTORY_PAGE_SIZE ? offset + HISTORY_PAGE_SIZE : null,
+  };
 };

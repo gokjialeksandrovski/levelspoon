@@ -9,7 +9,16 @@ import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { computeContribution } from "./meals.utils";
-import { createMeal, getDayLog, getMealDetail, saveMealIngredient, removeMealIngredient, updateMealIngredientQuantity } from "./meals";
+import {
+  createMeal,
+  getDayHistory,
+  getDayLog,
+  getMealDetail,
+  saveMealIngredient,
+  removeMealIngredient,
+  updateMealIngredientQuantity,
+  HISTORY_PAGE_SIZE,
+} from "./meals";
 import { NotAuthorizedError } from "./meals.errors";
 
 const seedUser = async (): Promise<string> => {
@@ -257,5 +266,75 @@ describe("updateMealIngredientQuantity", () => {
 
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
     await expect(updateMealIngredientQuantity(mealIngredientId, 100)).rejects.toThrow(NotAuthorizedError);
+  });
+});
+
+describe("getDayHistory", () => {
+  it("groups a user's meals by local calendar day, most recent first", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId: today } = await createMeal({ name: "Today" });
+    await saveMealIngredient({ mealId: today, productId, quantityG: 100, quantitySource: "manual" });
+    const { mealId: yesterday } = await createMeal({ name: "Yesterday" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId: yesterday, productId, quantityG: 200, quantitySource: "manual",
+    });
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    await db
+      .update(mealIngredients)
+      .set({ createdAt: new Date(Date.now() - ONE_DAY_MS) })
+      .where(eq(mealIngredients.id, mealIngredientId));
+
+    const page = await getDayHistory("UTC");
+
+    expect(page.entries).toHaveLength(2);
+    expect(page.entries[0].totalKcal).toBeCloseTo(70, 5); // today, most recent first
+    expect(page.entries[1].totalKcal).toBeCloseTo(140, 5); // yesterday
+    expect(page.nextOffset).toBeNull();
+  });
+
+  it("groups a late-evening UTC entry into the correct local day", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal({ name: "Late snack" });
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantityG: 100, quantitySource: "manual",
+    });
+    await db
+      .update(mealIngredients)
+      .set({ createdAt: new Date("2026-01-01T22:00:00Z") }) // 2026-01-02 local in Asia/Kolkata
+      .where(eq(mealIngredients.id, mealIngredientId));
+
+    const page = await getDayHistory("Asia/Kolkata");
+
+    expect(page.entries).toHaveLength(1);
+    expect(page.entries[0].date).toBe("2026-01-02");
+  });
+
+  it("paginates at HISTORY_PAGE_SIZE and reports a null nextOffset on the last page", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    for (let daysAgo = 0; daysAgo < HISTORY_PAGE_SIZE + 1; daysAgo += 1) {
+      const { mealId } = await createMeal({ name: `Day ${daysAgo}` });
+      const { mealIngredientId } = await saveMealIngredient({
+        mealId, productId, quantityG: 100, quantitySource: "manual",
+      });
+      await db
+        .update(mealIngredients)
+        .set({ createdAt: new Date(Date.now() - daysAgo * ONE_DAY_MS) })
+        .where(eq(mealIngredients.id, mealIngredientId));
+    }
+
+    const firstPage = await getDayHistory("UTC");
+    expect(firstPage.entries).toHaveLength(HISTORY_PAGE_SIZE);
+    expect(firstPage.nextOffset).toBe(HISTORY_PAGE_SIZE);
+
+    const secondPage = await getDayHistory("UTC", firstPage.nextOffset ?? 0);
+    expect(secondPage.entries).toHaveLength(1);
+    expect(secondPage.nextOffset).toBeNull();
   });
 });
