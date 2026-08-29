@@ -10,7 +10,13 @@ config({ path: ".env.local" });
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["capture-flow.spec.ts", "meal-detail.spec.ts", "history.spec.ts", "day-view.spec.ts"],
+  testMatch: [
+    "capture-flow.spec.ts",
+    "meal-detail.spec.ts",
+    "history.spec.ts",
+    "day-view.spec.ts",
+    "product-correction.spec.ts",
+  ],
   fullyParallel: false,
   // Every spec file's `beforeEach` truncates the same shared Postgres tables,
   // so two spec files must never execute concurrently - `fullyParallel: false`
