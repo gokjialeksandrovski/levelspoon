@@ -16,10 +16,12 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 
 from .nutrition.columns import ColumnDetectionError
 from .nutrition.normalize import NormalizationError
 from .nutrition.parse import parse_nutrition
+from .nutrition.validate import NutritionValues, validate
 from .product_name import extract_product_name
 
 if TYPE_CHECKING:
@@ -88,6 +90,33 @@ async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get
         raise HTTPException(status_code=UNPROCESSABLE, detail=str(error)) from error
 
     return {"values": _serialisable(reading.values), "flags": list(reading.flags)}
+
+
+class NutritionValuesRequest(BaseModel):
+    """Wire shape for /validate - the same 7 snake_case fields as everywhere else."""
+
+    energy_kcal: float
+    fat_g: float
+    saturates_g: float
+    carbohydrate_g: float
+    sugars_g: float
+    protein_g: float
+    salt_g: float
+
+
+class ValidateRequest(BaseModel):
+    values: NutritionValuesRequest
+    energy_kj: float | None = None
+
+
+@app.post("/validate")
+async def validate_nutrition(request: ValidateRequest) -> dict:
+    """Re-runs the same deterministic rules used at OCR ingestion (spec §4.6),
+    so correcting a product catches the same 10x errors confirm-step already
+    catches, without any AI involvement (spec §1)."""
+    values = NutritionValues(**request.values.model_dump())
+    flags = validate(values, energy_kj=request.energy_kj)
+    return {"flags": list(flags)}
 
 
 @app.post("/debug/boxes")

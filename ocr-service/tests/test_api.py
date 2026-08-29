@@ -91,3 +91,42 @@ def test_missing_value_serialises_as_null_not_nan(client_with):
     assert "NaN" not in response.text
     assert response.json()["values"]["salt_g"] is None
     assert "salt_g" in response.json()["flags"]
+
+
+def test_validate_endpoint_returns_no_flags_for_golden_values():
+    client = TestClient(app)
+    response = client.post(
+        "/validate",
+        json={
+            "values": {
+                "energy_kcal": 70.0, "fat_g": 2.0, "saturates_g": 1.2,
+                "carbohydrate_g": 4.0, "sugars_g": 4.0, "protein_g": 9.0, "salt_g": 0.18,
+            },
+            "energy_kj": 295.0,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {"flags": []}
+
+
+def test_validate_endpoint_flags_saturates_above_fat():
+    client = TestClient(app)
+    response = client.post(
+        "/validate",
+        json={
+            "values": {
+                "energy_kcal": 70.0, "fat_g": 2.0, "saturates_g": 5.0,
+                "carbohydrate_g": 4.0, "sugars_g": 4.0, "protein_g": 9.0, "salt_g": 0.18,
+            },
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "saturates_g" in body["flags"]
+    assert "fat_g" in body["flags"]
+
+
+def test_validate_endpoint_rejects_a_missing_field():
+    client = TestClient(app)
+    response = client.post("/validate", json={"values": {"energy_kcal": 70.0}})
+    assert response.status_code == 422
