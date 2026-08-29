@@ -76,3 +76,11 @@ test("previous/next navigation steps by one calendar day", async ({ page }) => {
   await page.getByRole("link", { name: "Next day →" }).click();
   await page.waitForURL(`**/day/${today}`);
 });
+
+test("home redirects to today's day view", async ({ page }) => {
+  await signUp(page);
+
+  await page.goto("/");
+
+  await page.waitForURL(`**/day/${localToday()}`);
+});
