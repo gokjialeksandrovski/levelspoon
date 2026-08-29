@@ -7,4 +7,5 @@ export type NullableNutritionValues = {
 export interface OcrProvider {
   extractProductName(photo: Blob): Promise<{ text: string }>;
   extractNutritionTable(photo: Blob): Promise<{ values: NullableNutritionValues; flags: string[] }>;
+  validate(values: NutritionValues, energyKj?: number): Promise<{ flags: string[] }>;
 }

@@ -1,3 +1,5 @@
+import type { NutritionValues } from "@/actions/products";
+
 import type { NullableNutritionValues, OcrProvider } from "./provider";
 
 const MOCK_NUTRITION: NullableNutritionValues = {
@@ -27,5 +29,18 @@ export class MockOcrProvider implements OcrProvider {
     _photo: Blob,
   ): Promise<{ values: NullableNutritionValues; flags: string[] }> {
     return { values: MOCK_NUTRITION, flags: [] };
+  }
+
+  async validate(values: NutritionValues): Promise<{ flags: string[] }> {
+    const flags = new Set<string>();
+    if (values.saturatesG > values.fatG) {
+      flags.add("saturates_g");
+      flags.add("fat_g");
+    }
+    if (values.sugarsG > values.carbohydrateG) {
+      flags.add("sugars_g");
+      flags.add("carbohydrate_g");
+    }
+    return { flags: [...flags].sort() };
   }
 }

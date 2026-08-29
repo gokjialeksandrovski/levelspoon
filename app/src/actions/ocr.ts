@@ -1,5 +1,6 @@
 "use server";
 
+import type { NutritionValues } from "@/actions/products";
 import { requireUserId } from "@/lib/auth/require-user";
 import { HttpOcrProvider } from "@/lib/ocr/http-provider";
 import { MockOcrProvider } from "@/lib/ocr/mock-provider";
@@ -18,4 +19,12 @@ export const ocrNutritionTable = async (
 ): Promise<{ values: NullableNutritionValues; flags: string[] }> => {
   await requireUserId();
   return getProvider().extractNutritionTable(photo);
+};
+
+export const validateNutrition = async (
+  values: NutritionValues,
+  energyKj?: number,
+): Promise<{ flags: string[] }> => {
+  await requireUserId();
+  return getProvider().validate(values, energyKj);
 };

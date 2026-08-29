@@ -1,3 +1,5 @@
+import type { NutritionValues } from "@/actions/products";
+
 import type { NullableNutritionValues, OcrProvider } from "./provider";
 
 class OcrServiceError extends Error {
@@ -37,6 +39,16 @@ const toNullableNutritionValues = (raw: RawNutritionValues): NullableNutritionVa
   saltG: raw.salt_g,
 });
 
+const toRawNutritionValues = (values: NutritionValues): RawNutritionValues => ({
+  energy_kcal: values.energyKcal,
+  fat_g: values.fatG,
+  saturates_g: values.saturatesG,
+  carbohydrate_g: values.carbohydrateG,
+  sugars_g: values.sugarsG,
+  protein_g: values.proteinG,
+  salt_g: values.saltG,
+});
+
 const ocrServiceUrl = (): string => {
   const url = process.env.OCR_SERVICE_URL;
   if (!url) {
@@ -56,6 +68,18 @@ const postImage = async (endpoint: string, photo: Blob): Promise<unknown> => {
   return response.json();
 };
 
+const postJson = async (endpoint: string, body: unknown): Promise<unknown> => {
+  const response = await fetch(`${ocrServiceUrl()}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new OcrServiceError(endpoint, response.status);
+  }
+  return response.json();
+};
+
 export class HttpOcrProvider implements OcrProvider {
   async extractProductName(photo: Blob): Promise<{ text: string }> {
     return (await postImage("/ocr/product-name", photo)) as { text: string };
@@ -66,5 +90,10 @@ export class HttpOcrProvider implements OcrProvider {
   ): Promise<{ values: NullableNutritionValues; flags: string[] }> {
     const raw = (await postImage("/ocr/nutrition-table", photo)) as RawNutritionTableResponse;
     return { values: toNullableNutritionValues(raw.values), flags: raw.flags };
+  }
+
+  async validate(values: NutritionValues, energyKj?: number): Promise<{ flags: string[] }> {
+    const body = { values: toRawNutritionValues(values), energy_kj: energyKj ?? null };
+    return (await postJson("/validate", body)) as { flags: string[] };
   }
 }
