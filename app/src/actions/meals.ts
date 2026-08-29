@@ -7,7 +7,7 @@ import { dayBoundsInTimezone, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products } from "@/lib/db/schema";
 
-import { computeContribution } from "./meals.utils";
+import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
 import type { NutritionValues } from "./products";
 
@@ -267,8 +267,6 @@ export const updateMealIngredientQuantity = async (
     .set({ quantityG: String(quantityG), quantitySource: "manual" })
     .where(eq(mealIngredients.id, mealIngredientId));
 };
-
-export const HISTORY_PAGE_SIZE = 20;
 
 export interface DayHistoryEntry {
   date: string; // YYYY-MM-DD, local to the requested timezone

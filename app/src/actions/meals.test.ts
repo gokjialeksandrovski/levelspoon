@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
-import { computeContribution } from "./meals.utils";
+import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import {
   createMeal,
   getDayHistory,
@@ -17,7 +17,6 @@ import {
   saveMealIngredient,
   removeMealIngredient,
   updateMealIngredientQuantity,
-  HISTORY_PAGE_SIZE,
 } from "./meals";
 import { NotAuthorizedError } from "./meals.errors";
 
