@@ -7,7 +7,11 @@ import { useCallback, useEffect, useState } from "react";
 import { getDayHistory } from "@/actions/meals";
 import type { DayHistoryEntry } from "@/actions/meals";
 import { AppHeader } from "@/components/app-header";
+import { Button } from "@/components/button";
+import { InlineMessage } from "@/components/inline-message";
+import { Skeleton } from "@/components/skeleton";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { formatDayLabel } from "@/lib/date/format";
 
 type HistoryState =
   | { status: "loading" }
@@ -46,49 +50,78 @@ const useHistoryState = (): UseHistoryStateResult => {
   return { state, loadPage };
 };
 
+const SKELETON_ROW_COUNT = 6;
+
+// Mirrors a ready row (label left, figure right) so the loading -> ready
+// swap doesn't shift the layout. Decorative, so a plain div, not a list.
+const HistorySkeleton = () => (
+  <div className="divide-y divide-border">
+    {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+      <div key={`history-skeleton-${index}`} className="flex items-center justify-between py-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+    ))}
+  </div>
+);
+
+// A fresh account reaches /history with nothing logged - plain, calm text,
+// no call to action (there is no way to log into the past from here).
+const HistoryEmptyState = () => (
+  <div className="mt-16 flex flex-col items-center gap-4 text-center">
+    <p className="text-text-muted">No history yet</p>
+  </div>
+);
+
 const HistoryEntryRow = ({ entry }: { entry: DayHistoryEntry }) => (
   <li>
-    <Link href={`/day/${entry.date}`} className="flex justify-between rounded border p-3 hover:bg-gray-50">
-      <span>{entry.date}</span>
-      <span>{Math.round(entry.totalKcal)} kcal</span>
+    <Link href={`/day/${entry.date}`} className="flex items-baseline justify-between py-3">
+      <span>{formatDayLabel(entry.date)}</span>
+      <span className="tabular-nums text-text-muted">{Math.round(entry.totalKcal)} kcal</span>
     </Link>
   </li>
 );
 
 const HistoryEntryList = ({ entries }: { entries: DayHistoryEntry[] }) => (
-  <ul className="flex flex-col gap-2">
+  <ul className="divide-y divide-border">
     {entries.map((entry) => (
       <HistoryEntryRow key={entry.date} entry={entry} />
     ))}
   </ul>
 );
 
-interface LoadMoreButtonProps {
+interface HistoryReadyBodyProps {
+  entries: DayHistoryEntry[];
   nextOffset: number | null;
   onLoadMore: (offset: number) => void;
 }
 
-const LoadMoreButton = ({ nextOffset, onLoadMore }: LoadMoreButtonProps) =>
-  nextOffset !== null && (
-    <button type="button" onClick={() => onLoadMore(nextOffset)} className="rounded border px-4 py-2">
-      Load more
-    </button>
-  );
-
-const HistoryBody = ({ state, onLoadMore }: { state: HistoryState; onLoadMore: (offset: number) => void }) => {
-  if (state.status === "loading") {
-    return <p className="text-sm text-gray-500">Loading…</p>;
-  }
-  if (state.status === "error") {
-    return <p className="text-sm text-red-600">Could not load history. Please try again.</p>;
+const HistoryReadyBody = ({ entries, nextOffset, onLoadMore }: HistoryReadyBodyProps) => {
+  if (entries.length === 0) {
+    return <HistoryEmptyState />;
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <HistoryEntryList entries={state.entries} />
-      <LoadMoreButton nextOffset={state.nextOffset} onLoadMore={onLoadMore} />
+    <div className="flex flex-col gap-4">
+      <HistoryEntryList entries={entries} />
+      {nextOffset !== null && (
+        <Button variant="ghost" onClick={() => onLoadMore(nextOffset)}>
+          Load more
+        </Button>
+      )}
     </div>
   );
+};
+
+const HistoryBody = ({ state, onLoadMore }: { state: HistoryState; onLoadMore: (offset: number) => void }) => {
+  if (state.status === "loading") {
+    return <HistorySkeleton />;
+  }
+  if (state.status === "error") {
+    return <InlineMessage tone="error">Could not load history. Please try again.</InlineMessage>;
+  }
+
+  return <HistoryReadyBody entries={state.entries} nextOffset={state.nextOffset} onLoadMore={onLoadMore} />;
 };
 
 const HistoryPage = () => {
@@ -98,7 +131,9 @@ const HistoryPage = () => {
   return (
     <>
       <AppHeader variant="back" title="History" backHref={`/day/${today}`} />
-      <HistoryBody state={state} onLoadMore={(offset) => loadPage(offset, true)} />
+      <main className="flex-1 px-4 py-6">
+        <HistoryBody state={state} onLoadMore={(offset) => loadPage(offset, true)} />
+      </main>
     </>
   );
 };
