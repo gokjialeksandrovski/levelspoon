@@ -1,1 +1,77 @@
 @import "tailwindcss";
+
+/* Layer 1: raw values, one per mode. Dark is the default (no media condition);
+   light overrides under prefers-color-scheme. This is Tailwind v4's own
+   documented pattern for a theme color that must vary at runtime (their docs
+   show the identical shape for a [data-theme="dark"] selector; ours uses a
+   media query instead - same mechanism). */
+:root {
+  --raw-bg: #12110d;
+  --raw-surface: #17150f;
+  --raw-surface-raised: #1d1a14;
+  --raw-border: #2b2823;
+  --raw-text: #efeae0;
+  --raw-text-muted: #8a8378;
+  --raw-accent: #c6dc53;
+  --raw-accent-ink: #1a1a12;
+  --raw-danger: #e5675c;
+  --raw-flag: #e0913a;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --raw-bg: #faf8f3;
+    --raw-surface: #ffffff;
+    --raw-surface-raised: #f2efe7;
+    --raw-border: #e4ded1;
+    --raw-text: #23201a;
+    --raw-text-muted: #6b6459;
+    --raw-accent: #5c7312;
+    --raw-accent-ink: #ffffff;
+    --raw-danger: #b93b30;
+    --raw-flag: #a1631c;
+  }
+}
+
+/* Layer 2: map semantic Tailwind theme tokens to the raw variables above.
+   `inline` makes generated utilities (bg-bg, text-text, etc.) reference the
+   raw variable directly rather than baking in a snapshot value at build time -
+   required because these theme vars are themselves var() references. This is
+   the exact pattern Tailwind's own docs use for a runtime-varying theme color. */
+@theme inline {
+  --color-bg: var(--raw-bg);
+  --color-surface: var(--raw-surface);
+  --color-surface-raised: var(--raw-surface-raised);
+  --color-border: var(--raw-border);
+  --color-text: var(--raw-text);
+  --color-text-muted: var(--raw-text-muted);
+  --color-accent: var(--raw-accent);
+  --color-accent-ink: var(--raw-accent-ink);
+  --color-danger: var(--raw-danger);
+  --color-flag: var(--raw-flag);
+
+  --radius-control: 10px;
+  --radius-surface: 14px;
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+
+  --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-step: 260ms;
+}
+
+html {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
