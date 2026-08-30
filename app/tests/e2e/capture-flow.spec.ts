@@ -39,7 +39,6 @@ test("happy path: confident match through save updates the day total", async ({ 
   await seedConfidentProduct();
   await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   await page.getByRole("button", { name: "Add ingredient" }).click();
@@ -81,7 +80,6 @@ test("ambiguous match: picking a candidate proceeds to the amount step", async (
   await seedAmbiguousVariants();
   await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Lunch");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   await page.getByRole("button", { name: "Add ingredient" }).click();
@@ -96,7 +94,6 @@ test("ambiguous match: picking a candidate proceeds to the amount step", async (
 test("no match: creating a new product proceeds to the amount step", async ({ page }) => {
   await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Dinner");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   await page.getByRole("button", { name: "Add ingredient" }).click();

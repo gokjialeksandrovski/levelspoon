@@ -31,7 +31,6 @@ const signUp = async (page: import("@playwright/test").Page) => {
 };
 
 const logAnIngredient = async (page: import("@playwright/test").Page) => {
-  await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   await page.getByRole("button", { name: "Add ingredient" }).click();

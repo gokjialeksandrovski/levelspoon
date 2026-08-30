@@ -34,7 +34,6 @@ test("correcting a product from the meal detail page: an invalid value blocks sa
   await seedConfidentProduct();
   await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   // Excludes "/meals/new" itself: that URL also satisfies a bare
   // /\/meals\/[^/]+$/ pattern, which would let this resolve before the
@@ -80,7 +79,6 @@ test("clicking Save right after typing an invalid value (before blur) still bloc
   await seedConfidentProduct();
   await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/(?!new$)[^/]+$/);
 
