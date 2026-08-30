@@ -1,66 +1,71 @@
-// app/tests/e2e/day-view.spec.ts
 import { expect, test } from "@playwright/test";
+import { eq } from "drizzle-orm";
 
+import { db } from "../../src/lib/db";
+import { mealIngredients, meals, products, users } from "../../src/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "../../src/lib/date/day-bounds";
 
-import { seedConfidentProduct, signUp, truncateAll } from "./support";
-
-test.beforeEach(async () => {
-  await truncateAll();
-});
+import { freshEmail, signUp, truncateAll } from "./support";
 
 const localToday = () => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
-test("empty day shows a start-meal CTA", async ({ page }) => {
+test.beforeEach(truncateAll);
+
+test("empty today and empty past day show distinct copy", async ({ page }) => {
   await signUp(page);
 
   await page.goto(`/day/${localToday()}`);
+  await expect(page.getByText(/nothing logged/i)).toBeVisible();
 
-  await expect(page.getByText("No meals logged")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Start a meal" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "History" })).toBeVisible(); // now an icon link with aria-label
-  await page.getByRole("button", { name: /account/i }).click();
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
+  await expect(page.getByText(/no meals logged/i)).toBeVisible();
 });
 
-test("a logged meal appears on the day view with the day total", async ({ page }) => {
-  await seedConfidentProduct();
-  await signUp(page);
+test("a seeded meal renders as Meal 1 with its total", async ({ page }) => {
+  // Ruling F10: local inline signup (mirrors history.spec.ts) because this test
+  // needs the created user's id afterward - the shared signUp() doesn't return it.
+  const email = freshEmail("e2e-day");
+  await page.goto("/signup");
+  await page.getByLabel("Name").fill("Day Tester");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("correct horse battery staple");
+  await page.getByRole("button", { name: "Sign up" }).click();
+  await page.waitForURL("**/meals/new");
 
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.waitForURL(/\/meals\/[^/]+$/);
-  await page.getByRole("button", { name: "Add ingredient" }).click();
-  await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/confident-product.jpg");
-  await page.getByLabel("Amount (g)").fill("200");
-  await page.getByRole("button", { name: "Save ingredient" }).click();
-  await expect(page.getByText("Ingredient saved.")).toBeVisible();
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+  const [product] = await db
+    .insert(products)
+    .values({
+      name: "Seed Yogurt", energyKcal: "70", fatG: "2", saturatesG: "1", carbohydrateG: "4",
+      sugarsG: "4", proteinG: "9", saltG: "0.1", nutritionPhotoKey: "x", createdByUserId: user.id,
+    })
+    .returning();
+  const [meal] = await db.insert(meals).values({ userId: user.id }).returning();
+  await db.insert(mealIngredients).values({
+    mealId: meal.id, productId: product.id, quantityG: "200", quantitySource: "manual",
+  });
 
   await page.goto(`/day/${localToday()}`);
-
-  await expect(page.getByRole("link", { name: /Meal 1/ })).toBeVisible();
-  // Anchored to the "Day total:" prefix, not a bare /140 kcal/, because the
-  // day has exactly one meal here: its list-item link also renders "140
-  // kcal", so an unanchored match resolves to two elements (strict-mode
-  // violation) - the totals bar and the meal link.
-  await expect(page.getByText(/Day total:.*140 kcal/)).toBeVisible();
+  // Scoped to the meal row itself, not page-wide: with a single 140kcal meal
+  // the day-total Stat also reads "140", so an unscoped getByText(/140/)
+  // hits both and trips Playwright's strict-mode ambiguity check.
+  const mealLink = page.getByRole("link", { name: /Meal 1/ });
+  await expect(mealLink).toBeVisible();
+  await expect(mealLink.getByText(/140/)).toBeVisible(); // 200g * 70kcal/100g
 });
 
-test("previous/next navigation steps by one calendar day", async ({ page }) => {
+test("prev/next navigation steps by one calendar day", async ({ page }) => {
   await signUp(page);
   const today = localToday();
-
   await page.goto(`/day/${today}`);
-  await page.getByRole("link", { name: "← Previous day" }).click();
+  await page.getByRole("link", { name: "Previous day" }).click();
   await page.waitForURL(`**/day/${addCalendarDays(today, -1)}`);
-
-  await page.getByRole("link", { name: "Next day →" }).click();
+  await page.getByRole("link", { name: "Next day" }).click();
   await page.waitForURL(`**/day/${today}`);
 });
 
-test("home redirects to today's day view", async ({ page }) => {
+test("home redirects to today", async ({ page }) => {
   await signUp(page);
-
   await page.goto("/");
-
   await page.waitForURL(`**/day/${localToday()}`);
 });

@@ -1,13 +1,20 @@
 // app/src/app/(app)/day/[date]/day-view.tsx
 "use client";
 
-import Link from "next/link";
+import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getDayLog } from "@/actions/meals";
-import type { DayLog, DayMealSummary } from "@/actions/meals";
+import type { DayLog } from "@/actions/meals";
 import { AppHeader } from "@/components/app-header";
-import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
+import { InlineMessage } from "@/components/inline-message";
+import { Skeleton } from "@/components/skeleton";
+import { Stat } from "@/components/stat";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
+
+import { DayEmptyState } from "./day-empty-state";
+import { DayMacros } from "./day-macros";
+import { MealList } from "./meal-list";
 
 interface DayViewProps {
   date: string;
@@ -41,89 +48,74 @@ const useDayLog = (date: string): DayViewState => {
   return state;
 };
 
-const DayNavigation = ({ date }: { date: string }) => (
-  <div className="flex items-center justify-between">
-    <Link href={`/day/${addCalendarDays(date, -1)}`} className="text-blue-600 underline">
-      ← Previous day
-    </Link>
-    <span className="font-medium">{date}</span>
-    <Link href={`/day/${addCalendarDays(date, 1)}`} className="text-blue-600 underline">
-      Next day →
-    </Link>
+// Mirrors the ready-state shape (stat block + three meal rows) so the
+// loading -> ready swap doesn't jump around.
+const DayViewSkeleton = () => (
+  <div className="flex flex-col gap-2">
+    <Skeleton className="h-11 w-32" />
+    <Skeleton className="h-4 w-48" />
+    <div className="mt-6 flex flex-col gap-4">
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+    </div>
   </div>
 );
 
-const DayTotalSummary = ({ log }: { log: DayLog }) => (
-  <div className="rounded border bg-gray-50 p-3 text-sm">
-    <span className="font-medium">Day total: </span>
-    {Math.round(log.dayTotal.energyKcal)} kcal · {log.dayTotal.proteinG.toFixed(1)}g protein ·{" "}
-    {log.dayTotal.carbohydrateG.toFixed(1)}g carbs · {log.dayTotal.fatG.toFixed(1)}g fat
-  </div>
+const DayViewReady = ({ log, isToday }: { log: DayLog; isToday: boolean }) => (
+  <>
+    <Stat value={Math.round(log.dayTotal.energyKcal).toLocaleString()} unit="kcal" />
+    <DayMacros total={log.dayTotal} />
+    {log.meals.length === 0 ? <DayEmptyState isToday={isToday} /> : <MealList meals={log.meals} />}
+  </>
 );
 
-const MAX_NAMES_SHOWN = 2;
-const summariseIngredients = (names: string[]): string => {
-  if (names.length <= MAX_NAMES_SHOWN) return names.join(", ");
-  return `${names.slice(0, MAX_NAMES_SHOWN).join(", ")}, +${names.length - MAX_NAMES_SHOWN}`;
+const DayViewBody = ({ state }: { state: DayViewState }) => {
+  if (state.status === "loading") {
+    return <DayViewSkeleton />;
+  }
+  if (state.status === "error") {
+    return <InlineMessage tone="error">Could not load this day. Please try again.</InlineMessage>;
+  }
+  return <DayViewReady log={state.log} isToday={state.isToday} />;
 };
 
-const MealListItem = ({ meal, index }: { meal: DayMealSummary; index: number }) => (
-  <li>
-    <Link href={`/meals/${meal.id}`} className="block rounded border p-3 hover:bg-gray-50">
-      <span className="font-medium">Meal {index + 1}</span>
-      <span className="block text-sm text-gray-600">
-        {summariseIngredients(meal.ingredientNames)} · {Math.round(meal.total.energyKcal)} kcal
-      </span>
-    </Link>
-  </li>
-);
-
-const MealList = ({ meals }: { meals: DayMealSummary[] }) => (
-  <ul className="flex flex-col gap-2">
-    {meals.map((meal, index) => (
-      <MealListItem key={meal.id} meal={meal} index={index} />
-    ))}
-  </ul>
-);
-
-const EmptyDayState = ({ isToday }: { isToday: boolean }) => (
-  <div className="flex flex-col items-center gap-3 py-8 text-center">
-    <p className="text-gray-600">No meals logged</p>
-    {isToday && (
-      <Link href="/meals/new" className="rounded bg-blue-600 px-4 py-2 text-white">
-        Start a meal
-      </Link>
-    )}
-  </div>
-);
-
-const DayLogContent = ({ log, isToday }: { log: DayLog; isToday: boolean }) =>
-  log.meals.length === 0 ? (
-    <EmptyDayState isToday={isToday} />
-  ) : (
-    <>
-      <DayTotalSummary log={log} />
-      <MealList meals={log.meals} />
-    </>
-  );
+// One of only two places in the app allowed to use motion/react (the other
+// is the capture wizard) - see the project's Global Constraints. Keyed on
+// `date` so prev/next navigation remounts this element and its `initial`
+// animation replays; `useReducedMotion` collapses that to an instant,
+// motion-free swap (initial={false} skips the enter transition entirely).
+const SLIDE_OFFSET_PX = 24;
+const TRANSITION_DURATION_SECONDS = 0.26; // matches globals.css --duration-step
+// Mirrors globals.css's --ease-out-quart cubic-bezier control points exactly,
+// broken into named constants so neither counts as an unexplained magic number.
+const EASE_OUT_QUART_X1 = 0.16;
+const EASE_OUT_QUART_Y1 = 1;
+const EASE_OUT_QUART_X2 = 0.3;
+const EASE_OUT_QUART_Y2 = 1;
+const TRANSITION_EASE: [number, number, number, number] = [
+  EASE_OUT_QUART_X1,
+  EASE_OUT_QUART_Y1,
+  EASE_OUT_QUART_X2,
+  EASE_OUT_QUART_Y2,
+];
 
 export const DayView = ({ date }: DayViewProps) => {
   const state = useDayLog(date);
-
-  if (state.status === "loading") {
-    return <p className="text-sm text-gray-500">Loading…</p>;
-  }
-  if (state.status === "error") {
-    return <p className="text-sm text-red-600">Could not load this day. Please try again.</p>;
-  }
+  const reduceMotion = useReducedMotion();
 
   return (
     <>
       <AppHeader variant="day" date={date} />
-      <div className="flex flex-col gap-4">
-        <DayNavigation date={date} />
-        <DayLogContent log={state.log} isToday={state.isToday} />
-      </div>
+      <motion.main
+        key={date}
+        className="flex-1 px-4 py-6"
+        initial={reduceMotion ? false : { opacity: 0, x: SLIDE_OFFSET_PX }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={reduceMotion ? { duration: 0 } : { duration: TRANSITION_DURATION_SECONDS, ease: TRANSITION_EASE }}
+      >
+        <DayViewBody state={state} />
+      </motion.main>
     </>
   );
 };

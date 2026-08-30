@@ -13,7 +13,11 @@ const HomePage = () => {
     router.replace(`/day/${todayLocalDateString(timezone)}`);
   }, [router]);
 
-  return null;
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-bg text-text">
+      <p className="text-lg font-semibold tracking-tight">Per100</p>
+    </div>
+  );
 };
 
 export default HomePage;
