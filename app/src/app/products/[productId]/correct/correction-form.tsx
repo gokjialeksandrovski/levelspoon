@@ -23,6 +23,15 @@ interface CorrectionFormProps {
 
 const toNullableNutritionValues = (values: ProductForCorrection["nutritionPer100g"]): NullableNutritionValues => values;
 
+// Re-checks validation right before a save rather than trusting the last
+// onBlur's `flags` state: a user can click Save while a field is still
+// focused (before its blur fires and revalidate resolves), which would
+// otherwise let a flagged value through with stale, empty `flags`.
+const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]> => {
+  const result = await validateNutrition(toNutritionValues(currentValues));
+  return result.flags;
+};
+
 export const CorrectionForm = ({ product }: CorrectionFormProps) => {
   const router = useRouter();
   const [name, setName] = useState(product.name);
@@ -53,16 +62,29 @@ export const CorrectionForm = ({ product }: CorrectionFormProps) => {
   const flaggedFields = flaggedFieldSet(flags);
   const canSave = flaggedFields.size === 0 || validateError;
 
+  // The meal-detail page a user lands back on is served from the client
+  // Router Cache; without a refresh it would show pre-correction values.
+  const applyCorrection = async (): Promise<void> => {
+    await updateProduct(product.id, {
+      name,
+      nutritionPer100g: toNutritionValues(values),
+      ...(photo ? { photo } : {}),
+    });
+    router.refresh();
+    router.back();
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await updateProduct(product.id, {
-        name,
-        nutritionPer100g: toNutritionValues(values),
-        ...(photo ? { photo } : {}),
-      });
-      router.back();
+      const freshFlags = await checkNutritionFlags(values);
+      if (freshFlags.length > 0) {
+        setFlags(freshFlags);
+        setSaveError("Please fix the flagged values before saving.");
+        return;
+      }
+      await applyCorrection();
     } catch {
       setSaveError("Could not save this correction. Please try again.");
     } finally {

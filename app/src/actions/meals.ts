@@ -153,7 +153,8 @@ const fetchDayMealIngredientRows = async (
         gte(mealIngredients.createdAt, bounds.start),
         lt(mealIngredients.createdAt, bounds.end),
       ),
-    );
+    )
+    .orderBy(meals.createdAt);
 
 const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
   rows.reduce<DayMealSummary[]>((summaries, row) => {
@@ -223,7 +224,8 @@ const fetchMealIngredientRows = async (mealId: string): Promise<MealIngredientRo
     .select(MEAL_INGREDIENT_SELECTION)
     .from(mealIngredients)
     .innerJoin(products, eq(mealIngredients.productId, products.id))
-    .where(eq(mealIngredients.mealId, mealId));
+    .where(eq(mealIngredients.mealId, mealId))
+    .orderBy(mealIngredients.createdAt);
 
 const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail => ({
   id: row.id,

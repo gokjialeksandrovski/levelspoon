@@ -114,6 +114,28 @@ describe("getMealDetail", () => {
 
     expect(meal).toBeNull();
   });
+
+  it("keeps ingredients in creation order after one is updated", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal({ name: "Breakfast" });
+    const { mealIngredientId: firstId } = await saveMealIngredient({
+      mealId, productId, quantityG: 100, quantitySource: "manual",
+    });
+    const { mealIngredientId: secondId } = await saveMealIngredient({
+      mealId, productId, quantityG: 200, quantitySource: "manual",
+    });
+    const { mealIngredientId: thirdId } = await saveMealIngredient({
+      mealId, productId, quantityG: 300, quantitySource: "manual",
+    });
+
+    await updateMealIngredientQuantity(firstId, 150);
+
+    const meal = await getMealDetail(mealId);
+
+    expect(meal?.ingredients.map((ingredient) => ingredient.id)).toEqual([firstId, secondId, thirdId]);
+  });
 });
 
 describe("saveMealIngredient", () => {
@@ -202,6 +224,51 @@ describe("getDayLog", () => {
 
     expect(sameUtcDayLog.meals).toEqual([]);
     expect(nextLocalDayLog.meals).toHaveLength(1);
+  });
+
+  it("keeps meals in creation order after one of them is updated", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const seededDate = "2026-01-01";
+
+    const { mealId: firstMealId } = await createMeal({ name: "Breakfast" });
+    await db.update(meals).set({ createdAt: new Date("2026-01-01T08:00:00Z") }).where(eq(meals.id, firstMealId));
+    const { mealIngredientId: firstIngredientId } = await saveMealIngredient({
+      mealId: firstMealId, productId, quantityG: 100, quantitySource: "manual",
+    });
+    await db
+      .update(mealIngredients)
+      .set({ createdAt: new Date("2026-01-01T08:00:00Z") })
+      .where(eq(mealIngredients.id, firstIngredientId));
+
+    const { mealId: secondMealId } = await createMeal({ name: "Lunch" });
+    await db.update(meals).set({ createdAt: new Date("2026-01-01T12:00:00Z") }).where(eq(meals.id, secondMealId));
+    const { mealIngredientId: secondIngredientId } = await saveMealIngredient({
+      mealId: secondMealId, productId, quantityG: 200, quantitySource: "manual",
+    });
+    await db
+      .update(mealIngredients)
+      .set({ createdAt: new Date("2026-01-01T12:00:00Z") })
+      .where(eq(mealIngredients.id, secondIngredientId));
+
+    const { mealId: thirdMealId } = await createMeal({ name: "Dinner" });
+    await db.update(meals).set({ createdAt: new Date("2026-01-01T18:00:00Z") }).where(eq(meals.id, thirdMealId));
+    const { mealIngredientId: thirdIngredientId } = await saveMealIngredient({
+      mealId: thirdMealId, productId, quantityG: 300, quantitySource: "manual",
+    });
+    await db
+      .update(mealIngredients)
+      .set({ createdAt: new Date("2026-01-01T18:00:00Z") })
+      .where(eq(mealIngredients.id, thirdIngredientId));
+
+    // Edit the first meal's ingredient - without an ORDER BY this can change
+    // Postgres's natural row order and make "Breakfast" jump position.
+    await updateMealIngredientQuantity(firstIngredientId, 150);
+
+    const log = await getDayLog(seededDate, "UTC");
+
+    expect(log.meals.map((meal) => meal.name)).toEqual(["Breakfast", "Lunch", "Dinner"]);
   });
 });
 

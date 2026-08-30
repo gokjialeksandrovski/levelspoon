@@ -43,6 +43,8 @@ test("history lists past days and paginates", async ({ page }) => {
   }
 
   await page.goto("/history");
+  await expect(page.getByRole("link", { name: "History" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(page.getByRole("link", { name: /70 kcal/ })).toHaveCount(20);
 
   await page.getByRole("button", { name: "Load more" }).click();

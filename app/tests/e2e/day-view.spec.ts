@@ -40,6 +40,8 @@ test("empty day shows a start-meal CTA", async ({ page }) => {
 
   await expect(page.getByText("No meals logged")).toBeVisible();
   await expect(page.getByRole("link", { name: "Start a meal" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "History" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 });
 
 test("a logged meal appears on the day view with the day total", async ({ page }) => {
