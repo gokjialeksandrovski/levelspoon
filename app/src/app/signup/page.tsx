@@ -7,7 +7,7 @@ import { type FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 
 import { registerUser } from "@/actions/auth";
-import { FormField } from "@/components/form-field";
+import { Field } from "@/components/field";
 
 const SignUpPage = () => {
   const router = useRouter();
@@ -40,9 +40,9 @@ const SignUpPage = () => {
     <main className="mx-auto flex max-w-sm flex-col gap-4 p-6">
       <h1 className="text-xl font-semibold">Sign up</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <FormField label="Name" name="name" required />
-        <FormField label="Email" name="email" type="email" required />
-        <FormField label="Password" name="password" type="password" required />
+        <Field label="Name" name="name" required />
+        <Field label="Email" name="email" type="email" required />
+        <Field label="Password" name="password" type="password" required />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white">
           Sign up

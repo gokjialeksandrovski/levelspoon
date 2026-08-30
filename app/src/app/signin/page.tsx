@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 
-import { FormField } from "@/components/form-field";
+import { Field } from "@/components/field";
 
 const SignInPage = () => {
   const router = useRouter();
@@ -32,8 +32,8 @@ const SignInPage = () => {
     <main className="mx-auto flex max-w-sm flex-col gap-4 p-6">
       <h1 className="text-xl font-semibold">Sign in</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <FormField label="Email" name="email" type="email" required />
-        <FormField label="Password" name="password" type="password" required />
+        <Field label="Email" name="email" type="email" required />
+        <Field label="Password" name="password" type="password" required />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white">
           Sign in
