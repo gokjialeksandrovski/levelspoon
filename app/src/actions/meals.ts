@@ -55,13 +55,22 @@ export const saveMealIngredient = async (
   return { mealIngredientId: row.id };
 };
 
-export interface CreateMealInput {
-  name: string;
-}
+const sweepEmptyMeals = async (userId: string): Promise<void> => {
+  try {
+    await db.execute(sql`
+      DELETE FROM meals m
+      WHERE m.user_id = ${userId}
+        AND NOT EXISTS (SELECT 1 FROM meal_ingredients mi WHERE mi.meal_id = m.id)
+    `);
+  } catch (error) {
+    console.error("Failed to sweep empty meals for user", userId, error);
+  }
+};
 
-export const createMeal = async (input: CreateMealInput): Promise<{ mealId: string }> => {
+export const createMeal = async (): Promise<{ mealId: string }> => {
   const userId = await requireUserId();
-  const [row] = await db.insert(meals).values({ userId, name: input.name }).returning({ id: meals.id });
+  await sweepEmptyMeals(userId);
+  const [row] = await db.insert(meals).values({ userId }).returning({ id: meals.id });
   return { mealId: row.id };
 };
 
