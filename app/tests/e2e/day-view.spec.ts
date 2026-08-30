@@ -48,7 +48,6 @@ test("a logged meal appears on the day view with the day total", async ({ page }
   await seedConfidentProduct();
   await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   await page.getByRole("button", { name: "Add ingredient" }).click();
@@ -59,7 +58,7 @@ test("a logged meal appears on the day view with the day total", async ({ page }
 
   await page.goto(`/day/${localToday()}`);
 
-  await expect(page.getByRole("link", { name: /Breakfast/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Meal 1/ })).toBeVisible();
   // Anchored to the "Day total:" prefix, not a bare /140 kcal/, because the
   // day has exactly one meal here: its list-item link also renders "140
   // kcal", so an unanchored match resolves to two elements (strict-mode

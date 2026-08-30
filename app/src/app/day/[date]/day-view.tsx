@@ -60,19 +60,27 @@ const DayTotalSummary = ({ log }: { log: DayLog }) => (
   </div>
 );
 
-const MealListItem = ({ meal }: { meal: DayMealSummary }) => (
+const MAX_NAMES_SHOWN = 2;
+const summariseIngredients = (names: string[]): string => {
+  if (names.length <= MAX_NAMES_SHOWN) return names.join(", ");
+  return `${names.slice(0, MAX_NAMES_SHOWN).join(", ")}, +${names.length - MAX_NAMES_SHOWN}`;
+};
+
+const MealListItem = ({ meal, index }: { meal: DayMealSummary; index: number }) => (
   <li>
     <Link href={`/meals/${meal.id}`} className="block rounded border p-3 hover:bg-gray-50">
-      <span className="font-medium">{meal.name}</span>
-      <span className="block text-sm text-gray-600">{Math.round(meal.total.energyKcal)} kcal</span>
+      <span className="font-medium">Meal {index + 1}</span>
+      <span className="block text-sm text-gray-600">
+        {summariseIngredients(meal.ingredientNames)} · {Math.round(meal.total.energyKcal)} kcal
+      </span>
     </Link>
   </li>
 );
 
 const MealList = ({ meals }: { meals: DayMealSummary[] }) => (
   <ul className="flex flex-col gap-2">
-    {meals.map((meal) => (
-      <MealListItem key={meal.id} meal={meal} />
+    {meals.map((meal, index) => (
+      <MealListItem key={meal.id} meal={meal} index={index} />
     ))}
   </ul>
 );

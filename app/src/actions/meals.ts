@@ -96,8 +96,8 @@ const addNutrition = (a: NutritionValues, b: NutritionValues): NutritionValues =
 
 export interface DayMealSummary {
   id: string;
-  name: string | null;
   total: NutritionValues;
+  ingredientNames: string[];
 }
 
 export interface DayLog {
@@ -127,14 +127,14 @@ const productRowToNutritionValues = (product: ProductNutritionRow): NutritionVal
 
 interface DayMealIngredientRow {
   mealId: string;
-  mealName: string | null;
+  productName: string;
   quantityG: string;
   product: ProductNutritionRow;
 }
 
 const DAY_MEAL_INGREDIENT_SELECTION = {
   mealId: meals.id,
-  mealName: meals.name,
+  productName: products.name,
   quantityG: mealIngredients.quantityG,
   product: {
     energyKcal: products.energyKcal,
@@ -163,17 +163,23 @@ const fetchDayMealIngredientRows = async (
         lt(mealIngredients.createdAt, bounds.end),
       ),
     )
-    .orderBy(meals.createdAt);
+    .orderBy(meals.createdAt, mealIngredients.createdAt);
 
 const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
   rows.reduce<DayMealSummary[]>((summaries, row) => {
     const contribution = computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG));
-    const index = summaries.findIndex((summary) => summary.id === row.mealId);
-    if (index === -1) {
-      return [...summaries, { id: row.mealId, name: row.mealName, total: contribution }];
+    const existing = summaries.find((summary) => summary.id === row.mealId);
+    if (!existing) {
+      return [...summaries, { id: row.mealId, total: contribution, ingredientNames: [row.productName] }];
     }
-    return summaries.map((summary, position) =>
-      position === index ? { ...summary, total: addNutrition(summary.total, contribution) } : summary,
+    return summaries.map((summary) =>
+      summary.id === row.mealId
+        ? {
+            ...summary,
+            total: addNutrition(summary.total, contribution),
+            ingredientNames: [...summary.ingredientNames, row.productName],
+          }
+        : summary,
     );
   }, []);
 

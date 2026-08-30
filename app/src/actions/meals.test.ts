@@ -210,7 +210,20 @@ describe("getDayLog", () => {
     const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
 
     expect(log.dayTotal.energyKcal).toBeCloseTo(140, 5);
-    expect(log.meals.map((meal) => meal.id)).toEqual([mealId]);
+    expect(log.meals).toEqual([{ id: mealId, ingredientNames: ["Test Product"], total: log.dayTotal }]);
+  });
+
+  it("excludes a meal that has no ingredients", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId: filled } = await createMeal();
+    await saveMealIngredient({ mealId: filled, productId, quantityG: 100, quantitySource: "manual" });
+    await createMeal(); // empty
+
+    const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
+
+    expect(log.meals.map((meal) => meal.id)).toEqual([filled]);
   });
 
   it("excludes meals from a different local day", async () => {
