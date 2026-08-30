@@ -82,7 +82,10 @@ export const dayBoundsInTimezone = (date: string, timezone: string): DayBounds =
   end: localMidnightUtcInstant(addCalendarDays(date, 1), timezone),
 });
 
-// "YYYY-MM-DD" for "now" as experienced in `timezone` - en-CA is what makes
-// this a one-line implementation rather than manual string assembly.
+// "YYYY-MM-DD" for `instant` as experienced in `timezone` - en-CA is what
+// makes this a one-line implementation rather than manual string assembly.
+export const localDateStringOf = (instant: Date, timezone: string): string =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(instant);
+
 export const todayLocalDateString = (timezone: string): string =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+  localDateStringOf(new Date(), timezone);

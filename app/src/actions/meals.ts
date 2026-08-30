@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, lt, lte, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
-import { dayBoundsInTimezone, type DayBounds } from "@/lib/date/day-bounds";
+import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products } from "@/lib/db/schema";
 
@@ -203,7 +203,7 @@ export interface MealIngredientDetail {
 
 export interface MealDetail {
   id: string;
-  name: string | null;
+  mealNumber: number; // 1-based position among the user's meals in the meal's own local day
   ingredients: MealIngredientDetail[];
   total: NutritionValues;
 }
@@ -251,10 +251,23 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   contribution: computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG)),
 });
 
-export const getMealDetail = async (mealId: string): Promise<MealDetail | null> => {
+const mealNumberInLocalDay = async (
+  userId: string,
+  mealCreatedAt: Date,
+  timezone: string,
+): Promise<number> => {
+  const { start } = dayBoundsInTimezone(localDateStringOf(mealCreatedAt, timezone), timezone);
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(meals)
+    .where(and(eq(meals.userId, userId), gte(meals.createdAt, start), lte(meals.createdAt, mealCreatedAt)));
+  return count;
+};
+
+export const getMealDetail = async (mealId: string, timezone: string): Promise<MealDetail | null> => {
   const userId = await requireUserId();
   const [meal] = await db
-    .select({ id: meals.id, name: meals.name })
+    .select({ id: meals.id, createdAt: meals.createdAt })
     .from(meals)
     .where(and(eq(meals.id, mealId), eq(meals.userId, userId)));
   if (!meal) {
@@ -264,7 +277,8 @@ export const getMealDetail = async (mealId: string): Promise<MealDetail | null> 
   const rows = await fetchMealIngredientRows(mealId);
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
-  return { id: meal.id, name: meal.name, ingredients, total };
+  const mealNumber = await mealNumberInLocalDay(userId, meal.createdAt, timezone);
+  return { id: meal.id, mealNumber, ingredients, total };
 };
 
 export const removeMealIngredient = async (mealIngredientId: string): Promise<void> => {

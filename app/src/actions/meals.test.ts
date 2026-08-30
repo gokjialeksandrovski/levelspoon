@@ -106,6 +106,11 @@ describe("createMeal", () => {
 });
 
 describe("getMealDetail", () => {
+  const insertMealAt = async (userId: string, iso: string): Promise<string> => {
+    const [row] = await db.insert(meals).values({ userId, createdAt: new Date(iso) }).returning({ id: meals.id });
+    return row.id;
+  };
+
   it("returns the meal with its ingredients and total when the authenticated user owns it", async () => {
     const userId = await seedUser();
     const productId = await seedProduct(userId);
@@ -113,7 +118,7 @@ describe("getMealDetail", () => {
     const { mealId } = await createMeal();
     await saveMealIngredient({ mealId, productId, quantityG: 200, quantitySource: "manual" });
 
-    const meal = await getMealDetail(mealId);
+    const meal = await getMealDetail(mealId, "UTC");
 
     expect(meal?.ingredients).toHaveLength(1);
     expect(meal?.ingredients[0].productName).toBe("Test Product");
@@ -126,7 +131,7 @@ describe("getMealDetail", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
 
-    const meal = await getMealDetail(mealId);
+    const meal = await getMealDetail(mealId, "UTC");
 
     expect(meal?.ingredients).toEqual([]);
     expect(meal?.total.energyKcal).toBe(0);
@@ -139,7 +144,7 @@ describe("getMealDetail", () => {
     const { mealId } = await createMeal();
 
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
-    const meal = await getMealDetail(mealId);
+    const meal = await getMealDetail(mealId, "UTC");
 
     expect(meal).toBeNull();
   });
@@ -161,9 +166,42 @@ describe("getMealDetail", () => {
 
     await updateMealIngredientQuantity(firstId, 150);
 
-    const meal = await getMealDetail(mealId);
+    const meal = await getMealDetail(mealId, "UTC");
 
     expect(meal?.ingredients.map((ingredient) => ingredient.id)).toEqual([firstId, secondId, thirdId]);
+  });
+
+  it("numbers a meal by its position within its own local day", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const first = await insertMealAt(userId, "2026-03-10T08:00:00Z");
+    await insertMealAt(userId, "2026-03-10T12:00:00Z");
+    const third = await insertMealAt(userId, "2026-03-10T18:00:00Z");
+
+    expect((await getMealDetail(first, "UTC"))?.mealNumber).toBe(1);
+    expect((await getMealDetail(third, "UTC"))?.mealNumber).toBe(3);
+  });
+
+  it("renumbers after an earlier meal in the day is deleted", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const first = await insertMealAt(userId, "2026-03-10T08:00:00Z");
+    const second = await insertMealAt(userId, "2026-03-10T12:00:00Z");
+
+    await deleteMeal(first);
+
+    expect((await getMealDetail(second, "UTC"))?.mealNumber).toBe(1);
+  });
+
+  it("scopes the number to the meal's own local day in a non-UTC zone", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    // 22:00Z on the 9th is already the 10th in Asia/Kolkata (UTC+5:30):
+    // the "previous day" meal must not count toward the 10th's numbering.
+    await insertMealAt(userId, "2026-03-09T10:00:00Z");
+    const firstOfLocalDay = await insertMealAt(userId, "2026-03-09T22:00:00Z");
+
+    expect((await getMealDetail(firstOfLocalDay, "Asia/Kolkata"))?.mealNumber).toBe(1);
   });
 });
 

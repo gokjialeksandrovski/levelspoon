@@ -13,9 +13,10 @@ import { ProductNameStep } from "./steps/product-name-step";
 
 interface CaptureWizardProps {
   mealId: string;
+  onIngredientSaved?: () => void;
 }
 
-export const CaptureWizard = ({ mealId }: CaptureWizardProps) => {
+export const CaptureWizard = ({ mealId, onIngredientSaved }: CaptureWizardProps) => {
   const [step, dispatch] = useReducer(wizardReducer, INITIAL_WIZARD_STEP);
   const router = useRouter();
 
@@ -40,7 +41,10 @@ export const CaptureWizard = ({ mealId }: CaptureWizardProps) => {
         product={step.product}
         alternatives={step.alternatives}
         dispatch={dispatch}
-        onSaved={() => router.refresh()}
+        onSaved={() => {
+          router.refresh();
+          onIngredientSaved?.();
+        }}
       />
     );
   }

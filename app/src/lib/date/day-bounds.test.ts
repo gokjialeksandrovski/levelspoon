@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { addCalendarDays, dayBoundsInTimezone, todayLocalDateString } from "./day-bounds";
+import { addCalendarDays, dayBoundsInTimezone, localDateStringOf, todayLocalDateString } from "./day-bounds";
 
 describe("addCalendarDays", () => {
   it("rolls over a month boundary going forward", () => {
@@ -35,6 +35,14 @@ describe("dayBoundsInTimezone", () => {
     // reading the post-transition AEDT (+11) offset instead.
     const bounds = dayBoundsInTimezone("2026-10-04", "Australia/Sydney");
     expect(bounds.start.toISOString()).toBe("2026-10-03T14:00:00.000Z");
+  });
+});
+
+describe("localDateStringOf", () => {
+  it("returns the local calendar date for an instant, per timezone", () => {
+    const instant = new Date("2026-01-01T22:00:00Z");
+    expect(localDateStringOf(instant, "UTC")).toBe("2026-01-01");
+    expect(localDateStringOf(instant, "Asia/Kolkata")).toBe("2026-01-02"); // UTC+5:30
   });
 });
 

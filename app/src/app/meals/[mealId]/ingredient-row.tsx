@@ -12,6 +12,11 @@ interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
   onError: (message: string) => void;
+  // Beside router.refresh() (a no-op once the parent page is a Client
+  // Component with no server data of its own to refetch - see meal-detail.tsx),
+  // this is what actually makes the parent's fetched ingredient list and
+  // DayTotalBar pick up the change.
+  onChanged?: () => void;
 }
 
 const removeIngredient = async (
@@ -26,6 +31,7 @@ const removeIngredient = async (
   try {
     await removeMealIngredient(mealIngredientId);
     callbacks.router.refresh();
+    callbacks.onChanged?.();
   } catch {
     callbacks.onError("Could not remove this ingredient. Please try again.");
     callbacks.onBusyChange(false);
@@ -43,6 +49,7 @@ const saveIngredientQuantity = async (
     await updateMealIngredientQuantity(mealIngredientId, quantityG);
     onSaved();
     callbacks.router.refresh();
+    callbacks.onChanged?.();
   } catch {
     callbacks.onError("Could not update this ingredient. Please try again.");
   } finally {
@@ -61,13 +68,16 @@ interface UseIngredientEditingResult {
   remove: () => Promise<void>;
 }
 
-const useIngredientEditing = (ingredient: MealIngredientDetail): UseIngredientEditingResult => {
+const useIngredientEditing = (
+  ingredient: MealIngredientDetail,
+  onChanged?: () => void,
+): UseIngredientEditingResult => {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [quantityInput, setQuantityInput] = useState(String(ingredient.quantityG));
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError };
+  const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged };
 
   return {
     isEditing,
@@ -176,10 +186,11 @@ const CorrectionLink = ({ productId }: { productId: string }) => (
 
 interface IngredientRowProps {
   ingredient: MealIngredientDetail;
+  onChanged?: () => void;
 }
 
-export const IngredientRow = ({ ingredient }: IngredientRowProps) => {
-  const editing = useIngredientEditing(ingredient);
+export const IngredientRow = ({ ingredient, onChanged }: IngredientRowProps) => {
+  const editing = useIngredientEditing(ingredient, onChanged);
 
   return (
     <li className="flex flex-col gap-2 rounded border p-3">

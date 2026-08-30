@@ -7,9 +7,10 @@ import { CaptureWizard } from "./capture-wizard";
 
 interface AddIngredientSectionProps {
   mealId: string;
+  onIngredientSaved?: () => void;
 }
 
-export const AddIngredientSection = ({ mealId }: AddIngredientSectionProps) => {
+export const AddIngredientSection = ({ mealId, onIngredientSaved }: AddIngredientSectionProps) => {
   const [isAdding, setIsAdding] = useState(false);
 
   if (!isAdding) {
@@ -23,5 +24,5 @@ export const AddIngredientSection = ({ mealId }: AddIngredientSectionProps) => {
       </button>
     );
   }
-  return <CaptureWizard mealId={mealId} />;
+  return <CaptureWizard mealId={mealId} onIngredientSaved={onIngredientSaved} />;
 };
