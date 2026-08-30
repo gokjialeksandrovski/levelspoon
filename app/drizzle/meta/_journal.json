@@ -15,6 +15,13 @@
       "when": 1787795645173,
       "tag": "0001_outstanding_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788094524980,
+      "tag": "0002_aromatic_zzzax",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "meals" ALTER COLUMN "name" DROP NOT NULL;

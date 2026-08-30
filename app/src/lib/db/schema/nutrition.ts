@@ -41,7 +41,7 @@ export const meals = pgTable("meals", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id),
-  name: text("name").notNull(),
+  name: text("name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

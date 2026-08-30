@@ -87,7 +87,7 @@ const addNutrition = (a: NutritionValues, b: NutritionValues): NutritionValues =
 
 export interface DayMealSummary {
   id: string;
-  name: string;
+  name: string | null;
   total: NutritionValues;
 }
 
@@ -118,7 +118,7 @@ const productRowToNutritionValues = (product: ProductNutritionRow): NutritionVal
 
 interface DayMealIngredientRow {
   mealId: string;
-  mealName: string;
+  mealName: string | null;
   quantityG: string;
   product: ProductNutritionRow;
 }
@@ -188,7 +188,7 @@ export interface MealIngredientDetail {
 
 export interface MealDetail {
   id: string;
-  name: string;
+  name: string | null;
   ingredients: MealIngredientDetail[];
   total: NutritionValues;
 }
