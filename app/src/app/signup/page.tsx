@@ -7,7 +7,9 @@ import { type FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 
 import { registerUser } from "@/actions/auth";
+import { Button } from "@/components/button";
 import { Field } from "@/components/field";
+import { InlineMessage } from "@/components/inline-message";
 
 const SignUpPage = () => {
   const router = useRouter();
@@ -37,18 +39,22 @@ const SignUpPage = () => {
   };
 
   return (
-    <main className="mx-auto flex max-w-sm flex-col gap-4 p-6">
-      <h1 className="text-xl font-semibold">Sign up</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <Field label="Name" name="name" required />
-        <Field label="Email" name="email" type="email" required />
-        <Field label="Password" name="password" type="password" required />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white">
-          Sign up
-        </button>
-      </form>
-      <Link href="/signin" className="text-sm text-blue-600">
+    <main className="mx-auto flex min-h-[100dvh] w-full max-w-sm flex-col justify-center gap-6 px-6">
+      <p className="text-center text-lg font-semibold text-text">Per100</p>
+      <div className="flex flex-col gap-4 rounded-(--radius-surface) border border-border bg-surface p-6">
+        <h1 className="text-xl font-semibold text-text">Sign up</h1>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <Field label="Name" name="name" required />
+          <Field label="Email" name="email" type="email" required />
+          <Field label="Password" name="password" type="password" required />
+          {error && <InlineMessage tone="error">{error}</InlineMessage>}
+          <Button type="submit">Sign up</Button>
+        </form>
+        <Button variant="ghost" disabled title="Google sign-in is not yet configured">
+          Continue with Google
+        </Button>
+      </div>
+      <Link href="/signin" className="text-center text-sm text-text-muted underline">
         Already have an account? Sign in
       </Link>
     </main>

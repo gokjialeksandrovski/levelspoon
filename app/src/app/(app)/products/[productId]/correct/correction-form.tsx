@@ -9,6 +9,9 @@ import { updateProduct } from "@/actions/products";
 import type { ProductForCorrection } from "@/actions/products";
 import { validateNutrition } from "@/actions/ocr";
 import { AppHeader } from "@/components/app-header";
+import { Button } from "@/components/button";
+import { Field } from "@/components/field";
+import { InlineMessage } from "@/components/inline-message";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -22,6 +25,8 @@ interface CorrectionFormProps {
   product: ProductForCorrection;
 }
 
+const FLAGGED_ERROR = "This value looks off - please double-check it";
+
 const toNullableNutritionValues = (values: ProductForCorrection["nutritionPer100g"]): NullableNutritionValues => values;
 
 // Re-checks validation right before a save rather than trusting the last
@@ -32,6 +37,79 @@ const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]
   const result = await validateNutrition(toNutritionValues(currentValues));
   return result.flags;
 };
+
+const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; productName: string }) =>
+  photoUrl ? (
+    <div className="overflow-hidden rounded-(--radius-surface) border border-border">
+      <Image
+        src={photoUrl}
+        alt={`${productName} nutrition label`}
+        width={320}
+        height={240}
+        unoptimized
+        className="w-full object-contain"
+      />
+    </div>
+  ) : (
+    <InlineMessage tone="warning">Photo unavailable</InlineMessage>
+  );
+
+const ReplacePhotoField = ({ onSelect }: { onSelect: (photo: Blob | null) => void }) => (
+  <div className="flex flex-col gap-1.5">
+    <label htmlFor="photo" className="text-xs font-medium text-text-muted">
+      Replace photo (optional)
+    </label>
+    <input
+      id="photo"
+      type="file"
+      accept="image/*"
+      onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
+      className="text-sm text-text-muted file:mr-3 file:rounded-(--radius-control) file:border-0 file:bg-surface-raised file:px-3 file:py-2 file:text-sm file:text-text"
+    />
+  </div>
+);
+
+interface NutritionFieldsProps {
+  values: FieldValues;
+  flaggedFields: Set<keyof FieldValues>;
+  onFieldChange: (field: keyof FieldValues, value: string) => void;
+  onFieldBlur: () => void;
+}
+
+const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: NutritionFieldsProps) => (
+  <>
+    {(Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).map((field) => (
+      <Field
+        key={field}
+        label={FIELD_LABELS[field]}
+        name={field}
+        type="number"
+        inputMode="decimal"
+        value={values[field]}
+        onChange={(event) => onFieldChange(field, event.target.value)}
+        onBlur={onFieldBlur}
+        flagged={flaggedFields.has(field)}
+        error={flaggedFields.has(field) ? FLAGGED_ERROR : undefined}
+      />
+    ))}
+  </>
+);
+
+interface CorrectionFeedbackProps {
+  saveError: string | null;
+  validateError: boolean;
+}
+
+const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProps) => (
+  <>
+    {validateError && (
+      <InlineMessage tone="warning">
+        Couldn&apos;t validate, please double-check the values before saving.
+      </InlineMessage>
+    )}
+    {saveError && <InlineMessage tone="error">{saveError}</InlineMessage>}
+  </>
+);
 
 export const CorrectionForm = ({ product }: CorrectionFormProps) => {
   const router = useRouter();
@@ -94,74 +172,26 @@ export const CorrectionForm = ({ product }: CorrectionFormProps) => {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
       <AppHeader variant="back" title="Correct product" onBack={() => router.back()} />
-      <h2 className="text-xl font-semibold">Correct nutrition (per 100g)</h2>
-      {product.photoUrl ? (
-        <Image
-          src={product.photoUrl}
-          alt={`${product.name} nutrition label`}
-          width={320}
-          height={240}
-          unoptimized
-          className="rounded border object-contain"
-        />
-      ) : (
-        <p className="text-sm text-gray-500">Photo unavailable</p>
-      )}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="photo" className="text-sm font-medium text-gray-700">
-          Replace photo (optional)
-        </label>
-        <input
-          id="photo"
-          type="file"
-          accept="image/*"
-          onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
-          className="text-sm"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name" className="text-sm font-medium text-gray-700">
-          Product name
-        </label>
-        <input
-          id="name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
-        />
-      </div>
-      {(Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).map((field) => (
-        <div key={field} className="flex flex-col gap-1">
-          <label htmlFor={field} className="text-sm font-medium text-gray-700">
-            {FIELD_LABELS[field]}
-          </label>
-          <input
-            id={field}
-            type="number"
-            value={values[field]}
-            onChange={(event) => setValues({ ...values, [field]: event.target.value })}
-            onBlur={() => revalidate(values)}
-            className={`rounded border px-3 py-2 ${flaggedFields.has(field) ? "border-red-500" : "border-gray-300"}`}
+      <main className="flex-1 px-4 py-6">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-xl font-semibold">Correct nutrition (per 100g)</h2>
+          <StoredPhoto photoUrl={product.photoUrl} productName={product.name} />
+          <ReplacePhotoField onSelect={setPhoto} />
+          <Field label="Product name" name="name" value={name} onChange={(event) => setName(event.target.value)} />
+          <NutritionFields
+            values={values}
+            flaggedFields={flaggedFields}
+            onFieldChange={(field, value) => setValues({ ...values, [field]: value })}
+            onFieldBlur={() => revalidate(values)}
           />
-          {flaggedFields.has(field) && (
-            <p className="text-sm text-red-600">This value looks off — please double-check it</p>
-          )}
+          <CorrectionFeedback saveError={saveError} validateError={validateError} />
+          <Button disabled={!canSave || isSaving} onClick={handleSave}>
+            Save correction
+          </Button>
         </div>
-      ))}
-      {validateError && (
-        <p className="text-sm text-yellow-700">Couldn&apos;t validate, please double-check the values before saving.</p>
-      )}
-      {saveError && <p className="text-sm text-red-600">{saveError}</p>}
-      <button
-        type="button"
-        disabled={!canSave || isSaving}
-        onClick={handleSave}
-        className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-      >
-        Save correction
-      </button>
-    </div>
+      </main>
+    </>
   );
 };
