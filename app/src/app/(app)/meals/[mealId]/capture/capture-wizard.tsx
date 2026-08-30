@@ -41,14 +41,16 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
 };
 
 const SavedStep = ({ dispatch, onDone }: { dispatch: (action: PathAction) => void; onDone: () => void }) => (
-  <div className="flex flex-col gap-3">
+  <div className="flex flex-col items-center gap-4 py-8 text-center">
     <p className="text-accent">Ingredient saved.</p>
-    <Button variant="primary" onClick={() => dispatch({ type: "ADD_ANOTHER" })}>
-      Add another
-    </Button>
-    <Button variant="ghost" onClick={onDone}>
-      Done
-    </Button>
+    <div className="flex gap-2">
+      <Button variant="primary" onClick={() => dispatch({ type: "ADD_ANOTHER" })}>
+        Add another
+      </Button>
+      <Button variant="ghost" onClick={onDone}>
+        Done
+      </Button>
+    </div>
   </div>
 );
 

@@ -4,7 +4,9 @@
 import { useState } from "react";
 
 import { ocrNutritionTable } from "@/actions/ocr";
+import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
+import { Skeleton } from "@/components/skeleton";
 
 import type { WizardAction } from "../capture-wizard.types";
 
@@ -66,13 +68,19 @@ export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepPr
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <h2 className="font-medium">Photograph the nutrition table</h2>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold">Photograph the nutrition table</h2>
       <PhotoInput label="Nutrition table photo" onSelect={handleSelect} />
-      {isLoading && <p className="text-sm text-gray-500">Reading photo…</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {isLoading && (
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      )}
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
       {error && photo && (
-        <button type="button" onClick={handleManualEntry} className="text-sm text-blue-600">
+        <button type="button" onClick={handleManualEntry} className="text-sm text-text-muted underline">
           Enter the values manually instead
         </button>
       )}

@@ -4,6 +4,9 @@
 import { useState } from "react";
 
 import { createProduct } from "@/actions/products";
+import { Button } from "@/components/button";
+import { Field } from "@/components/field";
+import { InlineMessage } from "@/components/inline-message";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -21,6 +24,8 @@ interface ConfirmStepProps {
   photo: Blob;
   dispatch: (action: WizardAction) => void;
 }
+
+const FLAGGED_FIELD_ERROR = "Could not read this value - please enter it";
 
 export const ConfirmStep = ({ name, parsed, flags, photo, dispatch }: ConfirmStepProps) => {
   const [nameValue, setNameValue] = useState(name);
@@ -49,45 +54,30 @@ export const ConfirmStep = ({ name, parsed, flags, photo, dispatch }: ConfirmSte
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <h2 className="font-medium">Confirm nutrition (per 100g)</h2>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name" className="text-sm font-medium text-gray-700">
-          Product name
-        </label>
-        <input
-          id="name"
-          value={nameValue}
-          onChange={(event) => setNameValue(event.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
-        />
-      </div>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold">Confirm nutrition (per 100g)</h2>
+      <Field
+        label="Product name"
+        name="name"
+        value={nameValue}
+        onChange={(event) => setNameValue(event.target.value)}
+      />
       {(Object.keys(FIELD_LABELS) as (keyof NullableNutritionValues)[]).map((field) => (
-        <div key={field} className="flex flex-col gap-1">
-          <label htmlFor={field} className="text-sm font-medium text-gray-700">
-            {FIELD_LABELS[field]}
-          </label>
-          <input
-            id={field}
-            type="number"
-            value={values[field]}
-            onChange={(event) => setValues({ ...values, [field]: event.target.value })}
-            className={`rounded border px-3 py-2 ${flaggedFields.has(field) ? "border-red-500" : "border-gray-300"}`}
-          />
-          {flaggedFields.has(field) && (
-            <p className="text-sm text-red-600">Could not read this value — please enter it</p>
-          )}
-        </div>
+        <Field
+          key={field}
+          label={FIELD_LABELS[field]}
+          name={field}
+          type="number"
+          value={values[field]}
+          onChange={(event) => setValues({ ...values, [field]: event.target.value })}
+          flagged={flaggedFields.has(field)}
+          error={flaggedFields.has(field) ? FLAGGED_FIELD_ERROR : undefined}
+        />
       ))}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button
-        type="button"
-        disabled={!canSave || isSaving}
-        onClick={handleSave}
-        className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-      >
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+      <Button disabled={!canSave || isSaving} onClick={handleSave}>
         Save product
-      </button>
+      </Button>
     </div>
   );
 };

@@ -5,6 +5,9 @@ import { useState } from "react";
 
 import { saveMealIngredient } from "@/actions/meals";
 import { estimateQuantity } from "@/actions/quantity";
+import { Button } from "@/components/button";
+import { Field } from "@/components/field";
+import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
@@ -31,7 +34,7 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
       setGrams(String(estimated));
       setSource("ai_estimated");
     } catch {
-      setError("Could not estimate the amount — enter it manually.");
+      setError("Could not estimate the amount - enter it manually.");
     } finally {
       setIsBusy(false);
     }
@@ -55,40 +58,30 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
     dispatch({ type: "CHANGE_MATCH", nameGuess: product.name, candidates: [product, ...alternatives] });
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-medium">Using {product.name}</h2>
+        <h2 className="text-lg font-semibold">Using {product.name}</h2>
         {alternatives.length > 0 && (
-          <button type="button" onClick={changeMatch} className="text-sm text-blue-600">
+          <button type="button" onClick={changeMatch} className="text-sm text-text-muted underline">
             Change?
           </button>
         )}
       </div>
       <PhotoInput label="Amount photo (optional)" onSelect={handlePhoto} />
-      <div className="flex flex-col gap-1">
-        <label htmlFor="grams" className="text-sm font-medium text-gray-700">
-          Amount (g)
-        </label>
-        <input
-          id="grams"
-          type="number"
-          value={grams}
-          onChange={(event) => {
-            setGrams(event.target.value);
-            setSource("manual");
-          }}
-          className="rounded border border-gray-300 px-3 py-2"
-        />
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button
-        type="button"
-        disabled={isBusy || grams.trim() === ""}
-        onClick={handleSave}
-        className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-      >
+      <Field
+        label="Amount (g)"
+        name="grams"
+        type="number"
+        value={grams}
+        onChange={(event) => {
+          setGrams(event.target.value);
+          setSource("manual");
+        }}
+      />
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+      <Button disabled={isBusy || grams.trim() === ""} onClick={handleSave}>
         Save ingredient
-      </button>
+      </Button>
     </div>
   );
 };
