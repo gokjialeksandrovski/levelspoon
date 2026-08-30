@@ -32,7 +32,7 @@ export const Field = ({
       onBlur={onBlur}
       required={required}
       aria-invalid={flagged || Boolean(error)}
-      className={`rounded-[--radius-control] border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+      className={`rounded-(--radius-control) border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
         flagged || error ? "border-flag" : "border-border"
       }`}
     />
