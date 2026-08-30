@@ -267,6 +267,25 @@ export const removeMealIngredient = async (mealIngredientId: string): Promise<vo
   await db.delete(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
 };
 
+export const deleteMeal = async (mealId: string): Promise<void> => {
+  const userId = await requireUserId();
+  await assertMealOwnership(mealId, userId);
+  await db.transaction(async (tx) => {
+    await tx.delete(mealIngredients).where(eq(mealIngredients.mealId, mealId));
+    await tx.delete(meals).where(eq(meals.id, mealId));
+  });
+};
+
+export const discardEmptyMeal = async (mealId: string): Promise<void> => {
+  const userId = await requireUserId();
+  await assertMealOwnership(mealId, userId);
+  await db.execute(sql`
+    DELETE FROM meals
+    WHERE id = ${mealId}
+      AND NOT EXISTS (SELECT 1 FROM meal_ingredients mi WHERE mi.meal_id = ${mealId})
+  `);
+};
+
 export const updateMealIngredientQuantity = async (
   mealIngredientId: string,
   quantityG: number,

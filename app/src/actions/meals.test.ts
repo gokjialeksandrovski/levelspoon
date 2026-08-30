@@ -11,6 +11,8 @@ import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import {
   createMeal,
+  deleteMeal,
+  discardEmptyMeal,
   getDayHistory,
   getDayLog,
   getMealDetail,
@@ -359,6 +361,65 @@ describe("updateMealIngredientQuantity", () => {
 
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
     await expect(updateMealIngredientQuantity(mealIngredientId, 100)).rejects.toThrow(NotAuthorizedError);
+  });
+});
+
+describe("deleteMeal", () => {
+  it("removes the meal and its ingredients when the caller owns it", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantityG: 100, quantitySource: "manual" });
+
+    await deleteMeal(mealId);
+
+    expect(await db.select().from(meals).where(eq(meals.id, mealId))).toEqual([]);
+    expect(await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, mealId))).toEqual([]);
+  });
+
+  it("throws NotAuthorizedError when a different user owns the meal", async () => {
+    const ownerId = await seedUser();
+    const intruderId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: ownerId } });
+    const { mealId } = await createMeal();
+
+    mockAuth.mockResolvedValue({ user: { id: intruderId } });
+    await expect(deleteMeal(mealId)).rejects.toThrow(NotAuthorizedError);
+  });
+});
+
+describe("discardEmptyMeal", () => {
+  it("deletes a meal that has no ingredients", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+
+    await discardEmptyMeal(mealId);
+
+    expect(await db.select().from(meals).where(eq(meals.id, mealId))).toEqual([]);
+  });
+
+  it("is a no-op for a meal that has ingredients", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantityG: 100, quantitySource: "manual" });
+
+    await discardEmptyMeal(mealId);
+
+    expect(await db.select().from(meals).where(eq(meals.id, mealId))).toHaveLength(1);
+  });
+
+  it("throws NotAuthorizedError when a different user owns the meal", async () => {
+    const ownerId = await seedUser();
+    const intruderId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: ownerId } });
+    const { mealId } = await createMeal();
+
+    mockAuth.mockResolvedValue({ user: { id: intruderId } });
+    await expect(discardEmptyMeal(mealId)).rejects.toThrow(NotAuthorizedError);
   });
 });
 
