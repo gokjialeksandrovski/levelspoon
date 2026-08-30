@@ -3,6 +3,8 @@ import { Geist } from "next/font/google";
 
 import "./globals.css";
 
+import { Providers } from "./providers";
+
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
@@ -20,7 +22,9 @@ export const viewport: Viewport = {
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
   <html lang="en" className={geist.variable}>
-    <body className="min-h-[100dvh] bg-bg font-sans text-text antialiased">{children}</body>
+    <body className="min-h-[100dvh] bg-bg font-sans text-text antialiased">
+      <Providers>{children}</Providers>
+    </body>
   </html>
 );
 

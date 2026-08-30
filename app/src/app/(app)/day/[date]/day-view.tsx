@@ -1,4 +1,4 @@
-// app/src/app/day/[date]/day-view.tsx
+// app/src/app/(app)/day/[date]/day-view.tsx
 "use client";
 
 import Link from "next/link";
@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getDayLog } from "@/actions/meals";
 import type { DayLog, DayMealSummary } from "@/actions/meals";
+import { AppHeader } from "@/components/app-header";
 import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
 
 interface DayViewProps {
@@ -117,9 +118,12 @@ export const DayView = ({ date }: DayViewProps) => {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <DayNavigation date={date} />
-      <DayLogContent log={state.log} isToday={state.isToday} />
-    </div>
+    <>
+      <AppHeader variant="day" date={date} />
+      <div className="flex flex-col gap-4">
+        <DayNavigation date={date} />
+        <DayLogContent log={state.log} isToday={state.isToday} />
+      </div>
+    </>
   );
 };

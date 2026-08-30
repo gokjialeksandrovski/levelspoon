@@ -1,35 +1,13 @@
 // app/tests/e2e/day-view.spec.ts
 import { expect, test } from "@playwright/test";
-import { sql } from "drizzle-orm";
 
-import { db } from "../../src/lib/db";
-import { products, users } from "../../src/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "../../src/lib/date/day-bounds";
 
-const freshEmail = () => `e2e-day-${crypto.randomUUID()}@example.com`;
+import { seedConfidentProduct, signUp, truncateAll } from "./support";
 
 test.beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);
+  await truncateAll();
 });
-
-const seedConfidentProduct = async () => {
-  const [user] = await db.insert(users).values({ email: freshEmail() }).returning();
-  await db.insert(products).values({
-    name: "Olympus Greek Yogurt 2% Fat",
-    energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
-    sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
-    nutritionPhotoKey: "test/placeholder.jpg", createdByUserId: user.id,
-  });
-};
-
-const signUp = async (page: import("@playwright/test").Page) => {
-  await page.goto("/signup");
-  await page.getByLabel("Name").fill("E2E Tester");
-  await page.getByLabel("Email").fill(freshEmail());
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Sign up" }).click();
-  await page.waitForURL("**/meals/new");
-};
 
 const localToday = () => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
@@ -40,7 +18,8 @@ test("empty day shows a start-meal CTA", async ({ page }) => {
 
   await expect(page.getByText("No meals logged")).toBeVisible();
   await expect(page.getByRole("link", { name: "Start a meal" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "History" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "History" })).toBeVisible(); // now an icon link with aria-label
+  await page.getByRole("button", { name: /account/i }).click();
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 });
 

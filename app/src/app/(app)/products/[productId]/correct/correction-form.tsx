@@ -1,4 +1,4 @@
-// app/src/app/products/[productId]/correct/correction-form.tsx
+// app/src/app/(app)/products/[productId]/correct/correction-form.tsx
 "use client";
 
 import Image from "next/image";
@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { updateProduct } from "@/actions/products";
 import type { ProductForCorrection } from "@/actions/products";
 import { validateNutrition } from "@/actions/ocr";
+import { AppHeader } from "@/components/app-header";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -94,7 +95,8 @@ export const CorrectionForm = ({ product }: CorrectionFormProps) => {
 
   return (
     <div className="flex flex-col gap-3">
-      <h1 className="text-xl font-semibold">Correct nutrition (per 100g)</h1>
+      <AppHeader variant="back" title="Correct product" onBack={() => router.back()} />
+      <h2 className="text-xl font-semibold">Correct nutrition (per 100g)</h2>
       {product.photoUrl ? (
         <Image
           src={product.photoUrl}

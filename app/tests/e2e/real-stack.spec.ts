@@ -1,9 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { sql } from "drizzle-orm";
 
-import { db } from "../../src/lib/db";
-
-const freshEmail = () => `e2e-real-${crypto.randomUUID()}@example.com`;
+import { signUp, truncateAll } from "./support";
 
 // This local dev Postgres persists across runs (it's not re-created per
 // suite), so without this the products table accumulates rows across
@@ -11,18 +8,12 @@ const freshEmail = () => `e2e-real-${crypto.randomUUID()}@example.com`;
 // failure mode that already bit the tier-3 suite (capture-flow.spec.ts's
 // beforeEach) before this same fix was applied there.
 test.beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);
+  await truncateAll();
 });
 
 test("real stack: real photos through real OCR produce the golden nutrition values", async ({ page }) => {
-  await page.goto("/signup");
-  await page.getByLabel("Name").fill("Real Stack Tester");
-  await page.getByLabel("Email").fill(freshEmail());
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Sign up" }).click();
-  await page.waitForURL("**/meals/new");
+  await signUp(page);
 
-  await page.getByLabel("Meal name").fill("Breakfast");
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   await page.getByRole("button", { name: "Add ingredient" }).click();

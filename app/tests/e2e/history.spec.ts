@@ -1,18 +1,18 @@
 // app/tests/e2e/history.spec.ts
 import { expect, test } from "@playwright/test";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db } from "../../src/lib/db";
 import { mealIngredients, meals, products, users } from "../../src/lib/db/schema";
 
-const freshEmail = () => `e2e-history-${crypto.randomUUID()}@example.com`;
+import { freshEmail, truncateAll } from "./support";
 
 test.beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);
+  await truncateAll();
 });
 
 test("history lists past days and paginates", async ({ page }) => {
-  const email = freshEmail();
+  const email = freshEmail("e2e-history");
   await page.goto("/signup");
   await page.getByLabel("Name").fill("History Tester");
   await page.getByLabel("Email").fill(email);
@@ -43,8 +43,12 @@ test("history lists past days and paginates", async ({ page }) => {
   }
 
   await page.goto("/history");
-  await expect(page.getByRole("link", { name: "History" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  // The History screen's AppHeader is the "back" variant (Back link + title),
+  // not the "day" variant - it has no History icon link or account menu of
+  // its own (those live on the day view's header, already covered by
+  // day-view.spec.ts). This just confirms the back affordance is present.
+  await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
   await expect(page.getByRole("link", { name: /70 kcal/ })).toHaveCount(20);
 
   await page.getByRole("button", { name: "Load more" }).click();

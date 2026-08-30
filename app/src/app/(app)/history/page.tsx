@@ -1,4 +1,4 @@
-// app/src/app/history/page.tsx
+// app/src/app/(app)/history/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getDayHistory } from "@/actions/meals";
 import type { DayHistoryEntry } from "@/actions/meals";
+import { AppHeader } from "@/components/app-header";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 type HistoryState =
   | { status: "loading" }
@@ -73,9 +75,7 @@ const LoadMoreButton = ({ nextOffset, onLoadMore }: LoadMoreButtonProps) =>
     </button>
   );
 
-const HistoryPage = () => {
-  const { state, loadPage } = useHistoryState();
-
+const HistoryBody = ({ state, onLoadMore }: { state: HistoryState; onLoadMore: (offset: number) => void }) => {
   if (state.status === "loading") {
     return <p className="text-sm text-gray-500">Loading…</p>;
   }
@@ -85,10 +85,21 @@ const HistoryPage = () => {
 
   return (
     <div className="flex flex-col gap-2">
-      <h1 className="text-xl font-semibold">History</h1>
       <HistoryEntryList entries={state.entries} />
-      <LoadMoreButton nextOffset={state.nextOffset} onLoadMore={(offset) => loadPage(offset, true)} />
+      <LoadMoreButton nextOffset={state.nextOffset} onLoadMore={onLoadMore} />
     </div>
+  );
+};
+
+const HistoryPage = () => {
+  const { state, loadPage } = useHistoryState();
+  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  return (
+    <>
+      <AppHeader variant="back" title="History" backHref={`/day/${today}`} />
+      <HistoryBody state={state} onLoadMore={(offset) => loadPage(offset, true)} />
+    </>
   );
 };
 

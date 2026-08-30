@@ -1,4 +1,4 @@
-// app/src/app/meals/[mealId]/meal-detail.tsx
+// app/src/app/(app)/meals/[mealId]/meal-detail.tsx
 "use client";
 
 import Link from "next/link";
@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getMealDetail } from "@/actions/meals";
 import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/actions/meals";
+import { AppHeader } from "@/components/app-header";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { AddIngredientSection } from "./add-ingredient-section";
 import { DayTotalBar } from "./day-total-bar";
@@ -81,11 +83,20 @@ interface MealDetailProps {
   mealId: string;
 }
 
-export const MealDetail = ({ mealId }: MealDetailProps) => {
-  const [reloadCounter, setReloadCounter] = useState(0);
-  const bumpReload = () => setReloadCounter((count) => count + 1);
-  const state = useMealDetail(mealId, reloadCounter);
+// AppHeader's title needs a value in every state, but the meal number only
+// exists once the fetch resolves - "Meal" is the interim label for
+// loading/error/not-found.
+const mealDetailTitle = (state: MealDetailState): string =>
+  state.status === "ready" ? `Meal ${state.meal.mealNumber}` : "Meal";
 
+interface MealDetailBodyProps {
+  state: MealDetailState;
+  mealId: string;
+  reloadCounter: number;
+  onIngredientChanged: () => void;
+}
+
+const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
   if (state.status === "loading") {
     return <p className="text-sm text-gray-500">Loading…</p>;
   }
@@ -99,7 +110,6 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
   const { meal } = state;
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold">Meal {meal.mealNumber}</h1>
       {/*
         Keyed on reloadCounter (rather than the old server-side Date.now()
         trick) so any change below - a new, edited, or removed ingredient -
@@ -109,10 +119,24 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
       */}
       <DayTotalBar key={reloadCounter} />
       {meal.ingredients.length > 0 && (
-        <IngredientList ingredients={meal.ingredients} onIngredientChanged={bumpReload} />
+        <IngredientList ingredients={meal.ingredients} onIngredientChanged={onIngredientChanged} />
       )}
       {meal.ingredients.length > 0 && <MealTotal energyKcal={meal.total.energyKcal} />}
-      <AddIngredientSection mealId={mealId} onIngredientSaved={bumpReload} />
+      <AddIngredientSection mealId={mealId} onIngredientSaved={onIngredientChanged} />
     </div>
+  );
+};
+
+export const MealDetail = ({ mealId }: MealDetailProps) => {
+  const [reloadCounter, setReloadCounter] = useState(0);
+  const bumpReload = () => setReloadCounter((count) => count + 1);
+  const state = useMealDetail(mealId, reloadCounter);
+  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  return (
+    <>
+      <AppHeader variant="back" title={mealDetailTitle(state)} backHref={`/day/${today}`} />
+      <MealDetailBody state={state} mealId={mealId} reloadCounter={reloadCounter} onIngredientChanged={bumpReload} />
+    </>
   );
 };
