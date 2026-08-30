@@ -4,13 +4,12 @@
 import { useEffect, useState } from "react";
 
 import { getDayLog } from "@/actions/meals";
-import type { NutritionValues } from "@/actions/products";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 type DayTotalState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; dayTotal: NutritionValues };
+  | { status: "ready"; energyKcal: number };
 
 const useDayTotal = (): DayTotalState => {
   const [state, setState] = useState<DayTotalState>({ status: "loading" });
@@ -18,28 +17,29 @@ const useDayTotal = (): DayTotalState => {
   useEffect(() => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     getDayLog(todayLocalDateString(timezone), timezone)
-      .then((log) => setState({ status: "ready", dayTotal: log.dayTotal }))
+      .then((log) => setState({ status: "ready", energyKcal: log.dayTotal.energyKcal }))
       .catch(() => setState({ status: "error" }));
   }, []);
 
   return state;
 };
 
+// A quiet single line of context, not the boxed macro breakdown the day view
+// itself owns - this is just enough to place the meal within the day's total
+// while looking at it, not a second copy of the day view.
 export const DayTotalBar = () => {
   const state = useDayTotal();
 
   if (state.status === "loading") {
-    return <div className="rounded border bg-gray-50 p-3 text-sm text-gray-500">Loading today&apos;s total…</div>;
+    return <p className="text-sm text-text-muted">Loading today&apos;s total…</p>;
   }
   if (state.status === "error") {
-    return <div className="rounded border bg-gray-50 p-3 text-sm text-red-600">Could not load today&apos;s total.</div>;
+    return <p className="text-sm text-danger">Could not load today&apos;s total.</p>;
   }
 
   return (
-    <div className="rounded border bg-gray-50 p-3 text-sm">
-      <span className="font-medium">Today: </span>
-      {Math.round(state.dayTotal.energyKcal)} kcal · {state.dayTotal.proteinG.toFixed(1)}g protein ·{" "}
-      {state.dayTotal.carbohydrateG.toFixed(1)}g carbs · {state.dayTotal.fatG.toFixed(1)}g fat
-    </div>
+    <p className="text-sm text-text-muted">
+      Today so far · <span className="tabular-nums">{Math.round(state.energyKcal)} kcal</span>
+    </p>
   );
 };

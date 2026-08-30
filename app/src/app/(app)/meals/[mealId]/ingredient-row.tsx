@@ -7,6 +7,10 @@ import { useState } from "react";
 
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/actions/meals";
 import type { MealIngredientDetail } from "@/actions/meals";
+import { Button } from "@/components/button";
+import { Field } from "@/components/field";
+import { InlineMessage } from "@/components/inline-message";
+import { Sheet } from "@/components/sheet";
 
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
@@ -19,14 +23,10 @@ interface MutationCallbacks {
   onChanged?: () => void;
 }
 
-const removeIngredient = async (
-  mealIngredientId: string,
-  productName: string,
-  callbacks: MutationCallbacks,
-): Promise<void> => {
-  if (!window.confirm(`Remove ${productName}?`)) {
-    return;
-  }
+// Confirmation lives in the caller now (a Sheet, opened from the row's
+// "Remove" trigger) - this only performs the mutation itself, invoked from
+// the sheet's own confirm button.
+const removeIngredient = async (mealIngredientId: string, callbacks: MutationCallbacks): Promise<void> => {
   callbacks.onBusyChange(true);
   try {
     await removeMealIngredient(mealIngredientId);
@@ -88,7 +88,7 @@ const useIngredientEditing = (
     setQuantityInput,
     saveQuantity: () =>
       saveIngredientQuantity(ingredient.id, Number(quantityInput), () => setIsEditing(false), callbacks),
-    remove: () => removeIngredient(ingredient.id, ingredient.productName, callbacks),
+    remove: () => removeIngredient(ingredient.id, callbacks),
   };
 };
 
@@ -99,8 +99,8 @@ interface IngredientHeaderProps {
 
 const IngredientHeader = ({ productName, quantitySource }: IngredientHeaderProps) => (
   <div className="flex items-center justify-between">
-    <span className="font-medium">{productName}</span>
-    <span className="text-sm text-gray-500">{quantitySource === "manual" ? "manual" : "estimated"}</span>
+    <span className="font-medium text-text">{productName}</span>
+    <span className="text-sm text-text-muted">{quantitySource === "manual" ? "manual" : "estimated"}</span>
   </div>
 );
 
@@ -113,20 +113,20 @@ interface QuantityEditorProps {
 }
 
 const QuantityEditor = ({ ingredientId, quantityInput, isBusy, onChange, onSave }: QuantityEditorProps) => (
-  <div className="flex items-center gap-2">
-    <label htmlFor={`quantity-${ingredientId}`} className="sr-only">
-      Amount (g)
-    </label>
-    <input
-      id={`quantity-${ingredientId}`}
-      type="number"
-      value={quantityInput}
-      onChange={(event) => onChange(event.target.value)}
-      className="w-24 rounded border border-gray-300 px-2 py-1"
-    />
-    <button type="button" disabled={isBusy} onClick={onSave} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">
+  <div className="flex items-end gap-2">
+    <div className="flex-1">
+      <Field
+        label="Amount (g)"
+        name={`quantity-${ingredientId}`}
+        type="number"
+        inputMode="decimal"
+        value={quantityInput}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+    <Button disabled={isBusy} onClick={onSave}>
       Save
-    </button>
+    </Button>
   </div>
 );
 
@@ -139,15 +139,15 @@ interface QuantitySummaryProps {
 }
 
 const QuantitySummary = ({ quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
-  <div className="flex items-center justify-between text-sm text-gray-600">
-    <span>
+  <div className="flex items-center justify-between text-sm text-text-muted">
+    <span className="tabular-nums">
       {quantityG}g · {Math.round(energyKcal)} kcal
     </span>
     <div className="flex gap-3">
-      <button type="button" onClick={onEdit} className="text-blue-600 underline">
+      <button type="button" onClick={onEdit} className="text-text-muted underline">
         Edit
       </button>
-      <button type="button" disabled={isBusy} onClick={onRemove} className="text-red-600 underline">
+      <button type="button" disabled={isBusy} onClick={onRemove} className="text-danger underline disabled:opacity-50">
         Remove
       </button>
     </div>
@@ -157,9 +157,10 @@ const QuantitySummary = ({ quantityG, energyKcal, isBusy, onEdit, onRemove }: Qu
 interface QuantityControlsProps {
   ingredient: MealIngredientDetail;
   editing: UseIngredientEditingResult;
+  onRequestRemove: () => void;
 }
 
-const QuantityControls = ({ ingredient, editing }: QuantityControlsProps) =>
+const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityControlsProps) =>
   editing.isEditing ? (
     <QuantityEditor
       ingredientId={ingredient.id}
@@ -174,14 +175,55 @@ const QuantityControls = ({ ingredient, editing }: QuantityControlsProps) =>
       energyKcal={ingredient.contribution.energyKcal}
       isBusy={editing.isBusy}
       onEdit={editing.startEditing}
-      onRemove={editing.remove}
+      onRemove={onRequestRemove}
     />
   );
 
 const CorrectionLink = ({ productId }: { productId: string }) => (
-  <Link href={`/products/${productId}/correct`} className="text-sm text-blue-600 underline">
+  <Link href={`/products/${productId}/correct`} className="text-xs text-text-muted underline">
     Values look wrong?
   </Link>
+);
+
+interface RemoveIngredientSheetProps {
+  productName: string;
+  isBusy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+// Mounted only while the confirm flow is actually open (see IngredientRow) -
+// rendering one of these per row unconditionally would keep every row's
+// product name in the DOM twice (once visible in IngredientHeader, once
+// hidden in this Sheet's title), which throws off any test or screen reader
+// query that counts occurrences of a product name across a meal's rows.
+const RemoveIngredientSheet = ({ productName, isBusy, error, onClose, onConfirm }: RemoveIngredientSheetProps) => (
+  <Sheet open onClose={onClose} title={`Remove ${productName}?`}>
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-text-muted">This takes it off the meal. This can&apos;t be undone.</p>
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+      <Button variant="danger" disabled={isBusy} onClick={onConfirm}>
+        Remove
+      </Button>
+    </div>
+  </Sheet>
+);
+
+interface IngredientRowContentProps {
+  ingredient: MealIngredientDetail;
+  editing: UseIngredientEditingResult;
+  onRequestRemove: () => void;
+  showError: boolean;
+}
+
+const IngredientRowContent = ({ ingredient, editing, onRequestRemove, showError }: IngredientRowContentProps) => (
+  <>
+    <IngredientHeader productName={ingredient.productName} quantitySource={ingredient.quantitySource} />
+    <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
+    <CorrectionLink productId={ingredient.productId} />
+    {showError && editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}
+  </>
 );
 
 interface IngredientRowProps {
@@ -191,13 +233,25 @@ interface IngredientRowProps {
 
 export const IngredientRow = ({ ingredient, onChanged }: IngredientRowProps) => {
   const editing = useIngredientEditing(ingredient, onChanged);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   return (
-    <li className="flex flex-col gap-2 rounded border p-3">
-      <IngredientHeader productName={ingredient.productName} quantitySource={ingredient.quantitySource} />
-      <QuantityControls ingredient={ingredient} editing={editing} />
-      <CorrectionLink productId={ingredient.productId} />
-      {editing.error && <p className="text-sm text-red-600">{editing.error}</p>}
+    <li className="flex flex-col gap-2 py-4">
+      <IngredientRowContent
+        ingredient={ingredient}
+        editing={editing}
+        onRequestRemove={() => setIsConfirmOpen(true)}
+        showError={!isConfirmOpen}
+      />
+      {isConfirmOpen && (
+        <RemoveIngredientSheet
+          productName={ingredient.productName}
+          isBusy={editing.isBusy}
+          error={editing.error}
+          onClose={() => setIsConfirmOpen(false)}
+          onConfirm={editing.remove}
+        />
+      )}
     </li>
   );
 };

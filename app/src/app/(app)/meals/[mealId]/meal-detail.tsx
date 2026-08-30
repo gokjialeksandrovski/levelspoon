@@ -11,6 +11,7 @@ import { buttonClassName } from "@/components/button";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { DayTotalBar } from "./day-total-bar";
+import { DeleteMeal } from "./delete-meal";
 import { IngredientRow } from "./ingredient-row";
 
 type MealDetailState =
@@ -55,7 +56,7 @@ interface IngredientListProps {
 }
 
 const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProps) => (
-  <ul className="flex flex-col gap-2">
+  <ul className="mt-4 divide-y divide-border">
     {ingredients.map((ingredient) => (
       <IngredientRow key={ingredient.id} ingredient={ingredient} onChanged={onIngredientChanged} />
     ))}
@@ -63,18 +64,23 @@ const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProp
 );
 
 const MealTotal = ({ energyKcal }: { energyKcal: number }) => (
-  <div className="rounded border bg-gray-50 p-3 text-sm">
-    <span className="font-medium">Meal total: </span>
-    {Math.round(energyKcal)} kcal
-  </div>
+  <p className="mt-4 text-sm text-text-muted">
+    Meal total <span className="tabular-nums text-text">{Math.round(energyKcal)} kcal</span>
+  </p>
 );
+
+// A meal can theoretically render with zero ingredients for a moment between
+// an ingredient being added and this page's own refetch landing -
+// discardEmptyMeal (Task 3) cleans truly-abandoned empty meals up server-side,
+// so this is a transient display state, not a dead end.
+const EmptyIngredients = () => <p className="mt-4 text-sm text-text-muted">No ingredients yet.</p>;
 
 // notFound() (next/navigation) only works in a Server Component - this is a
 // Client Component, so a not-found meal renders inline instead.
 const MealNotFound = () => (
   <div className="flex flex-col gap-3">
-    <p className="text-gray-600">Meal not found.</p>
-    <Link href="/" className="text-blue-600 underline">
+    <p className="text-sm text-text-muted">Meal not found.</p>
+    <Link href="/" className="text-sm text-accent underline">
       Back home
     </Link>
   </div>
@@ -90,48 +96,73 @@ interface MealDetailProps {
 const mealDetailTitle = (state: MealDetailState): string =>
   state.status === "ready" ? `Meal ${state.meal.mealNumber}` : "Meal";
 
+interface MealReadyBodyProps {
+  meal: MealDetailData;
+  mealId: string;
+  reloadCounter: number;
+  today: string;
+  onIngredientChanged: () => void;
+}
+
+const MealReadyBody = ({ meal, mealId, reloadCounter, today, onIngredientChanged }: MealReadyBodyProps) => (
+  <>
+    {/*
+      Keyed on reloadCounter (rather than the old server-side Date.now()
+      trick) so any change below - a new, edited, or removed ingredient -
+      remounts DayTotalBar and its own mount-only fetch effect runs again -
+      see useMealDetail's comment above for why a plain router.refresh()
+      can't do this on its own.
+    */}
+    <DayTotalBar key={reloadCounter} />
+    {meal.ingredients.length > 0 ? (
+      <>
+        <IngredientList ingredients={meal.ingredients} onIngredientChanged={onIngredientChanged} />
+        <MealTotal energyKcal={meal.total.energyKcal} />
+      </>
+    ) : (
+      <EmptyIngredients />
+    )}
+    <div className="mt-6 flex flex-col gap-3">
+      {/*
+        A plain navigation link, not an inline reveal: the capture wizard
+        owns the full-screen /capture route now, and returning from it
+        remounts this page rather than refreshing it in place.
+      */}
+      <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
+        Add ingredient
+      </Link>
+      <DeleteMeal mealId={mealId} today={today} />
+    </div>
+  </>
+);
+
 interface MealDetailBodyProps {
   state: MealDetailState;
   mealId: string;
   reloadCounter: number;
+  today: string;
   onIngredientChanged: () => void;
 }
 
-const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
+const MealDetailBody = ({ state, mealId, reloadCounter, today, onIngredientChanged }: MealDetailBodyProps) => {
   if (state.status === "loading") {
-    return <p className="text-sm text-gray-500">Loading…</p>;
+    return <p className="text-sm text-text-muted">Loading…</p>;
   }
   if (state.status === "error") {
-    return <p className="text-sm text-red-600">Could not load this meal. Please try again.</p>;
+    return <p className="text-sm text-danger">Could not load this meal. Please try again.</p>;
   }
   if (state.status === "not-found") {
     return <MealNotFound />;
   }
 
-  const { meal } = state;
   return (
-    <div className="flex flex-col gap-4">
-      {/*
-        Keyed on reloadCounter (rather than the old server-side Date.now()
-        trick) so any change below - a new, edited, or removed ingredient -
-        remounts DayTotalBar and its own mount-only fetch effect runs again -
-        see useMealDetail's comment above for why a plain router.refresh()
-        can't do this on its own.
-      */}
-      <DayTotalBar key={reloadCounter} />
-      {meal.ingredients.length > 0 && (
-        <IngredientList ingredients={meal.ingredients} onIngredientChanged={onIngredientChanged} />
-      )}
-      {meal.ingredients.length > 0 && <MealTotal energyKcal={meal.total.energyKcal} />}
-      {/*
-        A plain navigation link, not an inline reveal: the capture wizard owns
-        the full-screen /capture route now, and returning from it remounts
-        this page rather than refreshing it in place.
-      */}
-      <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
-        Add ingredient
-      </Link>
-    </div>
+    <MealReadyBody
+      meal={state.meal}
+      mealId={mealId}
+      reloadCounter={reloadCounter}
+      today={today}
+      onIngredientChanged={onIngredientChanged}
+    />
   );
 };
 
@@ -144,7 +175,15 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
   return (
     <>
       <AppHeader variant="back" title={mealDetailTitle(state)} backHref={`/day/${today}`} />
-      <MealDetailBody state={state} mealId={mealId} reloadCounter={reloadCounter} onIngredientChanged={bumpReload} />
+      <main className="flex-1 px-4 py-6">
+        <MealDetailBody
+          state={state}
+          mealId={mealId}
+          reloadCounter={reloadCounter}
+          today={today}
+          onIngredientChanged={bumpReload}
+        />
+      </main>
     </>
   );
 };
