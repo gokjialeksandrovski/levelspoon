@@ -11,7 +11,9 @@ import { InlineMessage } from "@/components/inline-message";
 import { Skeleton } from "@/components/skeleton";
 import { Stat } from "@/components/stat";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
 
+import { DayActionBar } from "./day-action-bar";
 import { DayEmptyState } from "./day-empty-state";
 import { DayMacros } from "./day-macros";
 import { MealList } from "./meal-list";
@@ -84,25 +86,16 @@ const DayViewBody = ({ state }: { state: DayViewState }) => {
 // is the capture wizard) - see the project's Global Constraints. Keyed on
 // `date` so prev/next navigation remounts this element and its `initial`
 // animation replays; `useReducedMotion` collapses that to an instant,
-// motion-free swap (initial={false} skips the enter transition entirely).
-const SLIDE_OFFSET_PX = 24;
-const TRANSITION_DURATION_SECONDS = 0.26; // matches globals.css --duration-step
-// Mirrors globals.css's --ease-out-quart cubic-bezier control points exactly,
-// broken into named constants so neither counts as an unexplained magic number.
-const EASE_OUT_QUART_X1 = 0.16;
-const EASE_OUT_QUART_Y1 = 1;
-const EASE_OUT_QUART_X2 = 0.3;
-const EASE_OUT_QUART_Y2 = 1;
-const TRANSITION_EASE: [number, number, number, number] = [
-  EASE_OUT_QUART_X1,
-  EASE_OUT_QUART_Y1,
-  EASE_OUT_QUART_X2,
-  EASE_OUT_QUART_Y2,
-];
-
+// motion-free swap. The slide's own numbers live in
+// lib/motion/step-transition.ts, shared with the wizard.
+//
+// The action bar sits outside motion.main deliberately: it must stay pinned
+// while the day's content scrolls and slides underneath it, and it only
+// exists for today - there is no way to log into the past.
 export const DayView = ({ date }: DayViewProps) => {
   const state = useDayLog(date);
   const reduceMotion = useReducedMotion();
+  const isToday = state.status === "ready" && state.isToday;
 
   return (
     <>
@@ -110,12 +103,13 @@ export const DayView = ({ date }: DayViewProps) => {
       <motion.main
         key={date}
         className="flex-1 px-4 py-6"
-        initial={reduceMotion ? false : { opacity: 0, x: SLIDE_OFFSET_PX }}
+        initial={slideInitial(reduceMotion)}
         animate={{ opacity: 1, x: 0 }}
-        transition={reduceMotion ? { duration: 0 } : { duration: TRANSITION_DURATION_SECONDS, ease: TRANSITION_EASE }}
+        transition={slideTransition(reduceMotion)}
       >
         <DayViewBody state={state} />
       </motion.main>
+      {isToday && <DayActionBar />}
     </>
   );
 };

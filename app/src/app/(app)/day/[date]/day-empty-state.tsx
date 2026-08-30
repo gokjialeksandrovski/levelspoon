@@ -1,19 +1,13 @@
 // app/src/app/(app)/day/[date]/day-empty-state.tsx
 import { ForkKnife } from "@phosphor-icons/react";
-import Link from "next/link";
 
-import { buttonClassName } from "@/components/button";
-
-// Points at /meals/new - the entry point Task 10 replaces with the capture
-// wizard's action bar. Keep this functional until that task deletes the
-// route; this task only restyles it.
+// No call to action of its own: /meals/new is gone, and the day view's own
+// sticky action bar (Quick log / New meal) sits directly below this on
+// today, so a third button here would only compete with it.
 const TodayEmptyState = () => (
   <div className="mt-16 flex flex-col items-center gap-4 text-center">
     <ForkKnife size={32} weight="light" className="text-text-muted" />
     <p className="text-text-muted">Nothing logged yet</p>
-    <Link href="/meals/new" className={buttonClassName()}>
-      Start a meal
-    </Link>
   </div>
 );
 

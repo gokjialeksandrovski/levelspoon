@@ -33,7 +33,7 @@ const SignUpPage = () => {
       setError("Account created, but sign-in failed. Please sign in manually.");
       return;
     }
-    router.push("/meals/new");
+    router.push("/");
   };
 
   return (

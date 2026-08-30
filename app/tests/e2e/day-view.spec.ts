@@ -30,7 +30,7 @@ test("a seeded meal renders as Meal 1 with its total", async ({ page }) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct horse battery staple");
   await page.getByRole("button", { name: "Sign up" }).click();
-  await page.waitForURL("**/meals/new");
+  await page.waitForURL(/\/day\//);
 
   const [user] = await db.select().from(users).where(eq(users.email, email));
   const [product] = await db
@@ -62,6 +62,17 @@ test("prev/next navigation steps by one calendar day", async ({ page }) => {
   await page.waitForURL(`**/day/${addCalendarDays(today, -1)}`);
   await page.getByRole("link", { name: "Next day" }).click();
   await page.waitForURL(`**/day/${today}`);
+});
+
+test("entry points show today and are absent on a past day", async ({ page }) => {
+  await signUp(page);
+  await page.goto(`/day/${localToday()}`);
+  await expect(page.getByRole("button", { name: "Quick log" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New meal" })).toBeVisible();
+
+  await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
+  await expect(page.getByText(/no meals logged/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Quick log" })).toHaveCount(0);
 });
 
 test("home redirects to today", async ({ page }) => {

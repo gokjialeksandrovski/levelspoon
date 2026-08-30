@@ -25,7 +25,7 @@ const SignInPage = () => {
       setError("Invalid email or password");
       return;
     }
-    router.push("/meals/new");
+    router.push("/");
   };
 
   return (

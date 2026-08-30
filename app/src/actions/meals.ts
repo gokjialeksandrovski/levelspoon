@@ -251,8 +251,15 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   contribution: computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG)),
 });
 
+// The upper bound is read back out of the meal's own row in SQL rather than
+// bound as a JS value: Postgres keeps `timestamp` to microseconds while a JS
+// Date only carries milliseconds, so a parsed-then-rebound createdAt is
+// *earlier* than the row it came from whenever defaultNow() landed off a whole
+// millisecond - which excluded the meal from its own count and made every
+// number one too low (the first meal of a day rendered as "Meal 0").
 const mealNumberInLocalDay = async (
   userId: string,
+  mealId: string,
   mealCreatedAt: Date,
   timezone: string,
 ): Promise<number> => {
@@ -260,7 +267,13 @@ const mealNumberInLocalDay = async (
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(meals)
-    .where(and(eq(meals.userId, userId), gte(meals.createdAt, start), lte(meals.createdAt, mealCreatedAt)));
+    .where(
+      and(
+        eq(meals.userId, userId),
+        gte(meals.createdAt, start),
+        sql`${meals.createdAt} <= (select target.created_at from meals target where target.id = ${mealId})`,
+      ),
+    );
   return count;
 };
 
@@ -277,7 +290,7 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
   const rows = await fetchMealIngredientRows(mealId);
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
-  const mealNumber = await mealNumberInLocalDay(userId, meal.createdAt, timezone);
+  const mealNumber = await mealNumberInLocalDay(userId, meal.id, meal.createdAt, timezone);
   return { id: meal.id, mealNumber, ingredients, total };
 };
 

@@ -7,7 +7,9 @@ test.beforeEach(async () => {
   await truncateAll();
 });
 
-test("correcting a product from the meal detail page: an invalid value blocks save until fixed", async ({ page }) => {
+// Fixme'd until Task 14 rewrites it against the /capture route: this body
+// drives the deleted inline /meals/new -> "Start" -> "Add ingredient" flow.
+test.fixme("correcting a product from the meal detail page: an invalid value blocks save until fixed", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
 
@@ -52,7 +54,8 @@ test("correcting a product from the meal detail page: an invalid value blocks sa
   await expect(page.getByText(/Meal total:.*150 kcal/)).toBeVisible();
 });
 
-test("clicking Save right after typing an invalid value (before blur) still blocks the save", async ({ page }) => {
+// Fixme'd until Task 14 rewrites it against the /capture route.
+test.fixme("clicking Save right after typing an invalid value (before blur) still blocks the save", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
 

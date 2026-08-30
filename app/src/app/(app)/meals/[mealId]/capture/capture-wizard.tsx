@@ -1,0 +1,163 @@
+// app/src/app/(app)/meals/[mealId]/capture/capture-wizard.tsx
+"use client";
+
+import { motion, useReducedMotion } from "motion/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useReducer, useState } from "react";
+
+import { discardEmptyMeal } from "@/actions/meals";
+import { Button } from "@/components/button";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
+
+import { pathReducer, type PathAction } from "./capture-wizard.path";
+import { INITIAL_WIZARD_STEP, type WizardStep } from "./capture-wizard.types";
+import { AmountStep } from "./steps/amount-step";
+import { ConfirmStep } from "./steps/confirm-step";
+import { MatchResultStep } from "./steps/match-result-step";
+import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
+import { ProductNameStep } from "./steps/product-name-step";
+import { WizardShell } from "./wizard-shell";
+
+const STEP_TITLES: Record<WizardStep["kind"], string> = {
+  "product-photo": "Product name",
+  "match-result": "Which product?",
+  "nutrition-photo": "Nutrition label",
+  confirm: "Confirm values",
+  amount: "Amount",
+  saved: "Saved",
+};
+
+// Approximate, not derived: the wizard's remaining length depends on which
+// branch the match takes, so the rail conveys momentum rather than an exact
+// step count.
+const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
+  "product-photo": 0.2,
+  "match-result": 0.4,
+  "nutrition-photo": 0.5,
+  confirm: 0.75,
+  amount: 0.9,
+  saved: 1,
+};
+
+const SavedStep = ({ dispatch, onDone }: { dispatch: (action: PathAction) => void; onDone: () => void }) => (
+  <div className="flex flex-col gap-3">
+    <p className="text-accent">Ingredient saved.</p>
+    <Button variant="primary" onClick={() => dispatch({ type: "ADD_ANOTHER" })}>
+      Add another
+    </Button>
+    <Button variant="ghost" onClick={onDone}>
+      Done
+    </Button>
+  </div>
+);
+
+interface StepViewProps {
+  step: WizardStep;
+  mealId: string;
+  dispatch: (action: PathAction) => void;
+  onSaved: () => void;
+  onDone: () => void;
+}
+
+const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) => {
+  if (step.kind === "product-photo") {
+    return <ProductNameStep dispatch={dispatch} />;
+  }
+  if (step.kind === "match-result") {
+    return <MatchResultStep nameGuess={step.nameGuess} candidates={step.candidates} dispatch={dispatch} />;
+  }
+  if (step.kind === "nutrition-photo") {
+    return <NutritionPhotoStep nameGuess={step.nameGuess} dispatch={dispatch} />;
+  }
+  if (step.kind === "confirm") {
+    return (
+      <ConfirmStep name={step.name} parsed={step.parsed} flags={step.flags} photo={step.photo} dispatch={dispatch} />
+    );
+  }
+  if (step.kind === "amount") {
+    return (
+      <AmountStep
+        mealId={mealId}
+        product={step.product}
+        alternatives={step.alternatives}
+        dispatch={dispatch}
+        onSaved={onSaved}
+      />
+    );
+  }
+  return <SavedStep dispatch={dispatch} onDone={onDone} />;
+};
+
+// Leaving the wizard is a real navigation now that it owns a route, so there
+// is no in-page listener left to notify: the destination remounts and fetches
+// for itself. A meal created by the action bar but never filled in is deleted
+// on the way out so it never shows up as an empty row on the day view.
+const useWizardExit = (mealId: string, savedCount: number, today: string) => {
+  const router = useRouter();
+
+  return async () => {
+    if (savedCount > 0) {
+      router.push(`/meals/${mealId}`);
+      return;
+    }
+    try {
+      await discardEmptyMeal(mealId);
+    } catch (error) {
+      // Harmless: an ingredient-less meal is invisible on the day view
+      // anyway, and createMeal's own sweep collects it on the next attempt.
+      console.error("discardEmptyMeal failed", error);
+    }
+    router.replace(`/day/${today}`);
+  };
+};
+
+// Quick mode's whole point is one ingredient with no ceremony, so the "saved"
+// step is passed through rather than shown - replace(), not push(), so Back
+// from the day view doesn't land on a finished wizard.
+const useQuickModeExit = (isQuick: boolean, stepKind: WizardStep["kind"], today: string) => {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (stepKind === "saved" && isQuick) {
+      router.replace(`/day/${today}`);
+    }
+  }, [stepKind, isQuick, router, today]);
+};
+
+export const CaptureWizard = ({ mealId }: { mealId: string }) => {
+  const isQuick = useSearchParams().get("mode") === "quick";
+  const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
+  const [savedCount, setSavedCount] = useState(0);
+  const reduceMotion = useReducedMotion();
+  const step = path[path.length - 1];
+  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const exit = useWizardExit(mealId, savedCount, today);
+
+  useQuickModeExit(isQuick, step.kind, today);
+
+  // Back pops a captured step while there is one; from the first step it is
+  // the way out of the wizard entirely.
+  const handleBack = () => (path.length > 1 ? dispatch({ type: "BACK" }) : void exit());
+
+  return (
+    <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack}>
+      <motion.div
+        key={step.kind}
+        initial={slideInitial(reduceMotion)}
+        animate={{ opacity: 1, x: 0 }}
+        transition={slideTransition(reduceMotion)}
+      >
+        <StepView
+          step={step}
+          mealId={mealId}
+          dispatch={dispatch}
+          // AmountStep already dispatches SAVED itself - this only records
+          // that the meal is no longer empty, so exit() keeps it.
+          onSaved={() => setSavedCount((count) => count + 1)}
+          onDone={() => void exit()}
+        />
+      </motion.div>
+    </WizardShell>
+  );
+};

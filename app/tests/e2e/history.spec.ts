@@ -18,7 +18,7 @@ test("history lists past days and paginates", async ({ page }) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct horse battery staple");
   await page.getByRole("button", { name: "Sign up" }).click();
-  await page.waitForURL("**/meals/new");
+  await page.waitForURL(/\/day\//);
 
   const [user] = await db.select().from(users).where(eq(users.email, email));
   const [product] = await db

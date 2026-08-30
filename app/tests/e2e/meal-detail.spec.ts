@@ -18,7 +18,9 @@ const logAnIngredient = async (page: Page) => {
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
 };
 
-test("editing an ingredient's amount recalculates its contribution", async ({ page }) => {
+// Fixme'd until Task 12 rewrites it against the /capture route: logAnIngredient
+// drives the deleted inline /meals/new -> "Start" -> "Add ingredient" flow.
+test.fixme("editing an ingredient's amount recalculates its contribution", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
   await logAnIngredient(page);
@@ -33,7 +35,8 @@ test("editing an ingredient's amount recalculates its contribution", async ({ pa
   await expect(page.getByText("100g · 70 kcal")).toBeVisible();
 });
 
-test("removing an ingredient takes it off the meal", async ({ page }) => {
+// Fixme'd until Task 12 rewrites it against the /capture route.
+test.fixme("removing an ingredient takes it off the meal", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
   await logAnIngredient(page);

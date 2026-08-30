@@ -7,9 +7,9 @@ import { useCallback, useEffect, useState } from "react";
 import { getMealDetail } from "@/actions/meals";
 import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/actions/meals";
 import { AppHeader } from "@/components/app-header";
+import { buttonClassName } from "@/components/button";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
-import { AddIngredientSection } from "./add-ingredient-section";
 import { DayTotalBar } from "./day-total-bar";
 import { IngredientRow } from "./ingredient-row";
 
@@ -26,11 +26,12 @@ type MealDetailState =
 // indirectly through a helper).
 //
 // `reloadCounter` is a bump signal, not data `load` itself reads: a Client
-// Component instance is reused (not remounted) across a `router.refresh()`
-// triggered elsewhere in the tree (the capture wizard after saving an
-// ingredient, or an ingredient row's own edit/remove), so a mount-only effect
-// would never see the change. Including `reloadCounter` in the effect's
-// dependency array gives callers an explicit way to force a re-fetch instead.
+// Component instance is reused (not remounted) when an ingredient row edits or
+// removes itself in place, so a mount-only effect would never see the change.
+// Including `reloadCounter` in the effect's dependency array gives callers an
+// explicit way to force a re-fetch instead. (Adding an ingredient no longer
+// needs this - that leaves the page for the /capture route and comes back to a
+// fresh mount.)
 const useMealDetail = (mealId: string, reloadCounter: number): MealDetailState => {
   const [state, setState] = useState<MealDetailState>({ status: "loading" });
 
@@ -122,7 +123,14 @@ const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: M
         <IngredientList ingredients={meal.ingredients} onIngredientChanged={onIngredientChanged} />
       )}
       {meal.ingredients.length > 0 && <MealTotal energyKcal={meal.total.energyKcal} />}
-      <AddIngredientSection mealId={mealId} onIngredientSaved={onIngredientChanged} />
+      {/*
+        A plain navigation link, not an inline reveal: the capture wizard owns
+        the full-screen /capture route now, and returning from it remounts
+        this page rather than refreshing it in place.
+      */}
+      <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
+        Add ingredient
+      </Link>
     </div>
   );
 };

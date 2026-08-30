@@ -27,12 +27,13 @@ export const seedAmbiguousVariants = async () => {
   ]);
 };
 
-// Task 10 flips this wait to /\/day\// when the post-signup redirect moves.
+// Signing up lands on "/", which redirects to the local day view - so the
+// wait targets /day/ rather than any one date string.
 export const signUp = async (page: Page) => {
   await page.goto("/signup");
   await page.getByLabel("Name").fill("E2E Tester");
   await page.getByLabel("Email").fill(freshEmail());
   await page.getByLabel("Password").fill("correct horse battery staple");
   await page.getByRole("button", { name: "Sign up" }).click();
-  await page.waitForURL("**/meals/new");
+  await page.waitForURL(/\/day\//);
 };

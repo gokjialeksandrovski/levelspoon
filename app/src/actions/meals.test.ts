@@ -182,6 +182,18 @@ describe("getMealDetail", () => {
     expect((await getMealDetail(third, "UTC"))?.mealNumber).toBe(3);
   });
 
+  // Regression: the numbering query used to bind the meal's own createdAt back
+  // as an upper bound, and a JS Date drops the microseconds Postgres keeps -
+  // so a defaultNow() meal (unlike the whole-second timestamps insertMealAt
+  // uses) excluded itself and came back as "Meal 0".
+  it("numbers a meal created by createMeal, whose timestamp carries sub-millisecond precision", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+
+    expect((await getMealDetail(mealId, "UTC"))?.mealNumber).toBe(1);
+  });
+
   it("renumbers after an earlier meal in the day is deleted", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
