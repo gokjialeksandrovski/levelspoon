@@ -18,5 +18,13 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   if (action.type === "ADD_ANOTHER") {
     return [INITIAL_WIZARD_STEP];
   }
+  // Saving is a terminal transition, not another step to walk back into: it
+  // discards the preceding path history so there is nothing left for Back to
+  // pop into but the just-saved product (which would invite a duplicate
+  // save). With only the saved step left, capture-wizard.tsx's handleBack
+  // (path.length > 1 ? BACK : exit()) exits the wizard instead.
+  if (action.type === "SAVED") {
+    return [wizardReducer(path[path.length - 1], action)];
+  }
   return [...path, wizardReducer(path[path.length - 1], action)];
 };

@@ -11,7 +11,7 @@ import { Sheet } from "@/components/sheet";
 
 interface DeleteMealProps {
   mealId: string;
-  today: string;
+  mealDate: string;
 }
 
 interface DeleteConfirmSheetProps {
@@ -44,13 +44,18 @@ interface DeleteMealCallbacks {
 
 // A failed delete keeps the sheet open with an inline error instead of
 // silently doing nothing or navigating away from an intact meal (rule 18 /
-// rule 10).
-const deleteMealAndNavigate = async (mealId: string, today: string, callbacks: DeleteMealCallbacks): Promise<void> => {
+// rule 10). Navigates to the meal's own local day - not necessarily today -
+// so deleting a meal reached from History returns to the day it came from.
+const deleteMealAndNavigate = async (
+  mealId: string,
+  mealDate: string,
+  callbacks: DeleteMealCallbacks,
+): Promise<void> => {
   callbacks.onBusyChange(true);
   callbacks.onError(null);
   try {
     await deleteMeal(mealId);
-    callbacks.router.push(`/day/${today}`);
+    callbacks.router.push(`/day/${mealDate}`);
   } catch {
     callbacks.onError("Could not delete this meal. Please try again.");
     callbacks.onBusyChange(false);
@@ -59,7 +64,7 @@ const deleteMealAndNavigate = async (mealId: string, today: string, callbacks: D
 
 // Deleting is destructive and irreversible, so it always goes through a
 // confirm Sheet rather than firing on the first click.
-export const DeleteMeal = ({ mealId, today }: DeleteMealProps) => {
+export const DeleteMeal = ({ mealId, mealDate }: DeleteMealProps) => {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -76,7 +81,7 @@ export const DeleteMeal = ({ mealId, today }: DeleteMealProps) => {
         isBusy={isBusy}
         error={error}
         onClose={() => setIsOpen(false)}
-        onConfirm={() => deleteMealAndNavigate(mealId, today, callbacks)}
+        onConfirm={() => deleteMealAndNavigate(mealId, mealDate, callbacks)}
       />
     </>
   );

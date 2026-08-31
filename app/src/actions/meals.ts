@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gte, lt, lte, sql } from "drizzle-orm";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
@@ -204,6 +204,7 @@ export interface MealIngredientDetail {
 export interface MealDetail {
   id: string;
   mealNumber: number; // 1-based position among the user's meals in the meal's own local day
+  date: string; // YYYY-MM-DD, the meal's own local day - not necessarily today's
   ingredients: MealIngredientDetail[];
   total: NutritionValues;
 }
@@ -260,10 +261,10 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
 const mealNumberInLocalDay = async (
   userId: string,
   mealId: string,
-  mealCreatedAt: Date,
+  localDate: string,
   timezone: string,
 ): Promise<number> => {
-  const { start } = dayBoundsInTimezone(localDateStringOf(mealCreatedAt, timezone), timezone);
+  const { start } = dayBoundsInTimezone(localDate, timezone);
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(meals)
@@ -290,8 +291,9 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
   const rows = await fetchMealIngredientRows(mealId);
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
-  const mealNumber = await mealNumberInLocalDay(userId, meal.id, meal.createdAt, timezone);
-  return { id: meal.id, mealNumber, ingredients, total };
+  const localDate = localDateStringOf(meal.createdAt, timezone);
+  const mealNumber = await mealNumberInLocalDay(userId, meal.id, localDate, timezone);
+  return { id: meal.id, mealNumber, date: localDate, ingredients, total };
 };
 
 export const removeMealIngredient = async (mealIngredientId: string): Promise<void> => {

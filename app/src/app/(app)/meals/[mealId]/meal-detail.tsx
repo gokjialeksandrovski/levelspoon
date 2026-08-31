@@ -96,15 +96,21 @@ interface MealDetailProps {
 const mealDetailTitle = (state: MealDetailState): string =>
   state.status === "ready" ? `Meal ${state.meal.mealNumber}` : "Meal";
 
+// Mirrors mealDetailTitle's pattern: Back should return to the meal's own
+// local day (which may be a day in the past, reached via History), not
+// always today - but that date only exists once the fetch resolves, so
+// today is the interim fallback for loading/error/not-found.
+const mealDetailBackHref = (state: MealDetailState, today: string): string =>
+  `/day/${state.status === "ready" ? state.meal.date : today}`;
+
 interface MealReadyBodyProps {
   meal: MealDetailData;
   mealId: string;
   reloadCounter: number;
-  today: string;
   onIngredientChanged: () => void;
 }
 
-const MealReadyBody = ({ meal, mealId, reloadCounter, today, onIngredientChanged }: MealReadyBodyProps) => (
+const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: MealReadyBodyProps) => (
   <>
     {/*
       Keyed on reloadCounter (rather than the old server-side Date.now()
@@ -131,7 +137,7 @@ const MealReadyBody = ({ meal, mealId, reloadCounter, today, onIngredientChanged
       <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
         Add ingredient
       </Link>
-      <DeleteMeal mealId={mealId} today={today} />
+      <DeleteMeal mealId={mealId} mealDate={meal.date} />
     </div>
   </>
 );
@@ -140,11 +146,10 @@ interface MealDetailBodyProps {
   state: MealDetailState;
   mealId: string;
   reloadCounter: number;
-  today: string;
   onIngredientChanged: () => void;
 }
 
-const MealDetailBody = ({ state, mealId, reloadCounter, today, onIngredientChanged }: MealDetailBodyProps) => {
+const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
   if (state.status === "loading") {
     return <p className="text-sm text-text-muted">Loading…</p>;
   }
@@ -160,7 +165,6 @@ const MealDetailBody = ({ state, mealId, reloadCounter, today, onIngredientChang
       meal={state.meal}
       mealId={mealId}
       reloadCounter={reloadCounter}
-      today={today}
       onIngredientChanged={onIngredientChanged}
     />
   );
@@ -174,13 +178,12 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
 
   return (
     <>
-      <AppHeader variant="back" title={mealDetailTitle(state)} backHref={`/day/${today}`} />
+      <AppHeader variant="back" title={mealDetailTitle(state)} backHref={mealDetailBackHref(state, today)} />
       <main className="flex-1 px-4 py-6">
         <MealDetailBody
           state={state}
           mealId={mealId}
           reloadCounter={reloadCounter}
-          today={today}
           onIngredientChanged={bumpReload}
         />
       </main>

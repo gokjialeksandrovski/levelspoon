@@ -39,12 +39,11 @@ describe("pathReducer", () => {
     expect(pathReducer(path, { type: "ADD_ANOTHER" })).toEqual([INITIAL_WIZARD_STEP]);
   });
 
-  it("appends onto a deep path so BACK can walk the whole way out", () => {
+  it("discards the preceding path on SAVED so BACK can't walk back into the saved step", () => {
     const path: WizardPath = [INITIAL_WIZARD_STEP, AMOUNT_STEP];
     const saved = pathReducer(path, { type: "SAVED" });
 
-    expect(saved).toHaveLength(path.length + 1);
-    expect(saved[saved.length - 1]).toEqual({ kind: "saved" });
-    expect(pathReducer(saved, { type: "BACK" })).toEqual(path);
+    expect(saved).toEqual([{ kind: "saved" }]);
+    expect(pathReducer(saved, { type: "BACK" })).toEqual([{ kind: "saved" }]);
   });
 });

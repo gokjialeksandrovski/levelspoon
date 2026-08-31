@@ -32,7 +32,7 @@ test("history lists past days and paginates", async ({ page }) => {
 
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
   for (let daysAgo = 0; daysAgo < 21; daysAgo += 1) {
-    const [meal] = await db.insert(meals).values({ userId: user.id, name: `Meal ${daysAgo}` }).returning();
+    const [meal] = await db.insert(meals).values({ userId: user.id }).returning();
     await db.insert(mealIngredients).values({
       mealId: meal.id,
       productId: product.id,

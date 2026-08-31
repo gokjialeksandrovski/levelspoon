@@ -1,8 +1,13 @@
 // app/tests/e2e/meal-detail.spec.ts
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { eq } from "drizzle-orm";
 
-import { seedConfidentProduct, signUp, truncateAll } from "./support";
+import { db } from "../../src/lib/db";
+import { localDateStringOf } from "../../src/lib/date/day-bounds";
+import { mealIngredients, meals, products, users } from "../../src/lib/db/schema";
+
+import { freshEmail, seedConfidentProduct, signUp, truncateAll } from "./support";
 
 test.beforeEach(async () => {
   await truncateAll();
@@ -56,4 +61,55 @@ test("deleting the meal returns to the day view", async ({ page }) => {
   await page.getByRole("button", { name: /delete/i }).nth(1).click(); // sheet confirm
   await page.waitForURL(/\/day\//);
   await expect(page.getByRole("link", { name: /Meal 1/ })).toHaveCount(0);
+});
+
+// Fixed (not Date.now()-relative) so the seeded meal's local day never
+// depends on when this suite happens to run.
+const PAST_MEAL_CREATED_AT = "2020-06-15T12:00:00.000Z";
+
+// Seeds a product and a meal backdated to PAST_MEAL_CREATED_AT for the
+// already-signed-up user with this email, mirroring history.spec.ts's
+// direct-insert pattern (there is no UI path to a backdated meal).
+const seedBackdatedMeal = async (email: string): Promise<string> => {
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+  const [product] = await db
+    .insert(products)
+    .values({
+      name: "Test Product", energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
+      sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
+      nutritionPhotoKey: "test/placeholder.jpg", createdByUserId: user.id,
+    })
+    .returning();
+
+  const createdAt = new Date(PAST_MEAL_CREATED_AT);
+  const [meal] = await db.insert(meals).values({ userId: user.id, createdAt }).returning();
+  await db.insert(mealIngredients).values({
+    mealId: meal.id, productId: product.id, quantityG: "100", quantitySource: "manual", createdAt,
+  });
+  return meal.id;
+};
+
+// Regression for a meal viewed from a past day (e.g. reached via History):
+// Back must return to that meal's own local day, not always today's.
+test("back from a meal on a past day returns to that meal's own day", async ({ page }) => {
+  const email = freshEmail("e2e-meal-detail-past");
+  await page.goto("/signup");
+  await page.getByLabel("Name").fill("Past Meal Tester");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("correct horse battery staple");
+  await page.getByRole("button", { name: "Sign up" }).click();
+  await page.waitForURL(/\/day\//);
+
+  const mealId = await seedBackdatedMeal(email);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const expectedDate = localDateStringOf(new Date(PAST_MEAL_CREATED_AT), timezone);
+
+  await page.goto(`/meals/${mealId}`);
+  // meal-detail.tsx fetches asynchronously on mount and only swaps
+  // backHref from today's fallback to the meal's own date once that
+  // resolves - wait for the loaded ingredient before clicking Back so this
+  // isn't racing the fetch.
+  await expect(page.getByText("Test Product")).toBeVisible();
+  await page.getByRole("link", { name: "Back" }).click();
+  await page.waitForURL(new RegExp(`/day/${expectedDate}$`));
 });
