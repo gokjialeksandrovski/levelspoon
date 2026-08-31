@@ -23,7 +23,7 @@ export const AccountMenu = () => {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Account">
+      <button type="button" onClick={() => setOpen(true)} aria-label="Account" aria-expanded={open}>
         <UserCircle />
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Account">

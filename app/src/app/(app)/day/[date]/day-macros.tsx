@@ -30,6 +30,7 @@ export const DayMacros = ({ total }: { total: NutritionValues }) => {
     <button
       type="button"
       onClick={() => setExpanded((value) => !value)}
+      aria-expanded={expanded}
       className="mt-2 block text-left text-sm tabular-nums text-text-muted"
     >
       {expanded ? <ExpandedLine total={total} /> : <CompactLine total={total} />}

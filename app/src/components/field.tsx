@@ -37,6 +37,10 @@ export const Field = ({
       }`}
     />
     {helperText && !error && <p className="text-xs text-text-muted">{helperText}</p>}
-    {error && <p className="text-xs text-danger" role="alert">{error}</p>}
+    {error && (
+      <p className={`text-xs ${flagged ? "text-flag" : "text-danger"}`} role="alert">
+        {error}
+      </p>
+    )}
   </div>
 );
