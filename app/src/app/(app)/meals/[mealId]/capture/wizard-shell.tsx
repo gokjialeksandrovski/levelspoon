@@ -24,7 +24,7 @@ export const WizardShell = ({ title, progress, onBack, children }: WizardShellPr
     </header>
     <div className="h-0.5 bg-surface-raised">
       <div
-        className="h-full bg-accent transition-[width] duration-300"
+        className="h-full bg-accent transition-[width] duration-(--duration-step)"
         style={{ width: `${progress * PERCENT}%` }}
       />
     </div>

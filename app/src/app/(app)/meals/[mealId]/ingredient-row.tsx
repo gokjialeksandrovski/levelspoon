@@ -66,6 +66,7 @@ interface UseIngredientEditingResult {
   setQuantityInput: (value: string) => void;
   saveQuantity: () => Promise<void>;
   remove: () => Promise<void>;
+  clearError: () => void;
 }
 
 const useIngredientEditing = (
@@ -89,6 +90,7 @@ const useIngredientEditing = (
     saveQuantity: () =>
       saveIngredientQuantity(ingredient.id, Number(quantityInput), () => setIsEditing(false), callbacks),
     remove: () => removeIngredient(ingredient.id, callbacks),
+    clearError: () => setError(null),
   };
 };
 
@@ -248,7 +250,10 @@ export const IngredientRow = ({ ingredient, onChanged }: IngredientRowProps) => 
           productName={ingredient.productName}
           isBusy={editing.isBusy}
           error={editing.error}
-          onClose={() => setIsConfirmOpen(false)}
+          onClose={() => {
+            setIsConfirmOpen(false);
+            editing.clearError();
+          }}
           onConfirm={editing.remove}
         />
       )}
