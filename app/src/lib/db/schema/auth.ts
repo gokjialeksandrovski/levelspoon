@@ -22,7 +22,7 @@ export const accounts = pgTable(
     // Snake_case property keys (not camelCase) are intentional here: these
     // mirror the OAuth2/OIDC token response field names that Auth.js's
     // AdapterAccount type and @auth/drizzle-adapter's linkAccount() use
-    // verbatim (see its own default schema in lib/pg.js) — renaming them to
+    // verbatim (see its own default schema in lib/pg.js) - renaming them to
     // camelCase silently drops the fields on insert.
     refresh_token: text("refresh_token"),
     access_token: text("access_token"),
