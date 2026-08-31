@@ -42,7 +42,7 @@ running container.
 | `npm run ocr:down` | Stop the stack |
 | `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
 | `npm run dev:app` | Run the Next.js app's dev server |
-| `npm run dev:up` | Bring up Postgres, MinIO, and the OCR service for local dev |
+| `npm run dev:up` | Bring up Postgres, MinIO, the OCR service, and the omniroute gateway for local dev |
 | `npm run dev:down` | Stop the local dev stack |
 | `npm run db:migrate` | Apply Drizzle migrations to the local Postgres |
 | `npm run db:seed` | Seed a test user and the 2%/10% variant pair |
