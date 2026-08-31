@@ -23,6 +23,34 @@ const omniRouteUrl = (): string => {
   return url;
 };
 
+const buildRequestBody = (photo: Buffer): unknown => ({
+  model: process.env.OMNIROUTE_MODEL ?? "auto",
+  messages: [
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Estimate the weight in grams of the food shown. Reply with only a number.",
+        },
+        {
+          type: "image_url",
+          image_url: { url: `data:image/jpeg;base64,${photo.toString("base64")}` },
+        },
+      ],
+    },
+  ],
+});
+
+const parseGrams = (body: unknown): number => {
+  const text = (body as any).choices?.[0]?.message?.content ?? "";
+  const grams = Number.parseFloat(text);
+  if (Number.isNaN(grams)) {
+    throw new Error(`OmniRoute gateway returned a non-numeric response: ${text}`);
+  }
+  return grams;
+};
+
 export class HttpQuantityProvider implements QuantityProvider {
   async estimateGrams(photo: Buffer): Promise<number> {
     const url = omniRouteUrl();
@@ -30,35 +58,13 @@ export class HttpQuantityProvider implements QuantityProvider {
       const response = await fetch(`${url}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: process.env.OMNIROUTE_MODEL ?? "auto",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Estimate the weight in grams of the food shown. Reply with only a number.",
-                },
-                {
-                  type: "image_url",
-                  image_url: { url: `data:image/jpeg;base64,${photo.toString("base64")}` },
-                },
-              ],
-            },
-          ],
-        }),
+        body: JSON.stringify(buildRequestBody(photo)),
       });
       if (!response.ok) {
         throw new GatewayError(response.status);
       }
       const body = await response.json();
-      const text = body.choices?.[0]?.message?.content ?? "";
-      const grams = Number.parseFloat(text);
-      if (Number.isNaN(grams)) {
-        throw new Error(`OmniRoute gateway returned a non-numeric response: ${text}`);
-      }
-      return grams;
+      return parseGrams(body);
     } catch (error) {
       throw new QuantityEstimationError(error);
     }
