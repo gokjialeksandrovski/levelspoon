@@ -1,9 +1,11 @@
 # Per100
 
-Nutrition/meal-logging app. See `docs/superpowers/specs/` for the design spec
-and `docs/superpowers/plans/` for implementation plans.
+Nutrition/meal-logging app. `docs/superpowers/archive/` holds the design specs
+and implementation plans for shipped milestones (M0-M3, app redesign &
+quick-log) — historical record, not current status; checklists inside were
+never edited back after implementation, so ignore their checkbox state.
 
-## Current milestone: M1 + M2a — OCR service, backend & data layer
+## Current milestone: M4 — provision cloud
 
 ### Setup
 
