@@ -13,6 +13,7 @@
   --raw-text: #efeae0;
   --raw-text-muted: #8a8378;
   --raw-accent: #c6dc53;
+  --raw-accent-emphasis: #c6dc53;
   --raw-accent-ink: #1a1a12;
   --raw-danger: #e5675c;
   --raw-flag: #e0913a;
@@ -29,6 +30,7 @@
     --raw-text: #23201a;
     --raw-text-muted: #6b6459;
     --raw-accent: #5c7312;
+    --raw-accent-emphasis: #46570e;
     --raw-accent-ink: #ffffff;
     --raw-danger: #b93b30;
     --raw-flag: #a1631c;
@@ -48,6 +50,7 @@
   --color-text: var(--raw-text);
   --color-text-muted: var(--raw-text-muted);
   --color-accent: var(--raw-accent);
+  --color-accent-emphasis: var(--raw-accent-emphasis);
   --color-accent-ink: var(--raw-accent-ink);
   --color-danger: var(--raw-danger);
   --color-flag: var(--raw-flag);
