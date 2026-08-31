@@ -5,7 +5,19 @@ and implementation plans for shipped milestones (M0-M3, app redesign &
 quick-log) — historical record, not current status; checklists inside were
 never edited back after implementation, so ignore their checkbox state.
 
-## Current milestone: M4 — provision cloud
+## Current milestone: self-hosted multi-provider quantity estimation
+
+Precedes M4 — see
+`docs/superpowers/specs/2026-08-31-omniroute-quantity-provider-design.md`.
+M4 (provision cloud) resumes once this lands.
+
+### Known gap: no capture path for unpackaged/solid food
+
+The product database is sourced entirely from OCR'd packaging text
+(`matchProduct`/`createProduct`). A food with no label — a loose egg, a
+potato, a piece of fruit — has nothing for OCR to read and no product row
+to match, so there is currently no way to log it. Flagged during the
+2026-08-31 design pass; to be designed as its own pass before M4 starts.
 
 ### Setup
 
