@@ -44,6 +44,17 @@ services:
     volumes:
       - per100-minio-data:/data
 
+  omniroute:
+    image: diegosouzapw/omniroute:latest
+    ports:
+      - "20128:20128"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    stop_grace_period: 40s
+    volumes:
+      - per100-omniroute-data:/app/data
+
 volumes:
   per100-postgres-data:
   per100-minio-data:
+  per100-omniroute-data:
