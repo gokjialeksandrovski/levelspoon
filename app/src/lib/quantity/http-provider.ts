@@ -42,8 +42,16 @@ const buildRequestBody = (photo: Buffer): unknown => ({
   ],
 });
 
-const parseGrams = (body: unknown): number => {
-  const text = (body as any).choices?.[0]?.message?.content ?? "";
+interface OmniRouteResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
+
+const parseGrams = (body: OmniRouteResponse): number => {
+  const text = body.choices?.[0]?.message?.content ?? "";
   const grams = Number.parseFloat(text);
   if (Number.isNaN(grams)) {
     throw new Error(`OmniRoute gateway returned a non-numeric response: ${text}`);
