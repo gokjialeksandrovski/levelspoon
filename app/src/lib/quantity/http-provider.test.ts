@@ -26,6 +26,7 @@ describe("HttpQuantityProvider.estimateGrams", () => {
     expect(url).toBe("http://localhost:20128/v1/chat/completions");
     const body = JSON.parse(requestInit.body as string);
     expect(body.model).toBe("auto");
+    expect(body.max_tokens).toBe(512);
     const imagePart = body.messages[0].content.find(
       (part: { type: string }) => part.type === "image_url",
     );

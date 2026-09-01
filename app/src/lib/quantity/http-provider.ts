@@ -23,8 +23,16 @@ const omniRouteUrl = (): string => {
   return url;
 };
 
+// 512 output tokens: comfortably above the 175-296 tokens real gram estimates
+// took from fast, well-behaved models (Gemini flash/flash-lite) in manual
+// testing, but a hard ceiling on the reasoning-heavy models observed
+// occasionally routed to via OMNIROUTE_MODEL=auto's openrouter fallback,
+// which ran up to 14,100 tokens on the same task before answering.
+const MAX_RESPONSE_TOKENS = 512;
+
 const buildRequestBody = (photo: Buffer): unknown => ({
   model: process.env.OMNIROUTE_MODEL ?? "auto",
+  max_tokens: MAX_RESPONSE_TOKENS,
   messages: [
     {
       role: "user",
