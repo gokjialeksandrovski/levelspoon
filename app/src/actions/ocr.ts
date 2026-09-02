@@ -1,12 +1,34 @@
 "use server";
 
 import type { NutritionValues } from "@/actions/products";
-import { convertServingSize } from "@/actions/serving-size";
+import { findStoredMeasures } from "@/actions/products";
 import { requireUserId } from "@/lib/auth/require-user";
+import {
+  hasLearned,
+  learnFromServing,
+  NOTHING_LEARNED,
+  type LearnedMeasures,
+} from "@/lib/measures/learn";
+import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
 import { scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
-import { HttpOcrProvider, ServingGramsUnavailableError } from "@/lib/ocr/http-provider";
+import { HttpOcrProvider } from "@/lib/ocr/http-provider";
 import { MockOcrProvider } from "@/lib/ocr/mock-provider";
-import type { NullableNutritionValues, OcrProvider } from "@/lib/ocr/provider";
+import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "@/lib/ocr/provider";
+
+/**
+ * A nutrition read the confirm step can use, or the one question that stands
+ * between us and it. `needs-serving-size` is reached only when no bracketed
+ * gram weight is printed, no density resolves the measure, and nothing was
+ * learned for this product before.
+ */
+export type NutritionRead =
+  | {
+      kind: "per100g";
+      values: NullableNutritionValues;
+      flags: string[];
+      learned: LearnedMeasures;
+    }
+  | { kind: "needs-serving-size"; servingSizeText: string; perServing: NutritionValues };
 
 const getProvider = (): OcrProvider =>
   process.env.OCR_PROVIDER === "mock" ? new MockOcrProvider() : new HttpOcrProvider();
@@ -16,22 +38,83 @@ export const ocrProductName = async (photo: Blob): Promise<{ text: string }> => 
   return getProvider().extractProductName(photo);
 };
 
+const scaledRead = async (
+  perServing: NutritionValues,
+  grams: number,
+  learned: LearnedMeasures,
+): Promise<NutritionRead> => {
+  const values = scalePerServingToPer100g(perServing, grams);
+  const { flags } = await getProvider().validate(values);
+  return { kind: "per100g", values, flags, learned };
+};
+
+const contextFor = async (productName: string): Promise<MeasureContext> => ({
+  productName,
+  ...(await findStoredMeasures(productName)),
+});
+
+const fromUsLabel = async (
+  read: Extract<NutritionTableRead, { format: "us" }>,
+  productNameGuess: string,
+): Promise<NutritionRead> => {
+  // A printed weight is the most certain figure on the label, and it also
+  // states the product's density for free when the measure beside it is a
+  // volume - no user input and no AI, derived from data already being read.
+  if (read.servingGrams !== null) {
+    const learned = learnFromServing(read.servingSizeText, read.servingGrams);
+    return scaledRead(read.perServing, read.servingGrams, learned);
+  }
+
+  const resolution = resolveGrams(read.servingSizeText, await contextFor(productNameGuess));
+  if (resolution.kind === "unresolved") {
+    return {
+      kind: "needs-serving-size",
+      servingSizeText: read.servingSizeText,
+      perServing: read.perServing,
+    };
+  }
+  // Nothing new is learned here: the grams came from a density or a weight
+  // already stored, so writing them back would only duplicate them.
+  return scaledRead(read.perServing, resolution.grams, NOTHING_LEARNED);
+};
+
 export const ocrNutritionTable = async (
   photo: Blob,
   productNameGuess: string,
-): Promise<{ values: NullableNutritionValues; flags: string[] }> => {
+): Promise<NutritionRead> => {
   await requireUserId();
-  try {
-    return await getProvider().extractNutritionTable(photo);
-  } catch (error) {
-    if (!(error instanceof ServingGramsUnavailableError)) {
-      throw error;
-    }
-    const { grams } = await convertServingSize(error.servingSizeText, productNameGuess);
-    const values = scalePerServingToPer100g(error.perServingValues, grams);
-    const { flags } = await getProvider().validate(values);
-    return { values, flags };
+  const read = await getProvider().extractNutritionTable(photo);
+  if (read.format === "eu") {
+    return { kind: "per100g", values: read.per100g, flags: read.flags, learned: NOTHING_LEARNED };
   }
+  return fromUsLabel(read, productNameGuess);
+};
+
+/**
+ * Resolve the user's own answer to the serving-size question.
+ *
+ * The answer is fed back through the same resolver, so "1.8 oz" works as well
+ * as "52g" - useful because US packages frequently print net weight in
+ * ounces. An answer that still cannot be resolved asks again rather than
+ * inventing a number.
+ */
+export const resolveServingSize = async (
+  answerText: string,
+  servingSizeText: string,
+  perServing: NutritionValues,
+  productNameGuess: string,
+): Promise<NutritionRead> => {
+  await requireUserId();
+  const resolution = resolveGrams(answerText, await contextFor(productNameGuess));
+  if (resolution.kind === "unresolved") {
+    return { kind: "needs-serving-size", servingSizeText, perServing };
+  }
+
+  // What the answer teaches is attached to the label's own serving line, not
+  // to the answer: "1 bas" is the unit the next scan of this product prints.
+  const fromLabel = learnFromServing(servingSizeText, resolution.grams);
+  const learned = hasLearned(fromLabel) ? fromLabel : NOTHING_LEARNED;
+  return scaledRead(perServing, resolution.grams, learned);
 };
 
 export const validateNutrition = async (

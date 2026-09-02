@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExtractNutritionTable, mockValidate, mockConvertServingSize } = vi.hoisted(() => ({
+const { mockExtractNutritionTable, mockValidate, mockFindStoredMeasures } = vi.hoisted(() => ({
   mockExtractNutritionTable: vi.fn(),
   mockValidate: vi.fn(),
-  mockConvertServingSize: vi.fn(),
+  mockFindStoredMeasures: vi.fn(),
 }));
 
 vi.stubEnv("OCR_PROVIDER", "mock");
@@ -21,20 +21,17 @@ vi.mock("@/lib/ocr/http-provider", async (importOriginal) => {
   };
 });
 
-vi.mock("@/actions/serving-size", () => ({
-  convertServingSize: mockConvertServingSize,
-}));
+vi.mock("@/actions/products", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/actions/products")>();
+  return { ...actual, findStoredMeasures: mockFindStoredMeasures };
+});
 
-import { ServingGramsUnavailableError } from "@/lib/ocr/http-provider";
+import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
-import { ocrNutritionTable, ocrProductName, validateNutrition } from "./ocr";
+import { ocrNutritionTable, ocrProductName, resolveServingSize, validateNutrition } from "./ocr";
 
 const PER_SERVING_VALUES = {
   energyKcal: 190, fatG: 16, saturatesG: 3, carbohydrateG: 7, sugarsG: 3, proteinG: 8, saltG: 0.45,
-};
-
-const ALREADY_SCALED_VALUES = {
-  energyKcal: 633.33, fatG: 53.33, saturatesG: 10, carbohydrateG: 23.33, sugarsG: 10, proteinG: 26.67, saltG: 1.5,
 };
 
 describe("ocrProductName", () => {
@@ -52,6 +49,8 @@ describe("ocrProductName", () => {
 describe("ocrNutritionTable — EU label via the mock provider", () => {
   it("returns parsed values and no flags", async () => {
     const result = await ocrNutritionTable(new Blob(["anything"]), "Olympus Greek Yogurt 2% Fat");
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
     expect(result.values.energyKcal).toBe(70);
     expect(result.flags).toEqual([]);
   });
@@ -62,60 +61,165 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     vi.stubEnv("OCR_PROVIDER", "real");
     mockExtractNutritionTable.mockReset();
     mockValidate.mockReset();
-    mockConvertServingSize.mockReset();
+    mockFindStoredMeasures.mockReset();
+    mockFindStoredMeasures.mockResolvedValue(NOTHING_LEARNED);
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("returns scaled values directly when the label already carries a gram weight", async () => {
-    mockExtractNutritionTable.mockResolvedValue({ values: ALREADY_SCALED_VALUES, flags: [] });
-
-    const result = await ocrNutritionTable(new Blob(["photo"]), "Peanut Butter");
-
-    expect(result).toEqual({ values: ALREADY_SCALED_VALUES, flags: [] });
-    expect(mockConvertServingSize).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the OmniRoute grams lookup when the serving size has no printed weight", async () => {
-    mockExtractNutritionTable.mockRejectedValue(
-      new ServingGramsUnavailableError("2 Tablespoon", PER_SERVING_VALUES),
-    );
-    mockConvertServingSize.mockResolvedValue({ grams: 30 });
+  it("scales a printed gram weight to per-100g and revalidates", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "2 Tbsp (30g)",
+      servingGrams: 30,
+    });
     mockValidate.mockResolvedValue({ flags: [] });
 
     const result = await ocrNutritionTable(new Blob(["photo"]), "Peanut Butter");
 
-    expect(mockConvertServingSize).toHaveBeenCalledWith("2 Tablespoon", "Peanut Butter");
-    expect(result.values.energyKcal).toBeCloseTo((190 / 30) * 100);
-    expect(result.flags).toEqual([]);
-    expect(mockValidate).toHaveBeenCalledWith(
-      expect.objectContaining({ energyKcal: expect.closeTo((190 / 30) * 100, 2) }),
-    );
+    expect(result.kind).toBe("per100g");
+    expect(result).toMatchObject({ flags: [] });
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.values.energyKcal).toBeCloseTo((190 / 30) * 100, 2);
   });
 
-  it("returns non-empty flags from the re-validate call after the OmniRoute grams lookup", async () => {
-    mockExtractNutritionTable.mockRejectedValue(
-      new ServingGramsUnavailableError("2 Tablespoon", PER_SERVING_VALUES),
-    );
-    mockConvertServingSize.mockResolvedValue({ grams: 30 });
+  it("captures the density a label states for free when it prints both a volume and a weight", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "2 Tbsp (37g)",
+      servingGrams: 37,
+    });
+    mockValidate.mockResolvedValue({ flags: [] });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Nutella");
+
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.learned.densityGMl).toBeCloseTo(1.2333, 4);
+  });
+
+  it("resolves a volume serving through the seeded density table with no printed weight", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 cup",
+      servingGrams: null,
+    });
+    mockValidate.mockResolvedValue({ flags: [] });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Plain Flour");
+
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    // 240 mL x 0.53 g/mL = 127.2 g
+    expect(result.values.energyKcal).toBeCloseTo((190 / 127.2) * 100, 2);
+  });
+
+  it("uses a serving weight already learned for this product instead of asking again", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 bas",
+      servingGrams: null,
+    });
+    mockFindStoredMeasures.mockResolvedValue({
+      densityGMl: null,
+      servingUnit: "bas",
+      servingGrams: 52,
+    });
+    mockValidate.mockResolvedValue({ flags: [] });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Snickers");
+
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.values.energyKcal).toBeCloseTo((190 / 52) * 100, 2);
+  });
+
+  it("asks for a serving size when nothing can resolve a count unit", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 bas",
+      servingGrams: null,
+    });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Snickers");
+
+    expect(result).toEqual({
+      kind: "needs-serving-size",
+      servingSizeText: "1 bas",
+      perServing: PER_SERVING_VALUES,
+    });
+    expect(mockValidate).not.toHaveBeenCalled();
+  });
+
+  it("never assumes water for an unknown density", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "2 tbsp",
+      servingGrams: null,
+    });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Mystery Spread");
+
+    expect(result.kind).toBe("needs-serving-size");
+  });
+
+  it("returns the flags from the revalidate call", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "2 Tbsp (30g)",
+      servingGrams: 30,
+    });
     mockValidate.mockResolvedValue({ flags: ["energy_kcal"] });
 
     const result = await ocrNutritionTable(new Blob(["photo"]), "Peanut Butter");
 
-    expect(result.flags).toEqual(["energy_kcal"]);
+    expect(result).toMatchObject({ flags: ["energy_kcal"] });
+  });
+});
+
+describe("resolveServingSize", () => {
+  beforeEach(() => {
+    vi.stubEnv("OCR_PROVIDER", "real");
+    mockValidate.mockReset();
+    mockValidate.mockResolvedValue({ flags: [] });
+    mockFindStoredMeasures.mockReset();
+    mockFindStoredMeasures.mockResolvedValue(NOTHING_LEARNED);
   });
 
-  it("propagates the error uncaught when the OmniRoute grams lookup itself fails", async () => {
-    mockExtractNutritionTable.mockRejectedValue(
-      new ServingGramsUnavailableError("2 Tablespoon", PER_SERVING_VALUES),
-    );
-    mockConvertServingSize.mockRejectedValue(new Error("Serving size estimation failed"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
-    await expect(ocrNutritionTable(new Blob(["photo"]), "Peanut Butter")).rejects.toThrow(
-      "Serving size estimation failed",
-    );
+  it("accepts a gram answer and learns the count unit's weight", async () => {
+    const result = await resolveServingSize("52g", "1 bas", PER_SERVING_VALUES, "Snickers");
+
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.values.energyKcal).toBeCloseTo((190 / 52) * 100, 2);
+    expect(result.learned).toEqual({ densityGMl: null, servingUnit: "bas", servingGrams: 52 });
+  });
+
+  it("accepts an ounce answer, because US packages print net weight in ounces", async () => {
+    const result = await resolveServingSize("1.8 oz", "1 bas", PER_SERVING_VALUES, "Snickers");
+
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.learned.servingGrams).toBeCloseTo(51.03, 2);
+  });
+
+  it("asks again rather than guessing when the answer itself cannot be resolved", async () => {
+    const result = await resolveServingSize("one bar", "1 bas", PER_SERVING_VALUES, "Snickers");
+
+    expect(result).toEqual({
+      kind: "needs-serving-size",
+      servingSizeText: "1 bas",
+      perServing: PER_SERVING_VALUES,
+    });
   });
 });
 
