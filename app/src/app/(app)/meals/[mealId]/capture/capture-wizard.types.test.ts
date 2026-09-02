@@ -1,6 +1,8 @@
 // app/src/app/meals/[mealId]/capture-wizard.types.test.ts
 import { describe, expect, it } from "vitest";
 
+import { NOTHING_LEARNED } from "@/lib/measures/learn";
+
 import { wizardReducer } from "./capture-wizard.types";
 
 describe("wizardReducer", () => {
@@ -93,15 +95,29 @@ describe("wizardReducer", () => {
 
     const next = wizardReducer(
       { kind: "nutrition-photo", nameGuess: "Unknown Product" },
-      { type: "NUTRITION_PARSED", parsed, flags, name: "Unknown Product", photo },
+      { type: "NUTRITION_PARSED", parsed, flags, name: "Unknown Product", photo, learned: NOTHING_LEARNED },
     );
 
-    expect(next).toEqual({ kind: "confirm", parsed, flags, name: "Unknown Product", photo });
+    expect(next).toEqual({
+      kind: "confirm",
+      parsed,
+      flags,
+      name: "Unknown Product",
+      photo,
+      learned: NOTHING_LEARNED,
+    });
   });
 
   it("routes PRODUCT_CREATED to the amount step with no alternatives", () => {
     const next = wizardReducer(
-      { kind: "confirm", parsed: {} as never, flags: [], name: "Unknown Product", photo: new Blob() },
+      {
+        kind: "confirm",
+        parsed: {} as never,
+        flags: [],
+        name: "Unknown Product",
+        photo: new Blob(),
+        learned: NOTHING_LEARNED,
+      },
       { type: "PRODUCT_CREATED", product: { id: "p3", name: "Unknown Product" } },
     );
 
@@ -135,6 +151,55 @@ describe("wizardReducer", () => {
       kind: "match-result",
       nameGuess: "Olympus Greek Yogurt 2% Fat",
       candidates: [{ id: "p1", name: "Olympus Greek Yogurt 2% Fat" }, { id: "p2", name: "Olympus Greek Yogurt 10% Fat" }],
+    });
+  });
+});
+
+const PER_SERVING = {
+  energyKcal: 250, fatG: 12, saturatesG: 4.5, carbohydrateG: 32,
+  sugarsG: 28, proteinG: 4, saltG: 0.3125,
+};
+
+const LEARNED_BAR = { densityGMl: null, servingUnit: "bas", servingGrams: 52 };
+
+describe("wizardReducer — serving size", () => {
+  it("routes SERVING_SIZE_NEEDED to the serving-size step carrying the label's own text", () => {
+    const photo = new Blob(["photo"]);
+    const next = wizardReducer(
+      { kind: "nutrition-photo", nameGuess: "Snickers" },
+      {
+        type: "SERVING_SIZE_NEEDED",
+        servingSizeText: "1 bas",
+        perServing: PER_SERVING,
+        name: "Snickers",
+        photo,
+      },
+    );
+
+    expect(next).toEqual({
+      kind: "serving-size",
+      servingSizeText: "1 bas",
+      perServing: PER_SERVING,
+      name: "Snickers",
+      photo,
+    });
+  });
+
+  it("routes NUTRITION_PARSED from the serving-size step to confirm, carrying what was learned", () => {
+    const photo = new Blob(["photo"]);
+    const parsed = { ...PER_SERVING };
+    const next = wizardReducer(
+      { kind: "serving-size", servingSizeText: "1 bas", perServing: PER_SERVING, name: "Snickers", photo },
+      { type: "NUTRITION_PARSED", parsed, flags: [], name: "Snickers", photo, learned: LEARNED_BAR },
+    );
+
+    expect(next).toEqual({
+      kind: "confirm",
+      parsed,
+      flags: [],
+      name: "Snickers",
+      photo,
+      learned: LEARNED_BAR,
     });
   });
 });

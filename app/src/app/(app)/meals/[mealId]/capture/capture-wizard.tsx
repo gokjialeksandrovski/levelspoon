@@ -17,12 +17,14 @@ import { ConfirmStep } from "./steps/confirm-step";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
 import { ProductNameStep } from "./steps/product-name-step";
+import { ServingSizeStep } from "./steps/serving-size-step";
 import { WizardShell } from "./wizard-shell";
 
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Product name",
   "match-result": "Which product?",
   "nutrition-photo": "Nutrition label",
+  "serving-size": "Serving size",
   confirm: "Confirm values",
   amount: "Amount",
   saved: "Saved",
@@ -35,6 +37,7 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "product-photo": 0.2,
   "match-result": 0.4,
   "nutrition-photo": 0.5,
+  "serving-size": 0.6,
   confirm: 0.75,
   amount: 0.9,
   saved: 1,
@@ -71,6 +74,17 @@ const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) =>
   }
   if (step.kind === "nutrition-photo") {
     return <NutritionPhotoStep nameGuess={step.nameGuess} dispatch={dispatch} />;
+  }
+  if (step.kind === "serving-size") {
+    return (
+      <ServingSizeStep
+        servingSizeText={step.servingSizeText}
+        perServing={step.perServing}
+        name={step.name}
+        photo={step.photo}
+        dispatch={dispatch}
+      />
+    );
   }
   if (step.kind === "confirm") {
     return (

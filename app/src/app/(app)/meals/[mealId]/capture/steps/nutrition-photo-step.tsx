@@ -7,6 +7,7 @@ import { ocrNutritionTable } from "@/actions/ocr";
 import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
 import { Skeleton } from "@/components/skeleton";
+import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";
 
@@ -45,8 +46,25 @@ export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepPr
     setError(null);
     setIsLoading(true);
     try {
-      const { values, flags } = await ocrNutritionTable(selected, nameGuess);
-      dispatch({ type: "NUTRITION_PARSED", parsed: values, flags, name: nameGuess, photo: selected });
+      const read = await ocrNutritionTable(selected, nameGuess);
+      if (read.kind === "needs-serving-size") {
+        dispatch({
+          type: "SERVING_SIZE_NEEDED",
+          servingSizeText: read.servingSizeText,
+          perServing: read.perServing,
+          name: nameGuess,
+          photo: selected,
+        });
+        return;
+      }
+      dispatch({
+        type: "NUTRITION_PARSED",
+        parsed: read.values,
+        flags: read.flags,
+        name: nameGuess,
+        photo: selected,
+        learned: read.learned,
+      });
     } catch {
       setError("Could not read the nutrition table from this photo.");
     } finally {
@@ -64,6 +82,7 @@ export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepPr
       flags: ALL_NUTRITION_FLAGS,
       name: nameGuess,
       photo,
+      learned: NOTHING_LEARNED,
     });
   };
 

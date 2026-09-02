@@ -1,5 +1,6 @@
 // app/src/app/meals/[mealId]/capture-wizard.types.ts
-import type { MatchResult } from "@/actions/products";
+import type { MatchResult, NutritionValues } from "@/actions/products";
+import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
 export interface SelectedProduct {
@@ -11,7 +12,21 @@ export type WizardStep =
   | { kind: "product-photo" }
   | { kind: "match-result"; nameGuess: string; candidates: SelectedProduct[] }
   | { kind: "nutrition-photo"; nameGuess: string }
-  | { kind: "confirm"; parsed: NullableNutritionValues; flags: string[]; name: string; photo: Blob }
+  | {
+      kind: "serving-size";
+      servingSizeText: string;
+      perServing: NutritionValues;
+      name: string;
+      photo: Blob;
+    }
+  | {
+      kind: "confirm";
+      parsed: NullableNutritionValues;
+      flags: string[];
+      name: string;
+      photo: Blob;
+      learned: LearnedMeasures;
+    }
   | { kind: "amount"; product: SelectedProduct; alternatives: SelectedProduct[] }
   | { kind: "saved" };
 
@@ -19,7 +34,21 @@ export type WizardAction =
   | { type: "MATCH_RESOLVED"; nameGuess: string; result: MatchResult }
   | { type: "CANDIDATE_CHOSEN"; product: SelectedProduct; alternatives: SelectedProduct[] }
   | { type: "NONE_OF_THESE"; nameGuess: string }
-  | { type: "NUTRITION_PARSED"; parsed: NullableNutritionValues; flags: string[]; name: string; photo: Blob }
+  | {
+      type: "SERVING_SIZE_NEEDED";
+      servingSizeText: string;
+      perServing: NutritionValues;
+      name: string;
+      photo: Blob;
+    }
+  | {
+      type: "NUTRITION_PARSED";
+      parsed: NullableNutritionValues;
+      flags: string[];
+      name: string;
+      photo: Blob;
+      learned: LearnedMeasures;
+    }
   | { type: "PRODUCT_CREATED"; product: SelectedProduct }
   | { type: "SAVED" }
   | { type: "ADD_ANOTHER" }
@@ -54,8 +83,23 @@ export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardS
       return { kind: "amount", product: action.product, alternatives: action.alternatives };
     case "NONE_OF_THESE":
       return { kind: "nutrition-photo", nameGuess: action.nameGuess };
+    case "SERVING_SIZE_NEEDED":
+      return {
+        kind: "serving-size",
+        servingSizeText: action.servingSizeText,
+        perServing: action.perServing,
+        name: action.name,
+        photo: action.photo,
+      };
     case "NUTRITION_PARSED":
-      return { kind: "confirm", parsed: action.parsed, flags: action.flags, name: action.name, photo: action.photo };
+      return {
+        kind: "confirm",
+        parsed: action.parsed,
+        flags: action.flags,
+        name: action.name,
+        photo: action.photo,
+        learned: action.learned,
+      };
     case "PRODUCT_CREATED":
       return { kind: "amount", product: action.product, alternatives: [] };
     case "SAVED":
