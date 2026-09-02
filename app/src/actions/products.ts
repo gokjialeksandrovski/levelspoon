@@ -7,6 +7,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { products } from "@/lib/db/schema";
+import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
 
 // Spec §1's margin rule: an absolute-threshold-only rule would let two
@@ -116,6 +117,8 @@ export interface CreateProductInput {
   name: string;
   nutritionPer100g: NutritionValues;
   photo: Blob;
+  /** What the label or the user taught about this product's measurements. */
+  learned?: LearnedMeasures;
 }
 
 const uploadProductPhoto = async (photo: Blob): Promise<string> => {
@@ -139,6 +142,15 @@ const toNutritionColumns = (values: NutritionValues) => ({
   saltG: String(values.saltG),
 });
 
+// Drizzle's numeric columns round-trip as strings, so a learned value is
+// stringified on the way in and parsed on the way out - the same treatment
+// the seven nutrition columns already get.
+const toLearnedColumns = (learned: LearnedMeasures) => ({
+  densityGMl: learned.densityGMl === null ? null : String(learned.densityGMl),
+  servingUnit: learned.servingUnit,
+  servingGrams: learned.servingGrams === null ? null : String(learned.servingGrams),
+});
+
 const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValues => ({
   energyKcal: Number(row.energyKcal),
   fatG: Number(row.fatG),
@@ -160,6 +172,7 @@ export const createProduct = async (
     .values({
       name: input.name,
       ...toNutritionColumns(input.nutritionPer100g),
+      ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
       nutritionPhotoKey: photoKey,
       createdByUserId: userId,
     })
@@ -216,5 +229,42 @@ export const getProductForCorrection = async (productId: string): Promise<Produc
     name: product.name,
     nutritionPer100g: fromNutritionColumns(product),
     photoUrl,
+  };
+};
+
+type StoredMeasuresRow = {
+  density_g_ml: string | null;
+  serving_unit: string | null;
+  serving_grams: string | null;
+  score: number;
+};
+
+const toNumberOrNull = (value: string | null): number | null =>
+  value === null ? null : Number(value);
+
+/**
+ * What a previously-saved product of this name already taught us.
+ *
+ * Reuses matchProduct's confident-similarity floor rather than a looser one:
+ * applying one product's learned serving weight to a different product would
+ * be exactly the silent-wrong answer this pipeline exists to remove.
+ */
+export const findStoredMeasures = async (productName: string): Promise<LearnedMeasures> => {
+  await requireUserId();
+  const result = await db.execute<StoredMeasuresRow>(sql`
+    SELECT density_g_ml, serving_unit, serving_grams,
+           similarity(name, ${productName}) AS score
+    FROM products
+    ORDER BY score DESC
+    LIMIT 1
+  `);
+  const [row] = result.rows;
+  if (!row || Number(row.score) < CONFIDENT_SIMILARITY_THRESHOLD) {
+    return NOTHING_LEARNED;
+  }
+  return {
+    densityGMl: toNumberOrNull(row.density_g_ml),
+    servingUnit: row.serving_unit,
+    servingGrams: toNumberOrNull(row.serving_grams),
   };
 };

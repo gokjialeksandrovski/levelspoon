@@ -10,6 +10,11 @@ const NUTRITION_COLUMN_SCALE = 2;
 const nutritionColumn = (columnName: string) =>
   numeric(columnName, { precision: NUTRITION_COLUMN_PRECISION, scale: NUTRITION_COLUMN_SCALE }).notNull();
 
+// A density needs four decimals: a "2 Tbsp (37g)" label states 1.2333 g/mL,
+// and rounding to two would move a 240 mL cup by nearly 8 g.
+const DENSITY_COLUMN_PRECISION = 6;
+const DENSITY_COLUMN_SCALE = 4;
+
 export const products = pgTable(
   "products",
   {
@@ -23,6 +28,18 @@ export const products = pgTable(
     sugarsG: nutritionColumn("sugars_g"),
     proteinG: nutritionColumn("protein_g"),
     saltG: nutritionColumn("salt_g"),
+    // All three are learned at runtime and null until then: a density derived
+    // from a label that printed both a volume and a weight, or the weight of
+    // one count unit ("1 bar") the user supplied once.
+    densityGMl: numeric("density_g_ml", {
+      precision: DENSITY_COLUMN_PRECISION,
+      scale: DENSITY_COLUMN_SCALE,
+    }),
+    servingUnit: text("serving_unit"),
+    servingGrams: numeric("serving_grams", {
+      precision: NUTRITION_COLUMN_PRECISION,
+      scale: NUTRITION_COLUMN_SCALE,
+    }),
     nutritionPhotoKey: text("nutrition_photo_key").notNull(),
     createdByUserId: uuid("created_by_user_id")
       .notNull()

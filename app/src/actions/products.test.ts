@@ -7,7 +7,7 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
 
-import { createProduct, getProductForCorrection, matchProduct, updateProduct } from "./products";
+import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, updateProduct } from "./products";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -219,5 +219,75 @@ describe("getProductForCorrection", () => {
 
     const result = await getProductForCorrection(crypto.randomUUID());
     expect(result).toBeNull();
+  });
+});
+
+const LEARNED_TEST_NUTRITION = {
+  energyKcal: 480.8, fatG: 23.1, saturatesG: 8.7, carbohydrateG: 61.5,
+  sugarsG: 53.8, proteinG: 7.7, saltG: 0.6,
+};
+
+const testPhoto = () => new Blob(["photo"], { type: "image/jpeg" });
+
+describe("createProduct — learned measures", () => {
+  it("stores a learned density on the new product row", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await createProduct({
+      name: "Zzq Density Fixture",
+      nutritionPer100g: LEARNED_TEST_NUTRITION,
+      photo: testPhoto(),
+      learned: { densityGMl: 1.2333, servingUnit: null, servingGrams: null },
+    });
+
+    const stored = await findStoredMeasures("Zzq Density Fixture");
+    expect(stored.densityGMl).toBeCloseTo(1.2333, 4);
+  });
+
+  it("stores a learned serving unit and weight on the new product row", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await createProduct({
+      name: "Zzq Bar Fixture",
+      nutritionPer100g: LEARNED_TEST_NUTRITION,
+      photo: testPhoto(),
+      learned: { densityGMl: null, servingUnit: "bas", servingGrams: 52 },
+    });
+
+    const stored = await findStoredMeasures("Zzq Bar Fixture");
+    expect(stored.servingUnit).toBe("bas");
+    expect(stored.servingGrams).toBe(52);
+  });
+
+  it("leaves all three columns null when nothing was learned", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await createProduct({
+      name: "Zzq Plain Fixture",
+      nutritionPer100g: LEARNED_TEST_NUTRITION,
+      photo: testPhoto(),
+    });
+
+    expect(await findStoredMeasures("Zzq Plain Fixture")).toEqual({
+      densityGMl: null,
+      servingUnit: null,
+      servingGrams: null,
+    });
+  });
+});
+
+describe("findStoredMeasures", () => {
+  it("returns all-null for a name that matches nothing", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect(await findStoredMeasures("Xqv Nonexistent Product Wgh")).toEqual({
+      densityGMl: null,
+      servingUnit: null,
+      servingGrams: null,
+    });
   });
 });
