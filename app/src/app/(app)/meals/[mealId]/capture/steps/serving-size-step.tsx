@@ -72,7 +72,6 @@ export const ServingSizeStep = ({
         value={answer}
         onChange={(event) => setAnswer(event.target.value)}
         helperText="Accepts 52g, 1.8 oz, or 2 tbsp"
-        error={error ?? undefined}
       />
       <Button disabled={answer.trim() === "" || isResolving} onClick={handleSubmit}>
         Continue
