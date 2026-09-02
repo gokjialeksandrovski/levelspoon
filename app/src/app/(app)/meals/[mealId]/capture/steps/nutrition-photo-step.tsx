@@ -45,7 +45,7 @@ export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepPr
     setError(null);
     setIsLoading(true);
     try {
-      const { values, flags } = await ocrNutritionTable(selected);
+      const { values, flags } = await ocrNutritionTable(selected, nameGuess);
       dispatch({ type: "NUTRITION_PARSED", parsed: values, flags, name: nameGuess, photo: selected });
     } catch {
       setError("Could not read the nutrition table from this photo.");
