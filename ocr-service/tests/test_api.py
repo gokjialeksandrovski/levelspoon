@@ -60,10 +60,10 @@ def test_nutrition_endpoint_returns_the_spec_contract(client_with):
     response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
     assert response.status_code == 200
     body = response.json()
-    assert body["values"]["energy_kcal"] == 70.0
-    assert body["values"]["salt_g"] == 0.18
+    assert body["per_100g"]["energy_kcal"] == 70.0
+    assert body["per_100g"]["salt_g"] == 0.18
     assert body["flags"] == []
-    assert set(body["values"]) == {
+    assert set(body["per_100g"]) == {
         "energy_kcal", "fat_g", "saturates_g", "carbohydrate_g",
         "sugars_g", "protein_g", "salt_g",
     }
@@ -105,7 +105,7 @@ def test_missing_value_serialises_as_null_not_nan(client_with):
         "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
     assert "NaN" not in response.text
-    assert response.json()["values"]["salt_g"] is None
+    assert response.json()["per_100g"]["salt_g"] is None
     assert "salt_g" in response.json()["flags"]
 
 
@@ -148,12 +148,58 @@ def test_validate_endpoint_rejects_a_missing_field():
     assert response.status_code == 422
 
 
-def test_us_label_without_a_gram_weight_returns_structured_422(client_with):
-    response = client_with(_us_label_result_without_grams()).post(
+def test_eu_label_response_carries_per_100g_and_null_serving_fields(client_with):
+    client = client_with(_nutrition_result())
+    response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["format"] == "eu"
+    assert body["per_100g"]["energy_kcal"] == 70.0
+    assert body["per_serving"] is None
+    assert body["serving_size_text"] is None
+    assert body["serving_grams"] is None
+
+
+def test_us_label_without_a_gram_weight_returns_200_with_a_null_serving_grams(client_with):
+    """A serving with no printed weight is ordinary data, not a failure. The
+    422 that used to carry it is what produced the reported OcrServiceError."""
+    client = client_with(_us_label_result_without_grams())
+    response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["format"] == "us"
+    assert body["per_100g"] is None
+    assert body["per_serving"]["energy_kcal"] == 230.0
+    assert body["serving_grams"] is None
+    assert "2 Tablespoon" in body["serving_size_text"]
+
+
+def test_us_label_with_a_printed_gram_weight_reports_it(client_with):
+    texts = [
+        "Nutrition Facts",
+        "Serving Size 2 Tbsp (30g)",
+        "Calories 230",
+        "Total Fat 8g",
+        "Saturated Fat 1g",
+        "Sodium 180mg",
+        "Total Carbohydrate 37g",
+        "Total Sugars 9g",
+        "Protein 3g",
+    ]
+    boxes = tuple(Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts))
+    result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)
+    response = client_with(result).post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    body = response.json()
+    assert body["serving_grams"] == 30.0
+    assert body["per_serving"]["energy_kcal"] == 230.0
+
+
+def test_an_unreadable_photo_still_returns_422(client_with):
+    blank = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
+    response = client_with(blank).post(
         "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
     assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert detail["needs_serving_grams"] is True
-    assert detail["serving_size_text"] == "Serving Size 2 Tablespoon"
-    assert detail["per_serving_values"]["energy_kcal"] == 230.0
+    assert isinstance(response.json()["detail"], str)

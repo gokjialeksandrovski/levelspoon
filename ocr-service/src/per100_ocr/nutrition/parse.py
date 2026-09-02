@@ -11,8 +11,8 @@ from ..boxes import OcrResult
 from .columns import ColumnDetectionError, find_per_100g_values
 from .decimals import decimal_candidates, resolve_decimals
 from .normalize import NormalizationError, split_energy_row
-from .reading import NutritionReading
-from .us_label import _parse_us_label, is_us_label
+from .reading import LabelFormat, NutritionReading
+from .us_label import is_us_label, read_us_label
 
 # Fixed by EU Regulation 1169/2011; never inferred from adjacent label text
 # because the value column drifts out of alignment on curved packaging.
@@ -52,9 +52,32 @@ def _parse_eu_label(result: OcrResult) -> NutritionReading:
     values, flags = resolve_decimals(candidates, energy_kcal, energy_kj)
 
     return NutritionReading(
-        values=values,
+        label_format=LabelFormat.EU,
+        per_100g=values,
+        per_serving=None,
         flags=tuple(sorted(set(flags) | set(missing))),
         energy_kj=energy_kj,
+        serving_size_text=None,
+        serving_grams=None,
+    )
+
+
+def _parse_us_label(result: OcrResult) -> NutritionReading:
+    """Report a US label as printed.
+
+    No flags are returned: validate()'s rules are per-100g rules, and applying
+    them to per-serving figures would flag a correct label. The caller
+    validates once it has scaled.
+    """
+    reading = read_us_label(result)
+    return NutritionReading(
+        label_format=LabelFormat.US,
+        per_100g=None,
+        per_serving=reading.per_serving,
+        flags=(),
+        energy_kj=None,
+        serving_size_text=reading.serving_size_text,
+        serving_grams=reading.serving_grams,
     )
 
 

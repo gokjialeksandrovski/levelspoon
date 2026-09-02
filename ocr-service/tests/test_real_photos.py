@@ -46,8 +46,8 @@ def test_reads_every_nutrition_value_from_the_real_label(fixtures_dir, golden):
 
     for field in ("energy_kcal", "fat_g", "saturates_g", "carbohydrate_g",
                   "sugars_g", "protein_g", "salt_g"):
-        assert body["values"][field] == pytest.approx(expected[field]), (
-            f"{field}: read {body['values'][field]}, expected {expected[field]}"
+        assert body["per_100g"][field] == pytest.approx(expected[field]), (
+            f"{field}: read {body['per_100g'][field]}, expected {expected[field]}"
         )
 
 

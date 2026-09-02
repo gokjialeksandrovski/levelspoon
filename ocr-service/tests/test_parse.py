@@ -5,6 +5,7 @@ import pytest
 from per100_ocr.boxes import Box, OcrResult
 from per100_ocr.nutrition.columns import ColumnDetectionError
 from per100_ocr.nutrition.parse import parse_nutrition
+from per100_ocr.nutrition.reading import LabelFormat
 
 
 def _box(text: str, y: float, x: float = 900.0) -> Box:
@@ -21,9 +22,9 @@ def _label(*value_texts: str) -> OcrResult:
 def test_parses_the_golden_label():
     result = _label("295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
     reading = parse_nutrition(result)
-    assert reading.values.energy_kcal == 70.0
-    assert reading.values.fat_g == 2.0
-    assert reading.values.salt_g == 0.18
+    assert reading.per_100g.energy_kcal == 70.0
+    assert reading.per_100g.fat_g == 2.0
+    assert reading.per_100g.salt_g == 0.18
     assert reading.energy_kj == 295.0
     assert reading.flags == ()
 
@@ -32,14 +33,14 @@ def test_parses_a_label_with_energy_split_across_two_boxes():
     """Eight numeric boxes must still map onto seven logical fields."""
     result = _label("295 kJ", "70 kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
     reading = parse_nutrition(result)
-    assert reading.values.fat_g == 2.0
-    assert reading.values.protein_g == 9.0
+    assert reading.per_100g.fat_g == 2.0
+    assert reading.per_100g.protein_g == 9.0
     assert reading.flags == ()
 
 
 def test_recovers_a_dropped_decimal_separator():
     result = _label("295kJ/70 Kcal", "20g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
-    assert parse_nutrition(result).values.fat_g == 2.0
+    assert parse_nutrition(result).per_100g.fat_g == 2.0
 
 
 def test_flags_a_missing_row_rather_than_defaulting_it():
@@ -56,7 +57,7 @@ def test_missing_row_is_never_silently_zero():
     """
     result = _label("295kJ/70 Kcal", "2,0 g", "od kojih", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
     reading = parse_nutrition(result)
-    assert math.isnan(reading.values.saturates_g)
+    assert math.isnan(reading.per_100g.saturates_g)
     assert "saturates_g" in reading.flags
 
 
@@ -78,7 +79,16 @@ def _us_label_result() -> OcrResult:
 
 def test_dispatches_a_us_label_to_the_us_parser_when_no_100g_header_exists():
     reading = parse_nutrition(_us_label_result())
-    assert reading.values.energy_kcal == pytest.approx(230 / 30 * 100)
+    assert reading.label_format is LabelFormat.US
+    assert reading.per_100g is None
+    assert reading.per_serving.energy_kcal == pytest.approx(230.0)
+    assert reading.serving_grams == pytest.approx(30.0)
+
+
+def test_a_us_reading_carries_no_flags_because_validation_happens_after_scaling():
+    """validate()'s rules are per-100g rules; per-serving figures would trip
+    them spuriously. The caller validates once it has scaled."""
+    assert parse_nutrition(_us_label_result()).flags == ()
 
 
 def test_an_unreadable_photo_still_raises_column_detection_error():

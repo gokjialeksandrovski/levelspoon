@@ -21,7 +21,6 @@ from pydantic import BaseModel
 from .nutrition.columns import ColumnDetectionError
 from .nutrition.normalize import NormalizationError
 from .nutrition.parse import parse_nutrition
-from .nutrition.us_label import ServingSizeUnknownError
 from .nutrition.validate import NutritionValues, validate
 from .product_name import extract_product_name
 
@@ -70,6 +69,10 @@ def _serialisable(values) -> dict:
     }
 
 
+def _optional_values(values) -> dict | None:
+    return None if values is None else _serialisable(values)
+
+
 @app.get("/health")
 def health(engine=Depends(get_engine)) -> dict:
     """Reports model load state, not merely that the process is listening."""
@@ -89,17 +92,15 @@ async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get
         reading = parse_nutrition(result)
     except (ColumnDetectionError, NormalizationError) as error:
         raise HTTPException(status_code=UNPROCESSABLE, detail=str(error)) from error
-    except ServingSizeUnknownError as error:
-        raise HTTPException(
-            status_code=UNPROCESSABLE,
-            detail={
-                "needs_serving_grams": True,
-                "serving_size_text": error.serving_size_text,
-                "per_serving_values": _serialisable(error.per_serving_values),
-            },
-        ) from error
 
-    return {"values": _serialisable(reading.values), "flags": list(reading.flags)}
+    return {
+        "format": reading.label_format.value,
+        "per_100g": _optional_values(reading.per_100g),
+        "per_serving": _optional_values(reading.per_serving),
+        "serving_size_text": reading.serving_size_text,
+        "serving_grams": reading.serving_grams,
+        "flags": list(reading.flags),
+    }
 
 
 class NutritionValuesRequest(BaseModel):
