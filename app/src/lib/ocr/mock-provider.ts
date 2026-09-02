@@ -1,6 +1,6 @@
 import type { NutritionValues } from "@/actions/products";
 
-import type { NullableNutritionValues, OcrProvider } from "./provider";
+import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "./provider";
 
 const MOCK_NUTRITION: NullableNutritionValues = {
   energyKcal: 70,
@@ -25,10 +25,8 @@ export class MockOcrProvider implements OcrProvider {
     return { text: PRODUCT_NAME_BY_MARKER[marker] ?? DEFAULT_PRODUCT_NAME };
   }
 
-  async extractNutritionTable(
-    _photo: Blob,
-  ): Promise<{ values: NullableNutritionValues; flags: string[] }> {
-    return { values: MOCK_NUTRITION, flags: [] };
+  async extractNutritionTable(_photo: Blob): Promise<NutritionTableRead> {
+    return { format: "eu", per100g: MOCK_NUTRITION, flags: [] };
   }
 
   async validate(values: NutritionValues): Promise<{ flags: string[] }> {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.stubEnv("OCR_SERVICE_URL", "http://localhost:8000");
 
-import { HttpOcrProvider, ServingGramsUnavailableError } from "./http-provider";
+import { HttpOcrProvider } from "./http-provider";
 
 // ocr-service's actual wire shape (main spec's documented snake_case field
 // naming), reproduced here so this test guards HttpOcrProvider's mapping
@@ -29,34 +29,43 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("HttpOcrProvider.extractNutritionTable", () => {
+describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
   it("maps ocr-service's snake_case fields to the app's camelCase shape", async () => {
-    stubFetchJson({ values: GOLDEN_RAW_VALUES, flags: [] });
+    stubFetchJson({
+      format: "eu",
+      per_100g: GOLDEN_RAW_VALUES,
+      per_serving: null,
+      serving_size_text: null,
+      serving_grams: null,
+      flags: [],
+    });
 
     const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
 
-    expect(result.values).toEqual({
-      energyKcal: 70,
-      fatG: 2.0,
-      saturatesG: 1.2,
-      carbohydrateG: 4.0,
-      sugarsG: 4.0,
-      proteinG: 9.0,
-      saltG: 0.18,
+    expect(result).toEqual({
+      format: "eu",
+      per100g: {
+        energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0,
+        sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      },
+      flags: [],
     });
-    expect(result.flags).toEqual([]);
   });
 
   it("preserves a null field instead of coercing or dropping it", async () => {
     stubFetchJson({
-      values: { ...GOLDEN_RAW_VALUES, energy_kcal: null },
+      format: "eu",
+      per_100g: { ...GOLDEN_RAW_VALUES, energy_kcal: null },
+      per_serving: null,
+      serving_size_text: null,
+      serving_grams: null,
       flags: ["energy_kcal"],
     });
 
     const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
 
-    expect(result.values.energyKcal).toBeNull();
-    expect(result.flags).toEqual(["energy_kcal"]);
+    expect(result.format).toBe("eu");
+    expect(result).toMatchObject({ per100g: { energyKcal: null }, flags: ["energy_kcal"] });
   });
 });
 
@@ -81,40 +90,53 @@ describe("HttpOcrProvider.validate", () => {
   });
 });
 
-describe("HttpOcrProvider.extractNutritionTable — serving size fallback", () => {
-  it("throws ServingGramsUnavailableError when the 422 body needs serving grams", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 422,
-      json: () =>
-        Promise.resolve({
-          detail: {
-            needs_serving_grams: true,
-            serving_size_text: "Serving Size 2 Tablespoon",
-            per_serving_values: {
-              energy_kcal: 190, fat_g: 16, saturates_g: 3, carbohydrate_g: 7,
-              sugars_g: 3, protein_g: 8, salt_g: 0.45,
-            },
-          },
-        }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const error = await new HttpOcrProvider()
-      .extractNutritionTable(new Blob(["photo"]))
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(ServingGramsUnavailableError);
-    expect((error as ServingGramsUnavailableError).servingSizeText).toBe("Serving Size 2 Tablespoon");
-    expect((error as ServingGramsUnavailableError).perServingValues).toEqual({
-      energyKcal: 190, fatG: 16, saturatesG: 3, carbohydrateG: 7,
-      sugarsG: 3, proteinG: 8, saltG: 0.45,
+describe("HttpOcrProvider.extractNutritionTable — US labels", () => {
+  it("returns per-serving values and a null serving weight without throwing", async () => {
+    stubFetchJson({
+      format: "us",
+      per_100g: null,
+      per_serving: {
+        energy_kcal: 250, fat_g: 12, saturates_g: 4.5, carbohydrate_g: 32,
+        sugars_g: 28, protein_g: 4, salt_g: 0.3125,
+      },
+      serving_size_text: "1 bas",
+      serving_grams: null,
+      flags: [],
     });
 
-    vi.unstubAllGlobals();
+    const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
+
+    expect(result).toEqual({
+      format: "us",
+      perServing: {
+        energyKcal: 250, fatG: 12, saturatesG: 4.5, carbohydrateG: 32,
+        sugarsG: 28, proteinG: 4, saltG: 0.3125,
+      },
+      servingSizeText: "1 bas",
+      servingGrams: null,
+    });
   });
 
-  it("throws plain OcrServiceError for a 422 with an unstructured string detail", async () => {
+  it("carries a printed gram weight through", async () => {
+    stubFetchJson({
+      format: "us",
+      per_100g: null,
+      per_serving: {
+        energy_kcal: 200, fat_g: 12, saturates_g: 4, carbohydrate_g: 23,
+        sugars_g: 21, protein_g: 2, salt_g: 0.0375,
+      },
+      serving_size_text: "2 Tbsp (37g)",
+      serving_grams: 37,
+      flags: [],
+    });
+
+    const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
+
+    expect(result.format).toBe("us");
+    expect(result).toMatchObject({ servingGrams: 37, servingSizeText: "2 Tbsp (37g)" });
+  });
+
+  it("throws OcrServiceError for a 422, which now means only an unreadable label", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,
@@ -125,7 +147,5 @@ describe("HttpOcrProvider.extractNutritionTable — serving size fallback", () =
     await expect(new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]))).rejects.toThrow(
       "OCR service request to /ocr/nutrition-table failed with status 422",
     );
-
-    vi.unstubAllGlobals();
   });
 });
