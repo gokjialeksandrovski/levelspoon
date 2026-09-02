@@ -88,7 +88,14 @@ const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) =>
   }
   if (step.kind === "confirm") {
     return (
-      <ConfirmStep name={step.name} parsed={step.parsed} flags={step.flags} photo={step.photo} dispatch={dispatch} />
+      <ConfirmStep
+        name={step.name}
+        parsed={step.parsed}
+        flags={step.flags}
+        photo={step.photo}
+        learned={step.learned}
+        dispatch={dispatch}
+      />
     );
   }
   if (step.kind === "amount") {

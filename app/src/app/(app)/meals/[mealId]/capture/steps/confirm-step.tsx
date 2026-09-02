@@ -13,6 +13,7 @@ import {
   toFieldValues,
   toNutritionValues,
 } from "@/lib/ocr/nutrition-fields";
+import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
 import type { WizardAction } from "../capture-wizard.types";
@@ -22,12 +23,13 @@ interface ConfirmStepProps {
   parsed: NullableNutritionValues;
   flags: string[];
   photo: Blob;
+  learned: LearnedMeasures;
   dispatch: (action: WizardAction) => void;
 }
 
 const FLAGGED_FIELD_ERROR = "Could not read this value - please enter it";
 
-export const ConfirmStep = ({ name, parsed, flags, photo, dispatch }: ConfirmStepProps) => {
+export const ConfirmStep = ({ name, parsed, flags, photo, learned, dispatch }: ConfirmStepProps) => {
   const [nameValue, setNameValue] = useState(name);
   const [values, setValues] = useState(() => toFieldValues(parsed));
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export const ConfirmStep = ({ name, parsed, flags, photo, dispatch }: ConfirmSte
         name: nameValue,
         nutritionPer100g: toNutritionValues(values),
         photo,
+        learned,
       });
       dispatch({ type: "PRODUCT_CREATED", product: { id: productId, name: nameValue } });
     } catch {
