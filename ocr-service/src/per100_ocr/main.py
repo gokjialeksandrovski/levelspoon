@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from .nutrition.columns import ColumnDetectionError
 from .nutrition.normalize import NormalizationError
 from .nutrition.parse import parse_nutrition
+from .nutrition.us_label import ServingSizeUnknownError
 from .nutrition.validate import NutritionValues, validate
 from .product_name import extract_product_name
 
@@ -88,6 +89,15 @@ async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get
         reading = parse_nutrition(result)
     except (ColumnDetectionError, NormalizationError) as error:
         raise HTTPException(status_code=UNPROCESSABLE, detail=str(error)) from error
+    except ServingSizeUnknownError as error:
+        raise HTTPException(
+            status_code=UNPROCESSABLE,
+            detail={
+                "needs_serving_grams": True,
+                "serving_size_text": error.serving_size_text,
+                "per_serving_values": _serialisable(error.per_serving_values),
+            },
+        ) from error
 
     return {"values": _serialisable(reading.values), "flags": list(reading.flags)}
 

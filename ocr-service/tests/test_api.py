@@ -24,6 +24,22 @@ def _nutrition_result() -> OcrResult:
     return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1400)
 
 
+def _us_label_result_without_grams() -> OcrResult:
+    texts = [
+        "Nutrition Facts",
+        "Serving Size 2 Tablespoon",
+        "Calories 230",
+        "Total Fat 8g",
+        "Saturated Fat 1g",
+        "Sodium 180mg",
+        "Total Carbohydrate 37g",
+        "Total Sugars 9g",
+        "Protein 3g",
+    ]
+    boxes = [Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts)]
+    return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1600)
+
+
 @pytest.fixture
 def client_with(request):
     def _build(result: OcrResult) -> TestClient:
@@ -130,3 +146,14 @@ def test_validate_endpoint_rejects_a_missing_field():
     client = TestClient(app)
     response = client.post("/validate", json={"values": {"energy_kcal": 70.0}})
     assert response.status_code == 422
+
+
+def test_us_label_without_a_gram_weight_returns_structured_422(client_with):
+    response = client_with(_us_label_result_without_grams()).post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["needs_serving_grams"] is True
+    assert detail["serving_size_text"] == "Serving Size 2 Tablespoon"
+    assert detail["per_serving_values"]["energy_kcal"] == 230.0
