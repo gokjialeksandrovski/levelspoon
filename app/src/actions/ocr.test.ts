@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExtractNutritionTable, mockValidate, mockConvertServingSize } = vi.hoisted(() => ({
   mockExtractNutritionTable: vi.fn(),
@@ -65,6 +65,10 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     mockConvertServingSize.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns scaled values directly when the label already carries a gram weight", async () => {
     mockExtractNutritionTable.mockResolvedValue({ values: ALREADY_SCALED_VALUES, flags: [] });
 
@@ -89,6 +93,18 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(mockValidate).toHaveBeenCalledWith(
       expect.objectContaining({ energyKcal: expect.closeTo((190 / 30) * 100, 2) }),
     );
+  });
+
+  it("returns non-empty flags from the re-validate call after the OmniRoute grams lookup", async () => {
+    mockExtractNutritionTable.mockRejectedValue(
+      new ServingGramsUnavailableError("2 Tablespoon", PER_SERVING_VALUES),
+    );
+    mockConvertServingSize.mockResolvedValue({ grams: 30 });
+    mockValidate.mockResolvedValue({ flags: ["energy_kcal"] });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Peanut Butter");
+
+    expect(result.flags).toEqual(["energy_kcal"]);
   });
 
   it("propagates the error uncaught when the OmniRoute grams lookup itself fails", async () => {

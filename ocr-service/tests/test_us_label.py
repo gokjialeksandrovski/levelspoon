@@ -62,6 +62,31 @@ def test_raises_serving_size_unknown_when_no_gram_weight_is_printed():
     assert excinfo.value.per_serving_values.energy_kcal == 156.0
 
 
+def test_serving_size_grams_ignores_a_word_starting_with_g_before_the_real_weight():
+    # "4 gummies" must not be mistaken for a gram weight - only the
+    # parenthesized "(12 g)" is a real printed gram weight.
+    reading = _parse_us_label(_us_label("4 gummies (12 g)"))
+    assert reading.values.energy_kcal == pytest.approx(156 / 12 * 100)
+
+
+def test_serving_size_grams_ignores_graham_crackers_word_before_the_real_weight():
+    reading = _parse_us_label(_us_label("2 graham crackers (31g)"))
+    assert reading.values.energy_kcal == pytest.approx(156 / 31 * 100)
+
+
+def test_raises_serving_size_unknown_when_measure_word_starts_with_g_but_has_no_weight():
+    # "gummies" starts with "g" but there is no parenthesized gram weight at
+    # all here - must not be mistaken for one.
+    with pytest.raises(ServingSizeUnknownError) as excinfo:
+        _parse_us_label(_us_label("5 gummies"))
+    assert excinfo.value.serving_size_text == "Serving Size 5 gummies"
+
+
+def test_raises_normalization_error_for_a_non_positive_printed_gram_weight():
+    with pytest.raises(NormalizationError, match="Non-positive gram weight"):
+        _parse_us_label(_us_label("2 Tbsp (0g)"))
+
+
 def test_raises_normalization_error_when_a_required_row_is_unreadable():
     boxes = tuple(box for box in _us_label("2 Tbsp (30g)").boxes if not box.text.startswith("Protein"))
     result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)

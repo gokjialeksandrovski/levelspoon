@@ -43,7 +43,7 @@ ROW_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 SERVING_SIZE_LINE = re.compile(r"serving size", re.IGNORECASE)
-SERVING_SIZE_GRAMS = re.compile(r"\(?\s*(\d+(?:[.,]\d+)?)\s*g\s*\)?", re.IGNORECASE)
+SERVING_SIZE_GRAMS = re.compile(r"\(\s*(\d+(?:[.,]\d+)?)\s*g\b[^)]*\)", re.IGNORECASE)
 
 
 class ServingSizeUnknownError(Exception):
@@ -108,6 +108,8 @@ def _parse_us_label(result: OcrResult) -> NutritionReading:
     grams = _serving_size_grams(serving_size_text)
     if grams is None:
         raise ServingSizeUnknownError(serving_size_text, per_serving_values)
+    if grams <= 0:
+        raise NormalizationError(f"Non-positive gram weight on label: {grams!r}")
 
     values = _scale_to_per_100g(per_serving_values, grams)
     return NutritionReading(values=values, flags=validate(values, energy_kj=None), energy_kj=None)

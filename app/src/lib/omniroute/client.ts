@@ -31,17 +31,22 @@ export interface OmniRouteResponse {
 export const parseNumericResponse = (body: OmniRouteResponse): number => {
   const text = body.choices?.[0]?.message?.content ?? "";
   const value = Number.parseFloat(text);
-  if (Number.isNaN(value)) {
+  if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`OmniRoute gateway returned a non-numeric response: ${text}`);
   }
   return value;
 };
+
+// Bounds how long a server action waits on the gateway before failing
+// cleanly, instead of hanging indefinitely on a wedged request.
+const GATEWAY_TIMEOUT_MS = 30_000;
 
 export const postChatCompletion = async (url: string, body: unknown): Promise<OmniRouteResponse> => {
   const response = await fetch(`${url}/v1/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new GatewayError(response.status);

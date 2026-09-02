@@ -61,4 +61,16 @@ describe("parseNumericResponse", () => {
   it("throws when there are no choices", () => {
     expect(() => parseNumericResponse({})).toThrow("non-numeric response");
   });
+
+  it("throws when the content is zero", () => {
+    expect(() => parseNumericResponse({ choices: [{ message: { content: "0" } }] })).toThrow(
+      "non-numeric response",
+    );
+  });
+
+  it("throws when the content is negative", () => {
+    expect(() => parseNumericResponse({ choices: [{ message: { content: "-1" } }] })).toThrow(
+      "non-numeric response",
+    );
+  });
 });
