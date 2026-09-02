@@ -32,7 +32,12 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   await expect(page.getByLabel("Carbohydrate (g)")).toHaveValue("4");
   await expect(page.getByLabel("Sugars (g)")).toHaveValue("4");
   await expect(page.getByLabel("Protein (g)")).toHaveValue("9");
-  await expect(page.getByLabel("Salt (g)")).toHaveValue("0.18");
+  // The label prints 0.18, but nutrition-fields.ts's toDisplayValue rounds
+  // every confirm-step field to one decimal (design spec §5: "Display
+  // rounding to one decimal in nutrition-fields.ts is unchanged"), so 0.18
+  // surfaces here as 0.2 - a display-precision fact, not an OCR misread
+  // (confirmed directly against the ocr-service response: salt_g: 0.18).
+  await expect(page.getByLabel("Salt (g)")).toHaveValue("0.2");
 
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByText(/^Using /)).toBeVisible();
@@ -53,4 +58,29 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   // meal-detail markup (Task 12/meal-detail.spec.ts's precedent).
   await expect(page.getByText(/150 ?g.*105 kcal/)).toBeVisible();
   await expect(page.getByText(/Meal total\s+105 kcal/)).toBeVisible();
+});
+
+test("real stack: a linear US label with no printed gram weight asks once, then scales", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+
+  await page.getByLabel(/product photo/i).setInputFiles("../fixtures/photos/snickers-linear-nutrition.jpg");
+  await page.getByLabel(/nutrition table photo/i).setInputFiles("../fixtures/photos/snickers-linear-nutrition.jpg");
+
+  // "1 bar" carries no gram weight and is neither a mass nor a volume, so the
+  // pipeline asks rather than guessing - the one question the whole design
+  // exists to make precise.
+  await expect(page.getByText(/Serving size reads/)).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel("Serving measurement").fill("52g");
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByText("Confirm nutrition (per 100g)")).toBeVisible();
+  // 250 kcal on a 52 g bar -> 480.8 per 100 g; 12 g fat -> 23.1.
+  await expect(page.getByLabel("Energy (kcal)")).toHaveValue("480.8");
+  await expect(page.getByLabel("Fat (g)")).toHaveValue("23.1");
+
+  await page.getByRole("button", { name: "Save product" }).click();
+  await expect(page.getByText(/^Using /)).toBeVisible();
 });
