@@ -1,6 +1,9 @@
 import math
 
+import pytest
+
 from per100_ocr.boxes import Box, OcrResult
+from per100_ocr.nutrition.columns import ColumnDetectionError
 from per100_ocr.nutrition.parse import parse_nutrition
 
 
@@ -55,3 +58,31 @@ def test_missing_row_is_never_silently_zero():
     reading = parse_nutrition(result)
     assert math.isnan(reading.values.saturates_g)
     assert "saturates_g" in reading.flags
+
+
+def _us_label_result() -> OcrResult:
+    texts = [
+        "Nutrition Facts",
+        "Serving Size 2 Tbsp (30g)",
+        "Calories 230",
+        "Total Fat 8g",
+        "Saturated Fat 1g",
+        "Sodium 180mg",
+        "Total Carbohydrate 37g",
+        "Total Sugars 9g",
+        "Protein 3g",
+    ]
+    boxes = [Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts)]
+    return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1600)
+
+
+def test_dispatches_a_us_label_to_the_us_parser_when_no_100g_header_exists():
+    reading = parse_nutrition(_us_label_result())
+    assert reading.values.energy_kcal == pytest.approx(230 / 30 * 100)
+
+
+def test_an_unreadable_photo_still_raises_column_detection_error():
+    """No EU header and no US markers: the original failure, unchanged."""
+    result = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
+    with pytest.raises(ColumnDetectionError):
+        parse_nutrition(result)

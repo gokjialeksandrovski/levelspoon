@@ -1,18 +1,18 @@
 """Turn one nutrition-table photograph's boxes into validated values.
 
-Orchestration only: locate the column, consume the energy row, assign the
-remaining six fields in the legally-fixed EU order, resolve decimals, and
-validate. Each step lives in its own module.
+Orchestration only: try the EU per-100g column layout first; if no 100g
+header is found but the photo carries US Nutrition Facts markers, parse
+that layout instead. Each step lives in its own module.
 """
 
 import math
-from dataclasses import dataclass
 
 from ..boxes import OcrResult
-from .columns import find_per_100g_values
+from .columns import ColumnDetectionError, find_per_100g_values
 from .decimals import decimal_candidates, resolve_decimals
 from .normalize import NormalizationError, split_energy_row
-from .validate import NutritionValues
+from .reading import NutritionReading
+from .us_label import _parse_us_label, is_us_label
 
 # Fixed by EU Regulation 1169/2011; never inferred from adjacent label text
 # because the value column drifts out of alignment on curved packaging.
@@ -21,15 +21,6 @@ NUTRITION_ROW_ORDER = (
 )
 
 MISSING_VALUE = math.nan
-
-
-@dataclass(frozen=True)
-class NutritionReading:
-    """Parsed values plus the fields the rules could not vouch for."""
-
-    values: NutritionValues
-    flags: tuple[str, ...]
-    energy_kj: float | None
 
 
 def _candidates_by_field(
@@ -53,8 +44,7 @@ def _candidates_by_field(
     return candidates, missing
 
 
-def parse_nutrition(result: OcrResult) -> NutritionReading:
-    """Read a nutrition table into validated per-100g values."""
+def _parse_eu_label(result: OcrResult) -> NutritionReading:
     value_boxes = find_per_100g_values(result)
     energy_kcal, energy_kj, remaining = split_energy_row(value_boxes)
 
@@ -66,3 +56,13 @@ def parse_nutrition(result: OcrResult) -> NutritionReading:
         flags=tuple(sorted(set(flags) | set(missing))),
         energy_kj=energy_kj,
     )
+
+
+def parse_nutrition(result: OcrResult) -> NutritionReading:
+    """Read a nutrition table into validated per-100g values."""
+    try:
+        return _parse_eu_label(result)
+    except ColumnDetectionError:
+        if is_us_label(result):
+            return _parse_us_label(result)
+        raise
