@@ -1,8 +1,10 @@
 "use server";
 
 import type { NutritionValues } from "@/actions/products";
+import { convertServingSize } from "@/actions/serving-size";
 import { requireUserId } from "@/lib/auth/require-user";
-import { HttpOcrProvider } from "@/lib/ocr/http-provider";
+import { scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
+import { HttpOcrProvider, ServingGramsUnavailableError } from "@/lib/ocr/http-provider";
 import { MockOcrProvider } from "@/lib/ocr/mock-provider";
 import type { NullableNutritionValues, OcrProvider } from "@/lib/ocr/provider";
 
@@ -16,9 +18,20 @@ export const ocrProductName = async (photo: Blob): Promise<{ text: string }> => 
 
 export const ocrNutritionTable = async (
   photo: Blob,
+  productNameGuess: string,
 ): Promise<{ values: NullableNutritionValues; flags: string[] }> => {
   await requireUserId();
-  return getProvider().extractNutritionTable(photo);
+  try {
+    return await getProvider().extractNutritionTable(photo);
+  } catch (error) {
+    if (!(error instanceof ServingGramsUnavailableError)) {
+      throw error;
+    }
+    const { grams } = await convertServingSize(error.servingSizeText, productNameGuess);
+    const values = scalePerServingToPer100g(error.perServingValues, grams);
+    const { flags } = await getProvider().validate(values);
+    return { values, flags };
+  }
 };
 
 export const validateNutrition = async (
