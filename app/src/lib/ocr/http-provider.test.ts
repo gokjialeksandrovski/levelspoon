@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.stubEnv("OCR_SERVICE_URL", "http://localhost:8000");
 
-import { HttpOcrProvider } from "./http-provider";
+import { HttpOcrProvider, ServingGramsUnavailableError } from "./http-provider";
 
 // ocr-service's actual wire shape (main spec's documented snake_case field
 // naming), reproduced here so this test guards HttpOcrProvider's mapping
@@ -78,5 +78,54 @@ describe("HttpOcrProvider.validate", () => {
       },
       energy_kj: 295,
     });
+  });
+});
+
+describe("HttpOcrProvider.extractNutritionTable — serving size fallback", () => {
+  it("throws ServingGramsUnavailableError when the 422 body needs serving grams", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: () =>
+        Promise.resolve({
+          detail: {
+            needs_serving_grams: true,
+            serving_size_text: "Serving Size 2 Tablespoon",
+            per_serving_values: {
+              energy_kcal: 190, fat_g: 16, saturates_g: 3, carbohydrate_g: 7,
+              sugars_g: 3, protein_g: 8, salt_g: 0.45,
+            },
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const error = await new HttpOcrProvider()
+      .extractNutritionTable(new Blob(["photo"]))
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(ServingGramsUnavailableError);
+    expect((error as ServingGramsUnavailableError).servingSizeText).toBe("Serving Size 2 Tablespoon");
+    expect((error as ServingGramsUnavailableError).perServingValues).toEqual({
+      energyKcal: 190, fatG: 16, saturatesG: 3, carbohydrateG: 7,
+      sugarsG: 3, proteinG: 8, saltG: 0.45,
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("throws plain OcrServiceError for a 422 with an unstructured string detail", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: () => Promise.resolve({ detail: "No per-100g header found" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]))).rejects.toThrow(
+      "OCR service request to /ocr/nutrition-table failed with status 422",
+    );
+
+    vi.unstubAllGlobals();
   });
 });

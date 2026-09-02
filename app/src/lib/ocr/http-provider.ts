@@ -9,6 +9,18 @@ class OcrServiceError extends Error {
   }
 }
 
+export class ServingGramsUnavailableError extends Error {
+  constructor(
+    public readonly servingSizeText: string,
+    public readonly perServingValues: NutritionValues,
+  ) {
+    super(`Serving size "${servingSizeText}" has no known gram weight`);
+    this.name = "ServingGramsUnavailableError";
+  }
+}
+
+const UNPROCESSABLE = 422;
+
 // ocr-service's actual wire shape (per-field, per-100g) - snake_case, matching
 // its validate.py flag naming that confirm-step.tsx's FLAG_TO_FIELD already
 // documents. This never matched NullableNutritionValues's camelCase shape at
@@ -29,6 +41,31 @@ interface RawNutritionTableResponse {
   flags: string[];
 }
 
+// The 422 body ocr-service sends when it read every field off a US label
+// but found no gram weight for the serving size - all 7 fields are
+// guaranteed present here (parse_nutrition raises before this point if any
+// were unreadable), unlike RawNutritionValues's general nullable shape.
+interface RawPerServingValues {
+  energy_kcal: number;
+  fat_g: number;
+  saturates_g: number;
+  carbohydrate_g: number;
+  sugars_g: number;
+  protein_g: number;
+  salt_g: number;
+}
+
+interface ServingGramsDetail {
+  needs_serving_grams: true;
+  serving_size_text: string;
+  per_serving_values: RawPerServingValues;
+}
+
+const isServingGramsDetail = (detail: unknown): detail is ServingGramsDetail =>
+  typeof detail === "object" &&
+  detail !== null &&
+  (detail as { needs_serving_grams?: unknown }).needs_serving_grams === true;
+
 const toNullableNutritionValues = (raw: RawNutritionValues): NullableNutritionValues => ({
   energyKcal: raw.energy_kcal,
   fatG: raw.fat_g,
@@ -48,6 +85,30 @@ const toRawNutritionValues = (values: NutritionValues): RawNutritionValues => ({
   protein_g: values.proteinG,
   salt_g: values.saltG,
 });
+
+const toPerServingValues = (raw: RawPerServingValues): NutritionValues => ({
+  energyKcal: raw.energy_kcal,
+  fatG: raw.fat_g,
+  saturatesG: raw.saturates_g,
+  carbohydrateG: raw.carbohydrate_g,
+  sugarsG: raw.sugars_g,
+  proteinG: raw.protein_g,
+  saltG: raw.salt_g,
+});
+
+const servingGramsErrorFrom = async (response: Response): Promise<ServingGramsUnavailableError | null> => {
+  if (response.status !== UNPROCESSABLE) {
+    return null;
+  }
+  const body = (await response.json()) as { detail: unknown };
+  if (!isServingGramsDetail(body.detail)) {
+    return null;
+  }
+  return new ServingGramsUnavailableError(
+    body.detail.serving_size_text,
+    toPerServingValues(body.detail.per_serving_values),
+  );
+};
 
 const ocrServiceUrl = (): string => {
   const url = process.env.OCR_SERVICE_URL;
@@ -88,8 +149,21 @@ export class HttpOcrProvider implements OcrProvider {
   async extractNutritionTable(
     photo: Blob,
   ): Promise<{ values: NullableNutritionValues; flags: string[] }> {
-    const raw = (await postImage("/ocr/nutrition-table", photo)) as RawNutritionTableResponse;
-    return { values: toNullableNutritionValues(raw.values), flags: raw.flags };
+    const endpoint = "/ocr/nutrition-table";
+    const formData = new FormData();
+    formData.append("image", photo);
+    const response = await fetch(`${ocrServiceUrl()}${endpoint}`, { method: "POST", body: formData });
+
+    if (response.ok) {
+      const raw = (await response.json()) as RawNutritionTableResponse;
+      return { values: toNullableNutritionValues(raw.values), flags: raw.flags };
+    }
+
+    const servingGramsError = await servingGramsErrorFrom(response);
+    if (servingGramsError) {
+      throw servingGramsError;
+    }
+    throw new OcrServiceError(endpoint, response.status);
   }
 
   async validate(values: NutritionValues, energyKj?: number): Promise<{ flags: string[] }> {
