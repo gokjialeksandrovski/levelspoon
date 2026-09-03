@@ -44,7 +44,7 @@ export type MatchResult =
   | { kind: "ambiguous"; candidates: ProductCandidate[] }
   | { kind: "no_match" };
 
-type CandidateRow = {
+export type CandidateRow = {
   id: string;
   name: string;
   brand: string | null;
@@ -81,8 +81,12 @@ const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
 const isRelevantScore = (row: CandidateRow): boolean =>
   Number(row.score) >= AMBIGUOUS_SIMILARITY_THRESHOLD;
 
-export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
-  await requireUserId();
+export const topTwoScores = (rows: CandidateRow[]): { top1: number; top2: number } => ({
+  top1: Number(rows[0].score),
+  top2: rows.length > 1 ? Number(rows[1].score) : 0,
+});
+
+const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
     SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
            sugars_g, protein_g, salt_g, nutrition_photo_key,
@@ -91,23 +95,27 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
     ORDER BY score DESC
     LIMIT ${CANDIDATE_LIMIT}
   `);
-  const rows = result.rows;
+  return result.rows;
+};
+
+export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
+  await requireUserId();
+  const rows = await fetchCandidateRows(ocrText);
 
   if (rows.length === 0) {
     return { kind: "no_match" };
   }
 
-  const top1Score = Number(rows[0].score);
-  const top2Score = rows.length > 1 ? Number(rows[1].score) : 0;
+  const { top1, top2 } = topTwoScores(rows);
 
-  if (isConfidentMatch(top1Score, top2Score)) {
+  if (isConfidentMatch(top1, top2)) {
     return {
       kind: "confident",
       product: toProductCandidate(rows[0]),
       alternatives: rows.slice(1).filter(isRelevantScore).map(toProductCandidate),
     };
   }
-  if (top1Score >= AMBIGUOUS_SIMILARITY_THRESHOLD) {
+  if (top1 >= AMBIGUOUS_SIMILARITY_THRESHOLD) {
     return { kind: "ambiguous", candidates: rows.filter(isRelevantScore).map(toProductCandidate) };
   }
   return { kind: "no_match" };

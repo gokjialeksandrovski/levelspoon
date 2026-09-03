@@ -7,7 +7,8 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
 
-import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, updateProduct } from "./products";
+import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, topTwoScores, updateProduct } from "./products";
+import type { CandidateRow } from "./products";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -312,5 +313,30 @@ describe("findStoredMeasures", () => {
       servingUnit: null,
       servingGrams: null,
     });
+  });
+});
+
+describe("topTwoScores", () => {
+  const row = (score: number): CandidateRow => ({
+    id: "id",
+    name: "name",
+    brand: null,
+    energy_kcal: "0",
+    fat_g: "0",
+    saturates_g: "0",
+    carbohydrate_g: "0",
+    sugars_g: "0",
+    protein_g: "0",
+    salt_g: "0",
+    nutrition_photo_key: "key",
+    score,
+  });
+
+  it("returns both scores when at least two rows are present", () => {
+    expect(topTwoScores([row(0.9), row(0.6)])).toEqual({ top1: 0.9, top2: 0.6 });
+  });
+
+  it("defaults the second score to 0 when only one row is present", () => {
+    expect(topTwoScores([row(0.9)])).toEqual({ top1: 0.9, top2: 0 });
   });
 });
