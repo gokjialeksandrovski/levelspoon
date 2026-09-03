@@ -238,6 +238,38 @@ def _build_reading(readings: dict[str, float], serving_size_text: str | None) ->
     )
 
 
+def _detached_weight(marker_boxes: dict[str, Box], boxes: tuple[Box, ...], claimed: set[int]) -> Box | None:
+    """The box mutually nearest to the serving-size marker among what pass 2
+    left unclaimed - the exact reciprocal check pass 2 already applies to
+    every field, run once more now that the marker's first match is spoken
+    for. Mutuality (not mere proximity) is what a genuinely bracket-less
+    label needs: an unrelated nutrient figure can easily be the nearest
+    leftover box on the page, but it is never mutually nearest back to the
+    serving-size marker specifically once its own row's marker is closer.
+    """
+    remaining = tuple(box for box in _figure_pool(boxes, marker_boxes) if id(box) not in claimed)
+    target = {SERVING_SIZE_FIELD: marker_boxes[SERVING_SIZE_FIELD]}
+    return _mutual_pairs(target, remaining, tuple(marker_boxes.values())).get(SERVING_SIZE_FIELD)
+
+
+def _with_detached_weight(
+    text: str, marker_boxes: dict[str, Box], boxes: tuple[Box, ...], claimed: set[int]
+) -> str:
+    """Reunite a household measure with a bracketed weight OCR split off it.
+
+    "1 bar (47g)" can land as two boxes - "1 bar" and "(47g)" - on a real
+    photographed label, and pass 2 pairs the serving-size marker with only
+    one box before it stops. The second box must independently be both
+    mutually nearest to the marker and itself a bare gram weight.
+    """
+    if SERVING_SIZE_GRAMS.search(text):
+        return text
+    detached = _detached_weight(marker_boxes, boxes, claimed)
+    if detached is None or not SERVING_SIZE_GRAMS.search(detached.text):
+        return text
+    return f"{text} {detached.text.strip()}"
+
+
 def read_us_label(result: OcrResult) -> UsLabelReading:
     """Read one US label into per-serving values plus its serving line."""
     boxes = _reading_order(result.boxes)
@@ -247,10 +279,15 @@ def read_us_label(result: OcrResult) -> UsLabelReading:
     serving_size_text = _self_contained_serving(marker_boxes[SERVING_SIZE_FIELD])
     resolved = set(readings) | ({SERVING_SIZE_FIELD} if serving_size_text else set())
 
-    for field, box in _associate(boxes, marker_boxes, resolved).items():
+    paired = _associate(boxes, marker_boxes, resolved)
+    for field, box in paired.items():
         if field == SERVING_SIZE_FIELD:
             serving_size_text = box.text.strip()
         else:
             readings[field] = _value_of(box)
+
+    if serving_size_text is not None:
+        claimed = {id(box) for box in paired.values()}
+        serving_size_text = _with_detached_weight(serving_size_text, marker_boxes, boxes, claimed)
 
     return _build_reading(readings, serving_size_text)

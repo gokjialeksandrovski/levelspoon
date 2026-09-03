@@ -293,6 +293,98 @@ def test_serving_grams_is_none_for_a_count_unit_starting_with_g():
     assert "5 gummies" in reading.serving_size_text
 
 
+def _snickers_stacked_label() -> OcrResult:
+    """Boxes captured from a real photographed FDA stacked (vertical) label
+    (1000x1000px) via POST /debug/boxes. Unlike the linear label above,
+    "Serving size" and its measure share one printed row but sit in separate
+    columns - and PaddleOCR kept "1 bar (47g)" together as one box on this
+    particular capture, so it needs no detached-weight recovery. Kept as
+    regression coverage for the stacked layout, which nothing above
+    exercises."""
+    boxes = (
+        Box("Nutrition Facts", x=492.5, y=66.5, confidence=0.9895),
+        Box("48 servings per container", x=442.5, y=118.5, confidence=0.9960),
+        Box("Serving size", x=342.5, y=150.5, confidence=0.9998),
+        Box("1 bar (47g)", x=667.0, y=151.0, confidence=0.9999),
+        Box("Amount per serving", x=400.5, y=213.0, confidence=1.0),
+        Box("220", x=653.5, y=239.5, confidence=1.0),
+        Box("Calories", x=377.5, y=247.5, confidence=1.0),
+        Box("% Daily Value*", x=645.0, y=303.5, confidence=0.9877),
+        Box("Total Fat 11g", x=349.5, y=343.5, confidence=1.0),
+        Box("14%", x=695.5, y=343.0, confidence=0.9999),
+        Box("Saturated Fat 4g", x=387.5, y=382.0, confidence=0.9846),
+        Box("20%", x=693.0, y=381.0, confidence=0.9998),
+        Box("Trans Fat 0g", x=364.5, y=420.0, confidence=0.9810),
+        Box("Cholesterol <5mg", x=380.5, y=458.0, confidence=0.9988),
+        Box("0%", x=701.5, y=458.0, confidence=0.9951),
+        Box("Sodium 115mg", x=357.0, y=497.0, confidence=1.0),
+        Box("5%", x=702.0, y=495.5, confidence=0.9985),
+        Box("Total Carbohydrate 29g", x=423.0, y=534.5, confidence=0.9999),
+        Box("11%", x=696.5, y=534.0, confidence=0.9998),
+        Box("Dietary Fiber 1g", x=384.0, y=574.0, confidence=1.0),
+        Box("4%", x=702.0, y=572.0, confidence=0.9995),
+        Box("Total Sugars 25g", x=389.0, y=612.0, confidence=1.0),
+        Box("Includes 23g Added Sugars", x=479.0, y=649.5, confidence=1.0),
+        Box("46%", x=691.5, y=648.0, confidence=0.9999),
+        Box("Protein 4g", x=332.0, y=688.0, confidence=1.0),
+        Box("Vitamin D 0mcg", x=354.0, y=748.5, confidence=0.9755),
+        Box("0%", x=705.0, y=747.5, confidence=0.9987),
+        Box("Calcium 40mg", x=345.5, y=787.5, confidence=1.0),
+        Box("4%", x=705.0, y=785.5, confidence=0.9991),
+        Box("Iron 0mg", x=314.0, y=826.0, confidence=0.9521),
+        Box("0%", x=704.0, y=824.0, confidence=0.9943),
+        Box("Potassium 140mg", x=364.0, y=863.5, confidence=1.0),
+        Box("2%", x=705.0, y=863.0, confidence=0.9975),
+    )
+    return OcrResult(boxes=boxes, image_width=1000, image_height=1000)
+
+
+def test_reads_every_field_off_the_stacked_label():
+    reading = read_us_label(_snickers_stacked_label())
+    assert reading.per_serving.energy_kcal == pytest.approx(220.0)
+    assert reading.per_serving.fat_g == pytest.approx(11.0)
+    assert reading.per_serving.saturates_g == pytest.approx(4.0)
+    assert reading.per_serving.carbohydrate_g == pytest.approx(29.0)
+    assert reading.per_serving.sugars_g == pytest.approx(25.0)
+    assert reading.per_serving.protein_g == pytest.approx(4.0)
+    # 115 mg sodium -> 0.115 g -> x2.5 -> 0.2875 g salt
+    assert reading.per_serving.salt_g == pytest.approx(0.2875)
+
+
+def test_serving_grams_is_read_directly_off_the_stacked_label():
+    reading = read_us_label(_snickers_stacked_label())
+    assert reading.serving_size_text == "1 bar (47g)"
+    assert reading.serving_grams == pytest.approx(47.0)
+
+
+def _snickers_stacked_label_with_detached_weight() -> OcrResult:
+    """Same real capture as `_snickers_stacked_label`, but with "1 bar (47g)"
+    split into two boxes the way a lower-quality or angled real phone photo
+    can - the parenthesized weight detaching from the measure it belongs to.
+    Reproduces the reported behaviour of asking the user for a weight the
+    label already printed."""
+    kept = tuple(box for box in _snickers_stacked_label().boxes if box.text != "1 bar (47g)")
+    return OcrResult(
+        boxes=kept
+        + (
+            Box("1 bar", x=630.0, y=151.0, confidence=0.999),
+            Box("(47g)", x=705.0, y=151.0, confidence=0.999),
+        ),
+        image_width=1000,
+        image_height=1000,
+    )
+
+
+def test_reunites_a_detached_bracketed_weight_with_its_household_measure():
+    """Defect: pass 2 pairs "Serving size" with exactly one box and stops -
+    when the measure and its bracketed weight land in two separate boxes,
+    the weight was silently dropped and the user was asked for a number the
+    label already printed."""
+    reading = read_us_label(_snickers_stacked_label_with_detached_weight())
+    assert reading.serving_size_text == "1 bar (47g)"
+    assert reading.serving_grams == pytest.approx(47.0)
+
+
 def test_raises_when_a_marker_resolves_to_no_figure_at_all():
     boxes = tuple(
         box for box in _us_label("2 Tbsp (30g)").boxes if not box.text.startswith("Protein")
