@@ -290,4 +290,27 @@ describe("findStoredMeasures", () => {
       servingGrams: null,
     });
   });
+
+  it("does not borrow a trigram-similar product's learned measure for a different product", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await createProduct({
+      name: "Zzq Bar Original",
+      nutritionPer100g: LEARNED_TEST_NUTRITION,
+      photo: testPhoto(),
+      learned: { densityGMl: null, servingUnit: "bas", servingGrams: 52 },
+    });
+    await createProduct({
+      name: "Zzq Bar Deluxe",
+      nutritionPer100g: LEARNED_TEST_NUTRITION,
+      photo: testPhoto(),
+    });
+
+    expect(await findStoredMeasures("Zzq Bar Deluxe")).toEqual({
+      densityGMl: null,
+      servingUnit: null,
+      servingGrams: null,
+    });
+  });
 });

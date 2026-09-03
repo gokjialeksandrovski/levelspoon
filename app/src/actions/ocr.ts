@@ -73,9 +73,14 @@ const fromUsLabel = async (
       perServing: read.perServing,
     };
   }
-  // Nothing new is learned here: the grams came from a density or a weight
-  // already stored, so writing them back would only duplicate them.
-  return scaledRead(read.perServing, resolution.grams, NOTHING_LEARNED);
+  // This is a brand-new product row, so all three learned columns start
+  // NULL - whatever the lookup or seeded density just resolved is this row's
+  // first-ever learned data, not a duplicate of anything already on it.
+  // Persisting it now means the next scan of this exact product resolves
+  // straight from its own row instead of re-deriving via density or a lookup.
+  const fromLabel = learnFromServing(read.servingSizeText, resolution.grams);
+  const learned = hasLearned(fromLabel) ? fromLabel : NOTHING_LEARNED;
+  return scaledRead(read.perServing, resolution.grams, learned);
 };
 
 export const ocrNutritionTable = async (

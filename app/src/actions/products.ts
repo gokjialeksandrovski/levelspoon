@@ -236,30 +236,37 @@ type StoredMeasuresRow = {
   density_g_ml: string | null;
   serving_unit: string | null;
   serving_grams: string | null;
-  score: number;
 };
 
 const toNumberOrNull = (value: string | null): number | null =>
   value === null ? null : Number(value);
 
 /**
- * What a previously-saved product of this name already taught us.
+ * What a previously-saved product of the SAME name already taught us.
  *
- * Reuses matchProduct's confident-similarity floor rather than a looser one:
- * applying one product's learned serving weight to a different product would
- * be exactly the silent-wrong answer this pipeline exists to remove.
+ * Deliberately an exact match (case/whitespace-normalized), not a fuzzy one:
+ * this is called from the wizard's nutrition-photo step, reachable after the
+ * user has already rejected a screen of trigram-similar candidates ("None of
+ * these"). Reusing matchProduct's similarity floor here would happily
+ * re-match one of those just-rejected products and silently hand back ITS
+ * learned serving weight for a different product - exactly the cross-product
+ * density borrowing this pipeline's global constraint forbids. An exact match
+ * still serves the real target scenario (re-scanning the same product, whose
+ * name was confirmed and saved verbatim last time), while a near-miss now
+ * safely falls through to NOTHING_LEARNED and the caller asks the user
+ * instead of guessing.
  */
 export const findStoredMeasures = async (productName: string): Promise<LearnedMeasures> => {
   await requireUserId();
   const result = await db.execute<StoredMeasuresRow>(sql`
-    SELECT density_g_ml, serving_unit, serving_grams,
-           similarity(name, ${productName}) AS score
+    SELECT density_g_ml, serving_unit, serving_grams
     FROM products
-    ORDER BY score DESC
+    WHERE lower(trim(name)) = lower(trim(${productName}))
+    ORDER BY id
     LIMIT 1
   `);
   const [row] = result.rows;
-  if (!row || Number(row.score) < CONFIDENT_SIMILARITY_THRESHOLD) {
+  if (!row) {
     return NOTHING_LEARNED;
   }
   return {

@@ -136,6 +136,10 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result.kind).toBe("per100g");
     if (result.kind !== "per100g") throw new Error("expected per100g");
     expect(result.values.energyKcal).toBeCloseTo((190 / 52) * 100, 2);
+    // The new row starts with all three learned columns NULL, so the weight
+    // resolved via the lookup is this row's first-ever learned data - it
+    // gets persisted onto the row rather than discarded.
+    expect(result.learned).toEqual({ densityGMl: null, servingUnit: "bas", servingGrams: 52 });
   });
 
   it("asks for a serving size when nothing can resolve a count unit", async () => {
