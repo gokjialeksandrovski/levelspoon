@@ -33,7 +33,8 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
       const { grams: estimated } = await estimateQuantity(photo);
       setGrams(String(estimated));
       setSource("ai_estimated");
-    } catch {
+    } catch (error) {
+      console.error("Quantity estimation failed", error);
       setError("Could not estimate the amount - enter it manually.");
     } finally {
       setIsBusy(false);
@@ -47,7 +48,8 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
       await saveMealIngredient({ mealId, productId: product.id, quantityG: Number(grams), quantitySource: source });
       dispatch({ type: "SAVED" });
       onSaved();
-    } catch {
+    } catch (error) {
+      console.error("Saving the meal ingredient failed", error);
       setError("Could not save this ingredient. Please try again.");
     } finally {
       setIsBusy(false);
