@@ -80,6 +80,31 @@ const netWeightPrefill = (
   return netWeightGrams === null ? null : netWeightGrams / servingsPerContainer;
 };
 
+// Mirrors scaledRead's already-established shape: a small pure-orchestration
+// wrapper the resolved-serving branch below delegates to, kept separate so it
+// can be exercised directly by a unit test.
+export const fromResolvedServing = (
+  perServing: NutritionValues,
+  servingSizeText: string,
+  grams: number,
+): Promise<NutritionRead> => {
+  const learned = learnFromServing(servingSizeText, grams);
+  return scaledRead(perServing, grams, learned);
+};
+
+// Kept separate from fromUsLabel purely for the line budget - exported so
+// it can be exercised directly, same as fromResolvedServing above it.
+export const needsServingSizeRead = (
+  read: Extract<NutritionTableRead, { format: "us" }>,
+  netWeightText: string | null,
+  context: MeasureContext,
+): NutritionRead => ({
+  kind: "needs-serving-size",
+  servingSizeText: read.servingSizeText,
+  perServing: read.perServing,
+  prefillGrams: netWeightPrefill(netWeightText, read.servingsPerContainer, context),
+});
+
 const fromUsLabel = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
   productNameGuess: string,
@@ -89,19 +114,13 @@ const fromUsLabel = async (
   // states the product's density for free when the measure beside it is a
   // volume - no user input and no AI, derived from data already being read.
   if (read.servingGrams !== null) {
-    const learned = learnFromServing(read.servingSizeText, read.servingGrams);
-    return scaledRead(read.perServing, read.servingGrams, learned);
+    return fromResolvedServing(read.perServing, read.servingSizeText, read.servingGrams);
   }
 
   const context = await contextFor(productNameGuess);
   const resolution = resolveGrams(read.servingSizeText, context);
   if (resolution.kind === "unresolved") {
-    return {
-      kind: "needs-serving-size",
-      servingSizeText: read.servingSizeText,
-      perServing: read.perServing,
-      prefillGrams: netWeightPrefill(netWeightText, read.servingsPerContainer, context),
-    };
+    return needsServingSizeRead(read, netWeightText, context);
   }
   // This is a brand-new product row, so all three learned columns start
   // NULL - whatever the lookup or seeded density just resolved is this row's

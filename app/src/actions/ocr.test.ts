@@ -27,8 +27,9 @@ vi.mock("@/actions/products", async (importOriginal) => {
 });
 
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
+import type { MeasureContext } from "@/lib/measures/resolve-grams";
 
-import { ocrNutritionTable, ocrProductName, resolveServingSize, validateNutrition } from "./ocr";
+import { fromResolvedServing, needsServingSizeRead, ocrNutritionTable, ocrProductName, resolveServingSize, validateNutrition } from "./ocr";
 
 const PER_SERVING_VALUES = {
   energyKcal: 190, fatG: 16, saturatesG: 3, carbohydrateG: 7, sugarsG: 3, proteinG: 8, saltG: 0.45,
@@ -314,5 +315,61 @@ describe("validateNutrition", () => {
       energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
     });
     expect(result.flags).toEqual([]);
+  });
+});
+
+describe("fromResolvedServing", () => {
+  beforeEach(() => {
+    vi.stubEnv("OCR_PROVIDER", "real");
+    mockValidate.mockReset();
+    mockValidate.mockResolvedValue({ flags: [] });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("learns the label's own density and scales to per-100g", async () => {
+    const result = await fromResolvedServing(PER_SERVING_VALUES, "2 Tbsp (37g)", 37);
+
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.learned.densityGMl).toBeCloseTo(1.2333, 4);
+    expect(result.values.energyKcal).toBeCloseTo((190 / 37) * 100, 2);
+  });
+
+  it("learns nothing when the printed serving already states a mass", async () => {
+    const result = await fromResolvedServing(PER_SERVING_VALUES, "30 g", 30);
+
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.learned).toEqual(NOTHING_LEARNED);
+  });
+});
+
+describe("needsServingSizeRead", () => {
+  const usRead = {
+    format: "us" as const,
+    perServing: PER_SERVING_VALUES,
+    servingSizeText: "1 bar",
+    servingGrams: null,
+    servingsPerContainer: 2,
+  };
+  const context: MeasureContext = { productName: "Snickers", densityGMl: null, servingUnit: null, servingGrams: null };
+
+  it("prefills grams from the net weight divided by servings per container", () => {
+    const result = needsServingSizeRead(usRead, "NET WT 12 OZ (340g)", context);
+
+    expect(result).toEqual({
+      kind: "needs-serving-size",
+      servingSizeText: "1 bar",
+      perServing: PER_SERVING_VALUES,
+      prefillGrams: 170,
+    });
+  });
+
+  it("leaves the prefill null when there is no net weight text", () => {
+    const result = needsServingSizeRead(usRead, null, context);
+
+    expect(result.prefillGrams).toBeNull();
   });
 });
