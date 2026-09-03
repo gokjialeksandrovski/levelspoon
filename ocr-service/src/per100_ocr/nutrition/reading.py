@@ -30,3 +30,4 @@ class NutritionReading:
     energy_kj: float | None
     serving_size_text: str | None
     serving_grams: float | None
+    servings_per_container: float | None

@@ -22,7 +22,7 @@ from .nutrition.columns import ColumnDetectionError
 from .nutrition.normalize import NormalizationError
 from .nutrition.parse import parse_nutrition
 from .nutrition.validate import NutritionValues, validate
-from .product_name import extract_product_name
+from .product_name import extract_net_weight_text, extract_product_name
 
 if TYPE_CHECKING:
     from .engine import OcrEngine
@@ -82,7 +82,7 @@ def health(engine=Depends(get_engine)) -> dict:
 @app.post("/ocr/product-name")
 async def read_product_name(image: UploadFile = File(...), engine=Depends(get_engine)) -> dict:
     result = engine.read(await image.read())
-    return {"text": extract_product_name(result)}
+    return {"text": extract_product_name(result), "net_weight_text": extract_net_weight_text(result)}
 
 
 @app.post("/ocr/nutrition-table")
@@ -99,6 +99,7 @@ async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get
         "per_serving": _optional_values(reading.per_serving),
         "serving_size_text": reading.serving_size_text,
         "serving_grams": reading.serving_grams,
+        "servings_per_container": reading.servings_per_container,
         "flags": list(reading.flags),
     }
 

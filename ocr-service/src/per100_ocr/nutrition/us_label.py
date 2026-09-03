@@ -58,7 +58,10 @@ SERVING_SIZE_FIELD = "serving_size"
 # A count of containers, never a nutrition value. Excluded from the figure
 # pool outright: on a linear label it sits nearer to "Serving size" than the
 # real measure does, and would otherwise be claimed as the serving size.
-SERVINGS_PER_CONTAINER = re.compile(r"servings?\s+per\s+container", re.IGNORECASE)
+# Captures the count too (not just the phrase) - it's the one place a US
+# label states how many servings the whole package holds, needed to turn a
+# front panel's total net weight into a per-serving guess.
+SERVINGS_PER_CONTAINER = re.compile(r"(\d+(?:[.,]\d+)?)\s*servings?\s+per\s+container", re.IGNORECASE)
 
 # "%" is captured only so a %DV can be told apart from a gram figure and
 # skipped - a %DV is never a value.
@@ -84,11 +87,15 @@ class UsLabelReading:
 
     `serving_grams` is None when the label prints a household or count measure
     with no bracketed weight - an ordinary, expected condition, not a failure.
+    `servings_per_container` is None on the same terms (not printed, or the
+    figure was unreadable) - it only ever feeds an optional prefill, never a
+    value the per-serving scaling itself depends on.
     """
 
     per_serving: NutritionValues
     serving_size_text: str
     serving_grams: float | None
+    servings_per_container: float | None
 
 
 def _reading_order(boxes: tuple[Box, ...]) -> tuple[Box, ...]:
@@ -223,7 +230,25 @@ def _serving_grams(serving_size_text: str) -> float | None:
     return grams
 
 
-def _build_reading(readings: dict[str, float], serving_size_text: str | None) -> UsLabelReading:
+def _servings_per_container(boxes: tuple[Box, ...]) -> float | None:
+    """How many servings the label says the whole package holds.
+
+    Deliberately lenient, unlike _serving_grams: a missing or non-positive
+    count degrades to "no prefill available" rather than raising, since this
+    only ever feeds an optional net-weight-derived guess, never a value the
+    core per-serving scaling depends on.
+    """
+    for box in boxes:
+        match = SERVINGS_PER_CONTAINER.search(box.text)
+        if match:
+            count = float(match.group(1).replace(",", "."))
+            return count if count > 0 else None
+    return None
+
+
+def _build_reading(
+    readings: dict[str, float], serving_size_text: str | None, servings_per_container: float | None
+) -> UsLabelReading:
     for field, marker in ROW_MARKERS:
         if field not in readings:
             raise NormalizationError(f"No value found for marker: {marker.pattern!r}")
@@ -235,6 +260,7 @@ def _build_reading(readings: dict[str, float], serving_size_text: str | None) ->
         per_serving=NutritionValues(salt_g=sodium_g * SODIUM_TO_SALT_FACTOR, **readings),
         serving_size_text=serving_size_text,
         serving_grams=_serving_grams(serving_size_text),
+        servings_per_container=servings_per_container,
     )
 
 
@@ -290,4 +316,4 @@ def read_us_label(result: OcrResult) -> UsLabelReading:
         claimed = {id(box) for box in paired.values()}
         serving_size_text = _with_detached_weight(serving_size_text, marker_boxes, boxes, claimed)
 
-    return _build_reading(readings, serving_size_text)
+    return _build_reading(readings, serving_size_text, _servings_per_container(boxes))

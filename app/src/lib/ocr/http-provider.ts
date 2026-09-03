@@ -30,7 +30,13 @@ interface RawNutritionTableResponse {
   per_serving: RawNutritionValues | null;
   serving_size_text: string | null;
   serving_grams: number | null;
+  servings_per_container: number | null;
   flags: string[];
+}
+
+interface RawProductNameResponse {
+  text: string;
+  net_weight_text: string | null;
 }
 
 const toNullableNutritionValues = (raw: RawNutritionValues): NullableNutritionValues => ({
@@ -70,6 +76,7 @@ const toNutritionTableRead = (raw: RawNutritionTableResponse): NutritionTableRea
     perServing: toPerServingValues(raw.per_serving),
     servingSizeText: raw.serving_size_text,
     servingGrams: raw.serving_grams,
+    servingsPerContainer: raw.servings_per_container,
   };
 };
 
@@ -115,8 +122,9 @@ const postJson = async (endpoint: string, body: unknown): Promise<unknown> => {
 };
 
 export class HttpOcrProvider implements OcrProvider {
-  async extractProductName(photo: Blob): Promise<{ text: string }> {
-    return (await postImage("/ocr/product-name", photo)) as { text: string };
+  async extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null }> {
+    const raw = (await postImage("/ocr/product-name", photo)) as RawProductNameResponse;
+    return { text: raw.text, netWeightText: raw.net_weight_text };
   }
 
   async extractNutritionTable(photo: Blob): Promise<NutritionTableRead> {

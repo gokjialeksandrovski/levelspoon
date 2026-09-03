@@ -20,9 +20,9 @@ const PRODUCT_NAME_BY_MARKER: Record<string, string> = {
 const DEFAULT_PRODUCT_NAME = "Olympus Greek Yogurt 2% Fat";
 
 export class MockOcrProvider implements OcrProvider {
-  async extractProductName(photo: Blob): Promise<{ text: string }> {
+  async extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null }> {
     const marker = (await photo.text()).trim();
-    return { text: PRODUCT_NAME_BY_MARKER[marker] ?? DEFAULT_PRODUCT_NAME };
+    return { text: PRODUCT_NAME_BY_MARKER[marker] ?? DEFAULT_PRODUCT_NAME, netWeightText: null };
   }
 
   async extractNutritionTable(_photo: Blob): Promise<NutritionTableRead> {

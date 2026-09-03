@@ -70,10 +70,19 @@ const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) =>
     return <ProductNameStep dispatch={dispatch} />;
   }
   if (step.kind === "match-result") {
-    return <MatchResultStep nameGuess={step.nameGuess} candidates={step.candidates} dispatch={dispatch} />;
+    return (
+      <MatchResultStep
+        nameGuess={step.nameGuess}
+        candidates={step.candidates}
+        netWeightText={step.netWeightText}
+        dispatch={dispatch}
+      />
+    );
   }
   if (step.kind === "nutrition-photo") {
-    return <NutritionPhotoStep nameGuess={step.nameGuess} dispatch={dispatch} />;
+    return (
+      <NutritionPhotoStep nameGuess={step.nameGuess} netWeightText={step.netWeightText} dispatch={dispatch} />
+    );
   }
   if (step.kind === "serving-size") {
     return (
@@ -82,6 +91,7 @@ const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) =>
         perServing={step.perServing}
         name={step.name}
         photo={step.photo}
+        prefillGrams={step.prefillGrams}
         dispatch={dispatch}
       />
     );

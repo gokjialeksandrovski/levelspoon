@@ -385,6 +385,19 @@ def test_reunites_a_detached_bracketed_weight_with_its_household_measure():
     assert reading.serving_grams == pytest.approx(47.0)
 
 
+def test_reads_the_servings_per_container_count():
+    """The count itself, not just its exclusion from the figure pool - it's
+    what a front panel's total net weight is divided by to guess a
+    per-serving weight when the label prints no bracketed weight of its own."""
+    reading = read_us_label(_snickers_stacked_label())
+    assert reading.servings_per_container == pytest.approx(48.0)
+
+
+def test_servings_per_container_is_none_when_not_printed():
+    reading = read_us_label(_us_label("2 Tbsp (30g)"))
+    assert reading.servings_per_container is None
+
+
 def test_raises_when_a_marker_resolves_to_no_figure_at_all():
     boxes = tuple(
         box for box in _us_label("2 Tbsp (30g)").boxes if not box.text.startswith("Protein")

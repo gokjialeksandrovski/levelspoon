@@ -85,6 +85,18 @@ def test_dispatches_a_us_label_to_the_us_parser_when_no_100g_header_exists():
     assert reading.serving_grams == pytest.approx(30.0)
 
 
+def test_a_us_reading_carries_the_servings_per_container_count():
+    result = _us_label_result()
+    boxes = result.boxes + (Box("15 servings per container", 100.0, 75.0, 0.95),)
+    reading = parse_nutrition(OcrResult(boxes=boxes, image_width=1000, image_height=1600))
+    assert reading.servings_per_container == pytest.approx(15.0)
+
+
+def test_an_eu_reading_has_no_servings_per_container():
+    result = _label("295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
+    assert parse_nutrition(result).servings_per_container is None
+
+
 def test_a_us_reading_carries_no_flags_because_validation_happens_after_scaling():
     """validate()'s rules are per-100g rules; per-serving figures would trip
     them spuriously. The caller validates once it has scaled."""

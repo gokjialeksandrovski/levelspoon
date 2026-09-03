@@ -16,21 +16,29 @@ interface ServingSizeStepProps {
   perServing: NutritionValues;
   name: string;
   photo: Blob;
+  prefillGrams: number | null;
   dispatch: (action: WizardAction) => void;
 }
 
 const UNRESOLVED_ANSWER_ERROR =
   "Couldn't read that as a measurement. Try a weight like 52g or 1.8 oz, or a measure like 2 tbsp.";
 const SAVE_ERROR = "Could not work out the serving size. Please try again.";
+const PREFILL_DECIMALS = 2;
+
+// Trailing zeros are stripped by round-tripping through Number, matching
+// nutrition-fields.ts's own display-rounding convention - "50g", not
+// "50.00g".
+const formatPrefill = (grams: number): string => `${Number(grams.toFixed(PREFILL_DECIMALS))}g`;
 
 export const ServingSizeStep = ({
   servingSizeText,
   perServing,
   name,
   photo,
+  prefillGrams,
   dispatch,
 }: ServingSizeStepProps) => {
-  const [answer, setAnswer] = useState("");
+  const [answer, setAnswer] = useState(() => (prefillGrams === null ? "" : formatPrefill(prefillGrams)));
   const [error, setError] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
 
@@ -71,7 +79,11 @@ export const ServingSizeStep = ({
         name="serving-measurement"
         value={answer}
         onChange={(event) => setAnswer(event.target.value)}
-        helperText="Accepts 52g, 1.8 oz, or 2 tbsp"
+        helperText={
+          prefillGrams === null
+            ? "Accepts 52g, 1.8 oz, or 2 tbsp"
+            : "Estimated from the package's net weight - accepts 52g, 1.8 oz, or 2 tbsp"
+        }
       />
       <Button disabled={answer.trim() === "" || isResolving} onClick={handleSubmit}>
         Continue

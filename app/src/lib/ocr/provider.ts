@@ -18,10 +18,14 @@ export type NutritionTableRead =
       perServing: NutritionValues;
       servingSizeText: string;
       servingGrams: number | null;
+      /** How many servings the label says the whole package holds, or null
+       * when not printed - feeds a net-weight-derived prefill guess only,
+       * never a value the per-serving scaling itself depends on. */
+      servingsPerContainer: number | null;
     };
 
 export interface OcrProvider {
-  extractProductName(photo: Blob): Promise<{ text: string }>;
+  extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null }>;
   extractNutritionTable(photo: Blob): Promise<NutritionTableRead>;
   validate(values: NutritionValues, energyKj?: number): Promise<{ flags: string[] }>;
 }

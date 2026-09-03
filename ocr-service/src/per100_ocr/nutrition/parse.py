@@ -59,6 +59,7 @@ def _parse_eu_label(result: OcrResult) -> NutritionReading:
         energy_kj=energy_kj,
         serving_size_text=None,
         serving_grams=None,
+        servings_per_container=None,
     )
 
 
@@ -78,6 +79,7 @@ def _parse_us_label(result: OcrResult) -> NutritionReading:
         energy_kj=None,
         serving_size_text=reading.serving_size_text,
         serving_grams=reading.serving_grams,
+        servings_per_container=reading.servings_per_container,
     )
 
 

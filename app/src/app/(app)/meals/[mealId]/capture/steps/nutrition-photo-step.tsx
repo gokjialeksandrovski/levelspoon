@@ -13,6 +13,7 @@ import type { WizardAction } from "../capture-wizard.types";
 
 interface NutritionPhotoStepProps {
   nameGuess: string;
+  netWeightText: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -36,7 +37,7 @@ const ALL_NULL_NUTRITION = {
   saltG: null,
 };
 
-export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepProps) => {
+export const NutritionPhotoStep = ({ nameGuess, netWeightText, dispatch }: NutritionPhotoStepProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -46,7 +47,7 @@ export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepPr
     setError(null);
     setIsLoading(true);
     try {
-      const read = await ocrNutritionTable(selected, nameGuess);
+      const read = await ocrNutritionTable(selected, nameGuess, netWeightText);
       if (read.kind === "needs-serving-size") {
         dispatch({
           type: "SERVING_SIZE_NEEDED",
@@ -54,6 +55,7 @@ export const NutritionPhotoStep = ({ nameGuess, dispatch }: NutritionPhotoStepPr
           perServing: read.perServing,
           name: nameGuess,
           photo: selected,
+          prefillGrams: read.prefillGrams,
         });
         return;
       }

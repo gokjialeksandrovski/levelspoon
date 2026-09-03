@@ -4,10 +4,11 @@ import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 interface MatchResultStepProps {
   nameGuess: string;
   candidates: SelectedProduct[];
+  netWeightText: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
-export const MatchResultStep = ({ nameGuess, candidates, dispatch }: MatchResultStepProps) => (
+export const MatchResultStep = ({ nameGuess, candidates, netWeightText, dispatch }: MatchResultStepProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Which product is this?</h2>
     <ul className="divide-y divide-border">
@@ -31,7 +32,7 @@ export const MatchResultStep = ({ nameGuess, candidates, dispatch }: MatchResult
     </ul>
     <button
       type="button"
-      onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess })}
+      onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess, netWeightText })}
       className="text-sm text-text-muted underline"
     >
       None of these

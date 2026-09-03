@@ -1,5 +1,5 @@
 from per100_ocr.boxes import Box, OcrResult
-from per100_ocr.product_name import extract_product_name
+from per100_ocr.product_name import extract_net_weight_text, extract_product_name
 
 
 def _result(*boxes: Box) -> OcrResult:
@@ -149,3 +149,15 @@ def test_a_label_with_no_declared_quantity_is_unaffected():
     assert extract_product_name(_olympus_front()) == (
         "OLYMPUS Greek RECIPE YOGURT FAT LOW FAT STRAINED RICH IN PROTEIN"
     )
+
+
+def test_extracts_the_net_weight_declaration_verbatim():
+    """Verbatim, not a parsed figure: the app's own measure-parsing pipeline
+    already handles unit conversion for a label's serving-size text, and
+    reusing it here (rather than parsing units in ocr-service) matches that
+    established split."""
+    assert extract_net_weight_text(_snickers_front()) == "NET WT 1.86 0Z (52.7g)"
+
+
+def test_returns_none_when_no_net_weight_declaration_is_present():
+    assert extract_net_weight_text(_olympus_front()) is None

@@ -97,3 +97,15 @@ def extract_product_name(result: OcrResult) -> str:
         key=lambda box: box.y,
     )
     return " ".join(box.text.strip() for box in kept)
+
+
+def extract_net_weight_text(result: OcrResult) -> str | None:
+    """The label's own net-weight declaration, verbatim - e.g. "NET WT 1.86
+    OZ (52.7g)" - or None when the package prints no such line.
+
+    Returned as text, not a parsed gram figure: converting the printed unit
+    is the app's job, the same "report what's printed" split this service
+    already applies to a nutrition label's serving-size line.
+    """
+    marker = next((box for box in result.boxes if NET_WEIGHT_MARKER.search(box.text)), None)
+    return marker.text.strip() if marker else None

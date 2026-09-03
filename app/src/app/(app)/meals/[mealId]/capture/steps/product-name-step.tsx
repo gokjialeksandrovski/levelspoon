@@ -23,17 +23,17 @@ export const ProductNameStep = ({ dispatch }: ProductNameStepProps) => {
   const [manualEntry, setManualEntry] = useState(false);
   const [manualName, setManualName] = useState("");
 
-  const resolveMatch = async (text: string) => {
+  const resolveMatch = async (text: string, netWeightText: string | null) => {
     const result = await matchProduct(text);
-    dispatch({ type: "MATCH_RESOLVED", nameGuess: text, result });
+    dispatch({ type: "MATCH_RESOLVED", nameGuess: text, result, netWeightText });
   };
 
   const handleSelect = async (photo: File) => {
     setError(null);
     setIsLoading(true);
     try {
-      const { text } = await ocrProductName(photo);
-      await resolveMatch(text);
+      const { text, netWeightText } = await ocrProductName(photo);
+      await resolveMatch(text, netWeightText);
     } catch {
       setError("Could not read the product name from the photo.");
     } finally {
@@ -45,7 +45,8 @@ export const ProductNameStep = ({ dispatch }: ProductNameStepProps) => {
     setError(null);
     setIsLoading(true);
     try {
-      await resolveMatch(manualName);
+      // No photo was taken on this path, so there is no net weight to read.
+      await resolveMatch(manualName, null);
     } catch {
       setError("Could not look up this product name. Please try again.");
     } finally {

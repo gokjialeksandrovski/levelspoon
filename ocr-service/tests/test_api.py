@@ -77,7 +77,21 @@ def test_product_name_endpoint_returns_text(client_with):
     response = client_with(result).post(
         "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
-    assert response.json() == {"text": "OLYMPUS Greek"}
+    assert response.json() == {"text": "OLYMPUS Greek", "net_weight_text": None}
+
+
+def test_product_name_endpoint_reports_a_printed_net_weight(client_with):
+    result = OcrResult(
+        boxes=(
+            Box("SNICKERS", 334.5, 397.0, 1.0),
+            Box("NET WT 1.86 0Z (52.7g)", 178.0, 464.0, 0.978),
+        ),
+        image_width=800, image_height=800,
+    )
+    response = client_with(result).post(
+        "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert response.json() == {"text": "SNICKERS", "net_weight_text": "NET WT 1.86 0Z (52.7g)"}
 
 
 def test_unreadable_nutrition_table_returns_422_not_zeroes(client_with):
@@ -158,6 +172,28 @@ def test_eu_label_response_carries_per_100g_and_null_serving_fields(client_with)
     assert body["per_serving"] is None
     assert body["serving_size_text"] is None
     assert body["serving_grams"] is None
+    assert body["servings_per_container"] is None
+
+
+def test_us_label_response_carries_the_servings_per_container_count(client_with):
+    texts = [
+        "Nutrition Facts",
+        "48 servings per container",
+        "Serving Size 2 Tablespoon",
+        "Calories 230",
+        "Total Fat 8g",
+        "Saturated Fat 1g",
+        "Sodium 180mg",
+        "Total Carbohydrate 37g",
+        "Total Sugars 9g",
+        "Protein 3g",
+    ]
+    boxes = tuple(Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts))
+    result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)
+    response = client_with(result).post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert response.json()["servings_per_container"] == 48.0
 
 
 def test_us_label_without_a_gram_weight_returns_200_with_a_null_serving_grams(client_with):

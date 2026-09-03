@@ -9,6 +9,7 @@ import {
   NOTHING_LEARNED,
   type LearnedMeasures,
 } from "@/lib/measures/learn";
+import { resolveNetWeightGrams } from "@/lib/measures/net-weight";
 import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
 import { scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
 import { HttpOcrProvider } from "@/lib/ocr/http-provider";
@@ -28,12 +29,23 @@ export type NutritionRead =
       flags: string[];
       learned: LearnedMeasures;
     }
-  | { kind: "needs-serving-size"; servingSizeText: string; perServing: NutritionValues };
+  | {
+      kind: "needs-serving-size";
+      servingSizeText: string;
+      perServing: NutritionValues;
+      /** A guess from the front panel's net weight divided by the label's
+       * own servings-per-container count - null whenever either figure is
+       * missing or unreadable. Always a prefill the user can edit or
+       * override, never a value that skips asking. */
+      prefillGrams: number | null;
+    };
 
 const getProvider = (): OcrProvider =>
   process.env.OCR_PROVIDER === "mock" ? new MockOcrProvider() : new HttpOcrProvider();
 
-export const ocrProductName = async (photo: Blob): Promise<{ text: string }> => {
+export const ocrProductName = async (
+  photo: Blob,
+): Promise<{ text: string; netWeightText: string | null }> => {
   await requireUserId();
   return getProvider().extractProductName(photo);
 };
@@ -53,9 +65,25 @@ const contextFor = async (productName: string): Promise<MeasureContext> => ({
   ...(await findStoredMeasures(productName)),
 });
 
+// A guess, never a substitute for asking: only reached once every other
+// resolution strategy has already failed, and always lands as an editable
+// prefill on the serving-size question, not an auto-submitted answer.
+const netWeightPrefill = (
+  netWeightText: string | null,
+  servingsPerContainer: number | null,
+  context: MeasureContext,
+): number | null => {
+  if (netWeightText === null || servingsPerContainer === null || servingsPerContainer <= 0) {
+    return null;
+  }
+  const netWeightGrams = resolveNetWeightGrams(netWeightText, context);
+  return netWeightGrams === null ? null : netWeightGrams / servingsPerContainer;
+};
+
 const fromUsLabel = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
   productNameGuess: string,
+  netWeightText: string | null,
 ): Promise<NutritionRead> => {
   // A printed weight is the most certain figure on the label, and it also
   // states the product's density for free when the measure beside it is a
@@ -65,12 +93,14 @@ const fromUsLabel = async (
     return scaledRead(read.perServing, read.servingGrams, learned);
   }
 
-  const resolution = resolveGrams(read.servingSizeText, await contextFor(productNameGuess));
+  const context = await contextFor(productNameGuess);
+  const resolution = resolveGrams(read.servingSizeText, context);
   if (resolution.kind === "unresolved") {
     return {
       kind: "needs-serving-size",
       servingSizeText: read.servingSizeText,
       perServing: read.perServing,
+      prefillGrams: netWeightPrefill(netWeightText, read.servingsPerContainer, context),
     };
   }
   // This is a brand-new product row, so all three learned columns start
@@ -86,13 +116,14 @@ const fromUsLabel = async (
 export const ocrNutritionTable = async (
   photo: Blob,
   productNameGuess: string,
+  netWeightText: string | null = null,
 ): Promise<NutritionRead> => {
   await requireUserId();
   const read = await getProvider().extractNutritionTable(photo);
   if (read.format === "eu") {
     return { kind: "per100g", values: read.per100g, flags: read.flags, learned: NOTHING_LEARNED };
   }
-  return fromUsLabel(read, productNameGuess);
+  return fromUsLabel(read, productNameGuess, netWeightText);
 };
 
 /**
@@ -112,7 +143,10 @@ export const resolveServingSize = async (
   await requireUserId();
   const resolution = resolveGrams(answerText, await contextFor(productNameGuess));
   if (resolution.kind === "unresolved") {
-    return { kind: "needs-serving-size", servingSizeText, perServing };
+    // prefillGrams is unused here: ServingSizeStep only checks read.kind on
+    // this branch and re-shows its own local error, never re-reading these
+    // fields (same as servingSizeText/perServing above).
+    return { kind: "needs-serving-size", servingSizeText, perServing, prefillGrams: null };
   }
 
   // What the answer teaches is attached to the label's own serving line, not

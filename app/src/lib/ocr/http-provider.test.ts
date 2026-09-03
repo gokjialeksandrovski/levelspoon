@@ -29,6 +29,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("HttpOcrProvider.extractProductName", () => {
+  it("maps the net-weight declaration to camelCase", async () => {
+    stubFetchJson({ text: "SNICKERS BAR", net_weight_text: "NET WT 1.86 0Z (52.7g)" });
+
+    const result = await new HttpOcrProvider().extractProductName(new Blob(["photo"]));
+
+    expect(result).toEqual({ text: "SNICKERS BAR", netWeightText: "NET WT 1.86 0Z (52.7g)" });
+  });
+
+  it("preserves a null net weight when the front panel prints none", async () => {
+    stubFetchJson({ text: "OLYMPUS Greek", net_weight_text: null });
+
+    const result = await new HttpOcrProvider().extractProductName(new Blob(["photo"]));
+
+    expect(result).toEqual({ text: "OLYMPUS Greek", netWeightText: null });
+  });
+});
+
 describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
   it("maps ocr-service's snake_case fields to the app's camelCase shape", async () => {
     stubFetchJson({
@@ -101,6 +119,7 @@ describe("HttpOcrProvider.extractNutritionTable — US labels", () => {
       },
       serving_size_text: "1 bas",
       serving_grams: null,
+      servings_per_container: null,
       flags: [],
     });
 
@@ -114,6 +133,7 @@ describe("HttpOcrProvider.extractNutritionTable — US labels", () => {
       },
       servingSizeText: "1 bas",
       servingGrams: null,
+      servingsPerContainer: null,
     });
   });
 
@@ -127,6 +147,7 @@ describe("HttpOcrProvider.extractNutritionTable — US labels", () => {
       },
       serving_size_text: "2 Tbsp (37g)",
       serving_grams: 37,
+      servings_per_container: null,
       flags: [],
     });
 
@@ -134,6 +155,25 @@ describe("HttpOcrProvider.extractNutritionTable — US labels", () => {
 
     expect(result.format).toBe("us");
     expect(result).toMatchObject({ servingGrams: 37, servingSizeText: "2 Tbsp (37g)" });
+  });
+
+  it("maps the servings-per-container count to camelCase", async () => {
+    stubFetchJson({
+      format: "us",
+      per_100g: null,
+      per_serving: {
+        energy_kcal: 220, fat_g: 11, saturates_g: 4, carbohydrate_g: 29,
+        sugars_g: 25, protein_g: 4, salt_g: 0.2875,
+      },
+      serving_size_text: "1 bar (47g)",
+      serving_grams: 47,
+      servings_per_container: 48,
+      flags: [],
+    });
+
+    const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
+
+    expect(result).toMatchObject({ servingsPerContainer: 48 });
   });
 
   it("throws OcrServiceError for a 422, which now means only an unreadable label", async () => {

@@ -148,6 +148,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
       perServing: PER_SERVING_VALUES,
       servingSizeText: "1 bas",
       servingGrams: null,
+      servingsPerContainer: null,
     });
 
     const result = await ocrNutritionTable(new Blob(["photo"]), "Snickers");
@@ -156,8 +157,78 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
       kind: "needs-serving-size",
       servingSizeText: "1 bas",
       perServing: PER_SERVING_VALUES,
+      prefillGrams: null,
     });
     expect(mockValidate).not.toHaveBeenCalled();
+  });
+
+  it("prefills a serving weight from the front panel's net weight and the label's own servings count", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 bar",
+      servingGrams: null,
+      servingsPerContainer: 48,
+    });
+
+    const result = await ocrNutritionTable(
+      new Blob(["photo"]),
+      "Snickers",
+      "NET WT 1.86 0Z (52.7g)",
+    );
+
+    expect(result).toEqual({
+      kind: "needs-serving-size",
+      servingSizeText: "1 bar",
+      perServing: PER_SERVING_VALUES,
+      prefillGrams: expect.closeTo(52.7 / 48, 5),
+    });
+  });
+
+  it("has no prefill when the label prints no servings-per-container count", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 bar",
+      servingGrams: null,
+      servingsPerContainer: null,
+    });
+
+    const result = await ocrNutritionTable(
+      new Blob(["photo"]),
+      "Snickers",
+      "NET WT 1.86 0Z (52.7g)",
+    );
+
+    expect(result).toMatchObject({ kind: "needs-serving-size", prefillGrams: null });
+  });
+
+  it("has no prefill when the front panel photo printed no net weight", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 bar",
+      servingGrams: null,
+      servingsPerContainer: 48,
+    });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Snickers", null);
+
+    expect(result).toMatchObject({ kind: "needs-serving-size", prefillGrams: null });
+  });
+
+  it("has no prefill when the net weight text itself cannot be resolved", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "1 bar",
+      servingGrams: null,
+      servingsPerContainer: 48,
+    });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Snickers", "NET WT one bar");
+
+    expect(result).toMatchObject({ kind: "needs-serving-size", prefillGrams: null });
   });
 
   it("never assumes water for an unknown density", async () => {
@@ -223,6 +294,7 @@ describe("resolveServingSize", () => {
       kind: "needs-serving-size",
       servingSizeText: "1 bas",
       perServing: PER_SERVING_VALUES,
+      prefillGrams: null,
     });
   });
 });
