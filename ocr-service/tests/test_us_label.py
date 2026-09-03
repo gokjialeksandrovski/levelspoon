@@ -127,7 +127,7 @@ def test_reads_calories_and_serving_size_when_ocr_splits_them_from_their_labels(
     boxes - unlike every synthetic fixture above, which merges label and
     value into one box. Must not require them merged, and the joined
     serving-size text must still carry the full measure ("...2 Tablespoon")
-    for the OmniRoute grams-estimation prompt - not just the bare label."""
+    for the app's resolveGrams normalization - not just the bare label."""
     reading = read_us_label(_real_split_calories_and_serving_label())
     assert reading.per_serving.fat_g == pytest.approx(12.0)
     assert reading.per_serving.carbohydrate_g == pytest.approx(23.0)

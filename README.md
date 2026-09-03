@@ -5,10 +5,13 @@ and implementation plans for shipped milestones (M0-M3, app redesign &
 quick-log) — historical record, not current status; checklists inside were
 never edited back after implementation, so ignore their checkbox state.
 
-## Current milestone: self-hosted multi-provider quantity estimation
+## Current milestone: direct Gemini quantity estimation
 
 Precedes M4 — see
-`docs/superpowers/specs/2026-08-31-omniroute-quantity-provider-design.md`.
+`docs/superpowers/specs/2026-09-03-direct-gemini-quantity-estimation-design.md`.
+It supersedes the self-hosted OmniRoute gateway approach
+(`2026-08-31-omniroute-quantity-provider-design.md`, kept as historical
+record only — the gateway and its container have been removed).
 M4 (provision cloud) resumes once this lands.
 
 ### Known gap: no capture path for unpackaged/solid food
@@ -42,7 +45,7 @@ running container.
 | `npm run ocr:down` | Stop the stack |
 | `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
 | `npm run dev:app` | Run the Next.js app's dev server |
-| `npm run dev:up` | Bring up Postgres, MinIO, the OCR service, and the omniroute gateway for local dev |
+| `npm run dev:up` | Bring up Postgres, MinIO, and the OCR service for local dev |
 | `npm run dev:down` | Stop the local dev stack |
 | `npm run db:migrate` | Apply Drizzle migrations to the local Postgres |
 | `npm run db:seed` | Seed a test user and the 2%/10% variant pair |
