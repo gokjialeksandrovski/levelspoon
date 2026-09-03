@@ -1,14 +1,9 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const REQUIRED_ENV_VARS = [
-  "S3_ENDPOINT",
-  "S3_ACCESS_KEY_ID",
-  "S3_SECRET_ACCESS_KEY",
-  "S3_BUCKET",
-] as const;
+type RequiredEnvVar = "S3_ENDPOINT" | "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY" | "S3_BUCKET";
 
-const readRequiredEnv = (name: (typeof REQUIRED_ENV_VARS)[number]): string => {
+const readRequiredEnv = (name: RequiredEnvVar): string => {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);

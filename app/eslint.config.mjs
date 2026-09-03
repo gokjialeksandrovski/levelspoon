@@ -23,6 +23,21 @@ const eslintConfig = [
   cleanCodeBaseRules,
   cleanCodeTypeScriptRules,
   {
+    // A leading underscore is TypeScript's own convention for a binding that
+    // is deliberately unused — most often a parameter an interface requires
+    // but a given implementation ignores (MockQuantityProvider.estimateGrams,
+    // MockOcrProvider). The parameter cannot be deleted without breaking the
+    // interface, so the convention is the fix and the linter should honour it.
+    // Configured here rather than in the vendored file, which stays a verbatim
+    // copy of the canonical rules so it can be re-copied when those change.
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
+  {
     // Rule 17 (server/client boundary isolation) only makes sense for UI
     // code — scoped to src/app, never bare-spread, so it doesn't flag
     // legitimate server-side imports in scripts/config files outside the UI tree.
