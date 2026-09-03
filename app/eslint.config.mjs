@@ -38,6 +38,24 @@ const eslintConfig = [
     },
   },
   {
+    // Test-file carve-out for two rules whose intent doesn't transfer to tests:
+    //
+    // - no-magic-numbers: in an assertion the literal IS the meaning.
+    //   `expect(grams).toBe(184)` says exactly what it checks; hoisting 184 to
+    //   EXPECTED_GRAMS adds a hop and hides the value the test exists to pin.
+    // - max-lines-per-function: Rule 6 targets a function doing too much. A
+    //   `describe` callback is test structure, not logic — its length tracks
+    //   how many cases are covered, which is a thing to want more of.
+    //
+    // Deliberately narrow: every other Clean Code rule still applies to tests,
+    // including no-empty (never swallow an error) and the default-export ban.
+    files: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+    rules: {
+      "@typescript-eslint/no-magic-numbers": "off",
+      "max-lines-per-function": "off",
+    },
+  },
+  {
     // Rule 17 (server/client boundary isolation) only makes sense for UI
     // code — scoped to src/app, never bare-spread, so it doesn't flag
     // legitimate server-side imports in scripts/config files outside the UI tree.
