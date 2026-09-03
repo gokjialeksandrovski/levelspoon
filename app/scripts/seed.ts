@@ -5,6 +5,34 @@ import { products, users } from "../src/lib/db/schema";
 
 const SEED_USER_EMAIL = "seed-user@per100.local";
 
+// The deliberate variant pair tier-2's own matchProduct test seeds
+// independently for isolation - this is for interactive local dev only,
+// e.g. exercising the (future, M2b) capture flow UI by hand.
+export const SEED_PRODUCTS = [
+  {
+    name: "Olympus Greek Yogurt 2% Fat",
+    energyKcal: "70",
+    fatG: "2.0",
+    saturatesG: "1.2",
+    carbohydrateG: "4.0",
+    sugarsG: "4.0",
+    proteinG: "9.0",
+    saltG: "0.18",
+    nutritionPhotoKey: "seed/olympus-2pct.jpg",
+  },
+  {
+    name: "Olympus Greek Yogurt 10% Fat",
+    energyKcal: "131",
+    fatG: "10.0",
+    saturatesG: "6.5",
+    carbohydrateG: "4.0",
+    sugarsG: "4.0",
+    proteinG: "8.0",
+    saltG: "0.15",
+    nutritionPhotoKey: "seed/olympus-10pct.jpg",
+  },
+];
+
 const findOrCreateSeedUser = async (): Promise<string> => {
   const [existing] = await db.select().from(users).where(eq(users.email, SEED_USER_EMAIL));
   if (existing) {
@@ -18,39 +46,15 @@ const findOrCreateSeedUser = async (): Promise<string> => {
   return created.id;
 };
 
+export const seedProducts = async (seedUserId: string): Promise<void> => {
+  await db.insert(products).values(
+    SEED_PRODUCTS.map((product) => ({ ...product, createdByUserId: seedUserId })),
+  );
+};
+
 const main = async () => {
   const seedUserId = await findOrCreateSeedUser();
-
-  // The deliberate variant pair tier-2's own matchProduct test seeds
-  // independently for isolation - this is for interactive local dev only,
-  // e.g. exercising the (future, M2b) capture flow UI by hand.
-  await db.insert(products).values([
-    {
-      name: "Olympus Greek Yogurt 2% Fat",
-      energyKcal: "70",
-      fatG: "2.0",
-      saturatesG: "1.2",
-      carbohydrateG: "4.0",
-      sugarsG: "4.0",
-      proteinG: "9.0",
-      saltG: "0.18",
-      nutritionPhotoKey: "seed/olympus-2pct.jpg",
-      createdByUserId: seedUserId,
-    },
-    {
-      name: "Olympus Greek Yogurt 10% Fat",
-      energyKcal: "131",
-      fatG: "10.0",
-      saturatesG: "6.5",
-      carbohydrateG: "4.0",
-      sugarsG: "4.0",
-      proteinG: "8.0",
-      saltG: "0.15",
-      nutritionPhotoKey: "seed/olympus-10pct.jpg",
-      createdByUserId: seedUserId,
-    },
-  ]);
-
+  await seedProducts(seedUserId);
   console.log("Seeded 1 user and 2 products (including the 2%/10% variant pair).");
 };
 

@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
     // Test files share one live Postgres database and truncate overlapping
     // tables in beforeEach, so they cannot safely run concurrently.
