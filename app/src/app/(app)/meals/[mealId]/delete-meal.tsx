@@ -69,7 +69,6 @@ export const DeleteMeal = ({ mealId, mealDate }: DeleteMealProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const callbacks: DeleteMealCallbacks = { router, onBusyChange: setIsBusy, onError: setError };
 
   return (
     <>
@@ -81,7 +80,7 @@ export const DeleteMeal = ({ mealId, mealDate }: DeleteMealProps) => {
         isBusy={isBusy}
         error={error}
         onClose={() => setIsOpen(false)}
-        onConfirm={() => deleteMealAndNavigate(mealId, mealDate, callbacks)}
+        onConfirm={() => deleteMealAndNavigate(mealId, mealDate, { router, onBusyChange: setIsBusy, onError: setError })}
       />
     </>
   );
