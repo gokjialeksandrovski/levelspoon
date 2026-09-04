@@ -9,22 +9,30 @@ interface SheetProps {
   children: React.ReactNode;
 }
 
-export const Sheet = ({ open, onClose, title, children }: SheetProps) => {
-  const ref = useRef<HTMLDialogElement>(null);
+const isBackdropClick = (
+  event: React.MouseEvent<HTMLDialogElement>,
+  ref: React.RefObject<HTMLDialogElement | null>,
+): boolean => event.target === ref.current;
 
+const useDialogSync = (ref: React.RefObject<HTMLDialogElement | null>, open: boolean): void => {
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
-  }, [open]);
+  }, [ref, open]);
+};
+
+export const Sheet = ({ open, onClose, title, children }: SheetProps) => {
+  const ref = useRef<HTMLDialogElement>(null);
+  useDialogSync(ref, open);
 
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       onClick={(event) => {
-        if (event.target === ref.current) onClose();
+        if (isBackdropClick(event, ref)) onClose();
       }}
       className="m-0 mt-auto w-full max-w-md rounded-t-(--radius-surface) border border-border bg-surface p-5 text-text backdrop:bg-black/50"
     >
