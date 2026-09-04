@@ -1,8 +1,9 @@
 // app/src/app/meals/[mealId]/steps/confirm-step.tsx
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
+import { validateNutrition } from "@/actions/ocr";
 import { createProduct } from "@/actions/products";
 import { Button } from "@/components/button";
 import { Field } from "@/components/field";
@@ -13,6 +14,7 @@ import {
   toFieldValues,
   toNutritionValues,
 } from "@/lib/ocr/nutrition-fields";
+import type { FieldValues } from "@/lib/ocr/nutrition-fields";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
@@ -27,28 +29,108 @@ interface ConfirmStepProps {
   dispatch: (action: WizardAction) => void;
 }
 
-const FLAGGED_FIELD_ERROR = "Could not read this value - please enter it";
+const UNREADABLE_FIELD_ERROR = "Could not read this value - please enter it";
+// Matches correction-form.tsx's wording for the same situation: a value the
+// OCR did read, just not one that passes a cross-field plausibility rule
+// (e.g. saturates can't exceed fat). "Could not read" would be false here -
+// the field with the genuinely wrong number and the field only implicated
+// by its relationship to it both need a look, but they aren't the same
+// problem and shouldn't say they are.
+const INCONSISTENT_FIELD_ERROR = "This value looks off - please double-check it";
+const SAVE_BLOCKED_ERROR = "Please fix the flagged values before saving.";
 
-export const ConfirmStep = ({ name, parsed, flags, photo, learned, dispatch }: ConfirmStepProps) => {
+const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
+  if (!flaggedFields.has(field)) {
+    return undefined;
+  }
+  return values[field].trim() === "" ? UNREADABLE_FIELD_ERROR : INCONSISTENT_FIELD_ERROR;
+};
+
+// Re-checks the whole row on blur and again right before saving, rather
+// than trusting the flags the OCR call first returned: a field can be
+// flagged purely because of its RELATIONSHIP to another (saturates can't
+// exceed fat), so fixing saturates must also clear fat's now-stale
+// warning, and a click on Save before a blur fires must not let a still-
+// flagged value slip through with the mount-time flags. Mirrors
+// correction-form.tsx's already-proven pattern for the same problem.
+const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]> => {
+  const result = await validateNutrition(toNutritionValues(currentValues));
+  return result.flags;
+};
+
+const saveProduct = async (
+  nameValue: string,
+  values: FieldValues,
+  photo: Blob,
+  learned: LearnedMeasures,
+  dispatch: (action: WizardAction) => void,
+): Promise<void> => {
+  const { productId } = await createProduct({
+    name: nameValue,
+    nutritionPer100g: toNutritionValues(values),
+    photo,
+    learned,
+  });
+  dispatch({ type: "PRODUCT_CREATED", product: { id: productId, name: nameValue } });
+};
+
+interface NutritionFieldsProps {
+  values: FieldValues;
+  flaggedFields: Set<keyof FieldValues>;
+  onFieldChange: (field: keyof FieldValues, value: string) => void;
+  onFieldBlur: () => void;
+}
+
+const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: NutritionFieldsProps) => (
+  <>
+    {(Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).map((field) => (
+      <Field
+        key={field}
+        label={FIELD_LABELS[field]}
+        name={field}
+        type="number"
+        value={values[field]}
+        onChange={(event) => onFieldChange(field, event.target.value)}
+        onBlur={onFieldBlur}
+        flagged={flaggedFields.has(field)}
+        error={errorFor(field, flaggedFields, values)}
+      />
+    ))}
+  </>
+);
+
+export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned, dispatch }: ConfirmStepProps) => {
   const [nameValue, setNameValue] = useState(name);
   const [values, setValues] = useState(() => toFieldValues(parsed));
+  const [flags, setFlags] = useState(initialFlags);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  const revalidate = useCallback((currentValues: FieldValues) => {
+    checkNutritionFlags(currentValues)
+      .then(setFlags)
+      // A transient failure here just leaves the existing flags in place -
+      // revalidation is a convenience, not something that should block the
+      // user, and handleSave's own pre-save check still guards the save.
+      .catch(() => {});
+  }, []);
+
   const flaggedFields = flaggedFieldSet(flags);
   const canSave = [...flaggedFields].every((field) => values[field].trim() !== "");
+  const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
+  const revalidateNow = () => revalidate(values);
 
   const handleSave = async () => {
     setError(null);
     setIsSaving(true);
     try {
-      const { productId } = await createProduct({
-        name: nameValue,
-        nutritionPer100g: toNutritionValues(values),
-        photo,
-        learned,
-      });
-      dispatch({ type: "PRODUCT_CREATED", product: { id: productId, name: nameValue } });
+      const freshFlags = await checkNutritionFlags(values);
+      if (freshFlags.length > 0) {
+        setFlags(freshFlags);
+        setError(SAVE_BLOCKED_ERROR);
+        return;
+      }
+      await saveProduct(nameValue, values, photo, learned, dispatch);
     } catch {
       setError("Could not save this product. Please try again.");
     } finally {
@@ -65,18 +147,12 @@ export const ConfirmStep = ({ name, parsed, flags, photo, learned, dispatch }: C
         value={nameValue}
         onChange={(event) => setNameValue(event.target.value)}
       />
-      {(Object.keys(FIELD_LABELS) as (keyof NullableNutritionValues)[]).map((field) => (
-        <Field
-          key={field}
-          label={FIELD_LABELS[field]}
-          name={field}
-          type="number"
-          value={values[field]}
-          onChange={(event) => setValues({ ...values, [field]: event.target.value })}
-          flagged={flaggedFields.has(field)}
-          error={flaggedFields.has(field) ? FLAGGED_FIELD_ERROR : undefined}
-        />
-      ))}
+      <NutritionFields
+        values={values}
+        flaggedFields={flaggedFields}
+        onFieldChange={setFieldValue}
+        onFieldBlur={revalidateNow}
+      />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <Button disabled={!canSave || isSaving} onClick={handleSave}>
         Save product
