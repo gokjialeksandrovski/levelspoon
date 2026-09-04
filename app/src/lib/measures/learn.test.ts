@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hasLearned, learnFromServing, NOTHING_LEARNED } from "./learn";
+import { fromVolumeMeasure, hasLearned, learnFromServing, NOTHING_LEARNED } from "./learn";
 
 describe("learnFromServing", () => {
   it("derives a density when the line prints a volume alongside a gram weight", () => {
@@ -50,5 +50,14 @@ describe("hasLearned", () => {
 
   it("is true once a serving weight is known", () => {
     expect(hasLearned({ densityGMl: null, servingUnit: "bar", servingGrams: 52 })).toBe(true);
+  });
+});
+
+describe("fromVolumeMeasure", () => {
+  it("derives density from grams over quantity times millilitres-per-unit", () => {
+    const learned = fromVolumeMeasure(37, 2, 15);
+    expect(learned.densityGMl).toBeCloseTo(1.2333, 4);
+    expect(learned.servingUnit).toBeNull();
+    expect(learned.servingGrams).toBeNull();
   });
 });

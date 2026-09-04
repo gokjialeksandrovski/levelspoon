@@ -17,6 +17,16 @@ export const NOTHING_LEARNED: LearnedMeasures = {
 export const hasLearned = (learned: LearnedMeasures): boolean =>
   learned.densityGMl !== null || learned.servingGrams !== null;
 
+export const fromVolumeMeasure = (
+  servingGrams: number,
+  quantity: number,
+  millilitresPerUnit: number,
+): LearnedMeasures => ({
+  densityGMl: servingGrams / (quantity * millilitresPerUnit),
+  servingUnit: null,
+  servingGrams: null,
+});
+
 /**
  * What a serving line plus its gram weight states about the product.
  *
@@ -36,11 +46,7 @@ export const learnFromServing = (servingSizeText: string, servingGrams: number):
 
   const millilitresPerUnit = VOLUME_UNITS_TO_ML[measure.unit];
   if (millilitresPerUnit !== undefined) {
-    return {
-      densityGMl: servingGrams / (measure.quantity * millilitresPerUnit),
-      servingUnit: null,
-      servingGrams: null,
-    };
+    return fromVolumeMeasure(servingGrams, measure.quantity, millilitresPerUnit);
   }
 
   return {
