@@ -110,6 +110,22 @@ interface MealReadyBodyProps {
   onIngredientChanged: () => void;
 }
 
+interface IngredientsSectionProps {
+  ingredients: MealIngredientDetail[];
+  energyKcal: number;
+  onIngredientChanged: () => void;
+}
+
+const IngredientsSection = ({ ingredients, energyKcal, onIngredientChanged }: IngredientsSectionProps) =>
+  ingredients.length > 0 ? (
+    <>
+      <IngredientList ingredients={ingredients} onIngredientChanged={onIngredientChanged} />
+      <MealTotal energyKcal={energyKcal} />
+    </>
+  ) : (
+    <EmptyIngredients />
+  );
+
 const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: MealReadyBodyProps) => (
   <>
     {/*
@@ -120,14 +136,11 @@ const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: Mea
       can't do this on its own.
     */}
     <DayTotalBar key={reloadCounter} />
-    {meal.ingredients.length > 0 ? (
-      <>
-        <IngredientList ingredients={meal.ingredients} onIngredientChanged={onIngredientChanged} />
-        <MealTotal energyKcal={meal.total.energyKcal} />
-      </>
-    ) : (
-      <EmptyIngredients />
-    )}
+    <IngredientsSection
+      ingredients={meal.ingredients}
+      energyKcal={meal.total.energyKcal}
+      onIngredientChanged={onIngredientChanged}
+    />
     <div className="mt-6 flex flex-col gap-3">
       {/*
         A plain navigation link, not an inline reveal: the capture wizard
