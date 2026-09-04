@@ -69,10 +69,7 @@ interface UseIngredientEditingResult {
   clearError: () => void;
 }
 
-const useIngredientEditing = (
-  ingredient: MealIngredientDetail,
-  onChanged?: () => void,
-): UseIngredientEditingResult => {
+const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void): UseIngredientEditingResult => {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [quantityInput, setQuantityInput] = useState(String(ingredient.quantityG));
@@ -87,8 +84,7 @@ const useIngredientEditing = (
     error,
     startEditing: () => setIsEditing(true),
     setQuantityInput,
-    saveQuantity: () =>
-      saveIngredientQuantity(ingredient.id, Number(quantityInput), () => setIsEditing(false), callbacks),
+    saveQuantity: () => saveIngredientQuantity(ingredient.id, Number(quantityInput), () => setIsEditing(false), callbacks),
     remove: () => removeIngredient(ingredient.id, callbacks),
     clearError: () => setError(null),
   };
@@ -236,24 +232,17 @@ interface IngredientRowProps {
 export const IngredientRow = ({ ingredient, onChanged }: IngredientRowProps) => {
   const editing = useIngredientEditing(ingredient, onChanged);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const closeConfirmSheet = () => { setIsConfirmOpen(false); editing.clearError(); };
 
   return (
     <li className="flex flex-col gap-2 py-4">
-      <IngredientRowContent
-        ingredient={ingredient}
-        editing={editing}
-        onRequestRemove={() => setIsConfirmOpen(true)}
-        showError={!isConfirmOpen}
-      />
+      <IngredientRowContent ingredient={ingredient} editing={editing} onRequestRemove={() => setIsConfirmOpen(true)} showError={!isConfirmOpen} />
       {isConfirmOpen && (
         <RemoveIngredientSheet
           productName={ingredient.productName}
           isBusy={editing.isBusy}
           error={editing.error}
-          onClose={() => {
-            setIsConfirmOpen(false);
-            editing.clearError();
-          }}
+          onClose={closeConfirmSheet}
           onConfirm={editing.remove}
         />
       )}
