@@ -111,86 +111,114 @@ const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProp
   </>
 );
 
-export const CorrectionForm = ({ product }: CorrectionFormProps) => {
+// The meal-detail page a user lands back on is served from the client
+// Router Cache; without a refresh it would show pre-correction values.
+// Standalone (not nested inside the hook) so both this function's own body
+// and useCorrectionForm's own body stay under the line budget.
+const applyCorrection = async (
+  product: ProductForCorrection,
+  name: string,
+  values: FieldValues,
+  photo: Blob | null,
+  router: ReturnType<typeof useRouter>,
+): Promise<void> => {
+  await updateProduct(product.id, { name, nutritionPer100g: toNutritionValues(values), ...(photo ? { photo } : {}) });
+  router.refresh();
+  router.back();
+};
+
+const saveCorrection = async (product: ProductForCorrection, name: string, values: FieldValues, photo: Blob | null, router: ReturnType<typeof useRouter>, setIsSaving: (isSaving: boolean) => void, setSaveError: (error: string | null) => void, setFlags: (flags: string[]) => void): Promise<void> => {
+  setIsSaving(true);
+  setSaveError(null);
+  try {
+    const freshFlags = await checkNutritionFlags(values);
+    if (freshFlags.length > 0) {
+      setFlags(freshFlags);
+      setSaveError("Please fix the flagged values before saving.");
+      return;
+    }
+    await applyCorrection(product, name, values, photo, router);
+  } catch {
+    setSaveError("Could not save this correction. Please try again.");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+interface UseCorrectionFormResult {
+  name: string;
+  photo: Blob | null;
+  values: FieldValues;
+  validateError: boolean;
+  saveError: string | null;
+  isSaving: boolean;
+  flaggedFields: Set<keyof FieldValues>;
+  canSave: boolean;
+  setName: (value: string) => void;
+  setPhoto: (photo: Blob | null) => void;
+  setFieldValue: (field: keyof FieldValues, value: string) => void;
+  revalidateNow: () => void;
+  handleSave: () => Promise<void>;
+}
+
+const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResult => {
   const router = useRouter();
   const [name, setName] = useState(product.name);
   const [photo, setPhoto] = useState<Blob | null>(null);
-  const [values, setValues] = useState<FieldValues>(() =>
-    toFieldValues(toNullableNutritionValues(product.nutritionPer100g)),
-  );
+  const [values, setValues] = useState<FieldValues>(() => toFieldValues(toNullableNutritionValues(product.nutritionPer100g)));
   const [flags, setFlags] = useState<string[]>([]);
   const [validateError, setValidateError] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const revalidate = useCallback((currentValues: FieldValues) => {
-    validateNutrition(toNutritionValues(currentValues))
-      .then((result) => {
-        setFlags(result.flags);
-        setValidateError(false);
-      })
-      .catch(() => {
-        setValidateError(true);
-      });
+    validateNutrition(toNutritionValues(currentValues)).then((result) => { setFlags(result.flags); setValidateError(false); }).catch(() => setValidateError(true));
   }, []);
 
-  useEffect(() => {
-    revalidate(toFieldValues(toNullableNutritionValues(product.nutritionPer100g)));
-  }, [product, revalidate]);
+  useEffect(() => { revalidate(toFieldValues(toNullableNutritionValues(product.nutritionPer100g))); }, [product, revalidate]);
 
   const flaggedFields = flaggedFieldSet(flags);
   const canSave = flaggedFields.size === 0 || validateError;
+  const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
+  const revalidateNow = () => revalidate(values);
+  const handleSave = () => saveCorrection(product, name, values, photo, router, setIsSaving, setSaveError, setFlags);
 
-  // The meal-detail page a user lands back on is served from the client
-  // Router Cache; without a refresh it would show pre-correction values.
-  const applyCorrection = async (): Promise<void> => {
-    await updateProduct(product.id, {
-      name,
-      nutritionPer100g: toNutritionValues(values),
-      ...(photo ? { photo } : {}),
-    });
-    router.refresh();
-    router.back();
-  };
+  return { name, photo, values, validateError, saveError, isSaving, flaggedFields, canSave, setName, setPhoto, setFieldValue, revalidateNow, handleSave };
+};
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const freshFlags = await checkNutritionFlags(values);
-      if (freshFlags.length > 0) {
-        setFlags(freshFlags);
-        setSaveError("Please fix the flagged values before saving.");
-        return;
-      }
-      await applyCorrection();
-    } catch {
-      setSaveError("Could not save this correction. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+interface CorrectionFormBodyProps {
+  product: ProductForCorrection;
+  form: UseCorrectionFormResult;
+}
+
+const CorrectionFormBody = ({ product, form }: CorrectionFormBodyProps) => (
+  <div className="flex flex-col gap-4">
+    <h2 className="text-xl font-semibold">Correct nutrition (per 100g)</h2>
+    <StoredPhoto photoUrl={product.photoUrl} productName={product.name} />
+    <ReplacePhotoField onSelect={form.setPhoto} />
+    <Field label="Product name" name="name" value={form.name} onChange={(event) => form.setName(event.target.value)} />
+    <NutritionFields
+      values={form.values}
+      flaggedFields={form.flaggedFields}
+      onFieldChange={form.setFieldValue}
+      onFieldBlur={form.revalidateNow}
+    />
+    <CorrectionFeedback saveError={form.saveError} validateError={form.validateError} />
+    <Button disabled={!form.canSave || form.isSaving} onClick={form.handleSave}>
+      Save correction
+    </Button>
+  </div>
+);
+
+export const CorrectionForm = ({ product }: CorrectionFormProps) => {
+  const router = useRouter();
+  const form = useCorrectionForm(product);
 
   return (
     <>
       <AppHeader variant="back" title="Correct product" onBack={() => router.back()} />
       <main className="flex-1 px-4 py-6">
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xl font-semibold">Correct nutrition (per 100g)</h2>
-          <StoredPhoto photoUrl={product.photoUrl} productName={product.name} />
-          <ReplacePhotoField onSelect={setPhoto} />
-          <Field label="Product name" name="name" value={name} onChange={(event) => setName(event.target.value)} />
-          <NutritionFields
-            values={values}
-            flaggedFields={flaggedFields}
-            onFieldChange={(field, value) => setValues({ ...values, [field]: value })}
-            onFieldBlur={() => revalidate(values)}
-          />
-          <CorrectionFeedback saveError={saveError} validateError={validateError} />
-          <Button disabled={!canSave || isSaving} onClick={handleSave}>
-            Save correction
-          </Button>
-        </div>
+        <CorrectionFormBody product={product} form={form} />
       </main>
     </>
   );
