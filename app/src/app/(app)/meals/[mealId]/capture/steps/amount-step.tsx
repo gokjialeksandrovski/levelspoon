@@ -20,68 +20,137 @@ interface AmountStepProps {
   onSaved: () => void;
 }
 
-export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }: AmountStepProps) => {
+interface AmountStepHeaderProps {
+  productName: string;
+  hasAlternatives: boolean;
+  onChangeMatch: () => void;
+}
+
+const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: AmountStepHeaderProps) => (
+  <div className="flex items-center justify-between">
+    <h2 className="text-lg font-semibold">Using {productName}</h2>
+    {hasAlternatives && (
+      <button type="button" onClick={onChangeMatch} className="text-sm text-text-muted underline">
+        Change?
+      </button>
+    )}
+  </div>
+);
+
+interface AmountFieldProps {
+  grams: string;
+  error: string | null;
+  onGramsChange: (value: string) => void;
+}
+
+const AmountField = ({ grams, error, onGramsChange }: AmountFieldProps) => (
+  <>
+    <Field
+      label="Amount (g)"
+      name="grams"
+      type="number"
+      value={grams}
+      onChange={(event) => onGramsChange(event.target.value)}
+    />
+    {error && <InlineMessage tone="error">{error}</InlineMessage>}
+  </>
+);
+
+// Standalone (not a hook) so useAmountStepForm's own body stays under the
+// line budget - takes the raw setters it needs rather than a hook's
+// internal state, mirroring ingredient-row.tsx's existing callback-
+// injection shape (MutationCallbacks).
+const estimateAmount = async (
+  photo: File,
+  onEstimated: (value: string) => void,
+  setError: (error: string | null) => void,
+  setIsBusy: (isBusy: boolean) => void,
+): Promise<void> => {
+  setIsBusy(true);
+  setError(null);
+  try {
+    const { grams: estimated } = await estimateQuantity(photo);
+    onEstimated(String(estimated));
+  } catch (error) {
+    console.error("Quantity estimation failed", error);
+    setError("Could not estimate the amount - enter it manually.");
+  } finally {
+    setIsBusy(false);
+  }
+};
+
+interface SaveAmountInput {
+  mealId: string;
+  productId: string;
+  grams: string;
+  source: "ai_estimated" | "manual";
+}
+
+const saveAmount = async (
+  input: SaveAmountInput,
+  dispatch: (action: WizardAction) => void,
+  onSaved: () => void,
+  setError: (error: string | null) => void,
+  setIsBusy: (isBusy: boolean) => void,
+): Promise<void> => {
+  setError(null);
+  setIsBusy(true);
+  try {
+    await saveMealIngredient({ mealId: input.mealId, productId: input.productId, quantityG: Number(input.grams), quantitySource: input.source });
+    dispatch({ type: "SAVED" });
+    onSaved();
+  } catch (error) {
+    console.error("Saving the meal ingredient failed", error);
+    setError("Could not save this ingredient. Please try again.");
+  } finally {
+    setIsBusy(false);
+  }
+};
+
+interface UseAmountStepFormResult {
+  grams: string;
+  error: string | null;
+  isBusy: boolean;
+  setGrams: (value: string) => void;
+  handlePhoto: (photo: File) => Promise<void>;
+  handleSave: () => Promise<void>;
+  changeMatch: () => void;
+}
+
+const useAmountStepForm = (
+  mealId: string,
+  product: SelectedProduct,
+  alternatives: SelectedProduct[],
+  dispatch: (action: WizardAction) => void,
+  onSaved: () => void,
+): UseAmountStepFormResult => {
   const [grams, setGrams] = useState("");
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  const handlePhoto = async (photo: File) => {
-    setIsBusy(true);
-    setError(null);
-    try {
-      const { grams: estimated } = await estimateQuantity(photo);
-      setGrams(String(estimated));
-      setSource("ai_estimated");
-    } catch (error) {
-      console.error("Quantity estimation failed", error);
-      setError("Could not estimate the amount - enter it manually.");
-    } finally {
-      setIsBusy(false);
-    }
-  };
+  const setGramsManually = (value: string) => { setGrams(value); setSource("manual"); };
+  const setGramsFromPhoto = (value: string) => { setGrams(value); setSource("ai_estimated"); };
+  const handlePhoto = (photo: File) => estimateAmount(photo, setGramsFromPhoto, setError, setIsBusy);
+  const handleSave = () => saveAmount({ mealId, productId: product.id, grams, source }, dispatch, onSaved, setError, setIsBusy);
+  const changeMatch = () => dispatch({ type: "CHANGE_MATCH", nameGuess: product.name, candidates: [product, ...alternatives] });
 
-  const handleSave = async () => {
-    setError(null);
-    setIsBusy(true);
-    try {
-      await saveMealIngredient({ mealId, productId: product.id, quantityG: Number(grams), quantitySource: source });
-      dispatch({ type: "SAVED" });
-      onSaved();
-    } catch (error) {
-      console.error("Saving the meal ingredient failed", error);
-      setError("Could not save this ingredient. Please try again.");
-    } finally {
-      setIsBusy(false);
-    }
-  };
+  return { grams, error, isBusy, setGrams: setGramsManually, handlePhoto, handleSave, changeMatch };
+};
 
-  const changeMatch = () =>
-    dispatch({ type: "CHANGE_MATCH", nameGuess: product.name, candidates: [product, ...alternatives] });
+export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }: AmountStepProps) => {
+  const form = useAmountStepForm(mealId, product, alternatives, dispatch, onSaved);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Using {product.name}</h2>
-        {alternatives.length > 0 && (
-          <button type="button" onClick={changeMatch} className="text-sm text-text-muted underline">
-            Change?
-          </button>
-        )}
-      </div>
-      <PhotoInput label="Amount photo (optional)" onSelect={handlePhoto} />
-      <Field
-        label="Amount (g)"
-        name="grams"
-        type="number"
-        value={grams}
-        onChange={(event) => {
-          setGrams(event.target.value);
-          setSource("manual");
-        }}
+      <AmountStepHeader
+        productName={product.name}
+        hasAlternatives={alternatives.length > 0}
+        onChangeMatch={form.changeMatch}
       />
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button disabled={isBusy || grams.trim() === ""} onClick={handleSave}>
+      <PhotoInput label="Amount photo (optional)" onSelect={form.handlePhoto} />
+      <AmountField grams={form.grams} error={form.error} onGramsChange={form.setGrams} />
+      <Button disabled={form.isBusy || form.grams.trim() === ""} onClick={form.handleSave}>
         Save ingredient
       </Button>
     </div>
