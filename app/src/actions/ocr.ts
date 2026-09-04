@@ -82,8 +82,9 @@ const netWeightPrefill = (
 
 // Mirrors scaledRead's already-established shape: a small pure-orchestration
 // wrapper the resolved-serving branch below delegates to, kept separate so it
-// can be exercised directly by a unit test.
-export const fromResolvedServing = (
+// can be exercised directly by a unit test. Declared async to satisfy Next.js
+// Server Actions requirement (all exports from "use server" files must be async).
+export const fromResolvedServing = async (
   perServing: NutritionValues,
   servingSizeText: string,
   grams: number,
@@ -94,11 +95,15 @@ export const fromResolvedServing = (
 
 // Kept separate from fromUsLabel purely for the line budget - exported so
 // it can be exercised directly, same as fromResolvedServing above it.
-export const needsServingSizeRead = (
+// Declared async purely because every export from a "use server" file must
+// return a Promise (Next.js requirement, confirmed the hard way: this
+// function's build broke until this was added) - the computation itself
+// has no I/O and is otherwise a plain pure function.
+export const needsServingSizeRead = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
   netWeightText: string | null,
   context: MeasureContext,
-): NutritionRead => ({
+): Promise<NutritionRead> => ({
   kind: "needs-serving-size",
   servingSizeText: read.servingSizeText,
   perServing: read.perServing,
@@ -120,7 +125,7 @@ const fromUsLabel = async (
   const context = await contextFor(productNameGuess);
   const resolution = resolveGrams(read.servingSizeText, context);
   if (resolution.kind === "unresolved") {
-    return needsServingSizeRead(read, netWeightText, context);
+    return await needsServingSizeRead(read, netWeightText, context);
   }
   // This is a brand-new product row, so all three learned columns start
   // NULL - whatever the lookup or seeded density just resolved is this row's

@@ -81,7 +81,10 @@ const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
 const isRelevantScore = (row: CandidateRow): boolean =>
   Number(row.score) >= AMBIGUOUS_SIMILARITY_THRESHOLD;
 
-export const topTwoScores = (rows: CandidateRow[]): { top1: number; top2: number } => ({
+// Async purely because every export from a "use server" file must return a
+// Promise (Next.js requirement, confirmed the hard way: this function's
+// build broke until this was added) - the computation itself has no I/O.
+export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number; top2: number }> => ({
   top1: Number(rows[0].score),
   top2: rows.length > 1 ? Number(rows[1].score) : 0,
 });
@@ -106,7 +109,7 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
     return { kind: "no_match" };
   }
 
-  const { top1, top2 } = topTwoScores(rows);
+  const { top1, top2 } = await topTwoScores(rows);
 
   if (isConfidentMatch(top1, top2)) {
     return {

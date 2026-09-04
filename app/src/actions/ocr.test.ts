@@ -356,9 +356,10 @@ describe("needsServingSizeRead", () => {
   };
   const context: MeasureContext = { productName: "Snickers", densityGMl: null, servingUnit: null, servingGrams: null };
 
-  it("prefills grams from the net weight divided by servings per container", () => {
-    const result = needsServingSizeRead(usRead, "NET WT 12 OZ (340g)", context);
+  it("prefills grams from the net weight divided by servings per container", async () => {
+    const result = await needsServingSizeRead(usRead, "NET WT 12 OZ (340g)", context);
 
+    if (result.kind !== "needs-serving-size") throw new Error("expected needs-serving-size");
     expect(result).toEqual({
       kind: "needs-serving-size",
       servingSizeText: "1 bar",
@@ -367,9 +368,10 @@ describe("needsServingSizeRead", () => {
     });
   });
 
-  it("leaves the prefill null when there is no net weight text", () => {
-    const result = needsServingSizeRead(usRead, null, context);
+  it("leaves the prefill null when there is no net weight text", async () => {
+    const result = await needsServingSizeRead(usRead, null, context);
 
+    if (result.kind !== "needs-serving-size") throw new Error("expected needs-serving-size");
     expect(result.prefillGrams).toBeNull();
   });
 });
