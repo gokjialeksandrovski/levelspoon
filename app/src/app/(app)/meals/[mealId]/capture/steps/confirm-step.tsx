@@ -106,25 +106,31 @@ interface SaveConfirmInput {
   learned: LearnedMeasures;
 }
 
+interface ConfirmSaveCallbacks {
+  setFlags: (flags: string[]) => void;
+  setError: (error: string | null) => void;
+  setIsSaving: (isSaving: boolean) => void;
+}
+
 // Standalone (not a hook) so useConfirmStepForm's own body stays under the
-// line budget - takes the setters it needs rather than closing over the
-// hook's state, mirroring this pass's other DI'd handlers (e.g.
+// line budget - takes a bundled callbacks object rather than closing over
+// the hook's state, mirroring this pass's other DI'd handlers (e.g.
 // ingredient-row.tsx's existing shape, amount-step.tsx's estimateAmount).
-const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, setFlags: (flags: string[]) => void, setError: (error: string | null) => void, setIsSaving: (isSaving: boolean) => void): Promise<void> => {
-  setError(null);
-  setIsSaving(true);
+const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, callbacks: ConfirmSaveCallbacks): Promise<void> => {
+  callbacks.setError(null);
+  callbacks.setIsSaving(true);
   try {
     const freshFlags = await checkNutritionFlags(input.values);
     if (freshFlags.length > 0) {
-      setFlags(freshFlags);
-      setError(SAVE_BLOCKED_ERROR);
+      callbacks.setFlags(freshFlags);
+      callbacks.setError(SAVE_BLOCKED_ERROR);
       return;
     }
     await saveProduct(input.nameValue, input.values, input.photo, input.learned, dispatch);
   } catch {
-    setError("Could not save this product. Please try again.");
+    callbacks.setError("Could not save this product. Please try again.");
   } finally {
-    setIsSaving(false);
+    callbacks.setIsSaving(false);
   }
 };
 
@@ -161,12 +167,17 @@ const useConfirmStepForm = (name: string, parsed: NullableNutritionValues, initi
   const canSave = [...flaggedFields].every((field) => values[field].trim() !== "");
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const revalidateNow = () => revalidate(values);
-  const handleSave = () => saveConfirmedProduct({ nameValue, values, photo, learned }, dispatch, setFlags, setError, setIsSaving);
+  const handleSave = () => saveConfirmedProduct({ nameValue, values, photo, learned }, dispatch, { setFlags, setError, setIsSaving });
 
   return { nameValue, values, error, isSaving, flaggedFields, canSave, setNameValue, setFieldValue, revalidateNow, handleSave };
 };
 
-const ProductNameField = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+interface ProductNameFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const ProductNameField = ({ value, onChange }: ProductNameFieldProps) => (
   <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
 );
 

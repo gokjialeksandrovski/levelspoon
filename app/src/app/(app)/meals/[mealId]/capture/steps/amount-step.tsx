@@ -56,26 +56,26 @@ const AmountField = ({ grams, error, onGramsChange }: AmountFieldProps) => (
   </>
 );
 
+interface AmountStepCallbacks {
+  setError: (error: string | null) => void;
+  setIsBusy: (isBusy: boolean) => void;
+}
+
 // Standalone (not a hook) so useAmountStepForm's own body stays under the
-// line budget - takes the raw setters it needs rather than a hook's
+// line budget - takes a bundled callbacks object rather than a hook's
 // internal state, mirroring ingredient-row.tsx's existing callback-
 // injection shape (MutationCallbacks).
-const estimateAmount = async (
-  photo: File,
-  onEstimated: (value: string) => void,
-  setError: (error: string | null) => void,
-  setIsBusy: (isBusy: boolean) => void,
-): Promise<void> => {
-  setIsBusy(true);
-  setError(null);
+const estimateAmount = async (photo: File, onEstimated: (value: string) => void, callbacks: AmountStepCallbacks): Promise<void> => {
+  callbacks.setIsBusy(true);
+  callbacks.setError(null);
   try {
     const { grams: estimated } = await estimateQuantity(photo);
     onEstimated(String(estimated));
   } catch (error) {
     console.error("Quantity estimation failed", error);
-    setError("Could not estimate the amount - enter it manually.");
+    callbacks.setError("Could not estimate the amount - enter it manually.");
   } finally {
-    setIsBusy(false);
+    callbacks.setIsBusy(false);
   }
 };
 
@@ -86,24 +86,18 @@ interface SaveAmountInput {
   source: "ai_estimated" | "manual";
 }
 
-const saveAmount = async (
-  input: SaveAmountInput,
-  dispatch: (action: WizardAction) => void,
-  onSaved: () => void,
-  setError: (error: string | null) => void,
-  setIsBusy: (isBusy: boolean) => void,
-): Promise<void> => {
-  setError(null);
-  setIsBusy(true);
+const saveAmount = async (input: SaveAmountInput, dispatch: (action: WizardAction) => void, onSaved: () => void, callbacks: AmountStepCallbacks): Promise<void> => {
+  callbacks.setError(null);
+  callbacks.setIsBusy(true);
   try {
     await saveMealIngredient({ mealId: input.mealId, productId: input.productId, quantityG: Number(input.grams), quantitySource: input.source });
     dispatch({ type: "SAVED" });
     onSaved();
   } catch (error) {
     console.error("Saving the meal ingredient failed", error);
-    setError("Could not save this ingredient. Please try again.");
+    callbacks.setError("Could not save this ingredient. Please try again.");
   } finally {
-    setIsBusy(false);
+    callbacks.setIsBusy(false);
   }
 };
 
@@ -129,10 +123,11 @@ const useAmountStepForm = (
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
+  const callbacks: AmountStepCallbacks = { setError, setIsBusy };
   const setGramsManually = (value: string) => { setGrams(value); setSource("manual"); };
   const setGramsFromPhoto = (value: string) => { setGrams(value); setSource("ai_estimated"); };
-  const handlePhoto = (photo: File) => estimateAmount(photo, setGramsFromPhoto, setError, setIsBusy);
-  const handleSave = () => saveAmount({ mealId, productId: product.id, grams, source }, dispatch, onSaved, setError, setIsBusy);
+  const handlePhoto = (photo: File) => estimateAmount(photo, setGramsFromPhoto, callbacks);
+  const handleSave = () => saveAmount({ mealId, productId: product.id, grams, source }, dispatch, onSaved, callbacks);
   const changeMatch = () => dispatch({ type: "CHANGE_MATCH", nameGuess: product.name, candidates: [product, ...alternatives] });
 
   return { grams, error, isBusy, setGrams: setGramsManually, handlePhoto, handleSave, changeMatch };

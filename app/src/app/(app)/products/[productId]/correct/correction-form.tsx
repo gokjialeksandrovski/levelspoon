@@ -127,21 +127,27 @@ const applyCorrection = async (
   router.back();
 };
 
-const saveCorrection = async (product: ProductForCorrection, name: string, values: FieldValues, photo: Blob | null, router: ReturnType<typeof useRouter>, setIsSaving: (isSaving: boolean) => void, setSaveError: (error: string | null) => void, setFlags: (flags: string[]) => void): Promise<void> => {
-  setIsSaving(true);
-  setSaveError(null);
+interface CorrectionSaveCallbacks {
+  setIsSaving: (isSaving: boolean) => void;
+  setSaveError: (error: string | null) => void;
+  setFlags: (flags: string[]) => void;
+}
+
+const saveCorrection = async (product: ProductForCorrection, name: string, values: FieldValues, photo: Blob | null, router: ReturnType<typeof useRouter>, callbacks: CorrectionSaveCallbacks): Promise<void> => {
+  callbacks.setIsSaving(true);
+  callbacks.setSaveError(null);
   try {
     const freshFlags = await checkNutritionFlags(values);
     if (freshFlags.length > 0) {
-      setFlags(freshFlags);
-      setSaveError("Please fix the flagged values before saving.");
+      callbacks.setFlags(freshFlags);
+      callbacks.setSaveError("Please fix the flagged values before saving.");
       return;
     }
     await applyCorrection(product, name, values, photo, router);
   } catch {
-    setSaveError("Could not save this correction. Please try again.");
+    callbacks.setSaveError("Could not save this correction. Please try again.");
   } finally {
-    setIsSaving(false);
+    callbacks.setIsSaving(false);
   }
 };
 
@@ -181,7 +187,7 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   const canSave = flaggedFields.size === 0 || validateError;
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const revalidateNow = () => revalidate(values);
-  const handleSave = () => saveCorrection(product, name, values, photo, router, setIsSaving, setSaveError, setFlags);
+  const handleSave = () => saveCorrection(product, name, values, photo, router, { setIsSaving, setSaveError, setFlags });
 
   return { name, photo, values, validateError, saveError, isSaving, flaggedFields, canSave, setName, setPhoto, setFieldValue, revalidateNow, handleSave };
 };

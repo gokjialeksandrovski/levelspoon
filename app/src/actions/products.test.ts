@@ -333,10 +333,14 @@ describe("topTwoScores", () => {
   });
 
   it("returns both scores when at least two rows are present", async () => {
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
     expect(await topTwoScores([row(0.9), row(0.6)])).toEqual({ top1: 0.9, top2: 0.6 });
   });
 
   it("defaults the second score to 0 when only one row is present", async () => {
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
     expect(await topTwoScores([row(0.9)])).toEqual({ top1: 0.9, top2: 0 });
   });
 });

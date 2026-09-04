@@ -81,13 +81,14 @@ const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
 const isRelevantScore = (row: CandidateRow): boolean =>
   Number(row.score) >= AMBIGUOUS_SIMILARITY_THRESHOLD;
 
-// Async purely because every export from a "use server" file must return a
-// Promise (Next.js requirement, confirmed the hard way: this function's
-// build broke until this was added) - the computation itself has no I/O.
-export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number; top2: number }> => ({
-  top1: Number(rows[0].score),
-  top2: rows.length > 1 ? Number(rows[1].score) : 0,
-});
+// Every export from a "use server" file is independently reachable as its
+// own Server Action from the client regardless of which other function
+// calls it internally, so this checks auth itself rather than trusting
+// matchProduct's caller to have done it.
+export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number; top2: number }> => {
+  await requireUserId();
+  return { top1: Number(rows[0].score), top2: rows.length > 1 ? Number(rows[1].score) : 0 };
+};
 
 const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`

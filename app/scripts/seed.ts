@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { pathToFileURL } from "node:url";
 
 import { db } from "../src/lib/db";
 import { products, users } from "../src/lib/db/schema";
@@ -58,9 +59,18 @@ const main = async () => {
   console.log("Seeded 1 user and 2 products (including the 2%/10% variant pair).");
 };
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => process.exit());
+// scripts/seed.test.ts imports seedProducts for testing, which executes this
+// module's top level - without this guard, that import alone would also run
+// main() (a real DB write) and this file's own process.exit(), which kills
+// the Vitest worker mid-suite. Only run main() when this file is the actual
+// entry point (`npm run db:seed`), not when it's merely imported.
+const isDirectRun = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  main()
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(() => process.exit());
+}

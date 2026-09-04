@@ -82,33 +82,37 @@ const netWeightPrefill = (
 
 // Mirrors scaledRead's already-established shape: a small pure-orchestration
 // wrapper the resolved-serving branch below delegates to, kept separate so it
-// can be exercised directly by a unit test. Declared async to satisfy Next.js
-// Server Actions requirement (all exports from "use server" files must be async).
+// can be exercised directly by a unit test. Every export from a "use server"
+// file is independently reachable as its own Server Action from the client
+// regardless of which other function calls it internally, so this checks
+// auth itself rather than trusting fromUsLabel's caller to have done it.
 export const fromResolvedServing = async (
   perServing: NutritionValues,
   servingSizeText: string,
   grams: number,
 ): Promise<NutritionRead> => {
+  await requireUserId();
   const learned = learnFromServing(servingSizeText, grams);
   return scaledRead(perServing, grams, learned);
 };
 
 // Kept separate from fromUsLabel purely for the line budget - exported so
-// it can be exercised directly, same as fromResolvedServing above it.
-// Declared async purely because every export from a "use server" file must
-// return a Promise (Next.js requirement, confirmed the hard way: this
-// function's build broke until this was added) - the computation itself
-// has no I/O and is otherwise a plain pure function.
+// it can be exercised directly, same as fromResolvedServing above it. Same
+// auth rationale as fromResolvedServing: independently reachable from the
+// client once exported from a "use server" file.
 export const needsServingSizeRead = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
   netWeightText: string | null,
   context: MeasureContext,
-): Promise<NutritionRead> => ({
-  kind: "needs-serving-size",
-  servingSizeText: read.servingSizeText,
-  perServing: read.perServing,
-  prefillGrams: netWeightPrefill(netWeightText, read.servingsPerContainer, context),
-});
+): Promise<NutritionRead> => {
+  await requireUserId();
+  return {
+    kind: "needs-serving-size",
+    servingSizeText: read.servingSizeText,
+    perServing: read.perServing,
+    prefillGrams: netWeightPrefill(netWeightText, read.servingsPerContainer, context),
+  };
+};
 
 const fromUsLabel = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
