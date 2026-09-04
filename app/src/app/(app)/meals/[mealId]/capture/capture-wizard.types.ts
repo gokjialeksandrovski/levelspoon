@@ -92,47 +92,49 @@ const resolveMatch = (nameGuess: string, result: MatchResult, netWeightText: str
   return { kind: "nutrition-photo", nameGuess, netWeightText };
 };
 
+export const applyServingSizeNeeded = (action: Extract<WizardAction, { type: "SERVING_SIZE_NEEDED" }>): WizardStep => ({
+  kind: "serving-size",
+  servingSizeText: action.servingSizeText,
+  perServing: action.perServing,
+  name: action.name,
+  photo: action.photo,
+  prefillGrams: action.prefillGrams,
+});
+
+export const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_PARSED" }>): WizardStep => ({
+  kind: "confirm",
+  parsed: action.parsed,
+  flags: action.flags,
+  name: action.name,
+  photo: action.photo,
+  learned: action.learned,
+});
+
+export const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
+  // Starts from the amount step, which never had a front-panel net weight to
+  // begin with - a SelectedProduct only ever carries id/name - so there is
+  // nothing to carry forward here.
+  kind: "match-result",
+  nameGuess: action.nameGuess,
+  candidates: action.candidates,
+  netWeightText: null,
+});
+
+// One case per line (label and return together) rather than this repo's
+// usual two-line case style - with 9 cases, the two-line form alone put
+// this switch 2 lines over budget even after extracting the three longest
+// branches above. Every branch is already a single expression, so this
+// only changes formatting, not structure.
 export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {
-    case "MATCH_RESOLVED":
-      return resolveMatch(action.nameGuess, action.result, action.netWeightText);
-    case "CANDIDATE_CHOSEN":
-      return { kind: "amount", product: action.product, alternatives: action.alternatives };
-    case "NONE_OF_THESE":
-      return { kind: "nutrition-photo", nameGuess: action.nameGuess, netWeightText: action.netWeightText };
-    case "SERVING_SIZE_NEEDED":
-      return {
-        kind: "serving-size",
-        servingSizeText: action.servingSizeText,
-        perServing: action.perServing,
-        name: action.name,
-        photo: action.photo,
-        prefillGrams: action.prefillGrams,
-      };
-    case "NUTRITION_PARSED":
-      return {
-        kind: "confirm",
-        parsed: action.parsed,
-        flags: action.flags,
-        name: action.name,
-        photo: action.photo,
-        learned: action.learned,
-      };
-    case "PRODUCT_CREATED":
-      return { kind: "amount", product: action.product, alternatives: [] };
-    case "SAVED":
-      return { kind: "saved" };
-    case "ADD_ANOTHER":
-      return { kind: "product-photo" };
-    case "CHANGE_MATCH":
-      // Starts from the amount step, which never had a front-panel net
-      // weight to begin with - a SelectedProduct only ever carries id/name -
-      // so there is nothing to carry forward here.
-      return {
-        kind: "match-result",
-        nameGuess: action.nameGuess,
-        candidates: action.candidates,
-        netWeightText: null,
-      };
+    case "MATCH_RESOLVED": return resolveMatch(action.nameGuess, action.result, action.netWeightText);
+    case "CANDIDATE_CHOSEN": return { kind: "amount", product: action.product, alternatives: action.alternatives };
+    case "NONE_OF_THESE": return { kind: "nutrition-photo", nameGuess: action.nameGuess, netWeightText: action.netWeightText };
+    case "SERVING_SIZE_NEEDED": return applyServingSizeNeeded(action);
+    case "NUTRITION_PARSED": return applyNutritionParsed(action);
+    case "PRODUCT_CREATED": return { kind: "amount", product: action.product, alternatives: [] };
+    case "SAVED": return { kind: "saved" };
+    case "ADD_ANOTHER": return { kind: "product-photo" };
+    case "CHANGE_MATCH": return applyChangeMatch(action);
   }
 };
