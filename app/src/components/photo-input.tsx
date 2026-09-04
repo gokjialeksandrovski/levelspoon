@@ -11,17 +11,37 @@ interface PhotoInputProps {
 
 const PREVIEW_SIZE_PX = 300;
 
+const PhotoPreview = ({ previewUrl }: { previewUrl: string }) => (
+  <div className="overflow-hidden rounded-(--radius-surface) border border-border">
+    <Image
+      src={previewUrl}
+      alt="Selected preview"
+      width={PREVIEW_SIZE_PX}
+      height={PREVIEW_SIZE_PX}
+      unoptimized
+      className="max-h-48 w-full object-contain"
+    />
+  </div>
+);
+
+// Standalone handler, not a hook, since previewUrl is the component's only
+// piece of state - mirrors the same shape used elsewhere in this pass for
+// single-flag handlers.
+const handlePhotoChange = (
+  event: ChangeEvent<HTMLInputElement>,
+  onSelect: (photo: File) => void,
+  setPreviewUrl: (url: string) => void,
+): void => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  setPreviewUrl(URL.createObjectURL(file));
+  onSelect(file);
+};
+
 export const PhotoInput = ({ label, onSelect }: PhotoInputProps) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    setPreviewUrl(URL.createObjectURL(file));
-    onSelect(file);
-  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -32,22 +52,11 @@ export const PhotoInput = ({ label, onSelect }: PhotoInputProps) => {
           type="file"
           accept="image/*"
           capture="environment"
-          onChange={handleChange}
+          onChange={(event) => handlePhotoChange(event, onSelect, setPreviewUrl)}
           className="absolute inset-0 cursor-pointer opacity-0"
         />
       </label>
-      {previewUrl && (
-        <div className="overflow-hidden rounded-(--radius-surface) border border-border">
-          <Image
-            src={previewUrl}
-            alt="Selected preview"
-            width={PREVIEW_SIZE_PX}
-            height={PREVIEW_SIZE_PX}
-            unoptimized
-            className="max-h-48 w-full object-contain"
-          />
-        </div>
-      )}
+      {previewUrl && <PhotoPreview previewUrl={previewUrl} />}
     </div>
   );
 };
