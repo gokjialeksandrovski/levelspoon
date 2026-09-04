@@ -99,7 +99,49 @@ const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: 
   </>
 );
 
-export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned, dispatch }: ConfirmStepProps) => {
+interface SaveConfirmInput {
+  nameValue: string;
+  values: FieldValues;
+  photo: Blob;
+  learned: LearnedMeasures;
+}
+
+// Standalone (not a hook) so useConfirmStepForm's own body stays under the
+// line budget - takes the setters it needs rather than closing over the
+// hook's state, mirroring this pass's other DI'd handlers (e.g.
+// ingredient-row.tsx's existing shape, amount-step.tsx's estimateAmount).
+const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, setFlags: (flags: string[]) => void, setError: (error: string | null) => void, setIsSaving: (isSaving: boolean) => void): Promise<void> => {
+  setError(null);
+  setIsSaving(true);
+  try {
+    const freshFlags = await checkNutritionFlags(input.values);
+    if (freshFlags.length > 0) {
+      setFlags(freshFlags);
+      setError(SAVE_BLOCKED_ERROR);
+      return;
+    }
+    await saveProduct(input.nameValue, input.values, input.photo, input.learned, dispatch);
+  } catch {
+    setError("Could not save this product. Please try again.");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+interface UseConfirmStepFormResult {
+  nameValue: string;
+  values: FieldValues;
+  error: string | null;
+  isSaving: boolean;
+  flaggedFields: Set<keyof FieldValues>;
+  canSave: boolean;
+  setNameValue: (value: string) => void;
+  setFieldValue: (field: keyof FieldValues, value: string) => void;
+  revalidateNow: () => void;
+  handleSave: () => Promise<void>;
+}
+
+const useConfirmStepForm = (name: string, parsed: NullableNutritionValues, initialFlags: string[], photo: Blob, learned: LearnedMeasures, dispatch: (action: WizardAction) => void): UseConfirmStepFormResult => {
   const [nameValue, setNameValue] = useState(name);
   const [values, setValues] = useState(() => toFieldValues(parsed));
   const [flags, setFlags] = useState(initialFlags);
@@ -119,42 +161,30 @@ export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned,
   const canSave = [...flaggedFields].every((field) => values[field].trim() !== "");
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const revalidateNow = () => revalidate(values);
+  const handleSave = () => saveConfirmedProduct({ nameValue, values, photo, learned }, dispatch, setFlags, setError, setIsSaving);
 
-  const handleSave = async () => {
-    setError(null);
-    setIsSaving(true);
-    try {
-      const freshFlags = await checkNutritionFlags(values);
-      if (freshFlags.length > 0) {
-        setFlags(freshFlags);
-        setError(SAVE_BLOCKED_ERROR);
-        return;
-      }
-      await saveProduct(nameValue, values, photo, learned, dispatch);
-    } catch {
-      setError("Could not save this product. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  return { nameValue, values, error, isSaving, flaggedFields, canSave, setNameValue, setFieldValue, revalidateNow, handleSave };
+};
+
+const ProductNameField = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+  <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
+);
+
+export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned, dispatch }: ConfirmStepProps) => {
+  const form = useConfirmStepForm(name, parsed, initialFlags, photo, learned, dispatch);
 
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Confirm nutrition (per 100g)</h2>
-      <Field
-        label="Product name"
-        name="name"
-        value={nameValue}
-        onChange={(event) => setNameValue(event.target.value)}
-      />
+      <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields
-        values={values}
-        flaggedFields={flaggedFields}
-        onFieldChange={setFieldValue}
-        onFieldBlur={revalidateNow}
+        values={form.values}
+        flaggedFields={form.flaggedFields}
+        onFieldChange={form.setFieldValue}
+        onFieldBlur={form.revalidateNow}
       />
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button disabled={!canSave || isSaving} onClick={handleSave}>
+      {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+      <Button disabled={!form.canSave || form.isSaving} onClick={form.handleSave}>
         Save product
       </Button>
     </div>
