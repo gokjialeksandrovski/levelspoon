@@ -80,7 +80,7 @@ const EmptyIngredients = () => <p className="mt-4 text-sm text-text-muted">No in
 const MealNotFound = () => (
   <div className="flex flex-col gap-3">
     <p className="text-sm text-text-muted">Meal not found.</p>
-    <Link href="/" className="text-sm text-accent underline">
+    <Link href="/" className="text-sm text-text underline">
       Back home
     </Link>
   </div>

@@ -1,20 +1,24 @@
+/* app/src/app/globals.css */
 @import "tailwindcss";
 
-/* Layer 1: raw values, one per mode. Dark is the default (no media condition);
-   light overrides under prefers-color-scheme. This is Tailwind v4's own
-   documented pattern for a theme color that must vary at runtime (their docs
-   show the identical shape for a [data-theme="dark"] selector; ours uses a
-   media query instead - same mechanism). */
+/* Layer 1: raw values, one per mode. Dark is the default (no media
+   condition) - preserves current behavior; a full-bleed light screen must
+   never be sprung on someone with no stated preference (spec §2.1). */
 :root {
-  --raw-bg: #12110d;
-  --raw-surface: #17150f;
-  --raw-surface-raised: #1d1a14;
-  --raw-border: #2b2823;
+  --raw-bg: #1a1816;
+  --raw-surface: #201d1a;
+  --raw-surface-raised: #262320;
+  --raw-border: #34302b;
   --raw-text: #efeae0;
-  --raw-text-muted: #8a8378;
-  --raw-accent: #c6dc53;
-  --raw-accent-emphasis: #c6dc53;
-  --raw-accent-ink: #1a1a12;
+  --raw-text-muted: #9c9488;
+
+  /* Macro accents - dark theme. Base hexes all already clear 4.5:1 against
+     --raw-bg except plum, which is lightened (spec §3.1, §3.2). */
+  --raw-accent-protein: #e05a47; /* paprika */
+  --raw-accent-carbs: #e5983b; /* amber */
+  --raw-accent-fat: #b16c84; /* plum, lightened for dark-mode text (base #8B4A62 fails 3:1 here) */
+  --raw-accent-success: #6e9b66; /* matcha - log-success state only, never a data color */
+
   --raw-danger: #e5675c;
   --raw-flag: #e0913a;
 
@@ -23,25 +27,30 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --raw-bg: #faf8f3;
+    --raw-bg: #fdfbf7;
     --raw-surface: #ffffff;
-    --raw-surface-raised: #f2efe7;
-    --raw-border: #e4ded1;
+    --raw-surface-raised: #f5f2ea;
+    --raw-border: #e8e2d4;
     --raw-text: #23201a;
     --raw-text-muted: #6b6459;
-    --raw-accent: #5c7312;
-    --raw-accent-emphasis: #46570e;
-    --raw-accent-ink: #ffffff;
+
+    /* Macro accents - light theme. Paprika, amber, matcha darkened to clear
+       4.5:1 against cream; plum unchanged (already 6.24:1, spec §3.1, §3.2). */
+    --raw-accent-protein: #cb4735;
+    --raw-accent-carbs: #ab6200;
+    --raw-accent-fat: #8b4a62;
+    --raw-accent-success: #537f4c;
+
     --raw-danger: #b93b30;
     --raw-flag: #a1631c;
   }
 }
 
 /* Layer 2: map semantic Tailwind theme tokens to the raw variables above.
-   `inline` makes generated utilities (bg-bg, text-text, etc.) reference the
-   raw variable directly rather than baking in a snapshot value at build time -
-   required because these theme vars are themselves var() references. This is
-   the exact pattern Tailwind's own docs use for a runtime-varying theme color. */
+   `inline` makes generated utilities reference the raw variable directly
+   rather than baking in a build-time snapshot - required because these
+   theme vars are themselves var() references (Tailwind v4's documented
+   pattern for a runtime-varying theme). */
 @theme inline {
   --color-bg: var(--raw-bg);
   --color-surface: var(--raw-surface);
@@ -49,19 +58,32 @@
   --color-border: var(--raw-border);
   --color-text: var(--raw-text);
   --color-text-muted: var(--raw-text-muted);
-  --color-accent: var(--raw-accent);
-  --color-accent-emphasis: var(--raw-accent-emphasis);
-  --color-accent-ink: var(--raw-accent-ink);
+
+  --color-accent-protein: var(--raw-accent-protein);
+  --color-accent-carbs: var(--raw-accent-carbs);
+  --color-accent-fat: var(--raw-accent-fat);
+  --color-accent-success: var(--raw-accent-success);
+
   --color-danger: var(--raw-danger);
   --color-flag: var(--raw-flag);
 
-  --radius-control: 10px;
-  --radius-surface: 14px;
+  /* Generously rounded rectangles, not circular-arc "squircles" - see spec
+     §2.4 for why that word is deliberately not used here. */
+  --radius-control: 16px;
+  --radius-surface: 24px;
 
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-karla), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-karla), ui-sans-serif, system-ui, sans-serif;
 
   --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-step: 260ms;
+
+  /* Press-feedback spring (spec §2.5) - named here so Button and any future
+     primary-surface consumer share one source of truth instead of restating
+     the physics constants. */
+  --spring-press-stiffness: 400;
+  --spring-press-damping: 28;
+  --scale-press: 0.97;
 }
 
 html {
