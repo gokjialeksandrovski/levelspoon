@@ -14,7 +14,7 @@ interface FieldProps {
 }
 
 export const fieldInputClassName = (flagged: boolean, error: string | undefined): string =>
-  `rounded-(--radius-control) border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+  `rounded-(--radius-control) border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text ${
     flagged || error ? "border-flag" : "border-border"
   }`;
 
