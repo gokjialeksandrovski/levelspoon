@@ -45,7 +45,7 @@ export const PhotoInput = ({ label, onSelect }: PhotoInputProps) => {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="relative flex min-h-36 flex-col items-center justify-center gap-2 rounded-(--radius-surface) border-2 border-dashed border-border bg-surface px-4 py-6 text-center transition-colors active:bg-surface-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+      <label className="relative flex min-h-36 flex-col items-center justify-center gap-2 rounded-(--radius-surface) border-2 border-dashed border-border bg-surface px-4 py-6 text-center transition-colors active:bg-surface-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
         <Camera size={32} weight="light" className="text-text-muted" aria-hidden="true" />
         <span className="text-sm font-medium text-text">{label}</span>
         <input
