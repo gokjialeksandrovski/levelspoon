@@ -3,7 +3,7 @@ type Tone = "error" | "warning" | "success";
 const TONE_CLASS: Record<Tone, string> = {
   error: "text-danger",
   warning: "text-flag",
-  success: "text-accent",
+  success: "text-text",
 };
 
 export const InlineMessage = ({ tone, children }: { tone: Tone; children: React.ReactNode }) => (
