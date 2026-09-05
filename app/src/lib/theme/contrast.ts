@@ -18,13 +18,19 @@ const CONTRAST_OFFSET = 0.05;
 // Hex color parsing constants
 const HEX_RADIX = 16;
 const HEX_CHANNEL_MAX = 255;
+const HEX_CHANNEL_R_START = 0;
+const HEX_CHANNEL_R_END = 2;
+const HEX_CHANNEL_G_START = 2;
+const HEX_CHANNEL_G_END = 4;
+const HEX_CHANNEL_B_START = 4;
+const HEX_CHANNEL_B_END = 6;
 
 const hexToRgb = (hex: string): [number, number, number] => {
   const clean = hex.replace("#", "");
   return [
-    Number.parseInt(clean.slice(0, 2), HEX_RADIX),
-    Number.parseInt(clean.slice(2, 4), HEX_RADIX),
-    Number.parseInt(clean.slice(4, 6), HEX_RADIX),
+    Number.parseInt(clean.slice(HEX_CHANNEL_R_START, HEX_CHANNEL_R_END), HEX_RADIX),
+    Number.parseInt(clean.slice(HEX_CHANNEL_G_START, HEX_CHANNEL_G_END), HEX_RADIX),
+    Number.parseInt(clean.slice(HEX_CHANNEL_B_START, HEX_CHANNEL_B_END), HEX_RADIX),
   ];
 };
 
