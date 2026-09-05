@@ -50,12 +50,18 @@ const useDayLog = (date: string): DayViewState => {
   return state;
 };
 
-// Mirrors the ready-state shape (stat block + three meal rows) so the
-// loading -> ready swap doesn't jump around.
+// Mirrors the ready-state shape (kcal stat + proportional macro line and
+// segmented rule + three meal rows) so the loading -> ready swap doesn't
+// jump around.
 const DayViewSkeleton = () => (
   <div className="flex flex-col gap-2">
     <Skeleton className="h-11 w-32" />
-    <Skeleton className="h-4 w-48" />
+    <div className="mt-4 flex items-baseline gap-4">
+      <Skeleton className="h-7 w-16" />
+      <Skeleton className="h-6 w-20" />
+      <Skeleton className="h-6 w-16" />
+    </div>
+    <Skeleton className="mt-2 h-1 w-full rounded-full" />
     <div className="mt-6 flex flex-col gap-4">
       <Skeleton className="h-12 w-full" />
       <Skeleton className="h-12 w-full" />
