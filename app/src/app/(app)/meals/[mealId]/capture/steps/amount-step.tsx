@@ -8,7 +8,9 @@ import { estimateQuantity } from "@/actions/quantity";
 import { Button } from "@/components/button";
 import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
+import { LogSuccessPulse } from "@/components/log-success-pulse";
 import { PhotoInput } from "@/components/photo-input";
+import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -59,6 +61,8 @@ const AmountField = ({ grams, error, onGramsChange }: AmountFieldProps) => (
 interface AmountStepCallbacks {
   setError: (error: string | null) => void;
   setIsBusy: (isBusy: boolean) => void;
+  // New: bumps the pulse trigger counter on a successful save.
+  onLogSuccess: () => void;
 }
 
 // Standalone (not a hook) so useAmountStepForm's own body stays under the
@@ -86,11 +90,15 @@ interface SaveAmountInput {
   source: "ai_estimated" | "manual";
 }
 
-const saveAmount = async (input: SaveAmountInput, dispatch: (action: WizardAction) => void, onSaved: () => void, callbacks: AmountStepCallbacks): Promise<void> => {
+// Exported (was previously module-private) so amount-step.test.ts can call
+// it directly, same posture as this file's existing estimateAmount.
+export const saveAmount = async (input: SaveAmountInput, dispatch: (action: WizardAction) => void, onSaved: () => void, callbacks: AmountStepCallbacks): Promise<void> => {
   callbacks.setError(null);
   callbacks.setIsBusy(true);
   try {
     await saveMealIngredient({ mealId: input.mealId, productId: input.productId, quantityG: Number(input.grams), quantitySource: input.source });
+    triggerLogSuccessHaptic();
+    callbacks.onLogSuccess();
     dispatch({ type: "SAVED" });
     onSaved();
   } catch (error) {
@@ -105,11 +113,24 @@ interface UseAmountStepFormResult {
   grams: string;
   error: string | null;
   isBusy: boolean;
+  pulseTrigger: number;
   setGrams: (value: string) => void;
   handlePhoto: (photo: File) => Promise<void>;
   handleSave: () => Promise<void>;
   changeMatch: () => void;
 }
+
+// Extracted so useAmountStepForm's own body stays under the line budget
+// (mirrors estimateAmount/saveAmount's own standalone-function posture above).
+const buildAmountStepCallbacks = (
+  setError: (error: string | null) => void,
+  setIsBusy: (isBusy: boolean) => void,
+  setPulseTrigger: (updater: (value: number) => number) => void,
+): AmountStepCallbacks => ({
+  setError,
+  setIsBusy,
+  onLogSuccess: () => setPulseTrigger((value) => value + 1),
+});
 
 const useAmountStepForm = (
   mealId: string,
@@ -122,15 +143,16 @@ const useAmountStepForm = (
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [pulseTrigger, setPulseTrigger] = useState(0);
 
-  const callbacks: AmountStepCallbacks = { setError, setIsBusy };
+  const callbacks = buildAmountStepCallbacks(setError, setIsBusy, setPulseTrigger);
   const setGramsManually = (value: string) => { setGrams(value); setSource("manual"); };
   const setGramsFromPhoto = (value: string) => { setGrams(value); setSource("ai_estimated"); };
   const handlePhoto = (photo: File) => estimateAmount(photo, setGramsFromPhoto, callbacks);
   const handleSave = () => saveAmount({ mealId, productId: product.id, grams, source }, dispatch, onSaved, callbacks);
   const changeMatch = () => dispatch({ type: "CHANGE_MATCH", nameGuess: product.name, candidates: [product, ...alternatives] });
 
-  return { grams, error, isBusy, setGrams: setGramsManually, handlePhoto, handleSave, changeMatch };
+  return { grams, error, isBusy, pulseTrigger, setGrams: setGramsManually, handlePhoto, handleSave, changeMatch };
 };
 
 export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }: AmountStepProps) => {
@@ -138,6 +160,7 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
 
   return (
     <div className="flex flex-col gap-4">
+      <LogSuccessPulse trigger={form.pulseTrigger} />
       <AmountStepHeader
         productName={product.name}
         hasAlternatives={alternatives.length > 0}
