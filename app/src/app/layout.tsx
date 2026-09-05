@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Bricolage_Grotesque, Karla } from "next/font/google";
 
 import "./globals.css";
 
 import { Providers } from "./providers";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-bricolage",
+});
+
+const karla = Karla({
+  subsets: ["latin"],
+  variable: "--font-karla",
+});
 
 export const metadata: Metadata = {
   title: "Per100",
@@ -21,7 +29,7 @@ export const viewport: Viewport = {
 };
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
-  <html lang="en" className={geist.variable}>
+  <html lang="en" className={`${bricolage.variable} ${karla.variable}`}>
     <body className="min-h-[100dvh] bg-bg font-sans text-text antialiased">
       <Providers>{children}</Providers>
     </body>
