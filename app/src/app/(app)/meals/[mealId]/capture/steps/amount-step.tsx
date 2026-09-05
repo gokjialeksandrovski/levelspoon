@@ -160,7 +160,7 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
 
   return (
     <div className="flex flex-col gap-4">
-      <LogSuccessPulse trigger={form.pulseTrigger} />
+      {form.pulseTrigger > 0 && <LogSuccessPulse trigger={form.pulseTrigger} />}
       <AmountStepHeader
         productName={product.name}
         hasAlternatives={alternatives.length > 0}
