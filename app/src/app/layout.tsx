@@ -22,9 +22,12 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
+  // These hexes must be kept in sync with --raw-bg in globals.css by hand -
+  // a <meta> viewport value can't reference a CSS custom property, which is
+  // exactly how this pair drifted stale after the last re-theme.
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#12110d" },
-    { media: "(prefers-color-scheme: light)", color: "#faf8f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1816" },
+    { media: "(prefers-color-scheme: light)", color: "#fdfbf7" },
   ],
 };
 
