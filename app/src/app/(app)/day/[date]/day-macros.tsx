@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import type { NutritionValues } from "@/actions/products";
 
-import { macroCalorieShares, type MacroCalorieShares } from "./day-macros.utils";
+import { macroGramShares, type MacroShares } from "./day-macros.utils";
 
 const round = (value: number): number => Math.round(value);
 
@@ -13,7 +13,9 @@ const round = (value: number): number => Math.round(value);
 // share range gives visibly distinct sizes without needing more steps than
 // three figures ever justify (spec §4.2's "hierarchy from type, not
 // containers"). The lowest step is the legibility floor (spec §10) - even a
-// near-zero share stays readable, never shrinking below text-lg.
+// near-zero share stays readable, never shrinking below text-lg. Share is
+// gram-based (see day-macros.utils.ts), matching the number printed right
+// next to it.
 const SIZE_STEPS = ["text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"] as const;
 const SIZE_STEP_COUNT = SIZE_STEPS.length;
 
@@ -54,7 +56,7 @@ const segmentWidth = (share: number): string => `${share * PERCENT_SCALE}%`;
 // rule needs a minimum segment width, or whether a sub-threshold macro's
 // segment drops out entirely") - resolve it here only if real data makes a
 // sliver actually look broken, not preemptively.
-const SegmentedRule = ({ shares }: { shares: MacroCalorieShares }) => (
+const SegmentedRule = ({ shares }: { shares: MacroShares }) => (
   <div className="mt-2 flex h-1 w-full overflow-hidden rounded-full" role="presentation">
     <div className="bg-accent-protein" style={{ width: segmentWidth(shares.protein) }} />
     <div className="bg-accent-carbs" style={{ width: segmentWidth(shares.carbs) }} />
@@ -70,7 +72,7 @@ const ExpandedLine = ({ total }: { total: NutritionValues }) => (
 
 interface MacroFiguresProps {
   total: NutritionValues;
-  shares: MacroCalorieShares;
+  shares: MacroShares;
   expanded: boolean;
   onToggle: () => void;
 }
@@ -91,7 +93,7 @@ const MacroFigures = ({ total, shares, expanded, onToggle }: MacroFiguresProps) 
 // placeholder (spec §4.2's empty state).
 export const DayMacros = ({ total }: { total: NutritionValues }) => {
   const [expanded, setExpanded] = useState(false);
-  const shares = macroCalorieShares(total);
+  const shares = macroGramShares(total);
   const hasAnyMacros = shares.protein + shares.carbs + shares.fat > 0;
 
   if (!hasAnyMacros) {

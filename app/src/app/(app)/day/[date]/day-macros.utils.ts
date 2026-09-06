@@ -1,12 +1,4 @@
-// Atwater factors (kcal per gram) - mirrors
-// ocr-service/src/per100_ocr/nutrition/validate.py's KCAL_PER_G_* constants.
-// Duplicated rather than shared across the Python/TypeScript boundary,
-// which has no shared-code mechanism in this repo.
-const KCAL_PER_G_PROTEIN = 4;
-const KCAL_PER_G_CARBOHYDRATE = 4;
-const KCAL_PER_G_FAT = 9;
-
-export interface MacroCalorieShares {
+export interface MacroShares {
   protein: number;
   carbs: number;
   fat: number;
@@ -18,23 +10,23 @@ interface MacroGrams {
   fatG: number;
 }
 
-// Shares are computed from the macros' own calorie contribution, not from
-// the day's displayed energyKcal total (which is label-sourced and won't
-// exactly equal 4P+4C+9F) - this is what makes the shares sum to exactly 1,
-// so the segmented rule always spans the full width with no gap (spec §4.2).
-export const macroCalorieShares = (total: MacroGrams): MacroCalorieShares => {
-  const proteinKcal = total.proteinG * KCAL_PER_G_PROTEIN;
-  const carbsKcal = total.carbohydrateG * KCAL_PER_G_CARBOHYDRATE;
-  const fatKcal = total.fatG * KCAL_PER_G_FAT;
-  const totalKcal = proteinKcal + carbsKcal + fatKcal;
+// Shares are computed from gram weight, matching the numbers printed right
+// next to each figure (P/C/F show grams, not calories) - sizing by calorie
+// contribution instead made fat's segment the largest on screens where fat
+// had the *fewest* grams of the three, which reads as a bug rather than a
+// deliberate calorie-weighting the UI never explains (found via /critique
+// on a live screenshot, 2026-09-06). Gram shares still sum to exactly 1, so
+// the segmented rule keeps spanning the full width with no gap (spec §4.2).
+export const macroGramShares = (total: MacroGrams): MacroShares => {
+  const totalG = total.proteinG + total.carbohydrateG + total.fatG;
 
-  if (totalKcal === 0) {
+  if (totalG === 0) {
     return { protein: 0, carbs: 0, fat: 0 };
   }
 
   return {
-    protein: proteinKcal / totalKcal,
-    carbs: carbsKcal / totalKcal,
-    fat: fatKcal / totalKcal,
+    protein: total.proteinG / totalG,
+    carbs: total.carbohydrateG / totalG,
+    fat: total.fatG / totalG,
   };
 };

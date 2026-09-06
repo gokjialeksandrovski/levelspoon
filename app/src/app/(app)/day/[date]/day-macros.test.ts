@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { macroFigureSizeClass } from "./day-macros";
 
 describe("macroFigureSizeClass", () => {
-  it("returns a larger size class for a larger calorie share", () => {
+  it("returns a larger size class for a larger share", () => {
     const dominant = macroFigureSizeClass(0.6);
     const minor = macroFigureSizeClass(0.15);
     // Tailwind's text-* scale is alphabetically-unordered by name, so
