@@ -34,7 +34,7 @@ interface MacroFigureProps {
 // three adjacent accent-coded figures is the worst case for accents
 // converging for someone who can't distinguish hue at all.
 const MacroFigure = ({ label, grams, share, accentClass }: MacroFigureProps) => (
-  <span className={`font-(--font-display) font-semibold ${macroFigureSizeClass(share)} ${accentClass}`}>
+  <span className={`font-display font-semibold ${macroFigureSizeClass(share)} ${accentClass}`}>
     {label} {grams}g
   </span>
 );
