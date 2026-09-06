@@ -21,7 +21,7 @@ test("empty today and empty past day show distinct copy", async ({ page }) => {
   await expect(page.getByText(/no meals logged/i)).toBeVisible();
 });
 
-test("a seeded meal renders as Meal 1 with its total", async ({ page }) => {
+test("a seeded single-ingredient meal renders as its ingredient's name, with its total", async ({ page }) => {
   // Ruling F10: local inline signup (mirrors history.spec.ts) because this test
   // needs the created user's id afterward - the shared signUp() doesn't return it.
   const email = freshEmail("e2e-day");
@@ -46,10 +46,12 @@ test("a seeded meal renders as Meal 1 with its total", async ({ page }) => {
   });
 
   await page.goto(`/day/${localToday()}`);
+  // A single-ingredient meal shows the ingredient's own name as the row
+  // heading, not an ordinal "Meal 1" (meal-list.tsx's mealHeading).
   // Scoped to the meal row itself, not page-wide: with a single 140kcal meal
   // the day-total Stat also reads "140", so an unscoped getByText(/140/)
   // hits both and trips Playwright's strict-mode ambiguity check.
-  const mealLink = page.getByRole("link", { name: /Meal 1/ });
+  const mealLink = page.getByRole("link", { name: /Seed Yogurt/ });
   await expect(mealLink).toBeVisible();
   await expect(mealLink.getByText(/140/)).toBeVisible(); // 200g * 70kcal/100g
 });
@@ -64,15 +66,14 @@ test("prev/next navigation steps by one calendar day", async ({ page }) => {
   await page.waitForURL(`**/day/${today}`);
 });
 
-test("entry points show today and are absent on a past day", async ({ page }) => {
+test("the entry point shows today and is absent on a past day", async ({ page }) => {
   await signUp(page);
   await page.goto(`/day/${localToday()}`);
-  await expect(page.getByRole("button", { name: "Quick log" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New meal" })).toBeVisible();
 
   await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
   await expect(page.getByText(/no meals logged/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Quick log" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "New meal" })).toHaveCount(0);
 });
 
 test("home redirects to today", async ({ page }) => {
