@@ -13,25 +13,25 @@ interface StartMealCallbacks {
   onError: (hasError: boolean) => void;
 }
 
-const startMeal = async (
-  isQuick: boolean,
-  router: ReturnType<typeof useRouter>,
-  callbacks: StartMealCallbacks,
-): Promise<void> => {
+const startMeal = async (router: ReturnType<typeof useRouter>, callbacks: StartMealCallbacks): Promise<void> => {
   callbacks.onBusyChange(true);
   callbacks.onError(false);
   try {
     const { mealId } = await createMeal();
-    router.push(`/meals/${mealId}/capture${isQuick ? "?mode=quick" : ""}`);
+    router.push(`/meals/${mealId}/capture`);
   } catch {
     callbacks.onError(true);
     callbacks.onBusyChange(false);
   }
 };
 
-// Both entry points create a meal up front and hand its id to the wizard;
-// they differ only in the wizard's exit behaviour, which `?mode=quick`
-// selects. An abandoned meal is discarded by the wizard on its way out.
+// Was two entry points (Quick log / New meal) differing only in whether the
+// wizard's post-save screen was skipped. That made "Quick log" redundant
+// with just tapping Done on the first ingredient - one fewer decision to
+// make up front, at the cost of one tap saved, for a choice most people
+// couldn't reliably predict before starting anyway (found via /critique on
+// a live screenshot, 2026-09-06; the "keep two paths or one" call is the
+// user's own). Collapsed to a single entry point.
 export const DayActionBar = () => {
   const router = useRouter();
   const [hasError, setHasError] = useState(false);
@@ -41,14 +41,9 @@ export const DayActionBar = () => {
   return (
     <div className="sticky bottom-0 border-t border-border bg-bg px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
       {hasError && <InlineMessage tone="error">Could not start. Please try again.</InlineMessage>}
-      <div className="flex gap-2">
-        <Button variant="primary" className="flex-1" disabled={isBusy} onClick={() => void startMeal(true, router, callbacks)}>
-          Quick log
-        </Button>
-        <Button variant="ghost" className="flex-1" disabled={isBusy} onClick={() => void startMeal(false, router, callbacks)}>
-          New meal
-        </Button>
-      </div>
+      <Button variant="primary" className="w-full" disabled={isBusy} onClick={() => void startMeal(router, callbacks)}>
+        New meal
+      </Button>
     </div>
   );
 };

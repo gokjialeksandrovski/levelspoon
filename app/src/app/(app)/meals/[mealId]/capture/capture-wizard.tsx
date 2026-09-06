@@ -2,8 +2,8 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useReducer, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useReducer, useState } from "react";
 
 import { discardEmptyMeal } from "@/actions/meals";
 import { Button } from "@/components/button";
@@ -191,19 +191,6 @@ const useWizardExit = (mealId: string, savedCount: number, today: string) => {
   };
 };
 
-// Quick mode's whole point is one ingredient with no ceremony, so the "saved"
-// step is passed through rather than shown - replace(), not push(), so Back
-// from the day view doesn't land on a finished wizard.
-const useQuickModeExit = (isQuick: boolean, stepKind: WizardStep["kind"], today: string) => {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (stepKind === "saved" && isQuick) {
-      router.replace(`/day/${today}`);
-    }
-  }, [stepKind, isQuick, router, today]);
-};
-
 interface UseCaptureWizardResult {
   step: WizardStep;
   dispatch: (action: PathAction) => void;
@@ -213,17 +200,15 @@ interface UseCaptureWizardResult {
   savedCount: number;
 }
 
-// Bundles the wizard's own path/save-count state and both exit strategies
-// into one hook, purely so CaptureWizard's own body stays under the line
-// budget - every value here is still just what CaptureWizard needs to render.
-const useCaptureWizard = (mealId: string, isQuick: boolean): UseCaptureWizardResult => {
+// Bundles the wizard's own path/save-count state and its exit strategy into
+// one hook, purely so CaptureWizard's own body stays under the line budget -
+// every value here is still just what CaptureWizard needs to render.
+const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
   const [savedCount, setSavedCount] = useState(0);
   const step = path[path.length - 1];
   const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const exit = useWizardExit(mealId, savedCount, today);
-
-  useQuickModeExit(isQuick, step.kind, today);
 
   return {
     step,
@@ -268,9 +253,8 @@ const CaptureWizardShell = ({
 );
 
 export const CaptureWizard = ({ mealId }: { mealId: string }) => {
-  const isQuick = useSearchParams().get("mode") === "quick";
   const reduceMotion = useReducedMotion();
-  const { step, dispatch, handleBack, markSaved, finish, savedCount } = useCaptureWizard(mealId, isQuick);
+  const { step, dispatch, handleBack, markSaved, finish, savedCount } = useCaptureWizard(mealId);
 
   return (
     <>
