@@ -1,10 +1,12 @@
 // app/src/lib/motion/step-transition.ts
 //
-// The one horizontal-slide recipe shared by the app's only two animated
-// surfaces (the day view's prev/next swap and the capture wizard's step
-// advance) - see the project's Global Constraints, which limit motion/react
-// to exactly those two places. Extracted here so the second caller reuses the
-// first's numbers instead of restating them.
+// The one horizontal-slide recipe shared by two of the app's four
+// motion/react surfaces - the day view's prev/next swap and the capture
+// wizard's step advance, both pre-existing; the 2026-09-05 re-theme added
+// two more (Button's press-feedback spring, LogSuccessPulse's log-success
+// pulse) that don't need this shared recipe - see the design spec's §2.5.
+// Extracted here so the second caller reuses the first's numbers instead of
+// restating them.
 import type { Transition } from "motion/react";
 
 export const SLIDE_OFFSET_PX = 24;

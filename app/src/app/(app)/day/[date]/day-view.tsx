@@ -88,12 +88,14 @@ const DayViewBody = ({ state }: { state: DayViewState }) => {
   return <DayViewReady log={state.log} isToday={state.isToday} />;
 };
 
-// One of only two places in the app allowed to use motion/react (the other
-// is the capture wizard) - see the project's Global Constraints. Keyed on
-// `date` so prev/next navigation remounts this element and its `initial`
-// animation replays; `useReducedMotion` collapses that to an instant,
-// motion-free swap. The slide's own numbers live in
-// lib/motion/step-transition.ts, shared with the wizard.
+// One of two pre-existing places in the app using motion/react (the other
+// is the capture wizard); the 2026-09-05 re-theme added two more (Button's
+// press-feedback spring, LogSuccessPulse's log-success pulse), for four
+// total - see the design spec's §2.5. Keyed on `date` so prev/next
+// navigation remounts this element and its `initial` animation replays;
+// `useReducedMotion` collapses that to an instant, motion-free swap. The
+// slide's own numbers live in lib/motion/step-transition.ts, shared with
+// the wizard.
 //
 // The action bar sits outside motion.main deliberately: it must stay pinned
 // while the day's content scrolls and slides underneath it, and it only
