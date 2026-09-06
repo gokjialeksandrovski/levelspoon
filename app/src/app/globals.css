@@ -77,13 +77,6 @@
 
   --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-step: 260ms;
-
-  /* Press-feedback spring (spec §2.5) - named here so Button and any future
-     primary-surface consumer share one source of truth instead of restating
-     the physics constants. */
-  --spring-press-stiffness: 400;
-  --spring-press-damping: 28;
-  --scale-press: 0.97;
 }
 
 html {

@@ -32,11 +32,13 @@ const VARIANT: Record<ButtonVariant, string> = {
 // next/link styled as a call-to-action) can share this exact class recipe
 // instead of duplicating it - see meal-detail.tsx.
 export const buttonClassName = (variant: ButtonVariant = "primary", className = ""): string =>
-  `rounded-(--radius-control) px-4 py-2.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:opacity-50 ${VARIANT[variant]} ${className}`;
+  `rounded-(--radius-control) px-4 py-2.5 text-sm font-medium transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:opacity-50 disabled:active:scale-100 ${VARIANT[variant]} ${className}`;
 
-// Press-feedback spring (spec §2.5, category 1 of 2). Values come from
-// globals.css's --spring-press-* tokens so this and any future
-// spring-driven surface share one source of truth.
+// Press-feedback spring (spec §2.5, category 1 of 2). Plain JS constants,
+// not read from globals.css - motion/react's spring config needs numeric
+// values, not CSS custom properties, so these are defined directly here
+// rather than pretending to share a token with the (removed) CSS-side
+// spring variables.
 const PRESS_SPRING_STIFFNESS = 400;
 const PRESS_SPRING_DAMPING = 28;
 const PRESS_SCALE = 0.97;
