@@ -25,4 +25,12 @@ describe("macroFigureSizeClass", () => {
     expect(order).toContain(nearZero);
     expect(order.indexOf(nearZero)).toBeGreaterThanOrEqual(0);
   });
+
+  it("returns the smallest size at a near-zero share", () => {
+    expect(macroFigureSizeClass(0.02)).toBe("text-lg");
+  });
+
+  it("returns the largest size when one macro is effectively the entire day", () => {
+    expect(macroFigureSizeClass(1)).toBe("text-4xl");
+  });
 });
