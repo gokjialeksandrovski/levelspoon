@@ -13,17 +13,32 @@ export const summariseIngredients = (names: string[]): string => {
   return `${names.slice(0, MAX_NAMES_SHOWN).join(", ")}, +${names.length - MAX_NAMES_SHOWN}`;
 };
 
-const MealListItem = ({ meal, index }: { meal: DayMealSummary; index: number }) => (
-  <li>
-    <Link href={`/meals/${meal.id}`} className="flex items-baseline justify-between py-3">
-      <span className="flex flex-col gap-0.5">
-        <span className="font-medium text-text">Meal {index + 1}</span>
-        <span className="text-sm text-text-muted">{summariseIngredients(meal.ingredientNames)}</span>
-      </span>
-      <span className="tabular-nums text-sm text-text-muted">{Math.round(meal.total.energyKcal)} kcal</span>
-    </Link>
-  </li>
-);
+// A single-ingredient log isn't a "meal" in any everyday sense of the word -
+// labelling it "Meal N" buried the one thing worth reading (what it was)
+// under a meaningless ordinal (found via /critique on a live screenshot,
+// 2026-09-06). With exactly one ingredient, its name becomes the heading and
+// the ordinal subtitle is dropped as redundant; "Meal N" is kept only once
+// there's an actual composition worth summarising.
+export const mealHeading = (meal: DayMealSummary, index: number): { heading: string; subtitle: string | null } =>
+  meal.ingredientNames.length === 1
+    ? { heading: meal.ingredientNames[0], subtitle: null }
+    : { heading: `Meal ${index + 1}`, subtitle: summariseIngredients(meal.ingredientNames) };
+
+const MealListItem = ({ meal, index }: { meal: DayMealSummary; index: number }) => {
+  const { heading, subtitle } = mealHeading(meal, index);
+
+  return (
+    <li>
+      <Link href={`/meals/${meal.id}`} className="flex items-baseline justify-between py-3">
+        <span className="flex flex-col gap-0.5">
+          <span className="font-medium text-text">{heading}</span>
+          {subtitle && <span className="text-sm text-text-muted">{subtitle}</span>}
+        </span>
+        <span className="tabular-nums text-sm text-text-muted">{Math.round(meal.total.energyKcal)} kcal</span>
+      </Link>
+    </li>
+  );
+};
 
 export const MealList = ({ meals }: { meals: DayMealSummary[] }) => (
   <ul className="mt-6 divide-y divide-border">
