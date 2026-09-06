@@ -15,30 +15,28 @@ afterEach(() => {
 const baseInput = { mealId: "meal-1", productId: "product-1", grams: "150", source: "manual" as const };
 
 describe("saveAmount", () => {
-  it("fires the haptic and the pulse trigger on a successful save", async () => {
+  it("fires the haptic on a successful save", async () => {
     vi.mocked(saveMealIngredient).mockResolvedValue({ mealIngredientId: "ingredient-1" });
     const dispatch = vi.fn();
     const onSaved = vi.fn();
-    const callbacks = { setError: vi.fn(), setIsBusy: vi.fn(), onLogSuccess: vi.fn() };
+    const callbacks = { setError: vi.fn(), setIsBusy: vi.fn() };
 
     await saveAmount(baseInput, dispatch, onSaved, callbacks);
 
     expect(triggerLogSuccessHaptic).toHaveBeenCalledTimes(1);
-    expect(callbacks.onLogSuccess).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({ type: "SAVED" });
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
-  it("does not fire the haptic or pulse trigger when the save fails", async () => {
+  it("does not fire the haptic when the save fails", async () => {
     vi.mocked(saveMealIngredient).mockRejectedValue(new Error("db down"));
     const dispatch = vi.fn();
     const onSaved = vi.fn();
-    const callbacks = { setError: vi.fn(), setIsBusy: vi.fn(), onLogSuccess: vi.fn() };
+    const callbacks = { setError: vi.fn(), setIsBusy: vi.fn() };
 
     await saveAmount(baseInput, dispatch, onSaved, callbacks);
 
     expect(triggerLogSuccessHaptic).not.toHaveBeenCalled();
-    expect(callbacks.onLogSuccess).not.toHaveBeenCalled();
     expect(callbacks.setError).toHaveBeenCalledWith("Could not save this ingredient. Please try again.");
   });
 });

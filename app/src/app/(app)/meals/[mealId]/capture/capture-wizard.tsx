@@ -7,6 +7,7 @@ import { useEffect, useReducer, useState } from "react";
 
 import { discardEmptyMeal } from "@/actions/meals";
 import { Button } from "@/components/button";
+import { LogSuccessPulse } from "@/components/log-success-pulse";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
 
@@ -209,6 +210,7 @@ interface UseCaptureWizardResult {
   handleBack: () => void;
   markSaved: () => void;
   finish: () => void;
+  savedCount: number;
 }
 
 // Bundles the wizard's own path/save-count state and both exit strategies
@@ -233,25 +235,55 @@ const useCaptureWizard = (mealId: string, isQuick: boolean): UseCaptureWizardRes
     // the meal is no longer empty, so exit() keeps it.
     markSaved: () => setSavedCount((count) => count + 1),
     finish: () => void exit(),
+    savedCount,
   };
 };
+
+interface CaptureWizardShellProps {
+  step: WizardStep;
+  mealId: string;
+  dispatch: (action: PathAction) => void;
+  handleBack: () => void;
+  onSaved: () => void;
+  onDone: () => void;
+  reduceMotion: boolean | null;
+}
+
+// Extracted so CaptureWizard's own body stays under the line budget - the
+// wizard chrome and its animated step content, as one unit.
+const CaptureWizardShell = ({
+  step,
+  mealId,
+  dispatch,
+  handleBack,
+  onSaved,
+  onDone,
+  reduceMotion,
+}: CaptureWizardShellProps) => (
+  <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack}>
+    <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
+      <StepView step={step} mealId={mealId} dispatch={dispatch} onSaved={onSaved} onDone={onDone} />
+    </AnimatedStep>
+  </WizardShell>
+);
 
 export const CaptureWizard = ({ mealId }: { mealId: string }) => {
   const isQuick = useSearchParams().get("mode") === "quick";
   const reduceMotion = useReducedMotion();
-  const { step, dispatch, handleBack, markSaved, finish } = useCaptureWizard(mealId, isQuick);
+  const { step, dispatch, handleBack, markSaved, finish, savedCount } = useCaptureWizard(mealId, isQuick);
 
   return (
-    <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack}>
-      <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
-        <StepView
-          step={step}
-          mealId={mealId}
-          dispatch={dispatch}
-          onSaved={markSaved}
-          onDone={finish}
-        />
-      </AnimatedStep>
-    </WizardShell>
+    <>
+      <CaptureWizardShell
+        step={step}
+        mealId={mealId}
+        dispatch={dispatch}
+        handleBack={handleBack}
+        onSaved={markSaved}
+        onDone={finish}
+        reduceMotion={reduceMotion}
+      />
+      {savedCount > 0 && <LogSuccessPulse trigger={savedCount} />}
+    </>
   );
 };
