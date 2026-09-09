@@ -61,6 +61,81 @@ def test_missing_row_is_never_silently_zero():
     assert "saturates_g" in reading.flags
 
 
+def _bella_farm_yoghurt_label() -> OcrResult:
+    """Boxes captured from a real photographed multilingual EU label
+    (1220x1627px) via POST /debug/boxes - the photo that produced the
+    reported 422. The four-language header phrase prints aligned with the
+    row descriptions, not the numeric column, and OCR badly garbles the
+    low-confidence saturates figure ("1,8g" read as " e  s ,8"), landing it
+    in the description column too - both defects on the same real photo."""
+    boxes = (
+        Box("100 g   ", 469.5, 394.5, 0.9415),
+        Box("100 ge prodhimit permban mesatarisht", 471.0, 418.5, 0.9741),
+        Box("    100 /", 470.0, 442.5, 0.8941),
+        Box("Non maonspe 100g", 471.0, 467.0, 0.6927),
+        Box("   1", 419.5, 501.0, 0.8534),
+        Box("Vlera e energjise nÃ« 100 g", 405.5, 521.0, 0.8707),
+        Box("   T00", 414.0, 539.0, 0.7546),
+        Box("Energy value in 100 g/", 395.5, 558.0, 0.9617),
+        Box("233kJ/56kcal", 589.5, 552.0, 0.9868),
+        Box("URT", 230.0, 651.5, 0.9027),
+        Box("/ndr//Fat", 421.5, 591.5, 0.8506),
+        Box("2,8g", 610.5, 587.0, 0.9978),
+        Box("ouk sactei mact dngopur prei yre te ngopora", 477.0, 620.0, 0.5522),
+        Box("YO", 753.5, 702.5, 0.9991),
+        Box(" e  s ,8", 480.5, 637.5, 0.6239),
+        Box("/Karbohidrate/", 418.5, 681.5, 0.7697),
+        Box("/abohydrate", 419.5, 700.0, 0.7848),
+        Box("4,6g", 612.0, 699.0, 0.9986),
+        Box("oonwekep /nga te cilat shegerna", 443.0, 734.5, 0.8101),
+        Box("or eouto zaxapn /of which sugars", 432.0, 752.5, 0.8021),
+        Box("4,6g", 612.5, 746.5, 0.9002),
+        Box("/Proteina/", 403.5, 790.0, 0.9048),
+        Box("/Proteins", 396.5, 808.0, 0.9694),
+        Box("3g", 616.5, 801.0, 0.9995),
+        Box("0/", 239.0, 838.0, 0.8683),
+        Box("*Con/Kripe/Con/Salt", 411.0, 842.5, 0.9852),
+        Box("0,115g", 606.0, 838.5, 0.9993),
+        Box("70", 251.0, 881.0, 0.8790),
+        Box("Qal", 488.5, 868.5, 0.4837),
+        Box("  / ", 486.0, 885.5, 0.6668),
+        Box("naturally presentsodium.", 412.0, 905.5, 0.9214),
+        Box("m.m", 258.5, 947.5, 0.8920),
+        Box("Kanm/Kalcium/", 404.0, 935.5, 0.9119),
+        Box("120mg", 612.0, 931.0, 0.9999),
+        Box("Kn/Calcium", 401.0, 953.5, 0.9613),
+        Box("15%///", 564.5, 947.5, 0.8579),
+        Box("(8400 kJ)", 606.0, 980.5, 0.8817),
+        Box("2000 kcal", 604.0, 996.0, 0.9416),
+        Box("5310153010098", 488.5, 1337.5, 0.9960),
+    )
+    return OcrResult(boxes=boxes, image_width=1220, image_height=1627)
+
+
+def test_reads_a_multilingual_label_whose_header_sits_with_the_row_descriptions():
+    """The reported bug: previously 422'd with "No energy row found" because
+    the header, not the energy figure, anchored column selection."""
+    reading = parse_nutrition(_bella_farm_yoghurt_label())
+    assert reading.per_100g.energy_kcal == pytest.approx(56.0)
+    assert reading.energy_kj == pytest.approx(233.0)
+    assert reading.per_100g.fat_g == pytest.approx(2.8)
+    assert reading.per_100g.carbohydrate_g == pytest.approx(4.6)
+    assert reading.per_100g.sugars_g == pytest.approx(4.6)
+    assert reading.per_100g.protein_g == pytest.approx(3.0)
+    assert reading.per_100g.salt_g == pytest.approx(0.115)
+
+
+def test_flags_the_reclaimed_saturates_figure_it_could_not_cleanly_read():
+    """The saturates box is so garbled (" e  s ,8", missing its leading "1")
+    that the reclaimed reading (8.0) is nutritionally impossible - more than
+    the label's own fat figure. The existing subset-of-fat plausibility
+    rule must still catch it and flag it for the user, not accept it
+    silently just because a value now exists in the right slot."""
+    reading = parse_nutrition(_bella_farm_yoghurt_label())
+    assert "saturates_g" in reading.flags
+    assert "fat_g" in reading.flags
+
+
 def _us_label_result() -> OcrResult:
     texts = [
         "Nutrition Facts",

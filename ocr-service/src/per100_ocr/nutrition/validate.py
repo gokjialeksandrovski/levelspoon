@@ -8,6 +8,13 @@ These rules are what upgrade the confirm step from "user eyeballs it" to
 from dataclasses import dataclass
 
 MAX_COMPONENT_TOTAL_G = 100.0
+
+# US labels round each macro on the serving to the nearest 0.5-1 g (FDA
+# 21 CFR 101.9(c)), and scaling a small serving up to 100 g multiplies that
+# drift by 100/serving_g - roughly 2-3.3x for the usual 30-50 g servings, so
+# up to ~5 g of legitimate overshoot. The rule exists to catch 10x misreads,
+# which land hundreds of grams out, so this tolerance costs it nothing.
+COMPONENT_TOTAL_TOLERANCE_G = 5.0
 ATWATER_TOLERANCE = 0.30
 KJ_PER_KCAL = 4.184
 KJ_TOLERANCE = 0.05
@@ -32,7 +39,7 @@ class NutritionValues:
 
 def _component_total_flags(values: NutritionValues) -> tuple[str, ...]:
     total = values.fat_g + values.carbohydrate_g + values.protein_g + values.salt_g
-    if total <= MAX_COMPONENT_TOTAL_G:
+    if total <= MAX_COMPONENT_TOTAL_G + COMPONENT_TOTAL_TOLERANCE_G:
         return ()
     return ("fat_g", "carbohydrate_g", "protein_g", "salt_g")
 

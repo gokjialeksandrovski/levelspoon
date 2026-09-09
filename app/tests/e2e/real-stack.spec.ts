@@ -32,12 +32,10 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   await expect(page.getByLabel("Carbohydrate (g)")).toHaveValue("4");
   await expect(page.getByLabel("Sugars (g)")).toHaveValue("4");
   await expect(page.getByLabel("Protein (g)")).toHaveValue("9");
-  // The label prints 0.18, but nutrition-fields.ts's toDisplayValue rounds
-  // every confirm-step field to one decimal (design spec §5: "Display
-  // rounding to one decimal in nutrition-fields.ts is unchanged"), so 0.18
-  // surfaces here as 0.2 - a display-precision fact, not an OCR misread
-  // (confirmed directly against the ocr-service response: salt_g: 0.18).
-  await expect(page.getByLabel("Salt (g)")).toHaveValue("0.2");
+  // The label prints 0.18, and nutrition-fields.ts's toDisplayValue now
+  // rounds to two decimals precisely so a real label figure like this one
+  // reproduces exactly, rather than collapsing to 0.2.
+  await expect(page.getByLabel("Salt (g)")).toHaveValue("0.18");
 
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByText(/^Using /)).toBeVisible();
@@ -58,6 +56,40 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   // meal-detail markup (Task 12/meal-detail.spec.ts's precedent).
   await expect(page.getByText(/150 ?g.*105 kcal/)).toBeVisible();
   await expect(page.getByText(/Meal total\s+105 kcal/)).toBeVisible();
+});
+
+test("real stack: correcting one flagged value also clears another flagged only by relation to it", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+
+  await page.getByLabel(/product photo/i).setInputFiles("../fixtures/photos/bella_farm_yoghurt.jpg");
+  await page
+    .getByLabel(/nutrition table photo/i)
+    .setInputFiles("../fixtures/photos/bella_farm_yoghurt_nutrition.jpg");
+  await expect(page.getByText("Confirm nutrition (per 100g)")).toBeVisible({ timeout: 30_000 });
+
+  // Reported defect: the label's header phrase prints aligned with the row
+  // descriptions rather than the numeric column, and its low-confidence
+  // saturates figure OCRs badly enough to read as 8 instead of 1.8 -
+  // implausibly more than the label's own fat figure, so both get flagged.
+  // Both fields already have a reading (neither is blank), so both show the
+  // "looks off" wording, not "could not read" - that message is reserved
+  // for a field with no reading at all, which neither of these is.
+  await expect(page.getByLabel("Fat (g)")).toHaveValue("2.8");
+  await expect(page.getByLabel("Saturates (g)")).toHaveValue("8");
+  await expect(page.getByText("This value looks off - please double-check it")).toHaveCount(2);
+
+  // Correcting saturates alone must also clear fat's warning: fat was only
+  // flagged because of the RELATIONSHIP between the two (saturates can't
+  // exceed fat), never because fat's own reading was wrong.
+  await page.getByLabel("Saturates (g)").fill("1.8");
+  await page.getByLabel("Saturates (g)").blur();
+  await expect(page.getByText("This value looks off - please double-check it")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Save product" }).click();
+  await expect(page.getByText(/^Using /)).toBeVisible();
 });
 
 test("real stack: a linear US label with no printed gram weight asks once, then scales", async ({ page }) => {

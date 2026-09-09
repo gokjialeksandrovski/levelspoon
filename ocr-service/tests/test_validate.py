@@ -19,6 +19,28 @@ def test_flags_components_exceeding_one_hundred_grams():
     assert "fat_g" in flags and "carbohydrate_g" in flags
 
 
+def test_admits_rounding_drift_just_over_one_hundred_grams():
+    """A correctly-read US label can legitimately sum just past 100g.
+
+    FDA rounding (21 CFR 101.9(c)) rounds each macro on the *serving* to the
+    nearest 0.5-1g, and scaling a small serving up to 100g multiplies that
+    drift. A real 2-Tbsp/37g label reading 12g fat, 23g carb, 2g protein
+    scales to 100.1g total - every field read perfectly. Flagging those four
+    as unreadable is a false alarm the confirm step shows as an error.
+    """
+    values = dataclasses_replace(
+        energy_kcal=540.5, fat_g=32.4, saturates_g=10.8,
+        carbohydrate_g=62.2, sugars_g=56.8, protein_g=5.4, salt_g=0.1,
+    )
+    assert validate(values, energy_kj=None) == ()
+
+
+def test_still_flags_components_past_the_rounding_tolerance():
+    """The rule must keep catching a genuine misread, not just wave it through."""
+    flags = validate(dataclasses_replace(fat_g=60.0, carbohydrate_g=50.0), energy_kj=None)
+    assert "fat_g" in flags and "carbohydrate_g" in flags
+
+
 def test_flags_saturates_above_fat():
     flags = validate(dataclasses_replace(saturates_g=5.0), energy_kj=None)
     assert "saturates_g" in flags and "fat_g" in flags
