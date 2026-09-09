@@ -28,7 +28,11 @@
 @media (prefers-color-scheme: light) {
   :root {
     --raw-bg: #fdfbf7;
-    --raw-surface: #ffffff;
+    /* Not #fff - pure white never appears in nature, and impeccable's own
+       color rules ban it outright. Tinted a hair warmer than white (255/254/252)
+       so the card-vs-page contrast against --raw-bg barely moves (found via
+       /critique on the motion-sketch artifact, 2026-09-09). */
+    --raw-surface: #fffefc;
     --raw-surface-raised: #f5f2ea;
     --raw-border: #e8e2d4;
     --raw-text: #23201a;

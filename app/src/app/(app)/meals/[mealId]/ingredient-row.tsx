@@ -136,17 +136,24 @@ interface QuantitySummaryProps {
   onRemove: () => void;
 }
 
+// Padding + a matching negative margin grows the tappable area (ui-ux-pro-max's
+// touch-target-size: 44x44 minimum) without growing the row itself or the
+// gap between the two buttons - the underline lives on a nested span, not the
+// padded button, so it still hugs just the word rather than stretching under
+// the extra padding (found via /critique, 2026-09-09).
+const ACTION_HIT_AREA = "-my-2 -mx-1 px-1 py-2";
+
 const QuantitySummary = ({ quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex items-center justify-between text-sm text-text-muted">
     <span className="tabular-nums">
       {quantityG}g · {Math.round(energyKcal)} kcal
     </span>
     <div className="flex gap-3">
-      <button type="button" onClick={onEdit} className="text-text-muted underline">
-        Edit
+      <button type="button" onClick={onEdit} className={`${ACTION_HIT_AREA} text-text-muted`}>
+        <span className="underline">Edit</span>
       </button>
-      <button type="button" disabled={isBusy} onClick={onRemove} className="text-danger underline disabled:opacity-50">
-        Remove
+      <button type="button" disabled={isBusy} onClick={onRemove} className={`${ACTION_HIT_AREA} text-danger disabled:opacity-50`}>
+        <span className="underline">Remove</span>
       </button>
     </div>
   </div>

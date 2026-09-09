@@ -13,8 +13,10 @@ interface FieldProps {
   helperText?: string;
 }
 
+// py-3 (not py-2.5): matches Button's own 4pt-scale correction, so a Field
+// and an adjacent Button land on the same height (found via /critique, 2026-09-09).
 export const fieldInputClassName = (flagged: boolean, error: string | undefined): string =>
-  `rounded-(--radius-control) border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text ${
+  `rounded-(--radius-control) border bg-surface px-3 py-3 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text ${
     flagged || error ? "border-flag" : "border-border"
   }`;
 
@@ -75,7 +77,7 @@ export const Field = ({
   label, name, type = "text", defaultValue, value, onChange, onBlur,
   required = false, error, flagged = false, inputMode, helperText,
 }: FieldProps) => (
-  <div className="flex flex-col gap-1.5">
+  <div className="flex flex-col gap-2">
     <label htmlFor={name} className="text-xs font-medium text-text-muted">
       {label}
     </label>

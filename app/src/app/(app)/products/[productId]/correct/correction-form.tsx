@@ -55,7 +55,7 @@ const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; produ
   );
 
 const ReplacePhotoField = ({ onSelect }: { onSelect: (photo: Blob | null) => void }) => (
-  <div className="flex flex-col gap-1.5">
+  <div className="flex flex-col gap-2">
     <label htmlFor="photo" className="text-xs font-medium text-text-muted">
       Replace photo (optional)
     </label>

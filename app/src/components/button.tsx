@@ -31,8 +31,12 @@ const VARIANT: Record<ButtonVariant, string> = {
 // Exported so a non-<button> element that must look like a Button (e.g. a
 // next/link styled as a call-to-action) can share this exact class recipe
 // instead of duplicating it - see meal-detail.tsx.
+//
+// py-3 (not py-2.5): 10px sat off the app's 4pt spacing scale, and text-sm's
+// 20px line-height + 2*12px padding lands exactly on the 44px touch-target
+// floor as a side effect (found via /critique, 2026-09-09).
 export const buttonClassName = (variant: ButtonVariant = "primary", className = ""): string =>
-  `rounded-(--radius-control) px-4 py-2.5 text-sm font-medium transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:opacity-50 disabled:active:scale-100 ${VARIANT[variant]} ${className}`;
+  `rounded-(--radius-control) px-4 py-3 text-sm font-medium transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:opacity-50 disabled:active:scale-100 ${VARIANT[variant]} ${className}`;
 
 // Press-feedback spring (spec §2.5, category 1 of 2). Plain JS constants,
 // not read from globals.css - motion/react's spring config needs numeric
