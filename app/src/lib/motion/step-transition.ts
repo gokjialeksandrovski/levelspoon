@@ -33,3 +33,17 @@ export const slideInitial = (reduceMotion: boolean | null): { opacity: number; x
 
 export const slideTransition = (reduceMotion: boolean | null): Transition =>
   reduceMotion ? { duration: 0 } : { duration: TRANSITION_DURATION_SECONDS, ease: TRANSITION_EASE };
+
+// A second, quieter recipe for content that resolves *inside* an
+// already-moving surface (a loading state swapping to real data) - the day
+// view and history's loading→ready swap, both added 2026-09-09 alongside
+// useDelayedSkeleton. Deliberately shorter than the slide above and
+// opacity-only: ui-ux-pro-max's exit-faster-than-enter rule puts an
+// inner event at ~60-70% of the surface's own entrance (0.18/0.26 ≈ 69%).
+const CONTENT_FADE_DURATION_SECONDS = 0.18;
+
+export const contentFadeInitial = (reduceMotion: boolean | null): { opacity: number } | false =>
+  reduceMotion ? false : { opacity: 0 };
+
+export const contentFadeTransition = (reduceMotion: boolean | null): Transition =>
+  reduceMotion ? { duration: 0 } : { duration: CONTENT_FADE_DURATION_SECONDS };

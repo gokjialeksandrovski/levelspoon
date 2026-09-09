@@ -1,6 +1,7 @@
 // app/src/app/(app)/history/page.tsx
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -12,6 +13,8 @@ import { InlineMessage } from "@/components/inline-message";
 import { Skeleton } from "@/components/skeleton";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { formatDayLabel } from "@/lib/date/format";
+import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
+import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 type HistoryState =
   | { status: "loading" }
@@ -50,7 +53,13 @@ const useHistoryState = (): UseHistoryStateResult => {
   return { state, loadPage };
 };
 
-const SKELETON_ROW_COUNT = 6;
+// A guess at how many rows a real history has, same class of problem as the
+// day view's old fixed-3-meals skeleton (day-view.tsx): whatever this
+// number is, it's usually wrong, and the swap to real content used to
+// collapse (or grow) the instant it resolved. Kept small on purpose so a
+// wrong guess overshoots by less; useDelayedSkeleton and the contentFade
+// below (2026-09-09) do the rest of the work.
+const SKELETON_ROW_COUNT = 3;
 
 // Mirrors a ready row (label left, figure right) so the loading -> ready
 // swap doesn't shift the layout. Decorative, so a plain div, not a list.
@@ -113,15 +122,30 @@ const HistoryReadyBody = ({ entries, nextOffset, onLoadMore }: HistoryReadyBodyP
   );
 };
 
+// Same delayed-skeleton + fade-in treatment as the day view's DayViewBody:
+// skip the placeholder entirely for fast loads, and fade resolved content in
+// rather than snapping it into place once it does show (2026-09-09).
 const HistoryBody = ({ state, onLoadMore }: { state: HistoryState; onLoadMore: (offset: number) => void }) => {
+  const reduceMotion = useReducedMotion();
+  const showSkeleton = useDelayedSkeleton(state.status === "loading");
+
   if (state.status === "loading") {
-    return <HistorySkeleton />;
-  }
-  if (state.status === "error") {
-    return <InlineMessage tone="error">Could not load history. Please try again.</InlineMessage>;
+    return showSkeleton ? <HistorySkeleton /> : null;
   }
 
-  return <HistoryReadyBody entries={state.entries} nextOffset={state.nextOffset} onLoadMore={onLoadMore} />;
+  return (
+    <motion.div
+      initial={contentFadeInitial(reduceMotion)}
+      animate={{ opacity: 1 }}
+      transition={contentFadeTransition(reduceMotion)}
+    >
+      {state.status === "error" ? (
+        <InlineMessage tone="error">Could not load history. Please try again.</InlineMessage>
+      ) : (
+        <HistoryReadyBody entries={state.entries} nextOffset={state.nextOffset} onLoadMore={onLoadMore} />
+      )}
+    </motion.div>
+  );
 };
 
 const HistoryPage = () => {

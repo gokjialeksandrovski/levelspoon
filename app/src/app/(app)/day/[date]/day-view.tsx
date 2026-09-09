@@ -11,7 +11,8 @@ import { InlineMessage } from "@/components/inline-message";
 import { Skeleton } from "@/components/skeleton";
 import { Stat } from "@/components/stat";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
-import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
+import { contentFadeInitial, contentFadeTransition, slideInitial, slideTransition } from "@/lib/motion/step-transition";
+import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 import { DayActionBar } from "./day-action-bar";
 import { DayEmptyState } from "./day-empty-state";
@@ -50,25 +51,14 @@ const useDayLog = (date: string): DayViewState => {
   return state;
 };
 
-// Mirrors the ready-state shape (kcal stat + proportional macro line and
-// segmented rule + three meal rows) so the loading -> ready swap doesn't
-// jump around.
-const DayViewSkeleton = () => (
-  <div className="flex flex-col gap-2">
-    <Skeleton className="h-11 w-32" />
-    <div className="mt-4 flex items-baseline gap-4">
-      <Skeleton className="h-7 w-16" />
-      <Skeleton className="h-6 w-20" />
-      <Skeleton className="h-6 w-16" />
-    </div>
-    <Skeleton className="mt-2 h-1 w-full rounded-full" />
-    <div className="mt-6 flex flex-col gap-4">
-      <Skeleton className="h-12 w-full" />
-      <Skeleton className="h-12 w-full" />
-      <Skeleton className="h-12 w-full" />
-    </div>
-  </div>
-);
+// Only the kcal stat placeholder - the one piece of the ready state whose
+// size never depends on the day's data. This used to also mock a macro line
+// and three meal rows, but that guessed shape collapsed by ~300px the
+// instant real (often emptier) data arrived, mid-slide - a jump-cut, not a
+// loading state (found via a throttled Playwright repro, 2026-09-09). Real
+// content fades in on its own below this once it resolves - see
+// DayViewBody's contentFade*.
+const DayViewSkeleton = () => <Skeleton className="h-11 w-32" />;
 
 const DayViewReady = ({ log, isToday }: { log: DayLog; isToday: boolean }) => (
   <>
@@ -78,14 +68,35 @@ const DayViewReady = ({ log, isToday }: { log: DayLog; isToday: boolean }) => (
   </>
 );
 
+// Skeleton only appears past useDelayedSkeleton's fast-load threshold, so
+// the common case (a local fetch resolving in well under 300ms) shows
+// nothing at all and fades straight to real content instead of flashing a
+// placeholder that's about to be wrong. Resolved content fades in
+// (contentFade*) rather than snapping in, so whatever size difference
+// remains between "nothing yet" and the day's actual data reads as a soft
+// entrance, not a jump - this component only mounts once loading ends, so
+// motion's `initial` fires on that first appearance without needing a key.
 const DayViewBody = ({ state }: { state: DayViewState }) => {
+  const reduceMotion = useReducedMotion();
+  const showSkeleton = useDelayedSkeleton(state.status === "loading");
+
   if (state.status === "loading") {
-    return <DayViewSkeleton />;
+    return showSkeleton ? <DayViewSkeleton /> : null;
   }
-  if (state.status === "error") {
-    return <InlineMessage tone="error">Could not load this day. Please try again.</InlineMessage>;
-  }
-  return <DayViewReady log={state.log} isToday={state.isToday} />;
+
+  return (
+    <motion.div
+      initial={contentFadeInitial(reduceMotion)}
+      animate={{ opacity: 1 }}
+      transition={contentFadeTransition(reduceMotion)}
+    >
+      {state.status === "error" ? (
+        <InlineMessage tone="error">Could not load this day. Please try again.</InlineMessage>
+      ) : (
+        <DayViewReady log={state.log} isToday={state.isToday} />
+      )}
+    </motion.div>
+  );
 };
 
 // One of two pre-existing places in the app using motion/react (the other
