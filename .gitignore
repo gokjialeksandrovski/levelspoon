@@ -8,3 +8,10 @@ __pycache__/
 .env
 .env.local
 .next/
+
+# Local tool caches/output - not project source
+.agents/
+.playwright-mcp/
+graphify-out/
+skills-lock.json
+test-output.txt
