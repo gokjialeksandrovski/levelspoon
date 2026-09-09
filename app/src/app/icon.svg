@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!--
+    The tally mark: the day view's own segmented P/C/F rule, upright,
+    heights unequal on purpose (picked via /critique, 2026-09-09 - see
+    Direction A in the logo-marks sketch). Colors mirror globals.css's
+    --raw-accent-protein/carbs/fat exactly, light and dark, via prefers-
+    color-scheme inside the SVG itself so the tab icon follows the OS
+    theme the same way the rest of the app does.
+  -->
+  <style>
+    .protein { fill: #cb4735; }
+    .carbs { fill: #ab6200; }
+    .fat { fill: #8b4a62; }
+    @media (prefers-color-scheme: dark) {
+      .protein { fill: #e05a47; }
+      .carbs { fill: #e5983b; }
+      .fat { fill: #b16c84; }
+    }
+  </style>
+  <rect class="protein" x="14" y="52" width="16" height="32" rx="8" />
+  <rect class="carbs" x="42" y="28" width="16" height="56" rx="8" />
+  <rect class="fat" x="70" y="64" width="16" height="20" rx="8" />
+</svg>
