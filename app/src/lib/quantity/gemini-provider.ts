@@ -16,8 +16,22 @@ const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const MAX_RESPONSE_TOKENS = 64;
 
 // Bounds how long a server action waits before failing cleanly, instead of
-// hanging indefinitely on a wedged request.
+// hanging indefinitely on a wedged request. One AbortSignal is shared across
+// every retry attempt below, so this is the total budget, not a per-attempt one.
 const REQUEST_TIMEOUT_MS = 30_000;
+
+// Gemini's flash-lite tier occasionally answers 503 "high demand" on an
+// otherwise-healthy request (confirmed 2026-09-04 via direct curl: 3/3
+// consecutive calls to gemini-3.5-flash-lite failed 503 while
+// gemini-3.5-flash succeeded immediately) - a short retry absorbs that
+// instead of surfacing a transient blip as a failure. Scoped to 503 only:
+// 429 is rate-limiting and retrying it would just hammer an already-
+// throttled key.
+const RETRYABLE_STATUS = 503;
+const MAX_FETCH_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 300;
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ESTIMATE_PROMPT =
   "Estimate the weight in grams of the food shown. Reply with only a number.";
@@ -98,6 +112,21 @@ const parseGramsResponse = (body: GeminiResponse): number => {
   return grams;
 };
 
+const requestWithRetry = async (apiKey: string, photo: Buffer, mimeType: string): Promise<Response> => {
+  const init: RequestInit = {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(buildRequestBody(photo, mimeType)),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  };
+  let response = await fetch(GEMINI_CHAT_COMPLETIONS_URL, init);
+  for (let attempt = 1; attempt < MAX_FETCH_ATTEMPTS && response.status === RETRYABLE_STATUS; attempt++) {
+    await wait(RETRY_BASE_DELAY_MS * attempt);
+    response = await fetch(GEMINI_CHAT_COMPLETIONS_URL, init);
+  }
+  return response;
+};
+
 export class GeminiQuantityProvider implements QuantityProvider {
   async estimateGrams(photo: Buffer): Promise<number> {
     // Both guards run before the try block, so a misconfiguration or a bad
@@ -106,12 +135,7 @@ export class GeminiQuantityProvider implements QuantityProvider {
     const apiKey = geminiApiKey();
     const mimeType = imageMimeType(photo);
     try {
-      const response = await fetch(GEMINI_CHAT_COMPLETIONS_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequestBody(photo, mimeType)),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
+      const response = await requestWithRetry(apiKey, photo, mimeType);
       if (!response.ok) {
         throw new GeminiRequestError(response.status);
       }

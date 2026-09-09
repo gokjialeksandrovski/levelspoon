@@ -9,11 +9,17 @@ import { GeminiQuantityProvider } from "./gemini-provider";
 // content is irrelevant to these tests.
 const jpegPhoto = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
-const stubFetchJson = (body: unknown, ok = true, status = 200) => {
-  const fetchMock = vi.fn().mockResolvedValue({ ok, status, json: () => Promise.resolve(body) });
+const stubFetchSequence = (responses: Array<{ ok: boolean; status: number; body: unknown }>) => {
+  const fetchMock = vi.fn();
+  for (const { ok, status, body } of responses) {
+    fetchMock.mockResolvedValueOnce({ ok, status, json: () => Promise.resolve(body) });
+  }
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 };
+
+const stubFetchJson = (body: unknown, ok = true, status = 200) =>
+  stubFetchSequence([{ ok, status, body }]);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -81,7 +87,7 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
   });
 
   it("wraps a non-ok response with the status in its cause", async () => {
-    stubFetchJson({}, false, 429);
+    const fetchMock = stubFetchJson({}, false, 429);
 
     await expect(
       new GeminiQuantityProvider().estimateGrams(jpegPhoto),
@@ -89,6 +95,43 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
       message: "Quantity estimation failed",
       cause: expect.objectContaining({ message: expect.stringContaining("429") }),
     });
+    // 429 is rate-limiting, not the transient high-demand 503 - retrying it
+    // would just hammer an already-throttled key, so it must not retry.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression test for the reported failure: Gemini's flash-lite tier
+  // answers 503 "high demand" on an otherwise-healthy request (confirmed
+  // 2026-09-04 via direct curl: 3/3 consecutive calls to
+  // gemini-3.5-flash-lite failed 503 while gemini-3.5-flash succeeded
+  // immediately). A short retry absorbs that instead of surfacing an
+  // otherwise-working request as a failure.
+  it("retries after a 503 and succeeds on the next attempt", async () => {
+    const fetchMock = stubFetchSequence([
+      { ok: false, status: 503, body: {} },
+      { ok: true, status: 200, body: { choices: [{ finish_reason: "stop", message: { content: "184" } }] } },
+    ]);
+
+    const grams = await new GeminiQuantityProvider().estimateGrams(jpegPhoto);
+
+    expect(grams).toBe(184);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up and wraps the error after repeated 503s", async () => {
+    const fetchMock = stubFetchSequence([
+      { ok: false, status: 503, body: {} },
+      { ok: false, status: 503, body: {} },
+      { ok: false, status: 503, body: {} },
+    ]);
+
+    await expect(
+      new GeminiQuantityProvider().estimateGrams(jpegPhoto),
+    ).rejects.toMatchObject({
+      message: "Quantity estimation failed",
+      cause: expect.objectContaining({ message: expect.stringContaining("503") }),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("throws immediately and unwrapped when GEMINI_API_KEY is unset", async () => {
