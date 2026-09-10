@@ -64,7 +64,10 @@ const SignUpPage = () => {
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-sm flex-col justify-center gap-6 px-6">
-      <p className="text-center text-lg font-semibold text-text">Per100</p>
+      {/* The brand mark, not UI chrome - spec §2.3 reserves Bricolage
+          Grotesque for display headings, and this is the one place in the
+          app that's pure wordmark (found via /critique, 2026-09-10). */}
+      <p className="text-center font-display text-lg font-semibold text-text">Per100</p>
       <SignUpCard error={error} onSubmit={handleSubmit} />
       <Link href="/signin" className="text-center text-sm text-text-muted underline">
         Already have an account? Sign in

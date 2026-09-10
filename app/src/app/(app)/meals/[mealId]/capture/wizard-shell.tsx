@@ -3,6 +3,8 @@
 
 import { CaretLeft } from "@phosphor-icons/react";
 
+import { ICON_TAP_TARGET_CLASS } from "@/components/tap-target";
+
 interface WizardShellProps {
   title: string;
   progress: number; // 0..1, approximate
@@ -16,8 +18,8 @@ const PERCENT = 100;
 // rather than navigating, and the header carries a progress rail underneath.
 export const WizardShell = ({ title, progress, onBack, children }: WizardShellProps) => (
   <div className="flex min-h-[100dvh] flex-col">
-    <header className="flex h-16 items-center gap-3 border-b border-border px-4">
-      <button type="button" onClick={onBack} aria-label="Back" className="flex items-center">
+    <header className="flex h-16 items-center gap-1 border-b border-border px-4">
+      <button type="button" onClick={onBack} aria-label="Back" className={ICON_TAP_TARGET_CLASS}>
         <CaretLeft />
       </button>
       <span className="text-sm font-medium">{title}</span>

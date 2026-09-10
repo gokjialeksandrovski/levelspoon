@@ -80,8 +80,22 @@ interface MacroFiguresProps {
 // The tap-to-toggle affordance: the whole P/C/F line is the button, and its
 // own aria-expanded state (not a separate chevron) communicates whether the
 // expanded sugars/saturates/salt line is showing.
+//
+// -my-2/py-2 grows the tappable area to ui-ux-pro-max's 44px floor without
+// growing the row itself, mirroring ingredient-row's negative-margin trick
+// (TAP_HIT_AREA_SM) - not that constant itself, since this button's height
+// is data-driven (macroFigureSizeClass), not a fixed text-sm line-height.
+// Solved for the worst case: the smallest figure size (text-lg, 28px
+// line-height) still needs to clear 44px, so py-2 (8px*2=16) is the floor;
+// on days where a figure renders larger, the button is taller still, same
+// as today (found via ui-ux-pro-max review, 2026-09-10).
 const MacroFigures = ({ total, shares, expanded, onToggle }: MacroFiguresProps) => (
-  <button type="button" onClick={onToggle} aria-expanded={expanded} className="flex items-baseline gap-4 text-left">
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-expanded={expanded}
+    className="-my-2 flex items-baseline gap-4 py-2 text-left"
+  >
     <MacroFigure label="P" grams={round(total.proteinG)} share={shares.protein} accentClass="text-accent-protein" />
     <MacroFigure label="C" grams={round(total.carbohydrateG)} share={shares.carbs} accentClass="text-accent-carbs" />
     <MacroFigure label="F" grams={round(total.fatG)} share={shares.fat} accentClass="text-accent-fat" />

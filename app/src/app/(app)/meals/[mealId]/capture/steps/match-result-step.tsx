@@ -1,4 +1,6 @@
 // app/src/app/meals/[mealId]/steps/match-result-step.tsx
+import { TAP_HIT_AREA_SM } from "@/components/tap-target";
+
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
 interface MatchResultStepProps {
@@ -43,7 +45,7 @@ export const MatchResultStep = ({ nameGuess, candidates, netWeightText, dispatch
     <button
       type="button"
       onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess, netWeightText })}
-      className="text-sm text-text-muted underline"
+      className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}
     >
       None of these
     </button>

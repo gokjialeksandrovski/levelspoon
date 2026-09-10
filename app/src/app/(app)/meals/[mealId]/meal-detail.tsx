@@ -1,6 +1,7 @@
 // app/src/app/(app)/meals/[mealId]/meal-detail.tsx
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -9,6 +10,8 @@ import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/actio
 import { AppHeader } from "@/components/app-header";
 import { buttonClassName } from "@/components/button";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
+import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 import { DayTotalBar } from "./day-total-bar";
 import { DeleteMeal } from "./delete-meal";
@@ -162,10 +165,14 @@ interface MealDetailBodyProps {
   onIngredientChanged: () => void;
 }
 
-const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
-  if (state.status === "loading") {
-    return <p className="text-sm text-text-muted">Loading…</p>;
-  }
+interface MealDetailContentProps {
+  state: Exclude<MealDetailState, { status: "loading" }>;
+  mealId: string;
+  reloadCounter: number;
+  onIngredientChanged: () => void;
+}
+
+const MealDetailContent = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailContentProps) => {
   if (state.status === "error") {
     return <p className="text-sm text-danger">Could not load this meal. Please try again.</p>;
   }
@@ -180,6 +187,31 @@ const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: M
       reloadCounter={reloadCounter}
       onIngredientChanged={onIngredientChanged}
     />
+  );
+};
+
+// Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody: this
+// previously flashed "Loading…" the instant the component mounted, then
+// snapped straight to the ready/error/not-found content the instant the
+// fetch resolved - the same jump-cut class of problem those two were fixed
+// for on 2026-09-09, just left unaddressed here (found via /critique,
+// 2026-09-10).
+const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
+  const reduceMotion = useReducedMotion();
+  const showSkeleton = useDelayedSkeleton(state.status === "loading");
+
+  if (state.status === "loading") {
+    return showSkeleton ? <p className="text-sm text-text-muted">Loading…</p> : null;
+  }
+
+  return (
+    <motion.div
+      initial={contentFadeInitial(reduceMotion)}
+      animate={{ opacity: 1 }}
+      transition={contentFadeTransition(reduceMotion)}
+    >
+      <MealDetailContent state={state} mealId={mealId} reloadCounter={reloadCounter} onIngredientChanged={onIngredientChanged} />
+    </motion.div>
   );
 };
 

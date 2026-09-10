@@ -11,6 +11,7 @@ import { Button } from "@/components/button";
 import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
 import { Sheet } from "@/components/sheet";
+import { TAP_HIT_AREA_SM, TAP_HIT_AREA_XS } from "@/components/tap-target";
 
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
@@ -136,23 +137,16 @@ interface QuantitySummaryProps {
   onRemove: () => void;
 }
 
-// Padding + a matching negative margin grows the tappable area (ui-ux-pro-max's
-// touch-target-size: 44x44 minimum) without growing the row itself or the
-// gap between the two buttons - the underline lives on a nested span, not the
-// padded button, so it still hugs just the word rather than stretching under
-// the extra padding (found via /critique, 2026-09-09).
-const ACTION_HIT_AREA = "-my-2 -mx-1 px-1 py-2";
-
 const QuantitySummary = ({ quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex items-center justify-between text-sm text-text-muted">
     <span className="tabular-nums">
       {quantityG}g · {Math.round(energyKcal)} kcal
     </span>
     <div className="flex gap-3">
-      <button type="button" onClick={onEdit} className={`${ACTION_HIT_AREA} text-text-muted`}>
+      <button type="button" onClick={onEdit} className={`${TAP_HIT_AREA_SM} text-text-muted`}>
         <span className="underline">Edit</span>
       </button>
-      <button type="button" disabled={isBusy} onClick={onRemove} className={`${ACTION_HIT_AREA} text-danger disabled:opacity-50`}>
+      <button type="button" disabled={isBusy} onClick={onRemove} className={`${TAP_HIT_AREA_SM} text-danger disabled:opacity-50`}>
         <span className="underline">Remove</span>
       </button>
     </div>
@@ -184,8 +178,12 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
     />
   );
 
+// `block` makes the negative-margin cancellation explicit rather than
+// relying on this <a> being blockified by its flex-col parent - vertical
+// margin is a no-op on a plain inline element, so TAP_HIT_AREA_XS's -my-3.5
+// would silently do nothing without it.
 const CorrectionLink = ({ productId }: { productId: string }) => (
-  <Link href={`/products/${productId}/correct`} className="text-xs text-text-muted underline">
+  <Link href={`/products/${productId}/correct`} className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}>
     Values look wrong?
   </Link>
 );

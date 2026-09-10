@@ -7,6 +7,7 @@ import { ocrNutritionTable } from "@/actions/ocr";
 import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
 import { Skeleton } from "@/components/skeleton";
+import { TAP_HIT_AREA_SM } from "@/components/tap-target";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";
@@ -109,7 +110,7 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, dispatch }: Nutri
       {form.isLoading && <LoadingSkeletons />}
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {form.error && form.photo && (
-        <button type="button" onClick={form.handleManualEntry} className="text-sm text-text-muted underline">
+        <button type="button" onClick={form.handleManualEntry} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
           Enter the values manually instead
         </button>
       )}

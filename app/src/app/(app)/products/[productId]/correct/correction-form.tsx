@@ -38,8 +38,20 @@ const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]
   return result.flags;
 };
 
-const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; productName: string }) =>
-  photoUrl ? (
+// Guards two distinct failure shapes with the same fallback: no photoUrl at
+// all (product has none), and a photoUrl that fails to actually load (a
+// stale/expired presigned URL, a deleted object) - the latter previously had
+// no handling and rendered a bare broken-image glyph instead of this message
+// (confirmed live - a 404'd URL still resolves, then fires onError once the
+// browser gives up loading it; found via /critique, 2026-09-10).
+const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; productName: string }) => {
+  const [failedToLoad, setFailedToLoad] = useState(false);
+
+  if (!photoUrl || failedToLoad) {
+    return <InlineMessage tone="warning">Photo unavailable</InlineMessage>;
+  }
+
+  return (
     <div className="overflow-hidden rounded-(--radius-surface) border border-border">
       <Image
         src={photoUrl}
@@ -48,11 +60,11 @@ const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; produ
         height={240}
         unoptimized
         className="w-full object-contain"
+        onError={() => setFailedToLoad(true)}
       />
     </div>
-  ) : (
-    <InlineMessage tone="warning">Photo unavailable</InlineMessage>
   );
+};
 
 const ReplacePhotoField = ({ onSelect }: { onSelect: (photo: Blob | null) => void }) => (
   <div className="flex flex-col gap-2">

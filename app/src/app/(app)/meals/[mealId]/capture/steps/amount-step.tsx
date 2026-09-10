@@ -9,6 +9,7 @@ import { Button } from "@/components/button";
 import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
+import { TAP_HIT_AREA_SM } from "@/components/tap-target";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
@@ -31,7 +32,7 @@ const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: Amoun
   <div className="flex items-center justify-between">
     <h2 className="text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
-      <button type="button" onClick={onChangeMatch} className="text-sm text-text-muted underline">
+      <button type="button" onClick={onChangeMatch} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
         Change?
       </button>
     )}

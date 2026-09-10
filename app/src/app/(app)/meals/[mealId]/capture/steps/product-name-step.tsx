@@ -10,6 +10,7 @@ import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
 import { Skeleton } from "@/components/skeleton";
+import { TAP_HIT_AREA_SM } from "@/components/tap-target";
 
 import type { WizardAction } from "../capture-wizard.types";
 
@@ -115,7 +116,7 @@ const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry }: PhotoName
     <PhotoInput label="Product photo" onSelect={onSelect} />
     {isLoading && <Skeleton className="h-9 w-40" />}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <button type="button" onClick={onManualEntry} className="text-sm text-text-muted underline">
+    <button type="button" onClick={onManualEntry} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
       Enter the name manually instead
     </button>
   </div>
