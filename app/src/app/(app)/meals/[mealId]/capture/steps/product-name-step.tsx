@@ -117,7 +117,7 @@ const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry }: PhotoName
     {isLoading && <Skeleton className="h-9 w-40" />}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <button type="button" onClick={onManualEntry} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
-      Enter the name manually instead
+      <span>Enter the name manually instead</span>
     </button>
   </div>
 );

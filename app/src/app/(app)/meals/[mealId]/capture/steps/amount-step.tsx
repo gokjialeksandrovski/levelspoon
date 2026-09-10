@@ -34,7 +34,7 @@ const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: Amoun
     <h2 className="text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
       <button type="button" onClick={onChangeMatch} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
-        Change?
+        <span>Change?</span>
       </button>
     )}
   </div>

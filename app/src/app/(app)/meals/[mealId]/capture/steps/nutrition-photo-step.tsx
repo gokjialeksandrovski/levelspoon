@@ -111,7 +111,7 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, dispatch }: Nutri
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {form.error && form.photo && (
         <button type="button" onClick={form.handleManualEntry} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
-          Enter the values manually instead
+          <span>Enter the values manually instead</span>
         </button>
       )}
     </div>

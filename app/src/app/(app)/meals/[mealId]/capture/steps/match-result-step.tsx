@@ -47,7 +47,7 @@ export const MatchResultStep = ({ nameGuess, candidates, netWeightText, dispatch
       onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess, netWeightText })}
       className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}
     >
-      None of these
+      <span>None of these</span>
     </button>
   </div>
 );

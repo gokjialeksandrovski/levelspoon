@@ -3,7 +3,7 @@
 
 import { CaretLeft } from "@phosphor-icons/react";
 
-import { ICON_TAP_TARGET_LEADING } from "@/components/tap-target";
+import { ICON_ROW_EDGE_PULL_LEFT, ICON_TAP_TARGET_CLASS } from "@/components/tap-target";
 
 interface WizardShellProps {
   title: string;
@@ -35,19 +35,28 @@ const ProgressRail = ({ progress }: { progress: number }) => (
   </div>
 );
 
+const BackButton = ({ onBack }: { onBack: () => void }) => (
+  <button
+    type="button"
+    onClick={onBack}
+    aria-label="Back"
+    className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_LEFT}`}
+  >
+    <CaretLeft />
+  </button>
+);
+
 // Not AppHeader's "back" variant: the wizard's back control pops a step
 // rather than navigating, and the header carries a progress rail underneath.
 // The step title is this screen's h1, so each step's own <h2> instruction
-// nests under it cleanly (found via /accessibility, 2026-09-10).
+// nests under it cleanly (found via /accessibility, 2026-09-10). Row and
+// rail sit together in the <header> so the progressbar is inside a landmark
+// (axe: region), not orphaned between header and main.
 export const WizardShell = ({ title, progress, onBack, children }: WizardShellProps) => (
   <div className="flex min-h-[100dvh] flex-col">
-    {/* Row and rail together in the banner so the progressbar sits inside a
-        landmark (axe: region), not orphaned between header and main. */}
     <header>
       <div className="flex h-16 items-center gap-1 border-b border-border px-4">
-        <button type="button" onClick={onBack} aria-label="Back" className={ICON_TAP_TARGET_LEADING}>
-          <CaretLeft />
-        </button>
+        <BackButton onBack={onBack} />
         <h1 className="text-sm font-medium">{title}</h1>
       </div>
       <ProgressRail progress={progress} />

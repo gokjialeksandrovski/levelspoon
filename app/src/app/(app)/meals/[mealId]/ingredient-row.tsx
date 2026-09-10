@@ -168,12 +168,15 @@ const RowAction = ({ label, toneClass, disabled, onClick, children }: RowActionP
   </button>
 );
 
+// gap-5, not gap-3: each RowAction's hit box reaches 4px past its text on
+// each side (TAP_HIT_AREA_SM's -mx-1/px-1), so a tighter gap leaves the two
+// touch targets under the 8px minimum spacing (found via /critique, 2026-09-10).
 const QuantitySummary = ({ productName, quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex items-center justify-between text-sm text-text-muted">
     <span className="tabular-nums">
       {quantityG}g · {Math.round(energyKcal)} kcal
     </span>
-    <div className="flex gap-3">
+    <div className="flex gap-5">
       <RowAction label={`Edit ${productName} amount`} toneClass="text-text-muted" onClick={onEdit}>
         Edit
       </RowAction>
@@ -227,7 +230,7 @@ const CorrectionLink = ({ productId, productName }: { productId: string; product
     aria-label={`Correct values for ${productName}`}
     className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}
   >
-    Values look wrong?
+    <span>Values look wrong?</span>
   </Link>
 );
 
