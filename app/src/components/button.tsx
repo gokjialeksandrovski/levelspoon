@@ -53,21 +53,29 @@ const PRESS_SPRING_STIFFNESS = 400;
 const PRESS_SPRING_DAMPING = 28;
 const PRESS_SCALE = 0.97;
 
-export const Button = ({
-  variant = "primary",
-  className = "",
-  type = "button",
-  pending = false,
-  disabled,
-  ...props
-}: ButtonProps) => (
+// A visible companion to aria-busy: sighted users see the action registered,
+// not just a dim button that reads the same as "form not ready". border-current
+// picks up the button's own text color; reduced-motion callers get a static
+// ring (globals.css neutralises animate-spin), still a clear "working" cue
+// next to the disabled state (found via /critique, 2026-09-10).
+const PendingSpinner = () => (
+  <span
+    aria-hidden="true"
+    className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
+  />
+);
+
+export const Button = ({ variant = "primary", className = "", type = "button", pending = false, disabled, children, ...props }: ButtonProps) => (
   <motion.button
     type={type}
-    className={buttonClassName(variant, className)}
+    className={`${buttonClassName(variant, className)} inline-flex items-center justify-center gap-2`}
     disabled={disabled || pending}
     aria-busy={pending || undefined}
     whileTap={{ scale: PRESS_SCALE }}
     transition={{ type: "spring", stiffness: PRESS_SPRING_STIFFNESS, damping: PRESS_SPRING_DAMPING }}
     {...props}
-  />
+  >
+    {pending && <PendingSpinner />}
+    {children}
+  </motion.button>
 );

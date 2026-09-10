@@ -17,9 +17,14 @@ const SkipToContentLink = () => (
   </a>
 );
 
+// overflow-x-clip contains the day-view / wizard slide-in (motion.main
+// enters from x:24), which otherwise flashes a horizontal scrollbar for the
+// length of the transition on every navigation (found via /critique,
+// 2026-09-10). `clip` (not `hidden`) leaves vertical scroll and the sticky
+// action bar alone - it doesn't create a scroll container.
 const AppLayout = ({ children }: { children: ReactNode }) => (
   <IconProvider>
-    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col">
+    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col overflow-x-clip">
       <SkipToContentLink />
       {children}
     </div>

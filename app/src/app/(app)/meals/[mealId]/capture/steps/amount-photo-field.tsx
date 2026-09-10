@@ -44,11 +44,11 @@ const CONSENT_TERMS: ConsentTerm[] = [
 ];
 
 const ConsentTermList = () => (
-  <dl className="flex flex-col gap-3">
+  <dl className="flex flex-col gap-4">
     {CONSENT_TERMS.map(({ term, detail }) => (
-      <div key={term}>
+      <div key={term} className="flex flex-col gap-1">
         <dt className="text-sm font-semibold text-text">{term}</dt>
-        <dd className="text-sm text-text-muted">{detail}</dd>
+        <dd className="text-sm leading-relaxed text-text-muted">{detail}</dd>
       </div>
     ))}
   </dl>
@@ -60,17 +60,25 @@ interface AiConsentSheetProps {
   onDecline: () => void;
 }
 
+const ConsentActions = ({ onAgree, onDecline }: { onAgree: () => void; onDecline: () => void }) => (
+  <div className="flex gap-2">
+    <Button onClick={onAgree}>I agree</Button>
+    <Button variant="ghost" onClick={onDecline}>
+      Not now
+    </Button>
+  </div>
+);
+
 const AiConsentSheet = ({ open, onAgree, onDecline }: AiConsentSheetProps) => (
-  <Sheet open={open} onClose={onDecline} title="AI Assistant Privacy & Terms">
-    <div className="flex flex-col gap-4">
+  <Sheet
+    open={open}
+    onClose={onDecline}
+    title="AI Assistant Privacy & Terms"
+    footer={<ConsentActions onAgree={onAgree} onDecline={onDecline} />}
+  >
+    <div className="flex flex-col gap-5">
       <p className="text-sm text-text-muted">{CONSENT_INTRO}</p>
       <ConsentTermList />
-      <div className="flex gap-2">
-        <Button onClick={onAgree}>I agree</Button>
-        <Button variant="ghost" onClick={onDecline}>
-          Not now
-        </Button>
-      </div>
     </div>
   </Sheet>
 );
