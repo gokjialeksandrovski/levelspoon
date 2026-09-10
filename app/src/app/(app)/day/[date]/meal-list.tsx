@@ -2,6 +2,7 @@
 import Link from "next/link";
 
 import type { DayMealSummary } from "@/actions/meals";
+import { FOCUS_RING } from "@/components/tap-target";
 
 const MAX_NAMES_SHOWN = 2;
 
@@ -29,7 +30,7 @@ const MealListItem = ({ meal, index }: { meal: DayMealSummary; index: number }) 
 
   return (
     <li>
-      <Link href={`/meals/${meal.id}`} className="flex items-baseline justify-between py-3">
+      <Link href={`/meals/${meal.id}`} className={`flex items-baseline justify-between py-3 ${FOCUS_RING}`}>
         <span className="flex flex-col gap-0.5">
           <span className="font-medium text-text">{heading}</span>
           {subtitle && <span className="text-sm text-text-muted">{subtitle}</span>}

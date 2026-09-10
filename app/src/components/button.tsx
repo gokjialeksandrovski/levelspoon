@@ -20,6 +20,12 @@ type NativeButtonProps = Omit<
 
 interface ButtonProps extends NativeButtonProps {
   variant?: ButtonVariant;
+  // An async action is in flight: the button both disables (so the action
+  // can't be fired twice) and sets aria-busy, so a screen reader announces
+  // "busy" rather than leaving the user unsure whether their tap registered
+  // - the disabled dimming alone reads the same as a form that isn't ready
+  // yet (found via /accessibility, 2026-09-10).
+  pending?: boolean;
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
@@ -47,10 +53,19 @@ const PRESS_SPRING_STIFFNESS = 400;
 const PRESS_SPRING_DAMPING = 28;
 const PRESS_SCALE = 0.97;
 
-export const Button = ({ variant = "primary", className = "", type = "button", ...props }: ButtonProps) => (
+export const Button = ({
+  variant = "primary",
+  className = "",
+  type = "button",
+  pending = false,
+  disabled,
+  ...props
+}: ButtonProps) => (
   <motion.button
     type={type}
     className={buttonClassName(variant, className)}
+    disabled={disabled || pending}
+    aria-busy={pending || undefined}
     whileTap={{ scale: PRESS_SCALE }}
     transition={{ type: "spring", stiffness: PRESS_SPRING_STIFFNESS, damping: PRESS_SPRING_DAMPING }}
     {...props}

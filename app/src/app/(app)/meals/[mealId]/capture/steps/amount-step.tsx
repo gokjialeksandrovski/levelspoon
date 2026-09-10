@@ -14,6 +14,16 @@ import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
+// Shown under the photo picker, before anyone opts in - not after a result.
+// Two things the user should know up front: the estimate is a rough guess
+// rather than a measurement, and the image leaves the app to a third-party
+// service to produce it. Deliberately vendor-neutral (the user's call,
+// 2026-09-10); once a privacy policy names the processor this can stay as
+// is. The nutrition-label and product-name photos don't get this - those go
+// to the app's own OCR service, not out to a third party.
+const AMOUNT_PHOTO_DISCLAIMER =
+  "This is a rough estimate, not exact - check the amount before saving. Your photo is sent to a third-party service to generate the estimate.";
+
 interface AmountStepProps {
   mealId: string;
   product: SelectedProduct;
@@ -148,9 +158,9 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
         hasAlternatives={alternatives.length > 0}
         onChangeMatch={form.changeMatch}
       />
-      <PhotoInput label="Amount photo (optional)" onSelect={form.handlePhoto} />
+      <PhotoInput label="Amount photo (optional)" hint={AMOUNT_PHOTO_DISCLAIMER} onSelect={form.handlePhoto} />
       <AmountField grams={form.grams} error={form.error} onGramsChange={form.setGrams} />
-      <Button disabled={form.isBusy || form.grams.trim() === ""} onClick={form.handleSave}>
+      <Button disabled={form.grams.trim() === ""} pending={form.isBusy} onClick={form.handleSave}>
         Save ingredient
       </Button>
     </div>

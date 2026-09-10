@@ -38,6 +38,17 @@ const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]
   return result.flags;
 };
 
+// Mirrors confirm-step.tsx: on a blocked save, take focus straight to the
+// first flagged input instead of leaving a keyboard or screen-reader user
+// to find it after the alert (found via /accessibility, 2026-09-10).
+const focusFirstFlagged = (flags: string[]): void => {
+  const flaggedFields = flaggedFieldSet(flags);
+  const first = (Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).find((field) => flaggedFields.has(field));
+  if (first) {
+    document.getElementById(first)?.focus();
+  }
+};
+
 // Guards two distinct failure shapes with the same fallback: no photoUrl at
 // all (product has none), and a photoUrl that fails to actually load (a
 // stale/expired presigned URL, a deleted object) - the latter previously had
@@ -153,6 +164,7 @@ const saveCorrection = async (product: ProductForCorrection, name: string, value
     if (freshFlags.length > 0) {
       callbacks.setFlags(freshFlags);
       callbacks.setSaveError("Please fix the flagged values before saving.");
+      focusFirstFlagged(freshFlags);
       return;
     }
     await applyCorrection(product, name, values, photo, router);
@@ -222,7 +234,7 @@ const CorrectionFormBody = ({ product, form }: CorrectionFormBodyProps) => (
       onFieldBlur={form.revalidateNow}
     />
     <CorrectionFeedback saveError={form.saveError} validateError={form.validateError} />
-    <Button disabled={!form.canSave || form.isSaving} onClick={form.handleSave}>
+    <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
       Save correction
     </Button>
   </div>
@@ -235,7 +247,7 @@ export const CorrectionForm = ({ product }: CorrectionFormProps) => {
   return (
     <>
       <AppHeader variant="back" title="Correct product" onBack={() => router.back()} />
-      <main className="flex-1 px-4 py-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
         <CorrectionFormBody product={product} form={form} />
       </main>
     </>

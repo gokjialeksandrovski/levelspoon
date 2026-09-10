@@ -1,9 +1,10 @@
 // app/src/app/(app)/day/[date]/day-macros.tsx
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type { NutritionValues } from "@/actions/products";
+import { FOCUS_RING } from "@/components/tap-target";
 
 import { macroGramShares, type MacroShares } from "./day-macros.utils";
 
@@ -64,8 +65,12 @@ const SegmentedRule = ({ shares }: { shares: MacroShares }) => (
   </div>
 );
 
-const ExpandedLine = ({ total }: { total: NutritionValues }) => (
-  <p className="mt-1 text-sm tabular-nums text-text-muted">
+// Always rendered, hidden until expanded, so the toggle's aria-controls can
+// point at a real element in both states (found via /accessibility,
+// 2026-09-10). `hidden` also drops it from the accessibility tree while
+// collapsed, matching what a sighted user sees.
+const ExpandedLine = ({ total, id, expanded }: { total: NutritionValues; id: string; expanded: boolean }) => (
+  <p id={id} className={`mt-1 text-sm tabular-nums text-text-muted ${expanded ? "" : "hidden"}`}>
     Sugars {round(total.sugarsG)}g · Saturates {round(total.saturatesG)}g · Salt {total.saltG.toFixed(1)}g
   </p>
 );
@@ -74,12 +79,15 @@ interface MacroFiguresProps {
   total: NutritionValues;
   shares: MacroShares;
   expanded: boolean;
+  detailsId: string;
   onToggle: () => void;
 }
 
 // The tap-to-toggle affordance: the whole P/C/F line is the button, and its
 // own aria-expanded state (not a separate chevron) communicates whether the
-// expanded sugars/saturates/salt line is showing.
+// expanded sugars/saturates/salt line is showing. aria-controls names that
+// line so a screen reader can tell what the button operates (found via
+// /accessibility, 2026-09-10).
 //
 // -my-2/py-2 grows the tappable area to ui-ux-pro-max's 44px floor without
 // growing the row itself, mirroring ingredient-row's negative-margin trick
@@ -88,13 +96,16 @@ interface MacroFiguresProps {
 // Solved for the worst case: the smallest figure size (text-lg, 28px
 // line-height) still needs to clear 44px, so py-2 (8px*2=16) is the floor;
 // on days where a figure renders larger, the button is taller still, same
-// as today (found via ui-ux-pro-max review, 2026-09-10).
-const MacroFigures = ({ total, shares, expanded, onToggle }: MacroFiguresProps) => (
+// as today (found via ui-ux-pro-max review, 2026-09-10). FOCUS_RING is the
+// shared branded focus outline - the button previously fell back to the
+// browser's own thin default.
+const MacroFigures = ({ total, shares, expanded, detailsId, onToggle }: MacroFiguresProps) => (
   <button
     type="button"
     onClick={onToggle}
     aria-expanded={expanded}
-    className="-my-2 flex items-baseline gap-4 py-2 text-left"
+    aria-controls={detailsId}
+    className={`-my-2 flex items-baseline gap-4 py-2 text-left ${FOCUS_RING}`}
   >
     <MacroFigure label="P" grams={round(total.proteinG)} share={shares.protein} accentClass="text-accent-protein" />
     <MacroFigure label="C" grams={round(total.carbohydrateG)} share={shares.carbs} accentClass="text-accent-carbs" />
@@ -107,6 +118,7 @@ const MacroFigures = ({ total, shares, expanded, onToggle }: MacroFiguresProps) 
 // placeholder (spec §4.2's empty state).
 export const DayMacros = ({ total }: { total: NutritionValues }) => {
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const shares = macroGramShares(total);
   const hasAnyMacros = shares.protein + shares.carbs + shares.fat > 0;
 
@@ -118,9 +130,9 @@ export const DayMacros = ({ total }: { total: NutritionValues }) => {
 
   return (
     <div className="mt-4">
-      <MacroFigures total={total} shares={shares} expanded={expanded} onToggle={toggleExpanded} />
+      <MacroFigures total={total} shares={shares} expanded={expanded} detailsId={detailsId} onToggle={toggleExpanded} />
       <SegmentedRule shares={shares} />
-      {expanded && <ExpandedLine total={total} />}
+      <ExpandedLine total={total} id={detailsId} expanded={expanded} />
     </div>
   );
 };

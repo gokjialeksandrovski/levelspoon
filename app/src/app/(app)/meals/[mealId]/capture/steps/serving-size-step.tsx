@@ -115,7 +115,7 @@ export const ServingSizeStep = ({ servingSizeText, perServing, name, photo, pref
       </h2>
       <p className="text-sm text-text-muted">What&rsquo;s one serving?</p>
       <ServingMeasurementField answer={form.answer} prefillGrams={prefillGrams} onChange={form.setAnswer} />
-      <Button disabled={form.answer.trim() === "" || form.isResolving} onClick={form.handleSubmit}>
+      <Button disabled={form.answer.trim() === ""} pending={form.isResolving} onClick={form.handleSubmit}>
         Continue
       </Button>
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}

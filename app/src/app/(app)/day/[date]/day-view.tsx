@@ -99,18 +99,35 @@ const DayViewBody = ({ state }: { state: DayViewState }) => {
   );
 };
 
+interface DaySlideProps {
+  state: DayViewState;
+  reduceMotion: boolean | null;
+}
+
 // One of two pre-existing places in the app using motion/react (the other
 // is the capture wizard); the 2026-09-05 re-theme added two more (Button's
 // press-feedback spring, LogSuccessPulse's log-success pulse), for four
-// total - see the design spec's §2.5. Keyed on `date` so prev/next
-// navigation remounts this element and its `initial` animation replays;
-// `useReducedMotion` collapses that to an instant, motion-free swap. The
-// slide's own numbers live in lib/motion/step-transition.ts, shared with
-// the wizard.
-//
-// The action bar sits outside motion.main deliberately: it must stay pinned
-// while the day's content scrolls and slides underneath it, and it only
-// exists for today - there is no way to log into the past.
+// total - see the design spec's §2.5. The slide's own numbers live in
+// lib/motion/step-transition.ts, shared with the wizard. id/tabIndex are
+// the skip link's landing target.
+const DaySlide = ({ state, reduceMotion }: DaySlideProps) => (
+  <motion.main
+    id="main-content"
+    tabIndex={-1}
+    className="flex-1 px-4 py-6 focus:outline-none"
+    initial={slideInitial(reduceMotion)}
+    animate={{ opacity: 1, x: 0 }}
+    transition={slideTransition(reduceMotion)}
+  >
+    <DayViewBody state={state} />
+  </motion.main>
+);
+
+// DaySlide is keyed on `date` so prev/next navigation remounts it and its
+// `initial` slide replays; `useReducedMotion` collapses that to an instant,
+// motion-free swap. The action bar sits outside it deliberately: it must
+// stay pinned while the day's content scrolls and slides underneath, and it
+// only exists for today - there is no way to log into the past.
 export const DayView = ({ date }: DayViewProps) => {
   const state = useDayLog(date);
   const reduceMotion = useReducedMotion();
@@ -119,15 +136,7 @@ export const DayView = ({ date }: DayViewProps) => {
   return (
     <>
       <AppHeader variant="day" date={date} />
-      <motion.main
-        key={date}
-        className="flex-1 px-4 py-6"
-        initial={slideInitial(reduceMotion)}
-        animate={{ opacity: 1, x: 0 }}
-        transition={slideTransition(reduceMotion)}
-      >
-        <DayViewBody state={state} />
-      </motion.main>
+      <DaySlide key={date} state={state} reduceMotion={reduceMotion} />
       {isToday && <DayActionBar />}
     </>
   );

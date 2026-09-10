@@ -29,7 +29,7 @@ const DeleteConfirmSheet = ({ isOpen, isBusy, error, onClose, onConfirm }: Delet
         This removes the meal and all of its ingredients. This can&apos;t be undone.
       </p>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button variant="danger" disabled={isBusy} onClick={onConfirm}>
+      <Button variant="danger" pending={isBusy} onClick={onConfirm}>
         Delete
       </Button>
     </div>

@@ -11,6 +11,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/button";
 import { InlineMessage } from "@/components/inline-message";
 import { Skeleton } from "@/components/skeleton";
+import { FOCUS_RING } from "@/components/tap-target";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { formatDayLabel } from "@/lib/date/format";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
@@ -84,7 +85,7 @@ const HistoryEmptyState = () => (
 
 const HistoryEntryRow = ({ entry }: { entry: DayHistoryEntry }) => (
   <li>
-    <Link href={`/day/${entry.date}`} className="flex items-baseline justify-between py-3">
+    <Link href={`/day/${entry.date}`} className={`flex items-baseline justify-between py-3 ${FOCUS_RING}`}>
       <span>{formatDayLabel(entry.date)}</span>
       <span className="tabular-nums text-text-muted">{Math.round(entry.totalKcal)} kcal</span>
     </Link>
@@ -155,7 +156,7 @@ const HistoryPage = () => {
   return (
     <>
       <AppHeader variant="back" title="History" backHref={`/day/${today}`} />
-      <main className="flex-1 px-4 py-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
         <HistoryBody state={state} onLoadMore={(offset) => loadPage(offset, true)} />
       </main>
     </>

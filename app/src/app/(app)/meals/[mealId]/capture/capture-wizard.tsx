@@ -3,7 +3,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import { discardEmptyMeal } from "@/actions/meals";
 import { Button } from "@/components/button";
@@ -157,16 +157,46 @@ interface AnimatedStepProps {
   children: React.ReactNode;
 }
 
-const AnimatedStep = ({ stepKind, reduceMotion, children }: AnimatedStepProps) => (
-  <motion.div
-    key={stepKind}
-    initial={slideInitial(reduceMotion)}
-    animate={{ opacity: 1, x: 0 }}
-    transition={slideTransition(reduceMotion)}
-  >
-    {children}
-  </motion.div>
-);
+// Moves focus to the step container on every step change after the first,
+// so a keyboard or screen-reader user who just pressed "Continue" isn't
+// dropped back to the document body - they land at the top of the step
+// that just appeared and its <h2> is read out (found via /accessibility,
+// 2026-09-10). The first run is skipped so arriving at the wizard doesn't
+// yank focus off the page start on load. The key change on the returned
+// node already remounts it per step, and the effect re-runs against the
+// fresh ref because stepKind is in its dependency list.
+const useFocusOnStepChange = (stepKind: WizardStep["kind"]) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isInitialStep = useRef(true);
+
+  useEffect(() => {
+    if (isInitialStep.current) {
+      isInitialStep.current = false;
+      return;
+    }
+    containerRef.current?.focus();
+  }, [stepKind]);
+
+  return containerRef;
+};
+
+const AnimatedStep = ({ stepKind, reduceMotion, children }: AnimatedStepProps) => {
+  const containerRef = useFocusOnStepChange(stepKind);
+
+  return (
+    <motion.div
+      key={stepKind}
+      ref={containerRef}
+      tabIndex={-1}
+      className="focus:outline-none"
+      initial={slideInitial(reduceMotion)}
+      animate={{ opacity: 1, x: 0 }}
+      transition={slideTransition(reduceMotion)}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 // Leaving the wizard is a real navigation now that it owns a route, so there
 // is no in-page listener left to notify: the destination remounts and fetches

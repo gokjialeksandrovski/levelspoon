@@ -97,7 +97,7 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: M
       onChange={(event) => onChange(event.target.value)}
     />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <Button disabled={isLoading || manualName.trim() === ""} onClick={onSubmit}>
+    <Button disabled={manualName.trim() === ""} pending={isLoading} onClick={onSubmit}>
       Continue
     </Button>
   </div>

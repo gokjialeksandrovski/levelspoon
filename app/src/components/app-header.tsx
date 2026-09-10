@@ -15,13 +15,16 @@ type AppHeaderProps =
 
 const HEADER_CLASS = "flex h-16 items-center justify-between border-b border-border px-4";
 
+// The day being viewed is what the screen is "about", so its label is the
+// h1 - matching BackHeader, which already titles its screens with one
+// (found via /accessibility, 2026-09-10; axe: page-has-heading-one).
 const DayHeader = ({ date }: { date: string }) => (
   <header className={HEADER_CLASS}>
     <div className="flex items-center gap-1">
       <Link href={`/day/${addCalendarDays(date, -1)}`} aria-label="Previous day" className={ICON_TAP_TARGET_CLASS}>
         <CaretLeft />
       </Link>
-      <span className="text-sm font-medium">{formatDayLabel(date)}</span>
+      <h1 className="text-sm font-medium">{formatDayLabel(date)}</h1>
       <Link href={`/day/${addCalendarDays(date, 1)}`} aria-label="Next day" className={ICON_TAP_TARGET_CLASS}>
         <CaretRight />
       </Link>

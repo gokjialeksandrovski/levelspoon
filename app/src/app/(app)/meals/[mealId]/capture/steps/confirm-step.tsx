@@ -46,6 +46,19 @@ const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues
   return values[field].trim() === "" ? UNREADABLE_FIELD_ERROR : INCONSISTENT_FIELD_ERROR;
 };
 
+// When a save is blocked by fresh flags, move focus to the first flagged
+// input so a keyboard or screen-reader user is taken straight to the field
+// that needs a fix rather than having to hunt for it after the alert
+// (found via /accessibility, 2026-09-10). Field renders <input id={name}>,
+// so the flag name is the element id.
+const focusFirstFlagged = (flags: string[]): void => {
+  const flaggedFields = flaggedFieldSet(flags);
+  const first = (Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).find((field) => flaggedFields.has(field));
+  if (first) {
+    document.getElementById(first)?.focus();
+  }
+};
+
 // Re-checks the whole row on blur and again right before saving, rather
 // than trusting the flags the OCR call first returned: a field can be
 // flagged purely because of its RELATIONSHIP to another (saturates can't
@@ -124,6 +137,7 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
     if (freshFlags.length > 0) {
       callbacks.setFlags(freshFlags);
       callbacks.setError(SAVE_BLOCKED_ERROR);
+      focusFirstFlagged(freshFlags);
       return;
     }
     await saveProduct(input.nameValue, input.values, input.photo, input.learned, dispatch);
@@ -195,7 +209,7 @@ export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned,
         onFieldBlur={form.revalidateNow}
       />
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-      <Button disabled={!form.canSave || form.isSaving} onClick={form.handleSave}>
+      <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
         Save product
       </Button>
     </div>

@@ -119,17 +119,24 @@ const QuantityEditor = ({ ingredientId, quantityInput, isBusy, onChange, onSave 
         name={`quantity-${ingredientId}`}
         type="number"
         inputMode="decimal"
+        // The editor mounts only when the user taps "Edit", so pulling
+        // focus straight into the field is the right move - it's where a
+        // keyboard or screen-reader user needs to be, and it stops focus
+        // being dropped on the now-unmounted "Edit" button (found via
+        // /accessibility, 2026-09-10).
+        autoFocus
         value={quantityInput}
         onChange={(event) => onChange(event.target.value)}
       />
     </div>
-    <Button disabled={isBusy} onClick={onSave}>
+    <Button pending={isBusy} onClick={onSave}>
       Save
     </Button>
   </div>
 );
 
 interface QuantitySummaryProps {
+  productName: string;
   quantityG: number;
   energyKcal: number;
   isBusy: boolean;
@@ -137,18 +144,47 @@ interface QuantitySummaryProps {
   onRemove: () => void;
 }
 
-const QuantitySummary = ({ quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+interface RowActionProps {
+  label: string;
+  toneClass: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: string;
+}
+
+// The visible text is the bare verb; `label` carries the product name so a
+// screen-reader user in a multi-ingredient meal can tell which row's action
+// they've landed on (found via /accessibility, 2026-09-10).
+const RowAction = ({ label, toneClass, disabled, onClick, children }: RowActionProps) => (
+  <button
+    type="button"
+    disabled={disabled}
+    aria-busy={disabled || undefined}
+    onClick={onClick}
+    aria-label={label}
+    className={`${TAP_HIT_AREA_SM} ${toneClass}`}
+  >
+    <span className="underline">{children}</span>
+  </button>
+);
+
+const QuantitySummary = ({ productName, quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex items-center justify-between text-sm text-text-muted">
     <span className="tabular-nums">
       {quantityG}g · {Math.round(energyKcal)} kcal
     </span>
     <div className="flex gap-3">
-      <button type="button" onClick={onEdit} className={`${TAP_HIT_AREA_SM} text-text-muted`}>
-        <span className="underline">Edit</span>
-      </button>
-      <button type="button" disabled={isBusy} onClick={onRemove} className={`${TAP_HIT_AREA_SM} text-danger disabled:opacity-50`}>
-        <span className="underline">Remove</span>
-      </button>
+      <RowAction label={`Edit ${productName} amount`} toneClass="text-text-muted" onClick={onEdit}>
+        Edit
+      </RowAction>
+      <RowAction
+        label={`Remove ${productName}`}
+        toneClass="text-danger disabled:opacity-50"
+        disabled={isBusy}
+        onClick={onRemove}
+      >
+        Remove
+      </RowAction>
     </div>
   </div>
 );
@@ -170,6 +206,7 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
     />
   ) : (
     <QuantitySummary
+      productName={ingredient.productName}
       quantityG={ingredient.quantityG}
       energyKcal={ingredient.contribution.energyKcal}
       isBusy={editing.isBusy}
@@ -181,9 +218,15 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
 // `block` makes the negative-margin cancellation explicit rather than
 // relying on this <a> being blockified by its flex-col parent - vertical
 // margin is a no-op on a plain inline element, so TAP_HIT_AREA_XS's -my-3.5
-// would silently do nothing without it.
-const CorrectionLink = ({ productId }: { productId: string }) => (
-  <Link href={`/products/${productId}/correct`} className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}>
+// would silently do nothing without it. aria-label carries the product name
+// for the same reason QuantitySummary's buttons do (found via
+// /accessibility, 2026-09-10).
+const CorrectionLink = ({ productId, productName }: { productId: string; productName: string }) => (
+  <Link
+    href={`/products/${productId}/correct`}
+    aria-label={`Correct values for ${productName}`}
+    className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}
+  >
     Values look wrong?
   </Link>
 );
@@ -206,7 +249,7 @@ const RemoveIngredientSheet = ({ productName, isBusy, error, onClose, onConfirm 
     <div className="flex flex-col gap-4">
       <p className="text-sm text-text-muted">This takes it off the meal. This can&apos;t be undone.</p>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button variant="danger" disabled={isBusy} onClick={onConfirm}>
+      <Button variant="danger" pending={isBusy} onClick={onConfirm}>
         Remove
       </Button>
     </div>
@@ -224,7 +267,7 @@ const IngredientRowContent = ({ ingredient, editing, onRequestRemove, showError 
   <>
     <IngredientHeader productName={ingredient.productName} quantitySource={ingredient.quantitySource} />
     <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
-    <CorrectionLink productId={ingredient.productId} />
+    <CorrectionLink productId={ingredient.productId} productName={ingredient.productName} />
     {showError && editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}
   </>
 );

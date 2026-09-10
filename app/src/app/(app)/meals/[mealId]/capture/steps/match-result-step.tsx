@@ -1,5 +1,5 @@
 // app/src/app/meals/[mealId]/steps/match-result-step.tsx
-import { TAP_HIT_AREA_SM } from "@/components/tap-target";
+import { FOCUS_RING, TAP_HIT_AREA_SM } from "@/components/tap-target";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -27,7 +27,7 @@ const CandidateButton = ({ candidate, candidates, dispatch }: CandidateButtonPro
           alternatives: candidates.filter((other) => other.id !== candidate.id),
         })
       }
-      className="w-full py-3 text-left text-text"
+      className={`w-full py-3 text-left text-text ${FOCUS_RING}`}
     >
       {candidate.name}
     </button>

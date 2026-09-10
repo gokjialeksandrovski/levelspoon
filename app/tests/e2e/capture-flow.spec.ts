@@ -63,7 +63,10 @@ test("ambiguous match: pick a candidate, reach the amount step", async ({ page }
   await signUp(page);
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/ambiguous-product.jpg");
-  await expect(page.getByRole("heading", { name: /which product/i })).toBeVisible();
+  // The step's own <h2>, not a looser /which product/i: the wizard header
+  // now titles the screen with an <h1> ("Which product?") too, and a
+  // substring match would hit both (found via /accessibility, 2026-09-10).
+  await expect(page.getByRole("heading", { name: "Which product is this?" })).toBeVisible();
   await page.getByRole("button", { name: "Olympus Greek Yogurt 2% Fat" }).click();
   await expect(page.getByLabel(/amount \(g\)/i)).toBeVisible();
 });

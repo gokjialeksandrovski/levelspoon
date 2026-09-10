@@ -41,7 +41,7 @@ export const DayActionBar = () => {
   return (
     <div className="sticky bottom-0 border-t border-border bg-bg px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
       {hasError && <InlineMessage tone="error">Could not start. Please try again.</InlineMessage>}
-      <Button variant="primary" className="w-full" disabled={isBusy} onClick={() => void startMeal(router, callbacks)}>
+      <Button variant="primary" className="w-full" pending={isBusy} onClick={() => void startMeal(router, callbacks)}>
         New meal
       </Button>
     </div>

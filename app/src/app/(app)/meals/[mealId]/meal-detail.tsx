@@ -224,7 +224,7 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
   return (
     <>
       <AppHeader variant="back" title={mealDetailTitle(state)} backHref={mealDetailBackHref(state, today)} />
-      <main className="flex-1 px-4 py-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
         <MealDetailBody
           state={state}
           mealId={mealId}
