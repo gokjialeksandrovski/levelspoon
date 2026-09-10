@@ -35,3 +35,15 @@ export const TAP_HIT_AREA_XS = `-my-3.5 -mx-1 px-1 py-3.5 ${FOCUS_RING}`;
 // pair packed at gap-1 would (found via ui-ux-pro-max review, 2026-09-10).
 // size-11 lands exactly on the 44px floor (11 * 4px).
 export const ICON_TAP_TARGET_CLASS = `flex size-11 items-center justify-center ${FOCUS_RING}`;
+
+// Edge variants: on a control at the very start or end of a header row,
+// justify-center leaves the 22px glyph floating (44-22)/2 = 11px inside the
+// 44px box, so it sits inset from the page's px-4 content column - the day
+// label carets ended up ~11px right of the kcal figure and body text below
+// them (found via /layout, 2026-09-10). These pin the glyph to the box edge
+// that faces the page margin so it lines up with the content column; the
+// 44px hit area is unchanged, it just extends inward, away from the screen
+// edge (the safe direction). LEADING for the left end of a row, TRAILING
+// for the right.
+export const ICON_TAP_TARGET_LEADING = `flex size-11 items-center justify-start ${FOCUS_RING}`;
+export const ICON_TAP_TARGET_TRAILING = `flex size-11 items-center justify-end ${FOCUS_RING}`;

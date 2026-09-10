@@ -6,7 +6,7 @@ import { UserCircle } from "@phosphor-icons/react";
 
 import { Button } from "@/components/button";
 import { Sheet } from "@/components/sheet";
-import { ICON_TAP_TARGET_CLASS } from "@/components/tap-target";
+import { ICON_TAP_TARGET_TRAILING } from "@/components/tap-target";
 
 import { signOutAction } from "./account-menu.actions";
 
@@ -21,7 +21,7 @@ const AccountEmail = ({ email }: { email: string | null | undefined }) => (
 // target grew this past a single-line button (ui-ux-pro-max review,
 // 2026-09-10).
 const AccountTrigger = ({ open, onOpen }: { open: boolean; onOpen: () => void }) => (
-  <button type="button" onClick={onOpen} aria-label="Account" aria-expanded={open} className={ICON_TAP_TARGET_CLASS}>
+  <button type="button" onClick={onOpen} aria-label="Account" aria-expanded={open} className={ICON_TAP_TARGET_TRAILING}>
     <UserCircle />
   </button>
 );

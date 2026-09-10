@@ -60,12 +60,17 @@ const handlePhotoChange = (
   onSelect: (photo: File) => void,
   setPreviewUrl: (url: string) => void,
 ): void => {
-  const file = event.target.files?.[0];
+  const input = event.target;
+  const file = input.files?.[0];
   if (!file) {
     return;
   }
   setPreviewUrl(URL.createObjectURL(file));
   onSelect(file);
+  // Clear the input so picking the same file again still fires `change` -
+  // otherwise a retry (e.g. after declining the AI terms, or after a failed
+  // estimate) with the identical photo does nothing.
+  input.value = "";
 };
 
 export const PhotoInput = ({ label, onSelect, hint }: PhotoInputProps) => {

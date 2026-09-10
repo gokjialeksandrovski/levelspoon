@@ -3,7 +3,7 @@
 
 import { CaretLeft } from "@phosphor-icons/react";
 
-import { ICON_TAP_TARGET_CLASS } from "@/components/tap-target";
+import { ICON_TAP_TARGET_LEADING } from "@/components/tap-target";
 
 interface WizardShellProps {
   title: string;
@@ -45,7 +45,7 @@ export const WizardShell = ({ title, progress, onBack, children }: WizardShellPr
         landmark (axe: region), not orphaned between header and main. */}
     <header>
       <div className="flex h-16 items-center gap-1 border-b border-border px-4">
-        <button type="button" onClick={onBack} aria-label="Back" className={ICON_TAP_TARGET_CLASS}>
+        <button type="button" onClick={onBack} aria-label="Back" className={ICON_TAP_TARGET_LEADING}>
           <CaretLeft />
         </button>
         <h1 className="text-sm font-medium">{title}</h1>
