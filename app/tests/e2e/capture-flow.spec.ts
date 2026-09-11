@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { localToday, seedAmbiguousVariants, seedConfidentProduct, signUp, truncateAll } from "./support";
+import { localToday, seedAmbiguousVariants, seedConfidentProduct, seedStandardFood, signUp, truncateAll } from "./support";
 
 test.beforeEach(truncateAll);
 
@@ -84,4 +84,32 @@ test("abandoning a new meal on step 1 leaves no stray meal", async ({ page }) =>
   await page.getByRole("button", { name: "Back" }).click();
   await page.waitForURL(`**/day/${localToday()}`);
   await expect(page.getByRole("link", { name: /Meal 1/ })).toHaveCount(0);
+});
+
+test("whole food: search and pick a standard food, reach the amount step and save", async ({ page }) => {
+  await seedStandardFood("Banana");
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Whole food / no packaging" }).click();
+  await page.getByLabel("Food name").fill("Banana");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Banana" }).click();
+  await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
+  await page.getByLabel("Amount", { exact: true }).fill("120");
+  await page.getByRole("button", { name: "Save ingredient" }).click();
+  await expect(page.getByText("Ingredient saved.")).toBeVisible();
+});
+
+test("whole food: empty search shows the no-match copy and returns to product photo", async ({ page }) => {
+  await signUp(page);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Whole food / no packaging" }).click();
+  await page.getByLabel("Food name").fill("zzznotarealfood");
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page.getByText(/No match/)).toBeVisible();
+  await page.getByRole("button", { name: "Back to product photo" }).click();
+  await expect(page.getByLabel(/product photo/i)).toBeVisible();
 });
