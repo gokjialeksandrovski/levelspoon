@@ -4,6 +4,14 @@ import { users } from "./auth";
 
 export const quantitySourceEnum = pgEnum("quantity_source", ["ai_estimated", "manual"]);
 
+export const productSource = pgEnum("product_source", ["user", "standard"]);
+
+// "whole" = a whole food shown in the no-label search step.
+// "fat" = a cooking oil/butter/spray, the meal-detail cooking-materials filter.
+// Null on user rows. (spec §5 — not in the §4 table; added because §6's
+// searchStandardFoods category filter needs a stored column.)
+export const productCategory = pgEnum("product_category", ["whole", "fat"]);
+
 const NUTRITION_COLUMN_PRECISION = 10;
 const NUTRITION_COLUMN_SCALE = 2;
 
@@ -21,6 +29,9 @@ export const products = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     brand: text("brand"),
+    source: productSource("source").notNull().default("user"),
+    standardSlug: text("standard_slug").unique(),
+    standardCategory: productCategory("standard_category"),
     energyKcal: nutritionColumn("energy_kcal"),
     fatG: nutritionColumn("fat_g"),
     saturatesG: nutritionColumn("saturates_g"),
@@ -40,7 +51,8 @@ export const products = pgTable(
       precision: NUTRITION_COLUMN_PRECISION,
       scale: NUTRITION_COLUMN_SCALE,
     }),
-    nutritionPhotoKey: text("nutrition_photo_key").notNull(),
+    // Null on standard rows — they have no label photo. (spec §4)
+    nutritionPhotoKey: text("nutrition_photo_key"),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),

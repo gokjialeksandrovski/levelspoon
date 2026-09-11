@@ -33,6 +33,39 @@ const seedProduct = async (userId: string, name: string) => {
   });
 };
 
+const seedStandardRow = async (row: {
+  slug: string;
+  name: string;
+  category?: "whole" | "fat";
+  servingUnit?: string | null;
+  servingGrams?: number | null;
+  densityGMl?: number | null;
+}): Promise<string> => {
+  const [sys] = await db
+    .insert(users)
+    .values({ email: `system-${crypto.randomUUID()}@per100.local` })
+    .returning();
+  const [product] = await db
+    .insert(products)
+    .values({
+      name: row.name,
+      source: "standard",
+      standardSlug: row.slug,
+      standardCategory: row.category ?? "whole",
+      energyKcal: "89", fatG: "0.33", saturatesG: "0.11",
+      carbohydrateG: "22.84", sugarsG: "12.23", proteinG: "1.09", saltG: "0",
+      servingUnit: row.servingUnit ?? null,
+      servingGrams:
+        row.servingGrams === undefined || row.servingGrams === null ? null : String(row.servingGrams),
+      densityGMl:
+        row.densityGMl === undefined || row.densityGMl === null ? null : String(row.densityGMl),
+      nutritionPhotoKey: null,
+      createdByUserId: sys.id,
+    })
+    .returning({ id: products.id });
+  return product.id;
+};
+
 beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals CASCADE`);
   mockAuth.mockReset();
@@ -220,6 +253,31 @@ describe("getProductForCorrection", () => {
 
     const result = await getProductForCorrection(crypto.randomUUID());
     expect(result).toBeNull();
+  });
+});
+
+describe("standard-source product rows", () => {
+  it("persist with a null nutrition photo key and a category", async () => {
+    const id = await seedStandardRow({ slug: "banana", name: "Banana", category: "whole" });
+
+    const [row] = await db.select().from(products).where(eq(products.id, id));
+    expect(row.source).toBe("standard");
+    expect(row.nutritionPhotoKey).toBeNull();
+    expect(row.standardSlug).toBe("banana");
+    expect(row.standardCategory).toBe("whole");
+  });
+
+  it("reject a duplicate standard_slug", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+
+    await expect(seedStandardRow({ slug: "banana", name: "Banana again" })).rejects.toThrow();
+  });
+
+  it("are not offered for correction", async () => {
+    const id = await seedStandardRow({ slug: "banana", name: "Banana" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    expect(await getProductForCorrection(id)).toBeNull();
   });
 });
 

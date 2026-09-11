@@ -6,7 +6,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
-import { products } from "@/lib/db/schema";
+import { products, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
 
@@ -20,6 +20,9 @@ const CONFIDENT_SIMILARITY_THRESHOLD = 0.65;
 const CONFIDENT_MARGIN = 0.15;
 const AMBIGUOUS_SIMILARITY_THRESHOLD = 0.35;
 const CANDIDATE_LIMIT = 5;
+
+// productSource.enumValues is the tuple ["user", "standard"].
+const STANDARD_SOURCE = productSource.enumValues[1];
 
 export interface NutritionValues {
   energyKcal: number;
@@ -231,11 +234,15 @@ export interface ProductForCorrection {
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
   await requireUserId();
   const [product] = await db.select().from(products).where(eq(products.id, productId));
-  if (!product) {
+  // A standard row has no label photo and no "Values look wrong?" path — it is
+  // curated, not user-owned. (spec §6)
+  if (!product || product.source === STANDARD_SOURCE) {
     return null;
   }
 
-  const photoUrl = await getPhotoUrl(product.nutritionPhotoKey).catch(() => null);
+  const photoUrl = product.nutritionPhotoKey
+    ? await getPhotoUrl(product.nutritionPhotoKey).catch(() => null)
+    : null;
   return {
     id: product.id,
     name: product.name,
