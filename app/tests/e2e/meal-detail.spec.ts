@@ -5,7 +5,7 @@ import { db } from "../../src/lib/db";
 import { localDateStringOf } from "../../src/lib/date/day-bounds";
 import { mealIngredients, meals, users } from "../../src/lib/db/schema";
 
-import { freshEmail, logOneIngredient, seedConfidentProduct, seedProductFor, signUp, truncateAll } from "./support";
+import { freshEmail, logOneIngredient, seedConfidentProduct, seedProductFor, seedStandardFood, signUp, truncateAll } from "./support";
 
 test.beforeEach(truncateAll);
 
@@ -106,4 +106,41 @@ test("back from a meal on a past day returns to that meal's own day", async ({ p
   await expect(page.getByText("Test Product")).toBeVisible();
   await page.getByRole("link", { name: "Back" }).click();
   await page.waitForURL(new RegExp(`/day/${expectedDate}$`));
+});
+
+test("the cooking-fat control is optional and adds nothing until used", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+
+  await expect(page.getByRole("button", { name: "Add cooking oil or fat" })).toBeVisible();
+  await expect(page.getByText(/Meal total.*140 kcal/)).toBeVisible();
+});
+
+// Olive oil's real USDA per-100g figures (884 kcal, 0.92 g/mL density) so the
+// expected kcal rise matches the spec's own worked example (spec §8 T4):
+// 1 tbsp = 15ml * 0.92 = 13.8g; 884 * 13.8/100 = 121.99 -> rounds to 122.
+test("adding a cooking fat raises the meal total by its own contribution", async ({ page }) => {
+  await seedConfidentProduct();
+  await seedStandardFood("Olive oil", {
+    category: "fat",
+    densityGMl: "0.92",
+    nutrition: {
+      energyKcal: "884", fatG: "100", saturatesG: "13.81",
+      carbohydrateG: "0", sugarsG: "0", proteinG: "0", saltG: "0.01",
+    },
+  });
+  await signUp(page);
+  await logOneIngredient(page);
+
+  await page.getByRole("button", { name: "Add cooking oil or fat" }).click();
+  await page.getByLabel("Oil or fat name").fill("Olive oil");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Olive oil" }).click();
+  await expect(page.getByLabel("Unit")).toHaveValue("tbsp");
+  await page.getByLabel("Amount", { exact: true }).fill("1");
+  await page.getByRole("button", { name: "Add to meal" }).click();
+
+  await expect(page.getByText(/13\.8 ?g.*122 kcal/)).toBeVisible();
+  await expect(page.getByText(/Meal total.*262 kcal/)).toBeVisible();
 });

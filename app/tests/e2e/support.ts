@@ -47,19 +47,27 @@ export const seedProductFor = async (userId: string, name = "Test Product") => {
 // re-running the full fixture loader before every test.
 export const seedStandardFood = async (
   name = "Banana",
-  overrides: { servingUnit?: string | null; servingGrams?: string | null } = {},
+  overrides: {
+    servingUnit?: string | null;
+    servingGrams?: string | null;
+    category?: "whole" | "fat";
+    densityGMl?: string | null;
+    nutrition?: Partial<typeof BASE_NUTRITION>;
+  } = {},
 ) => {
   const [systemUser] = await db.insert(users).values({ email: freshEmail("system") }).returning();
   await db.insert(products).values({
     ...BASE_NUTRITION,
+    ...overrides.nutrition,
     name,
     nutritionPhotoKey: null,
     source: "standard",
     standardSlug: `e2e-${crypto.randomUUID()}`,
-    standardCategory: "whole",
+    standardCategory: overrides.category ?? "whole",
     createdByUserId: systemUser.id,
     servingUnit: overrides.servingUnit ?? null,
     servingGrams: overrides.servingGrams ?? null,
+    densityGMl: overrides.densityGMl ?? null,
   });
 };
 
