@@ -201,6 +201,26 @@ describe("wizardReducer", () => {
   });
 });
 
+describe("wizardReducer — whole food search", () => {
+  it("routes WHOLE_FOOD_SEARCH from product-photo to the standard-food-search step", () => {
+    const next = wizardReducer({ kind: "product-photo" }, { type: "WHOLE_FOOD_SEARCH" });
+    expect(next).toEqual({ kind: "standard-food-search" });
+  });
+
+  it("routes WHOLE_FOOD_CHOSEN to the amount step with no alternatives", () => {
+    const next = wizardReducer(
+      { kind: "standard-food-search" },
+      { type: "WHOLE_FOOD_CHOSEN", product: { id: "s1", name: "Banana", ...NO_MEASURES } },
+    );
+
+    expect(next).toEqual({
+      kind: "amount",
+      product: { id: "s1", name: "Banana", ...NO_MEASURES },
+      alternatives: [],
+    });
+  });
+});
+
 const PER_SERVING = {
   energyKcal: 250, fatG: 12, saturatesG: 4.5, carbohydrateG: 32,
   sugarsG: 28, proteinG: 4, saltG: 0.3125,

@@ -12,6 +12,7 @@ export interface SelectedProduct {
 
 export type WizardStep =
   | { kind: "product-photo" }
+  | { kind: "standard-food-search" }
   | {
       kind: "match-result";
       nameGuess: string;
@@ -66,11 +67,13 @@ export type WizardAction =
   | { type: "PRODUCT_CREATED"; product: SelectedProduct }
   | { type: "SAVED" }
   | { type: "ADD_ANOTHER" }
-  | { type: "CHANGE_MATCH"; nameGuess: string; candidates: SelectedProduct[] };
+  | { type: "CHANGE_MATCH"; nameGuess: string; candidates: SelectedProduct[] }
+  | { type: "WHOLE_FOOD_SEARCH" }
+  | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct };
 
 export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo" };
 
-const toSelectedProduct = (candidate: {
+export const toSelectedProduct = (candidate: {
   id: string;
   name: string;
   densityGMl: number | null;
@@ -149,5 +152,7 @@ export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardS
     case "SAVED": return { kind: "saved" };
     case "ADD_ANOTHER": return { kind: "product-photo" };
     case "CHANGE_MATCH": return applyChangeMatch(action);
+    case "WHOLE_FOOD_SEARCH": return { kind: "standard-food-search" };
+    case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [] };
   }
 };
