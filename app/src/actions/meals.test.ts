@@ -27,7 +27,10 @@ const seedUser = async (): Promise<string> => {
   return user.id;
 };
 
-const seedProduct = async (userId: string): Promise<string> => {
+const seedProduct = async (
+  userId: string,
+  overrides: { servingUnit?: string | null; servingGrams?: number | null; densityGMl?: string | null } = {},
+): Promise<string> => {
   const [product] = await db
     .insert(products)
     .values({
@@ -41,6 +44,12 @@ const seedProduct = async (userId: string): Promise<string> => {
       saltG: "0.18",
       nutritionPhotoKey: "test/placeholder.jpg",
       createdByUserId: userId,
+      servingUnit: overrides.servingUnit ?? null,
+      servingGrams:
+        overrides.servingGrams === undefined || overrides.servingGrams === null
+          ? null
+          : String(overrides.servingGrams),
+      densityGMl: overrides.densityGMl ?? null,
     })
     .returning();
   return product.id;
@@ -214,6 +223,20 @@ describe("getMealDetail", () => {
     const firstOfLocalDay = await insertMealAt(userId, "2026-03-09T22:00:00Z");
 
     expect((await getMealDetail(firstOfLocalDay, "Asia/Kolkata"))?.mealNumber).toBe(1);
+  });
+
+  it("carries the product's serving unit, serving weight, and density onto each ingredient", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, { servingUnit: "bar", servingGrams: 52, densityGMl: "1.2333" });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantityG: 104, quantitySource: "manual" });
+
+    const meal = await getMealDetail(mealId, "UTC");
+
+    expect(meal?.ingredients[0].servingUnit).toBe("bar");
+    expect(meal?.ingredients[0].servingGrams).toBe(52);
+    expect(meal?.ingredients[0].densityGMl).toBeCloseTo(1.2333, 4);
   });
 });
 

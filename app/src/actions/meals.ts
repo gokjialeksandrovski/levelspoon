@@ -199,6 +199,9 @@ export interface MealIngredientDetail {
   quantityG: number;
   quantitySource: "ai_estimated" | "manual";
   contribution: NutritionValues;
+  densityGMl: number | null;
+  servingUnit: string | null;
+  servingGrams: number | null;
 }
 
 export interface MealDetail {
@@ -209,6 +212,12 @@ export interface MealDetail {
   total: NutritionValues;
 }
 
+interface ProductMeasureColumns {
+  densityGMl: string | null;
+  servingUnit: string | null;
+  servingGrams: string | null;
+}
+
 interface MealIngredientRow {
   id: string;
   productId: string;
@@ -216,6 +225,7 @@ interface MealIngredientRow {
   quantityG: string;
   quantitySource: "ai_estimated" | "manual";
   product: ProductNutritionRow;
+  measures: ProductMeasureColumns;
 }
 
 const MEAL_INGREDIENT_SELECTION = {
@@ -232,6 +242,11 @@ const MEAL_INGREDIENT_SELECTION = {
     sugarsG: products.sugarsG,
     proteinG: products.proteinG,
     saltG: products.saltG,
+  },
+  measures: {
+    densityGMl: products.densityGMl,
+    servingUnit: products.servingUnit,
+    servingGrams: products.servingGrams,
   },
 };
 
@@ -250,6 +265,9 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   quantityG: Number(row.quantityG),
   quantitySource: row.quantitySource,
   contribution: computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG)),
+  densityGMl: row.measures.densityGMl === null ? null : Number(row.measures.densityGMl),
+  servingUnit: row.measures.servingUnit,
+  servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
 });
 
 // The upper bound is read back out of the meal's own row in SQL rather than
