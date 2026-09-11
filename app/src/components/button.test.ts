@@ -13,4 +13,10 @@ describe("buttonClassName", () => {
     expect(primary).toContain("bg-text");
     expect(primary).toContain("text-bg");
   });
+
+  it("gives the fat variant the plum cooking-materials accent, not a hardcoded hex", () => {
+    const fat = buttonClassName("fat");
+    expect(fat).toContain("text-accent-fat");
+    expect(fat).toContain("border-accent-fat");
+  });
 });

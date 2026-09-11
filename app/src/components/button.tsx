@@ -2,12 +2,11 @@
 
 import { motion } from "motion/react";
 
-export type ButtonVariant = "primary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "ghost" | "danger" | "fat";
 
 // Native onDrag*/onAnimation* handlers are omitted: motion.button redefines
-// them with its own gesture/animation-lifecycle signatures, incompatible
-// with React's native DOM event handler types. No existing call site passes
-// these props (verified via repo search).
+// them with its own signatures, incompatible with React's native DOM event
+// handler types. No call site passes these props.
 type NativeButtonProps = Omit<
   React.ButtonHTMLAttributes<HTMLButtonElement>,
   | "onDrag"
@@ -32,6 +31,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-text text-bg hover:brightness-90",
   ghost: "bg-surface-raised text-text hover:bg-border",
   danger: "border border-danger text-danger hover:bg-danger/10",
+  fat: "border border-accent-fat text-accent-fat hover:bg-accent-fat/10",
 };
 
 // Exported so a non-<button> element that must look like a Button (e.g. a
@@ -44,11 +44,8 @@ const VARIANT: Record<ButtonVariant, string> = {
 export const buttonClassName = (variant: ButtonVariant = "primary", className = ""): string =>
   `rounded-(--radius-control) px-4 py-3 text-sm font-medium transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${VARIANT[variant]} ${className}`;
 
-// Press-feedback spring (spec §2.5, category 1 of 2). Plain JS constants,
-// not read from globals.css - motion/react's spring config needs numeric
-// values, not CSS custom properties, so these are defined directly here
-// rather than pretending to share a token with the (removed) CSS-side
-// spring variables.
+// Press-feedback spring (spec §2.5). Plain JS constants: motion/react's
+// spring config needs numbers, not CSS custom properties.
 const PRESS_SPRING_STIFFNESS = 400;
 const PRESS_SPRING_DAMPING = 28;
 const PRESS_SCALE = 0.97;
