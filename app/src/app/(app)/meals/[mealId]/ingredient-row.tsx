@@ -17,7 +17,7 @@ import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams"
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
-  onError: (message: string) => void;
+  onError: (message: string | null) => void;
   // Beside router.refresh() (a no-op once the parent page is a Client
   // Component with no server data of its own to refetch - see meal-detail.tsx),
   // this is what actually makes the parent's fetched ingredient list and
@@ -46,6 +46,7 @@ const saveIngredientQuantity = async (
   onSaved: () => void,
   callbacks: MutationCallbacks,
 ): Promise<void> => {
+  callbacks.onError(null);
   callbacks.onBusyChange(true);
   try {
     await updateMealIngredientQuantity(mealIngredientId, quantityG);
@@ -168,7 +169,7 @@ const QuantityEditor = ({ ingredientId, count, unit, units, isBusy, onCountChang
         onUnitChange={onUnitChange}
       />
     </div>
-    <Button pending={isBusy} onClick={onSave}>
+    <Button disabled={count.trim() === ""} pending={isBusy} onClick={onSave}>
       Save
     </Button>
   </div>

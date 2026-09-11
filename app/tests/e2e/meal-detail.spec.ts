@@ -25,6 +25,31 @@ test("editing an ingredient amount recalculates its contribution", async ({ page
   await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();
 });
 
+// Regression: a failed save (amount resolves to 0g, which resolveGrams
+// treats as unresolved) used to leave its error message rendered forever,
+// even after a subsequent save succeeded - saveIngredientQuantity never
+// cleared editing.error on a new attempt (ingredient-row.tsx).
+test("a stale error clears once a retried save succeeds", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Amount", { exact: true }).fill("0");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  const errorMessage = page.getByText('Could not work out the amount in "g" - try a different unit.');
+  await expect(errorMessage).toBeVisible();
+  // A failed resolve doesn't close the editor - the Amount field stays.
+  await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
+
+  await page.getByLabel("Amount", { exact: true }).fill("100");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(errorMessage).toHaveCount(0);
+  await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();
+});
+
 test("removing an ingredient via the confirm sheet takes it off the meal", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
