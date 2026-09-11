@@ -10,6 +10,7 @@ import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, topTwoScores, updateProduct } from "./products";
 import type { CandidateRow } from "./products";
+import { ProductNotEditableError } from "./products.errors";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -315,6 +316,19 @@ describe("updateProduct", () => {
     expect(updated.nutritionPhotoKey).toMatch(/^products\/.+/);
     expect(updated.nutritionPhotoKey).not.toBe(existing.nutritionPhotoKey);
   });
+
+  it("refuses to update a standard-source product", async () => {
+    const standardId = await seedStandardRow({ slug: "zzq-standard-fixture", name: "Zzq Standard Fixture" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    await expect(
+      updateProduct(standardId, {
+        nutritionPer100g: {
+          energyKcal: 75, fatG: 2.5, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+        },
+      }),
+    ).rejects.toThrow(ProductNotEditableError);
+  });
 });
 
 describe("getProductForCorrection", () => {
@@ -467,6 +481,29 @@ describe("findStoredMeasures", () => {
     mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
 
     expect(await findStoredMeasures("Zzq Learned Fixture")).toEqual(NOTHING_LEARNED);
+  });
+
+  it("returns a user product's own learned measures when a same-name standard row also exists", async () => {
+    await seedStandardRow({
+      slug: "zzq-learned-fixture-2",
+      name: "Zzq Learned Fixture Two",
+      servingUnit: "slice",
+      servingGrams: 20,
+    });
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    await createProduct({
+      name: "Zzq Learned Fixture Two",
+      nutritionPer100g: LEARNED_TEST_NUTRITION,
+      photo: testPhoto(),
+      learned: { densityGMl: null, servingUnit: "bar", servingGrams: 99 },
+    });
+
+    expect(await findStoredMeasures("Zzq Learned Fixture Two")).toEqual({
+      densityGMl: null,
+      servingUnit: "bar",
+      servingGrams: 99,
+    });
   });
 });
 

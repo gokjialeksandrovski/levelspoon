@@ -96,10 +96,13 @@ const assertPer100g = (slug: string, per100g: unknown): void => {
 };
 
 const assertServing = (slug: string, row: Record<string, unknown>): void => {
-  const unitIsNull = row.servingUnit === null;
-  const gramsIsNull = row.servingGrams === null;
+  const unitIsNull = row.servingUnit == null;
+  const gramsIsNull = row.servingGrams == null;
   if (unitIsNull !== gramsIsNull) {
     throw new StandardFoodRowError(slug, "servingUnit and servingGrams must be both set or both null");
+  }
+  if (!unitIsNull && (typeof row.servingUnit !== "string" || row.servingUnit.trim() === "")) {
+    throw new StandardFoodRowError(slug, "servingUnit must be a non-empty string");
   }
   if (!gramsIsNull && (!isFiniteNumber(row.servingGrams) || (row.servingGrams as number) <= 0)) {
     throw new StandardFoodRowError(slug, "servingGrams must be a positive number");
@@ -126,12 +129,24 @@ export const assertValidStandardFood = (value: unknown): StandardFoodFixture => 
   return value as StandardFoodFixture;
 };
 
+export const assertNoDuplicateSlugs = (rows: readonly StandardFoodFixture[]): void => {
+  const seenSlugs = new Set<string>();
+  for (const row of rows) {
+    if (seenSlugs.has(row.slug)) {
+      throw new StandardFoodRowError(row.slug, "duplicate slug in fixture file");
+    }
+    seenSlugs.add(row.slug);
+  }
+};
+
 const loadStandardFoods = (): StandardFoodFixture[] => {
   const raw = JSON.parse(readFileSync(STANDARD_FOODS_PATH, "utf8")) as unknown;
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new StandardFoodRowError("(file)", "expected a non-empty JSON array");
   }
-  return raw.map(assertValidStandardFood);
+  const rows = raw.map(assertValidStandardFood);
+  assertNoDuplicateSlugs(rows);
+  return rows;
 };
 
 const per100gColumns = (per100g: StandardFoodFixture["per100g"]) => ({
@@ -202,7 +217,7 @@ const main = async () => {
   const systemUserId = await findOrCreateSystemUser();
   const standardCount = await seedStandardFoods(systemUserId);
   console.log(
-    `Seeded 1 user, 2 products (2%/10% variant pair) and ${standardCount} standard foods.`,
+    `Seeded 2 users (seed + system), 2 products (2%/10% variant pair) and ${standardCount} standard foods.`,
   );
 };
 

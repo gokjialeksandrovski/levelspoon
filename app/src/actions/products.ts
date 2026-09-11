@@ -2,13 +2,15 @@
 
 import { randomUUID } from "node:crypto";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { products, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
+
+import { ProductNotEditableError } from "./products.errors";
 
 // Spec §1's margin rule: an absolute-threshold-only rule would let two
 // nutritionally-different product variants (e.g. "2% Fat" vs "10% Fat")
@@ -216,6 +218,12 @@ export interface UpdateProductInput {
   photo?: Blob;
 }
 
+const assertUpdated = (updated: { id: string }[], productId: string): void => {
+  if (updated.length === 0) {
+    throw new ProductNotEditableError(productId);
+  }
+};
+
 export const updateProduct = async (
   productId: string,
   updates: UpdateProductInput,
@@ -226,7 +234,12 @@ export const updateProduct = async (
   // spec's existing risk-acceptance style (spec §4.2).
   const photoKey = updates.photo ? await uploadProductPhoto(updates.photo) : undefined;
 
-  await db
+  // A standard row (curated, no owner) must never be silently overwritten by
+  // whoever learned its id from a search result - editing standard rows is
+  // out of scope (spec §2). Scoping the WHERE to source='user' and failing
+  // loudly on a zero-row update (rather than a silent no-op) catches both a
+  // standard-row id and a nonexistent one.
+  const updated = await db
     .update(products)
     .set({
       ...(updates.name !== undefined ? { name: updates.name } : {}),
@@ -235,7 +248,10 @@ export const updateProduct = async (
       updatedByUserId: userId,
       updatedAt: new Date(),
     })
-    .where(eq(products.id, productId));
+    .where(and(eq(products.id, productId), eq(products.source, USER_SOURCE)))
+    .returning({ id: products.id });
+
+  assertUpdated(updated, productId);
 };
 
 export interface ProductForCorrection {
