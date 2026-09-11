@@ -1,10 +1,6 @@
-// app/tests/e2e/capture-flow.spec.ts
 import { expect, test } from "@playwright/test";
 
-import { seedAmbiguousVariants, seedConfidentProduct, signUp, truncateAll } from "./support";
-import { todayLocalDateString } from "../../src/lib/date/day-bounds";
-
-const localToday = () => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+import { localToday, seedAmbiguousVariants, seedConfidentProduct, signUp, truncateAll } from "./support";
 
 test.beforeEach(truncateAll);
 
@@ -16,9 +12,9 @@ test("one ingredient: Done lands on the meal detail, and the day view total upda
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
   await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
   await expect(page.getByText("Olympus Greek Yogurt 2% Fat")).toBeVisible();
-  // /amount \(g\)/ not /amount/: the same step also carries an "Amount photo
-  // (optional)" file input, which a looser regex matches as well.
-  await page.getByLabel(/amount \(g\)/i).fill("200");
+  // "Amount" with { exact: true } not substring: the same step also carries an "Amount photo
+  // (optional)" file input, which a substring match would catch as well.
+  await page.getByLabel("Amount", { exact: true }).fill("200");
   await page.getByRole("button", { name: "Save ingredient" }).click();
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
   await page.getByRole("button", { name: /done/i }).click();
@@ -44,7 +40,7 @@ test("new meal: add two ingredients then finish on the meal detail", async ({ pa
 
   for (const grams of ["100", "150"]) {
     await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
-    await page.getByLabel(/amount \(g\)/i).fill(grams);
+    await page.getByLabel("Amount", { exact: true }).fill(grams);
     await page.getByRole("button", { name: "Save ingredient" }).click();
     await expect(page.getByText("Ingredient saved.")).toBeVisible();
     if (grams === "100") {
@@ -68,7 +64,7 @@ test("ambiguous match: pick a candidate, reach the amount step", async ({ page }
   // substring match would hit both (found via /accessibility, 2026-09-10).
   await expect(page.getByRole("heading", { name: "Which product is this?" })).toBeVisible();
   await page.getByRole("button", { name: "Olympus Greek Yogurt 2% Fat" }).click();
-  await expect(page.getByLabel(/amount \(g\)/i)).toBeVisible();
+  await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
 });
 
 test("no match: create a product, reach the amount step", async ({ page }) => {
@@ -78,7 +74,7 @@ test("no match: create a product, reach the amount step", async ({ page }) => {
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
   await expect(page.getByText(/confirm nutrition/i)).toBeVisible();
   await page.getByRole("button", { name: /save product/i }).click();
-  await expect(page.getByLabel(/amount \(g\)/i)).toBeVisible();
+  await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
 });
 
 test("abandoning a new meal on step 1 leaves no stray meal", async ({ page }) => {

@@ -40,11 +40,10 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByText(/^Using /)).toBeVisible();
 
-  // Not /amount/i: the amount step also has an "Amount photo (optional)"
-  // PhotoInput, whose accessible name also contains "amount" and would make
-  // that a strict-mode-violating ambiguous match - matches meal-detail.spec.ts's
-  // precedent for the same step.
-  await page.getByLabel("Amount (g)").fill("150");
+  // "Amount" with { exact: true } not substring: the amount step also has an "Amount photo (optional)"
+  // PhotoInput, whose accessible name also contains "amount" and would match as a substring.
+  // See support.ts's logOneIngredient for the same disambiguation.
+  await page.getByLabel("Amount", { exact: true }).fill("150");
   await page.getByRole("button", { name: "Save ingredient" }).click();
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
   await page.getByRole("button", { name: "Done" }).click();

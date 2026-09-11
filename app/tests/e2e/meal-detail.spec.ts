@@ -1,30 +1,13 @@
-// app/tests/e2e/meal-detail.spec.ts
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 
 import { db } from "../../src/lib/db";
 import { localDateStringOf } from "../../src/lib/date/day-bounds";
-import { mealIngredients, meals, products, users } from "../../src/lib/db/schema";
+import { mealIngredients, meals, users } from "../../src/lib/db/schema";
 
-import { freshEmail, seedConfidentProduct, signUp, truncateAll } from "./support";
+import { freshEmail, logOneIngredient, seedConfidentProduct, seedProductFor, signUp, truncateAll } from "./support";
 
-test.beforeEach(async () => {
-  await truncateAll();
-});
-
-const logOneIngredient = async (page: Page) => {
-  await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
-  // Not /amount/i: the amount step also has an "Amount photo (optional)"
-  // PhotoInput, whose accessible name also contains "amount" and would make
-  // that a strict-mode-violating ambiguous match. "Amount (g)" is the exact
-  // label of the numeric Field, so it doesn't collide with it.
-  await page.getByLabel("Amount (g)").fill("200");
-  await page.getByRole("button", { name: /save/i }).click();
-  await page.getByRole("button", { name: /done/i }).click();
-  await page.waitForURL(/\/meals\/[^/]+$/);
-};
+test.beforeEach(truncateAll);
 
 test("editing an ingredient amount recalculates its contribution", async ({ page }) => {
   await seedConfidentProduct();
@@ -32,7 +15,7 @@ test("editing an ingredient amount recalculates its contribution", async ({ page
   await logOneIngredient(page);
 
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Amount (g)").fill("100");
+  await page.getByLabel("Amount", { exact: true }).fill("100");
   await page.getByRole("button", { name: "Save" }).click();
 
   // Matches the ingredient row's own "<qty>g · <kcal> kcal" summary line
@@ -72,14 +55,7 @@ const PAST_MEAL_CREATED_AT = "2020-06-15T12:00:00.000Z";
 // direct-insert pattern (there is no UI path to a backdated meal).
 const seedBackdatedMeal = async (email: string): Promise<string> => {
   const [user] = await db.select().from(users).where(eq(users.email, email));
-  const [product] = await db
-    .insert(products)
-    .values({
-      name: "Test Product", energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
-      sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
-      nutritionPhotoKey: "test/placeholder.jpg", createdByUserId: user.id,
-    })
-    .returning();
+  const product = await seedProductFor(user.id);
 
   const createdAt = new Date(PAST_MEAL_CREATED_AT);
   const [meal] = await db.insert(meals).values({ userId: user.id, createdAt }).returning();
@@ -92,14 +68,7 @@ const seedBackdatedMeal = async (email: string): Promise<string> => {
 // Regression for a meal viewed from a past day (e.g. reached via History):
 // Back must return to that meal's own local day, not always today's.
 test("back from a meal on a past day returns to that meal's own day", async ({ page }) => {
-  const email = freshEmail("e2e-meal-detail-past");
-  await page.goto("/signup");
-  await page.getByLabel("Name").fill("Past Meal Tester");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Sign up" }).click();
-  await page.waitForURL(/\/day\//);
-
+  const email = await signUp(page, freshEmail("e2e-meal-detail-past"));
   const mealId = await seedBackdatedMeal(email);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const expectedDate = localDateStringOf(new Date(PAST_MEAL_CREATED_AT), timezone);
