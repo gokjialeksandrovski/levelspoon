@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/ingredient-row.tsx
 "use client";
 
 import Link from "next/link";
@@ -8,10 +7,12 @@ import { useState } from "react";
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/actions/meals";
 import type { MealIngredientDetail } from "@/actions/meals";
 import { Button } from "@/components/button";
-import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
 import { Sheet } from "@/components/sheet";
 import { TAP_HIT_AREA_SM, TAP_HIT_AREA_XS } from "@/components/tap-target";
+import { UnitAmountField } from "@/components/unit-amount-field";
+import { availableUnits } from "@/lib/measures/available-units";
+import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
 
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
@@ -58,13 +59,43 @@ const saveIngredientQuantity = async (
   }
 };
 
+const contextFor = (ingredient: MealIngredientDetail): MeasureContext => ({
+  productName: ingredient.productName,
+  densityGMl: ingredient.densityGMl,
+  servingUnit: ingredient.servingUnit,
+  servingGrams: ingredient.servingGrams,
+});
+
+interface ResolveAndSaveQuantityInput {
+  ingredientId: string;
+  count: string;
+  unit: string;
+  context: MeasureContext;
+}
+
+const resolveAndSaveQuantity = async (
+  input: ResolveAndSaveQuantityInput,
+  onSaved: () => void,
+  callbacks: MutationCallbacks,
+): Promise<void> => {
+  const resolution = resolveGrams(`${input.count} ${input.unit}`, input.context);
+  if (resolution.kind === "unresolved") {
+    callbacks.onError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
+    return;
+  }
+  await saveIngredientQuantity(input.ingredientId, resolution.grams, onSaved, callbacks);
+};
+
 interface UseIngredientEditingResult {
   isEditing: boolean;
-  quantityInput: string;
+  count: string;
+  unit: string;
+  units: string[];
   isBusy: boolean;
   error: string | null;
   startEditing: () => void;
-  setQuantityInput: (value: string) => void;
+  setCount: (value: string) => void;
+  setUnit: (value: string) => void;
   saveQuantity: () => Promise<void>;
   remove: () => Promise<void>;
   clearError: () => void;
@@ -72,20 +103,25 @@ interface UseIngredientEditingResult {
 
 const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void): UseIngredientEditingResult => {
   const router = useRouter();
+  const context = contextFor(ingredient);
   const [isEditing, setIsEditing] = useState(false);
-  const [quantityInput, setQuantityInput] = useState(String(ingredient.quantityG));
+  const [count, setCount] = useState(String(ingredient.quantityG));
+  const [unit, setUnit] = useState("g");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged };
 
   return {
     isEditing,
-    quantityInput,
+    count,
+    unit,
+    units: availableUnits(context),
     isBusy,
     error,
     startEditing: () => setIsEditing(true),
-    setQuantityInput,
-    saveQuantity: () => saveIngredientQuantity(ingredient.id, Number(quantityInput), () => setIsEditing(false), callbacks),
+    setCount,
+    setUnit,
+    saveQuantity: () => resolveAndSaveQuantity({ ingredientId: ingredient.id, count, unit, context }, () => setIsEditing(false), callbacks),
     remove: () => removeIngredient(ingredient.id, callbacks),
     clearError: () => setError(null),
   };
@@ -105,28 +141,31 @@ const IngredientHeader = ({ productName, quantitySource }: IngredientHeaderProps
 
 interface QuantityEditorProps {
   ingredientId: string;
-  quantityInput: string;
+  count: string;
+  unit: string;
+  units: string[];
   isBusy: boolean;
-  onChange: (value: string) => void;
+  onCountChange: (value: string) => void;
+  onUnitChange: (value: string) => void;
   onSave: () => void;
 }
 
-const QuantityEditor = ({ ingredientId, quantityInput, isBusy, onChange, onSave }: QuantityEditorProps) => (
+const QuantityEditor = ({ ingredientId, count, unit, units, isBusy, onCountChange, onUnitChange, onSave }: QuantityEditorProps) => (
   <div className="flex items-end gap-2">
     <div className="flex-1">
-      <Field
-        label="Amount (g)"
+      <UnitAmountField
         name={`quantity-${ingredientId}`}
-        type="number"
-        inputMode="decimal"
+        count={count}
+        unit={unit}
+        units={units}
         // The editor mounts only when the user taps "Edit", so pulling
         // focus straight into the field is the right move - it's where a
         // keyboard or screen-reader user needs to be, and it stops focus
         // being dropped on the now-unmounted "Edit" button (found via
         // /accessibility, 2026-09-10).
         autoFocus
-        value={quantityInput}
-        onChange={(event) => onChange(event.target.value)}
+        onCountChange={onCountChange}
+        onUnitChange={onUnitChange}
       />
     </div>
     <Button pending={isBusy} onClick={onSave}>
@@ -202,9 +241,12 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
   editing.isEditing ? (
     <QuantityEditor
       ingredientId={ingredient.id}
-      quantityInput={editing.quantityInput}
+      count={editing.count}
+      unit={editing.unit}
+      units={editing.units}
       isBusy={editing.isBusy}
-      onChange={editing.setQuantityInput}
+      onCountChange={editing.setCount}
+      onUnitChange={editing.setUnit}
       onSave={editing.saveQuantity}
     />
   ) : (
