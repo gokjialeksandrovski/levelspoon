@@ -22,7 +22,7 @@ import { WizardShell } from "./wizard-shell";
 
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Product name",
-  "standard-food-search": "Standard foods",
+  "standard-food-search": "Whole food",
   "match-result": "Which product?",
   "nutrition-photo": "Nutrition label",
   "serving-size": "Serving size",
