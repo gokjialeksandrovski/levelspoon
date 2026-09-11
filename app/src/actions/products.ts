@@ -23,6 +23,7 @@ const CANDIDATE_LIMIT = 5;
 
 // productSource.enumValues is the tuple ["user", "standard"].
 const STANDARD_SOURCE = productSource.enumValues[1];
+const USER_SOURCE = productSource.enumValues[0];
 
 export interface NutritionValues {
   energyKcal: number;
@@ -99,6 +100,7 @@ const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
            sugars_g, protein_g, salt_g, nutrition_photo_key,
            similarity(name, ${ocrText}) AS score
     FROM products
+    WHERE source = ${USER_SOURCE}
     ORDER BY score DESC
     LIMIT ${CANDIDATE_LIMIT}
   `);
@@ -277,10 +279,15 @@ const toNumberOrNull = (value: string | null): number | null =>
  */
 export const findStoredMeasures = async (productName: string): Promise<LearnedMeasures> => {
   await requireUserId();
+  // source = user only: a curated standard row (USDA "Egg", "Banana") sharing a
+  // name must never lend its learned serving weight to an OCR'd label - the
+  // cross-row measure borrowing this pipeline forbids (spec §10 OCR-vs-standard
+  // collision, §6).
   const result = await db.execute<StoredMeasuresRow>(sql`
     SELECT density_g_ml, serving_unit, serving_grams
     FROM products
     WHERE lower(trim(name)) = lower(trim(${productName}))
+      AND source = ${USER_SOURCE}
     ORDER BY id
     LIMIT 1
   `);

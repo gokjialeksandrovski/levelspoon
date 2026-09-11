@@ -6,6 +6,7 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
+import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, topTwoScores, updateProduct } from "./products";
 import type { CandidateRow } from "./products";
@@ -122,6 +123,27 @@ describe("matchProduct", () => {
     mockAuth.mockResolvedValue(null);
 
     await expect(matchProduct("Anything")).rejects.toThrow();
+  });
+
+  it("never returns a standard-source product", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await matchProduct("Banana");
+
+    expect(result.kind).toBe("no_match");
+  });
+
+  it("still matches a user product when a same-name standard row exists", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    const userId = await seedUser();
+    await seedProduct(userId, "Banana");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await matchProduct("Banana");
+
+    expect(result.kind).toBe("confident");
   });
 });
 
@@ -371,6 +393,18 @@ describe("findStoredMeasures", () => {
       servingUnit: null,
       servingGrams: null,
     });
+  });
+
+  it("does not borrow a standard row's learned measures on an exact-name match", async () => {
+    await seedStandardRow({
+      slug: "zzq-learned-fixture",
+      name: "Zzq Learned Fixture",
+      servingUnit: "slice",
+      servingGrams: 20,
+    });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    expect(await findStoredMeasures("Zzq Learned Fixture")).toEqual(NOTHING_LEARNED);
   });
 });
 
