@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/steps/product-name-step.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,7 +9,7 @@ import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
 import { Skeleton } from "@/components/skeleton";
-import { TAP_HIT_AREA_SM } from "@/components/tap-target";
+import { TEXT_LINK_SM } from "@/components/tap-target";
 
 import type { WizardAction } from "../capture-wizard.types";
 
@@ -108,16 +107,20 @@ interface PhotoNameEntryProps {
   error: string | null;
   onSelect: (photo: File) => void;
   onManualEntry: () => void;
+  onWholeFood: () => void;
 }
 
-const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry }: PhotoNameEntryProps) => (
+const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry, onWholeFood }: PhotoNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Photograph the product name</h2>
     <PhotoInput label="Product photo" onSelect={onSelect} />
     {isLoading && <Skeleton className="h-9 w-40" />}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <button type="button" onClick={onManualEntry} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
+    <button type="button" onClick={onManualEntry} className={TEXT_LINK_SM}>
       <span>Enter the name manually instead</span>
+    </button>
+    <button type="button" onClick={onWholeFood} className={TEXT_LINK_SM}>
+      <span>Whole food / no packaging</span>
     </button>
   </div>
 );
@@ -139,6 +142,7 @@ export const ProductNameStep = ({ dispatch }: ProductNameStepProps) => {
       error={form.error}
       onSelect={form.handleSelect}
       onManualEntry={form.showManualEntry}
+      onWholeFood={() => dispatch({ type: "WHOLE_FOOD_SEARCH" })}
     />
   );
 };

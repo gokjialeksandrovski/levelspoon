@@ -1,4 +1,3 @@
-// app/src/app/(app)/meals/[mealId]/capture/capture-wizard.tsx
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
@@ -23,6 +22,7 @@ import { WizardShell } from "./wizard-shell";
 
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Product name",
+  "standard-food-search": "Standard foods",
   "match-result": "Which product?",
   "nutrition-photo": "Nutrition label",
   "serving-size": "Serving size",
@@ -36,6 +36,7 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
 // step count.
 const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "product-photo": 0.2,
+  "standard-food-search": 0.3,
   "match-result": 0.4,
   "nutrition-photo": 0.5,
   "serving-size": 0.6,
