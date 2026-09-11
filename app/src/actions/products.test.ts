@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { products, users } from "@/lib/db/schema";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
-import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, topTwoScores, updateProduct } from "./products";
+import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, topTwoScores, updateProduct } from "./products";
 import type { CandidateRow } from "./products";
 
 const seedUser = async (): Promise<string> => {
@@ -144,6 +144,68 @@ describe("matchProduct", () => {
     const result = await matchProduct("Banana");
 
     expect(result.kind).toBe("confident");
+  });
+});
+
+describe("searchStandardFoods", () => {
+  it("ranks a closer name first and includes weaker matches", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    await seedStandardRow({ slug: "banana-bread", name: "Banana bread" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    const results = await searchStandardFoods("banana");
+
+    expect(results[0].name).toBe("Banana");
+    expect(results.map((row) => row.slug)).toContain("banana-bread");
+  });
+
+  it("is case-insensitive", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    expect((await searchStandardFoods("BANANA")).map((row) => row.slug)).toEqual(["banana"]);
+  });
+
+  it("filters by category", async () => {
+    await seedStandardRow({ slug: "coconut-oil", name: "Coconut oil", category: "fat", densityGMl: 0.92 });
+    await seedStandardRow({ slug: "coconut", name: "Coconut", category: "whole" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    const fats = await searchStandardFoods("coconut", "fat");
+
+    expect(fats.map((row) => row.slug)).toEqual(["coconut-oil"]);
+  });
+
+  it("returns nothing for a no-hope query", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    expect(await searchStandardFoods("xqzwvk")).toEqual([]);
+  });
+
+  it("round-trips learned serving and density fields as numbers", async () => {
+    await seedStandardRow({
+      slug: "egg-whole-raw", name: "Egg", category: "whole", servingUnit: "large", servingGrams: 50,
+    });
+    await seedStandardRow({
+      slug: "olive-oil", name: "Olive oil", category: "fat", densityGMl: 0.92,
+    });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    const [egg] = await searchStandardFoods("Egg");
+    const [oil] = await searchStandardFoods("Olive oil");
+
+    expect(egg.servingUnit).toBe("large");
+    expect(egg.servingGrams).toBe(50);
+    expect(egg.densityGMl).toBeNull();
+    expect(oil.densityGMl).toBeCloseTo(0.92, 2);
+    expect(oil.servingGrams).toBeNull();
+  });
+
+  it("throws when there is no authenticated session", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    await expect(searchStandardFoods("banana")).rejects.toThrow();
   });
 });
 

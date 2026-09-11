@@ -63,19 +63,31 @@ export type CandidateRow = {
   score: number;
 };
 
+type SnakeNutritionRow = {
+  energy_kcal: string;
+  fat_g: string;
+  saturates_g: string;
+  carbohydrate_g: string;
+  sugars_g: string;
+  protein_g: string;
+  salt_g: string;
+};
+
+const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
+  energyKcal: Number(row.energy_kcal),
+  fatG: Number(row.fat_g),
+  saturatesG: Number(row.saturates_g),
+  carbohydrateG: Number(row.carbohydrate_g),
+  sugarsG: Number(row.sugars_g),
+  proteinG: Number(row.protein_g),
+  saltG: Number(row.salt_g),
+});
+
 const toProductCandidate = (row: CandidateRow): ProductCandidate => ({
   id: row.id,
   name: row.name,
   brand: row.brand,
-  nutritionPer100g: {
-    energyKcal: Number(row.energy_kcal),
-    fatG: Number(row.fat_g),
-    saturatesG: Number(row.saturates_g),
-    carbohydrateG: Number(row.carbohydrate_g),
-    sugarsG: Number(row.sugars_g),
-    proteinG: Number(row.protein_g),
-    saltG: Number(row.salt_g),
-  },
+  nutritionPer100g: nutritionFromSnakeRow(row),
   nutritionPhotoKey: row.nutrition_photo_key,
 });
 
@@ -300,4 +312,73 @@ export const findStoredMeasures = async (productName: string): Promise<LearnedMe
     servingUnit: row.serving_unit,
     servingGrams: toNumberOrNull(row.serving_grams),
   };
+};
+
+export interface StandardFood {
+  id: string;
+  slug: string;
+  name: string;
+  category: "whole" | "fat";
+  nutritionPer100g: NutritionValues;
+  servingUnit: string | null;
+  servingGrams: number | null;
+  densityGMl: number | null;
+}
+
+type StandardFoodRow = SnakeNutritionRow & {
+  id: string;
+  standard_slug: string;
+  name: string;
+  standard_category: "whole" | "fat";
+  serving_unit: string | null;
+  serving_grams: string | null;
+  density_g_ml: string | null;
+  score: number;
+};
+
+const STANDARD_SEARCH_LIMIT = 8;
+// Low floor: this is a pick list, not the shared-cache write path, so the
+// confident-match margin rule (spec §6) does not apply. Just high enough that
+// a no-hope query returns nothing and the wizard can show its empty state.
+const STANDARD_SEARCH_MIN_SIMILARITY = 0.15;
+
+const toStandardFood = (row: StandardFoodRow): StandardFood => ({
+  id: row.id,
+  slug: row.standard_slug,
+  name: row.name,
+  category: row.standard_category,
+  nutritionPer100g: nutritionFromSnakeRow(row),
+  servingUnit: row.serving_unit,
+  servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
+  densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
+});
+
+const fetchStandardFoodRows = async (
+  query: string,
+  category?: "whole" | "fat",
+): Promise<StandardFoodRow[]> => {
+  const categoryFilter = category ? sql`AND standard_category = ${category}` : sql``;
+  const result = await db.execute<StandardFoodRow>(sql`
+    SELECT id, standard_slug, name, standard_category,
+           energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g,
+           serving_unit, serving_grams, density_g_ml, score
+    FROM (
+      SELECT *, similarity(lower(name), lower(${query})) AS score
+      FROM products
+      WHERE source = ${STANDARD_SOURCE} ${categoryFilter}
+    ) ranked
+    WHERE score >= ${STANDARD_SEARCH_MIN_SIMILARITY}
+    ORDER BY score DESC, name ASC
+    LIMIT ${STANDARD_SEARCH_LIMIT}
+  `);
+  return result.rows;
+};
+
+export const searchStandardFoods = async (
+  query: string,
+  category?: "whole" | "fat",
+): Promise<StandardFood[]> => {
+  await requireUserId();
+  const rows = await fetchStandardFoodRows(query, category);
+  return rows.map(toStandardFood);
 };
