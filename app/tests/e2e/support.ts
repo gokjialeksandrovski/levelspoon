@@ -55,12 +55,11 @@ export const signUp = async (page: Page, email = freshEmail()) => {
 };
 
 // New meal -> confident product photo -> 200g -> Save -> Done. Returns the
-// meal detail URL it lands on. Exact "Product photo" / "Amount" labels,
-// not substring: the amount step also carries an "Amount photo (optional)"
-// PhotoInput whose accessible name contains "amount".
+// meal detail URL it lands on. Exact-match { exact: true } for both "Product photo"
+// and "Amount" labels to avoid substring collision with "Amount photo (optional)".
 export const logOneIngredient = async (page: Page) => {
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByLabel("Product photo").setInputFiles("tests/e2e/fixtures/confident-product.jpg");
+  await page.getByLabel("Product photo", { exact: true }).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
   await page.getByLabel("Amount", { exact: true }).fill("200");
   await page.getByRole("button", { name: /save/i }).click();
   await page.getByRole("button", { name: /done/i }).click();
