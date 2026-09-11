@@ -36,6 +36,12 @@ const TEXT_LINK_RING =
 export const TAP_HIT_AREA_SM = `-my-3 -mx-1 px-1 py-3 ${TEXT_LINK_RING}`;
 export const TAP_HIT_AREA_XS = `-my-3.5 -mx-1 px-1 py-3.5 ${TEXT_LINK_RING}`;
 
+// The app's one recurring secondary affordance: a bare underlined text button
+// in the muted color with the SM hit-area recipe already applied - "None of
+// these", "Change?", "Enter the name/values manually instead". Wrap the label
+// in a <span> (TAP_HIT_AREA_SM draws its focus ring on the child span).
+export const TEXT_LINK_SM = `${TAP_HIT_AREA_SM} text-sm text-text-muted underline`;
+
 // For icon-only controls (AppHeader's day-nav/history/back, AccountMenu,
 // WizardShell's back) - real padding, not the negative-margin trick above,
 // because these sit in headers with height and width to spare (h-16, a
