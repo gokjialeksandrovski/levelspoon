@@ -1,4 +1,3 @@
-// app/src/app/(app)/meals/[mealId]/capture/capture-wizard.path.test.ts
 import { describe, expect, it } from "vitest";
 
 import { pathReducer, type WizardPath } from "./capture-wizard.path";
@@ -6,7 +5,7 @@ import { INITIAL_WIZARD_STEP } from "./capture-wizard.types";
 
 const AMOUNT_STEP = {
   kind: "amount" as const,
-  product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat" },
+  product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", densityGMl: null, servingUnit: null, servingGrams: null },
   alternatives: [],
 };
 
