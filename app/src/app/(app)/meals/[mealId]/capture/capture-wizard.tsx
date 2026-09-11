@@ -18,6 +18,7 @@ import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
 import { ProductNameStep } from "./steps/product-name-step";
 import { ServingSizeStep } from "./steps/serving-size-step";
+import { StandardFoodSearchStep } from "./steps/standard-food-search-step";
 import { WizardShell } from "./wizard-shell";
 
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
@@ -60,6 +61,10 @@ const SavedStep = ({ dispatch, onDone }: { dispatch: (action: PathAction) => voi
 );
 
 const renderProductPhotoStep = (dispatch: (action: PathAction) => void) => <ProductNameStep dispatch={dispatch} />;
+
+const renderStandardFoodSearchStep = (dispatch: (action: PathAction) => void) => (
+  <StandardFoodSearchStep dispatch={dispatch} />
+);
 
 const renderMatchResultStep = (
   step: Extract<WizardStep, { kind: "match-result" }>,
@@ -137,6 +142,8 @@ const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) =>
   switch (step.kind) {
     case "product-photo":
       return renderProductPhotoStep(dispatch);
+    case "standard-food-search":
+      return renderStandardFoodSearchStep(dispatch);
     case "match-result":
       return renderMatchResultStep(step, dispatch);
     case "nutrition-photo":
