@@ -20,7 +20,11 @@ const seedUser = async (): Promise<string> => {
   return user.id;
 };
 
-const seedProduct = async (userId: string, name: string) => {
+const seedProduct = async (
+  userId: string,
+  name: string,
+  overrides: { servingUnit?: string | null; servingGrams?: number | null; densityGMl?: string | null } = {},
+) => {
   await db.insert(products).values({
     name,
     energyKcal: "70",
@@ -32,6 +36,12 @@ const seedProduct = async (userId: string, name: string) => {
     saltG: "0.18",
     nutritionPhotoKey: "test/placeholder.jpg",
     createdByUserId: userId,
+    servingUnit: overrides.servingUnit ?? null,
+    servingGrams:
+      overrides.servingGrams === undefined || overrides.servingGrams === null
+        ? null
+        : String(overrides.servingGrams),
+    densityGMl: overrides.densityGMl ?? null,
   });
 };
 
@@ -145,6 +155,21 @@ describe("matchProduct", () => {
     const result = await matchProduct("Banana");
 
     expect(result.kind).toBe("confident");
+  });
+
+  it("carries a product's learned serving unit and weight through to the candidate", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Choc Bar", { servingUnit: "bar", servingGrams: 52 });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await matchProduct("Choc Bar");
+
+    expect(result.kind).toBe("confident");
+    if (result.kind === "confident") {
+      expect(result.product.servingUnit).toBe("bar");
+      expect(result.product.servingGrams).toBe(52);
+      expect(result.product.densityGMl).toBeNull();
+    }
   });
 });
 
@@ -520,6 +545,9 @@ describe("topTwoScores", () => {
     protein_g: "0",
     salt_g: "0",
     nutrition_photo_key: "key",
+    density_g_ml: null,
+    serving_unit: null,
+    serving_grams: null,
     score,
   });
 

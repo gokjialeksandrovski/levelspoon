@@ -43,6 +43,9 @@ export interface ProductCandidate {
   brand: string | null;
   nutritionPer100g: NutritionValues;
   nutritionPhotoKey: string;
+  densityGMl: number | null;
+  servingUnit: string | null;
+  servingGrams: number | null;
 }
 
 export type MatchResult =
@@ -62,6 +65,9 @@ export type CandidateRow = {
   protein_g: string;
   salt_g: string;
   nutrition_photo_key: string;
+  density_g_ml: string | null;
+  serving_unit: string | null;
+  serving_grams: string | null;
   score: number;
 };
 
@@ -91,6 +97,9 @@ const toProductCandidate = (row: CandidateRow): ProductCandidate => ({
   brand: row.brand,
   nutritionPer100g: nutritionFromSnakeRow(row),
   nutritionPhotoKey: row.nutrition_photo_key,
+  densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
+  servingUnit: row.serving_unit,
+  servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
 });
 
 const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
@@ -112,6 +121,7 @@ const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
     SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
            sugars_g, protein_g, salt_g, nutrition_photo_key,
+           density_g_ml, serving_unit, serving_grams,
            similarity(name, ${ocrText}) AS score
     FROM products
     WHERE source = ${USER_SOURCE}
