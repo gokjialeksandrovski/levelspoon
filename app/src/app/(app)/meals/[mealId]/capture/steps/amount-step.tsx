@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/steps/amount-step.tsx
 "use client";
 
 import { useState } from "react";
@@ -6,10 +5,12 @@ import { useState } from "react";
 import { saveMealIngredient } from "@/actions/meals";
 import { estimateQuantity } from "@/actions/quantity";
 import { Button } from "@/components/button";
-import { Field } from "@/components/field";
 import { InlineMessage } from "@/components/inline-message";
-import { TAP_HIT_AREA_SM } from "@/components/tap-target";
+import { TEXT_LINK_SM } from "@/components/tap-target";
+import { UnitAmountField } from "@/components/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
+import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
+import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -33,30 +34,11 @@ const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: Amoun
   <div className="flex items-center justify-between">
     <h2 className="text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
-      <button type="button" onClick={onChangeMatch} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
+      <button type="button" onClick={onChangeMatch} className={TEXT_LINK_SM}>
         <span>Change?</span>
       </button>
     )}
   </div>
-);
-
-interface AmountFieldProps {
-  grams: string;
-  error: string | null;
-  onGramsChange: (value: string) => void;
-}
-
-const AmountField = ({ grams, error, onGramsChange }: AmountFieldProps) => (
-  <>
-    <Field
-      label="Amount (g)"
-      name="grams"
-      type="number"
-      value={grams}
-      onChange={(event) => onGramsChange(event.target.value)}
-    />
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
-  </>
 );
 
 interface AmountStepCallbacks {
@@ -107,11 +89,56 @@ export const saveAmount = async (input: SaveAmountInput, dispatch: (action: Wiza
   }
 };
 
+interface ResolveAndSaveInput {
+  mealId: string;
+  productId: string;
+  count: string;
+  unit: string;
+  context: MeasureContext;
+  source: "ai_estimated" | "manual";
+}
+
+// Splits the "turn a typed count+unit into grams" step out of saveAmount
+// (which only ever dealt in already-resolved grams) rather than folding
+// resolveGrams's call into the hook below - same reasoning as estimateAmount:
+// an async, independently testable, DI'd unit of work.
+export const resolveAndSaveAmount = async (
+  input: ResolveAndSaveInput,
+  dispatch: (action: WizardAction) => void,
+  onSaved: () => void,
+  callbacks: AmountStepCallbacks,
+): Promise<void> => {
+  const resolution = resolveGrams(`${input.count} ${input.unit}`, input.context);
+  if (resolution.kind === "unresolved") {
+    callbacks.setError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
+    return;
+  }
+  await saveAmount(
+    { mealId: input.mealId, productId: input.productId, grams: String(resolution.grams), source: input.source },
+    dispatch,
+    onSaved,
+    callbacks,
+  );
+};
+
+// A photo estimate always comes back in grams (quantity.ts's estimateQuantity
+// contract), so landing it on "g" regardless of whatever unit was selected
+// is the only reading that makes sense of the number Gemini just returned.
+const contextFor = (product: SelectedProduct): MeasureContext => ({
+  productName: product.name,
+  densityGMl: product.densityGMl,
+  servingUnit: product.servingUnit,
+  servingGrams: product.servingGrams,
+});
+
 interface UseAmountStepFormResult {
-  grams: string;
+  count: string;
+  unit: string;
+  units: string[];
   error: string | null;
   isBusy: boolean;
-  setGrams: (value: string) => void;
+  setCount: (value: string) => void;
+  setUnit: (value: string) => void;
   handlePhoto: (photo: File) => Promise<void>;
   handleSave: () => Promise<void>;
   changeMatch: () => void;
@@ -124,19 +151,23 @@ const useAmountStepForm = (
   dispatch: (action: WizardAction) => void,
   onSaved: () => void,
 ): UseAmountStepFormResult => {
-  const [grams, setGrams] = useState("");
+  const context = contextFor(product);
+  const units = availableUnits(context);
+  const [count, setCount] = useState("");
+  const [unit, setUnit] = useState(defaultUnit(context));
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const callbacks = { setError, setIsBusy };
-  const setGramsManually = (value: string) => { setGrams(value); setSource("manual"); };
-  const setGramsFromPhoto = (value: string) => { setGrams(value); setSource("ai_estimated"); };
-  const handlePhoto = (photo: File) => estimateAmount(photo, setGramsFromPhoto, callbacks);
-  const handleSave = () => saveAmount({ mealId, productId: product.id, grams, source }, dispatch, onSaved, callbacks);
+  const setCountManually = (value: string) => { setCount(value); setSource("manual"); };
+  const setUnitManually = (value: string) => { setUnit(value); setSource("manual"); };
+  const setCountFromPhoto = (value: string) => { setCount(value); setUnit("g"); setSource("ai_estimated"); };
+  const handlePhoto = (photo: File) => estimateAmount(photo, setCountFromPhoto, callbacks);
+  const handleSave = () => resolveAndSaveAmount({ mealId, productId: product.id, count, unit, context, source }, dispatch, onSaved, callbacks);
   const changeMatch = () => dispatch({ type: "CHANGE_MATCH", nameGuess: product.name, candidates: [product, ...alternatives] });
 
-  return { grams, error, isBusy, setGrams: setGramsManually, handlePhoto, handleSave, changeMatch };
+  return { count, unit, units, error, isBusy, setCount: setCountManually, setUnit: setUnitManually, handlePhoto, handleSave, changeMatch };
 };
 
 export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }: AmountStepProps) => {
@@ -150,8 +181,16 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
         onChangeMatch={form.changeMatch}
       />
       <AmountPhotoField onSelect={form.handlePhoto} />
-      <AmountField grams={form.grams} error={form.error} onGramsChange={form.setGrams} />
-      <Button disabled={form.grams.trim() === ""} pending={form.isBusy} onClick={form.handleSave}>
+      <UnitAmountField
+        name="grams"
+        count={form.count}
+        unit={form.unit}
+        units={form.units}
+        onCountChange={form.setCount}
+        onUnitChange={form.setUnit}
+      />
+      {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+      <Button disabled={form.count.trim() === ""} pending={form.isBusy} onClick={form.handleSave}>
         Save ingredient
       </Button>
     </div>
