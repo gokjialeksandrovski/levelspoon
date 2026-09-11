@@ -14,5 +14,6 @@ Row schema: spec §5, `docs/superpowers/specs/2026-09-11-standard-foods-design.m
 Validated at seed time by `assertValidStandardFood` — a bad row fails
 `npm run db:seed` loudly with `StandardFoodRowError`.
 
-Starter set: 11 rows (T1). T1b expands to ~200 and re-checks every value against
-USDA FDC.
+191 rows (T1 starter + T1b). 10 rows spot-checked against USDA FDC on
+2026-09-11 — see docs/superpowers/plans/2026-09-11-standard-foods-t1b-dataset.md
+Task 6.
