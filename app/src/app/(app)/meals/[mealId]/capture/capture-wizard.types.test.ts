@@ -1,9 +1,10 @@
-// app/src/app/meals/[mealId]/capture-wizard.types.test.ts
 import { describe, expect, it } from "vitest";
 
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
-import { applyChangeMatch, applyNutritionParsed, applyServingSizeNeeded, wizardReducer } from "./capture-wizard.types";
+import { wizardReducer } from "./capture-wizard.types";
+
+const NO_MEASURES = { densityGMl: null, servingUnit: null, servingGrams: null };
 
 describe("wizardReducer", () => {
   it("routes a confident match straight to the amount step with alternatives carried over", () => {
@@ -14,8 +15,8 @@ describe("wizardReducer", () => {
         nameGuess: "Olympus Greek Yogurt 2 Fat",
         result: {
           kind: "confident",
-          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "" },
-          alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "" }],
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "", ...NO_MEASURES },
+          alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "", ...NO_MEASURES }],
         },
         netWeightText: null,
       },
@@ -23,8 +24,8 @@ describe("wizardReducer", () => {
 
     expect(next).toEqual({
       kind: "amount",
-      product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat" },
-      alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat" }],
+      product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+      alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES }],
     });
   });
 
@@ -34,7 +35,7 @@ describe("wizardReducer", () => {
       {
         type: "MATCH_RESOLVED",
         nameGuess: "Olympus Greek Yogurt Fat",
-        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "" }] },
+        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "", ...NO_MEASURES }] },
         netWeightText: "NET WT 1.86 0Z (52.7g)",
       },
     );
@@ -42,7 +43,7 @@ describe("wizardReducer", () => {
     expect(next).toEqual({
       kind: "match-result",
       nameGuess: "Olympus Greek Yogurt Fat",
-      candidates: [{ id: "p1", name: "A" }],
+      candidates: [{ id: "p1", name: "A", ...NO_MEASURES }],
       netWeightText: "NET WT 1.86 0Z (52.7g)",
     });
   });
@@ -75,20 +76,20 @@ describe("wizardReducer", () => {
       {
         kind: "match-result",
         nameGuess: "Olympus Greek Yogurt Fat",
-        candidates: [{ id: "p1", name: "A" }],
+        candidates: [{ id: "p1", name: "A", ...NO_MEASURES }],
         netWeightText: null,
       },
       {
         type: "CANDIDATE_CHOSEN",
-        product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat" },
-        alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat" }],
+        product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+        alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES }],
       },
     );
 
     expect(next).toEqual({
       kind: "amount",
-      product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat" },
-      alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat" }],
+      product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+      alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES }],
     });
   });
 
@@ -152,19 +153,19 @@ describe("wizardReducer", () => {
         photo: new Blob(),
         learned: NOTHING_LEARNED,
       },
-      { type: "PRODUCT_CREATED", product: { id: "p3", name: "Unknown Product" } },
+      { type: "PRODUCT_CREATED", product: { id: "p3", name: "Unknown Product", ...NO_MEASURES } },
     );
 
     expect(next).toEqual({
       kind: "amount",
-      product: { id: "p3", name: "Unknown Product" },
+      product: { id: "p3", name: "Unknown Product", ...NO_MEASURES },
       alternatives: [],
     });
   });
 
   it("routes SAVED to the saved step from any state", () => {
     const next = wizardReducer(
-      { kind: "amount", product: { id: "p1", name: "A" }, alternatives: [] },
+      { kind: "amount", product: { id: "p1", name: "A", ...NO_MEASURES }, alternatives: [] },
       { type: "SAVED" },
     );
 
@@ -174,21 +175,27 @@ describe("wizardReducer", () => {
   it("routes CHANGE_MATCH back to the match-result step, with no net weight available to carry", () => {
     // Unlike MATCH_RESOLVED/NONE_OF_THESE, this path starts from the amount
     // step - which never had a front-panel net weight to begin with (a
-    // SelectedProduct only ever carries id/name) - so there is nothing to
-    // thread forward.
+    // SelectedProduct only ever carries id/name/its learned measures) - so
+    // there is nothing to thread forward.
     const next = wizardReducer(
-      { kind: "amount", product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat" }, alternatives: [] },
+      { kind: "amount", product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES }, alternatives: [] },
       {
         type: "CHANGE_MATCH",
         nameGuess: "Olympus Greek Yogurt 2% Fat",
-        candidates: [{ id: "p1", name: "Olympus Greek Yogurt 2% Fat" }, { id: "p2", name: "Olympus Greek Yogurt 10% Fat" }],
+        candidates: [
+          { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+          { id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES },
+        ],
       },
     );
 
     expect(next).toEqual({
       kind: "match-result",
       nameGuess: "Olympus Greek Yogurt 2% Fat",
-      candidates: [{ id: "p1", name: "Olympus Greek Yogurt 2% Fat" }, { id: "p2", name: "Olympus Greek Yogurt 10% Fat" }],
+      candidates: [
+        { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+        { id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES },
+      ],
       netWeightText: null,
     });
   });
@@ -248,63 +255,6 @@ describe("wizardReducer — serving size", () => {
       name: "Snickers",
       photo,
       learned: LEARNED_BAR,
-    });
-  });
-});
-
-describe("applyServingSizeNeeded", () => {
-  it("builds the serving-size step from the action's fields", () => {
-    const photo = new Blob(["photo"]);
-    const next = applyServingSizeNeeded({
-      type: "SERVING_SIZE_NEEDED",
-      servingSizeText: "1 bas",
-      perServing: PER_SERVING,
-      name: "Snickers",
-      photo,
-      prefillGrams: 1.098,
-    });
-
-    expect(next).toEqual({
-      kind: "serving-size",
-      servingSizeText: "1 bas",
-      perServing: PER_SERVING,
-      name: "Snickers",
-      photo,
-      prefillGrams: 1.098,
-    });
-  });
-});
-
-describe("applyNutritionParsed", () => {
-  it("builds the confirm step from the action's fields", () => {
-    const photo = new Blob(["photo"]);
-    const parsed = { ...PER_SERVING };
-    const next = applyNutritionParsed({
-      type: "NUTRITION_PARSED",
-      parsed,
-      flags: [],
-      name: "Snickers",
-      photo,
-      learned: LEARNED_BAR,
-    });
-
-    expect(next).toEqual({ kind: "confirm", parsed, flags: [], name: "Snickers", photo, learned: LEARNED_BAR });
-  });
-});
-
-describe("applyChangeMatch", () => {
-  it("builds the match-result step with no net weight carried forward", () => {
-    const next = applyChangeMatch({
-      type: "CHANGE_MATCH",
-      nameGuess: "Olympus Greek Yogurt 2% Fat",
-      candidates: [{ id: "p1", name: "Olympus Greek Yogurt 2% Fat" }],
-    });
-
-    expect(next).toEqual({
-      kind: "match-result",
-      nameGuess: "Olympus Greek Yogurt 2% Fat",
-      candidates: [{ id: "p1", name: "Olympus Greek Yogurt 2% Fat" }],
-      netWeightText: null,
     });
   });
 });

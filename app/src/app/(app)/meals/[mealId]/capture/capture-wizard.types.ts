@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/capture-wizard.types.ts
 import type { MatchResult, NutritionValues } from "@/actions/products";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
@@ -6,6 +5,9 @@ import type { NullableNutritionValues } from "@/lib/ocr/provider";
 export interface SelectedProduct {
   id: string;
   name: string;
+  densityGMl: number | null;
+  servingUnit: string | null;
+  servingGrams: number | null;
 }
 
 export type WizardStep =
@@ -68,9 +70,18 @@ export type WizardAction =
 
 export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo" };
 
-const toSelectedProduct = (candidate: { id: string; name: string }): SelectedProduct => ({
+const toSelectedProduct = (candidate: {
+  id: string;
+  name: string;
+  densityGMl: number | null;
+  servingUnit: string | null;
+  servingGrams: number | null;
+}): SelectedProduct => ({
   id: candidate.id,
   name: candidate.name,
+  densityGMl: candidate.densityGMl,
+  servingUnit: candidate.servingUnit,
+  servingGrams: candidate.servingGrams,
 });
 
 const resolveMatch = (nameGuess: string, result: MatchResult, netWeightText: string | null): WizardStep => {
@@ -92,7 +103,9 @@ const resolveMatch = (nameGuess: string, result: MatchResult, netWeightText: str
   return { kind: "nutrition-photo", nameGuess, netWeightText };
 };
 
-export const applyServingSizeNeeded = (action: Extract<WizardAction, { type: "SERVING_SIZE_NEEDED" }>): WizardStep => ({
+// Extracted from wizardReducer's switch (below) only to keep that function
+// under the line budget - covered by the reducer's own tests, not exported.
+const applyServingSizeNeeded = (action: Extract<WizardAction, { type: "SERVING_SIZE_NEEDED" }>): WizardStep => ({
   kind: "serving-size",
   servingSizeText: action.servingSizeText,
   perServing: action.perServing,
@@ -101,7 +114,7 @@ export const applyServingSizeNeeded = (action: Extract<WizardAction, { type: "SE
   prefillGrams: action.prefillGrams,
 });
 
-export const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_PARSED" }>): WizardStep => ({
+const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_PARSED" }>): WizardStep => ({
   kind: "confirm",
   parsed: action.parsed,
   flags: action.flags,
@@ -110,7 +123,7 @@ export const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTR
   learned: action.learned,
 });
 
-export const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
+const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
   // Starts from the amount step, which never had a front-panel net weight to
   // begin with - a SelectedProduct only ever carries id/name - so there is
   // nothing to carry forward here.

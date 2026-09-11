@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/steps/confirm-step.tsx
 "use client";
 
 import { useCallback, useState } from "react";
@@ -11,6 +10,7 @@ import { InlineMessage } from "@/components/inline-message";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
+  focusFirstFlagged,
   toFieldValues,
   toNutritionValues,
 } from "@/lib/ocr/nutrition-fields";
@@ -46,19 +46,6 @@ const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues
   return values[field].trim() === "" ? UNREADABLE_FIELD_ERROR : INCONSISTENT_FIELD_ERROR;
 };
 
-// When a save is blocked by fresh flags, move focus to the first flagged
-// input so a keyboard or screen-reader user is taken straight to the field
-// that needs a fix rather than having to hunt for it after the alert
-// (found via /accessibility, 2026-09-10). Field renders <input id={name}>,
-// so the flag name is the element id.
-const focusFirstFlagged = (flags: string[]): void => {
-  const flaggedFields = flaggedFieldSet(flags);
-  const first = (Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).find((field) => flaggedFields.has(field));
-  if (first) {
-    document.getElementById(first)?.focus();
-  }
-};
-
 // Re-checks the whole row on blur and again right before saving, rather
 // than trusting the flags the OCR call first returned: a field can be
 // flagged purely because of its RELATIONSHIP to another (saturates can't
@@ -84,7 +71,16 @@ const saveProduct = async (
     photo,
     learned,
   });
-  dispatch({ type: "PRODUCT_CREATED", product: { id: productId, name: nameValue } });
+  dispatch({
+    type: "PRODUCT_CREATED",
+    product: {
+      id: productId,
+      name: nameValue,
+      densityGMl: learned.densityGMl,
+      servingUnit: learned.servingUnit,
+      servingGrams: learned.servingGrams,
+    },
+  });
 };
 
 interface NutritionFieldsProps {
