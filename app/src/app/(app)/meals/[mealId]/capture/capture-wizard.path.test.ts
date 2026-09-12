@@ -5,7 +5,7 @@ import { INITIAL_WIZARD_STEP } from "./capture-wizard.types";
 
 const AMOUNT_STEP = {
   kind: "amount" as const,
-  product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", densityGMl: null, servingUnit: null, servingGrams: null },
+  product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" },
   alternatives: [],
 };
 

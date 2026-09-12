@@ -4,7 +4,7 @@ import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import { wizardReducer } from "./capture-wizard.types";
 
-const NO_MEASURES = { densityGMl: null, servingUnit: null, servingGrams: null };
+const NO_MEASURES = { densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
 
 describe("wizardReducer", () => {
   it("routes a confident match straight to the amount step with alternatives carried over", () => {

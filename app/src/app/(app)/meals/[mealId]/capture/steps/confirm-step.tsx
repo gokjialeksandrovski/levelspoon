@@ -85,6 +85,7 @@ const saveProduct = async (
       densityGMl: learned.densityGMl,
       servingUnit: learned.servingUnit,
       servingGrams: learned.servingGrams,
+      nutritionBasisUnit,
     },
   });
 };

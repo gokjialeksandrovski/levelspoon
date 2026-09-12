@@ -8,6 +8,7 @@ export interface SelectedProduct {
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
+  nutritionBasisUnit: string;
 }
 
 export type WizardStep =
@@ -88,12 +89,14 @@ export const toSelectedProduct = (candidate: {
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
+  nutritionBasisUnit: string;
 }): SelectedProduct => ({
   id: candidate.id,
   name: candidate.name,
   densityGMl: candidate.densityGMl,
   servingUnit: candidate.servingUnit,
   servingGrams: candidate.servingGrams,
+  nutritionBasisUnit: candidate.nutritionBasisUnit,
 });
 
 const resolveMatch = (nameGuess: string, result: MatchResult, netWeightText: string | null): WizardStep => {
