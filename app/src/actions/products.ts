@@ -160,6 +160,10 @@ export interface CreateProductInput {
   photo: Blob;
   /** What the label or the user taught about this product's measurements. */
   learned?: LearnedMeasures;
+  /** The product's storage basis - omitted for the default per-100g
+   * product, set by the capture pipeline's per-unit fallback (spec §5). */
+  nutritionBasisUnit?: string;
+  nutritionBasisQuantity?: number;
 }
 
 const uploadProductPhoto = async (photo: Blob): Promise<string> => {
@@ -202,6 +206,9 @@ const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValue
   saltG: Number(row.saltG),
 });
 
+const DEFAULT_NUTRITION_BASIS_UNIT = "g";
+const DEFAULT_NUTRITION_BASIS_QUANTITY = 100;
+
 export const createProduct = async (
   input: CreateProductInput,
 ): Promise<{ productId: string }> => {
@@ -214,6 +221,8 @@ export const createProduct = async (
       name: input.name,
       ...toNutritionColumns(input.nutritionPer100g),
       ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
+      nutritionBasisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
+      nutritionBasisQuantity: String(input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY),
       nutritionPhotoKey: photoKey,
       createdByUserId: userId,
     })

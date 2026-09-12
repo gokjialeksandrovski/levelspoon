@@ -260,6 +260,42 @@ describe("createProduct", () => {
     expect(row.createdByUserId).toBe(userId);
   });
 
+  it("defaults to a per-100g basis when none is given", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createProduct({
+      name: "Fresh Milk 3.2%",
+      nutritionPer100g: {
+        energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
+      },
+      photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionBasisUnit).toBe("g");
+    expect(Number(row.nutritionBasisQuantity)).toBe(100);
+  });
+
+  it("stores a custom nutrition basis when the capture pipeline supplies one", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createProduct({
+      name: "Nutella Hazelnut Spread",
+      nutritionPer100g: {
+        energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225,
+      },
+      photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
+      nutritionBasisUnit: "tbsp",
+      nutritionBasisQuantity: 1,
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionBasisUnit).toBe("tbsp");
+    expect(Number(row.nutritionBasisQuantity)).toBe(1);
+  });
+
   it("throws when there is no authenticated session", async () => {
     mockAuth.mockResolvedValue(null);
 
