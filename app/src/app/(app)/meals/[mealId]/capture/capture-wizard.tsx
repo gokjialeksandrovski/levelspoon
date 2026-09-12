@@ -93,6 +93,7 @@ const renderServingSizeStep = (
     name={step.name}
     photo={step.photo}
     prefillGrams={step.prefillGrams}
+    unitName={step.unitName}
     dispatch={dispatch}
   />
 );
@@ -107,6 +108,8 @@ const renderConfirmStep = (
     flags={step.flags}
     photo={step.photo}
     learned={step.learned}
+    nutritionBasisUnit={step.nutritionBasisUnit}
+    nutritionBasisQuantity={step.nutritionBasisQuantity}
     dispatch={dispatch}
   />
 );

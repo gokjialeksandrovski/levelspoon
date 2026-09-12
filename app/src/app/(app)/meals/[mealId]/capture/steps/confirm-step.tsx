@@ -26,6 +26,8 @@ interface ConfirmStepProps {
   flags: string[];
   photo: Blob;
   learned: LearnedMeasures;
+  nutritionBasisUnit: string;
+  nutritionBasisQuantity: number;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -63,6 +65,8 @@ const saveProduct = async (
   values: FieldValues,
   photo: Blob,
   learned: LearnedMeasures,
+  nutritionBasisUnit: string,
+  nutritionBasisQuantity: number,
   dispatch: (action: WizardAction) => void,
 ): Promise<void> => {
   const { productId } = await createProduct({
@@ -70,6 +74,8 @@ const saveProduct = async (
     nutritionPer100g: toNutritionValues(values),
     photo,
     learned,
+    nutritionBasisUnit,
+    nutritionBasisQuantity,
   });
   dispatch({
     type: "PRODUCT_CREATED",
@@ -113,6 +119,8 @@ interface SaveConfirmInput {
   values: FieldValues;
   photo: Blob;
   learned: LearnedMeasures;
+  nutritionBasisUnit: string;
+  nutritionBasisQuantity: number;
 }
 
 interface ConfirmSaveCallbacks {
@@ -136,7 +144,7 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
       focusFirstFlagged(freshFlags);
       return;
     }
-    await saveProduct(input.nameValue, input.values, input.photo, input.learned, dispatch);
+    await saveProduct(input.nameValue, input.values, input.photo, input.learned, input.nutritionBasisUnit, input.nutritionBasisQuantity, dispatch);
   } catch {
     callbacks.setError("Could not save this product. Please try again.");
   } finally {
@@ -157,7 +165,16 @@ interface UseConfirmStepFormResult {
   handleSave: () => Promise<void>;
 }
 
-const useConfirmStepForm = (name: string, parsed: NullableNutritionValues, initialFlags: string[], photo: Blob, learned: LearnedMeasures, dispatch: (action: WizardAction) => void): UseConfirmStepFormResult => {
+const useConfirmStepForm = (
+  name: string,
+  parsed: NullableNutritionValues,
+  initialFlags: string[],
+  photo: Blob,
+  learned: LearnedMeasures,
+  nutritionBasisUnit: string,
+  nutritionBasisQuantity: number,
+  dispatch: (action: WizardAction) => void,
+): UseConfirmStepFormResult => {
   const [nameValue, setNameValue] = useState(name);
   const [values, setValues] = useState(() => toFieldValues(parsed));
   const [flags, setFlags] = useState(initialFlags);
@@ -177,7 +194,7 @@ const useConfirmStepForm = (name: string, parsed: NullableNutritionValues, initi
   const canSave = [...flaggedFields].every((field) => values[field].trim() !== "");
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const revalidateNow = () => revalidate(values);
-  const handleSave = () => saveConfirmedProduct({ nameValue, values, photo, learned }, dispatch, { setFlags, setError, setIsSaving });
+  const handleSave = () => saveConfirmedProduct({ nameValue, values, photo, learned, nutritionBasisUnit, nutritionBasisQuantity }, dispatch, { setFlags, setError, setIsSaving });
 
   return { nameValue, values, error, isSaving, flaggedFields, canSave, setNameValue, setFieldValue, revalidateNow, handleSave };
 };
@@ -191,12 +208,12 @@ const ProductNameField = ({ value, onChange }: ProductNameFieldProps) => (
   <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
 );
 
-export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned, dispatch }: ConfirmStepProps) => {
-  const form = useConfirmStepForm(name, parsed, initialFlags, photo, learned, dispatch);
+export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned, nutritionBasisUnit, nutritionBasisQuantity, dispatch }: ConfirmStepProps) => {
+  const form = useConfirmStepForm(name, parsed, initialFlags, photo, learned, nutritionBasisUnit, nutritionBasisQuantity, dispatch);
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Confirm nutrition (per 100g)</h2>
+      <h2 className="text-lg font-semibold">Confirm nutrition (per {nutritionBasisQuantity} {nutritionBasisUnit})</h2>
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields
         values={form.values}

@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/steps/nutrition-photo-step.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,7 +6,7 @@ import { ocrNutritionTable } from "@/actions/ocr";
 import { InlineMessage } from "@/components/inline-message";
 import { PhotoInput } from "@/components/photo-input";
 import { Skeleton } from "@/components/skeleton";
-import { TAP_HIT_AREA_SM } from "@/components/tap-target";
+import { TEXT_LINK_SM } from "@/components/tap-target";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";
@@ -38,6 +37,9 @@ const ALL_NULL_NUTRITION = {
   saltG: null,
 };
 
+const MANUAL_ENTRY_BASIS_UNIT = "g";
+const MANUAL_ENTRY_BASIS_QUANTITY = 100;
+
 interface OcrNutritionCallbacks {
   onPhotoSelected: (photo: File) => void;
   onError: (error: string | null) => void;
@@ -56,10 +58,10 @@ const handleNutritionPhoto = async (selected: File, nameGuess: string, netWeight
   try {
     const read = await ocrNutritionTable(selected, nameGuess, netWeightText);
     if (read.kind === "needs-serving-size") {
-      callbacks.dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams });
+      callbacks.dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName });
       return;
     }
-    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned });
+    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity });
   } catch {
     callbacks.onError("Could not read the nutrition table from this photo.");
   } finally {
@@ -86,7 +88,7 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
     if (!photo) {
       return;
     }
-    dispatch({ type: "NUTRITION_PARSED", parsed: ALL_NULL_NUTRITION, flags: ALL_NUTRITION_FLAGS, name: nameGuess, photo, learned: NOTHING_LEARNED });
+    dispatch({ type: "NUTRITION_PARSED", parsed: ALL_NULL_NUTRITION, flags: ALL_NUTRITION_FLAGS, name: nameGuess, photo, learned: NOTHING_LEARNED, nutritionBasisUnit: MANUAL_ENTRY_BASIS_UNIT, nutritionBasisQuantity: MANUAL_ENTRY_BASIS_QUANTITY });
   };
 
   return { error, isLoading, photo, handleSelect, handleManualEntry };
@@ -110,7 +112,7 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, dispatch }: Nutri
       {form.isLoading && <LoadingSkeletons />}
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {form.error && form.photo && (
-        <button type="button" onClick={form.handleManualEntry} className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}>
+        <button type="button" onClick={form.handleManualEntry} className={TEXT_LINK_SM}>
           <span>Enter the values manually instead</span>
         </button>
       )}
