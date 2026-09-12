@@ -70,7 +70,6 @@ export type CandidateRow = {
   serving_unit: string | null;
   serving_grams: string | null;
   nutrition_basis_unit: string;
-  nutrition_basis_quantity: string;
   score: number;
 };
 
@@ -126,7 +125,7 @@ const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
     SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
            sugars_g, protein_g, salt_g, nutrition_photo_key,
            density_g_ml, serving_unit, serving_grams,
-           nutrition_basis_unit, nutrition_basis_quantity,
+           nutrition_basis_unit,
            similarity(name, ${ocrText}) AS score
     FROM products
     WHERE source = ${USER_SOURCE}

@@ -187,7 +187,7 @@ export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }:
         hasAlternatives={alternatives.length > 0}
         onChangeMatch={form.changeMatch}
       />
-      <AmountPhotoField onSelect={form.handlePhoto} />
+      {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} />}
       <UnitAmountField
         name="grams"
         count={form.count}

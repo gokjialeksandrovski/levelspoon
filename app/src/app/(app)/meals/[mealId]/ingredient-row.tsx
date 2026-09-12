@@ -67,11 +67,7 @@ const contextFor = (ingredient: MealIngredientDetail): MeasureContext => ({
   densityGMl: ingredient.densityGMl,
   servingUnit: ingredient.servingUnit,
   servingGrams: ingredient.servingGrams,
-  // Always equal to ingredient.quantityUnit - the product's own basis unit
-  // and the unit an ingredient is actually logged in never diverge (the
-  // single-save-call-site invariant, spec §9/§10). Reusing it here avoids
-  // selecting the product's basis unit as a separate column.
-  nutritionBasisUnit: ingredient.quantityUnit,
+  nutritionBasisUnit: ingredient.nutritionBasisUnit,
 });
 
 interface ResolveAndSaveQuantityInput {

@@ -633,7 +633,6 @@ describe("topTwoScores", () => {
     serving_unit: null,
     serving_grams: null,
     nutrition_basis_unit: "g",
-    nutrition_basis_quantity: "100",
     score,
   });
 

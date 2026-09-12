@@ -211,6 +211,7 @@ export interface MealIngredientDetail {
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
+  nutritionBasisUnit: string;
 }
 
 export interface MealDetail {
@@ -225,6 +226,7 @@ interface ProductMeasureColumns {
   densityGMl: string | null;
   servingUnit: string | null;
   servingGrams: string | null;
+  nutritionBasisUnit: string;
 }
 
 interface MealIngredientRow {
@@ -260,6 +262,7 @@ const MEAL_INGREDIENT_SELECTION = {
     densityGMl: products.densityGMl,
     servingUnit: products.servingUnit,
     servingGrams: products.servingGrams,
+    nutritionBasisUnit: products.nutritionBasisUnit,
   },
 };
 
@@ -286,6 +289,7 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   densityGMl: row.measures.densityGMl === null ? null : Number(row.measures.densityGMl),
   servingUnit: row.measures.servingUnit,
   servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
+  nutritionBasisUnit: row.measures.nutritionBasisUnit,
 });
 
 // The upper bound is read back out of the meal's own row in SQL rather than
