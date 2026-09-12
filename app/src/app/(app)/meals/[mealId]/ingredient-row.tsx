@@ -12,7 +12,8 @@ import { Sheet } from "@/components/sheet";
 import { TAP_HIT_AREA_SM, TAP_HIT_AREA_XS } from "@/components/tap-target";
 import { UnitAmountField } from "@/components/unit-amount-field";
 import { availableUnits } from "@/lib/measures/available-units";
-import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
+import type { MeasureContext } from "@/lib/measures/resolve-grams";
+import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
@@ -42,14 +43,15 @@ const removeIngredient = async (mealIngredientId: string, callbacks: MutationCal
 
 const saveIngredientQuantity = async (
   mealIngredientId: string,
-  quantityG: number,
+  quantity: number,
+  quantityUnit: string,
   onSaved: () => void,
   callbacks: MutationCallbacks,
 ): Promise<void> => {
   callbacks.onError(null);
   callbacks.onBusyChange(true);
   try {
-    await updateMealIngredientQuantity(mealIngredientId, quantityG);
+    await updateMealIngredientQuantity(mealIngredientId, quantity, quantityUnit);
     onSaved();
     callbacks.router.refresh();
     callbacks.onChanged?.();
@@ -65,6 +67,11 @@ const contextFor = (ingredient: MealIngredientDetail): MeasureContext => ({
   densityGMl: ingredient.densityGMl,
   servingUnit: ingredient.servingUnit,
   servingGrams: ingredient.servingGrams,
+  // Always equal to ingredient.quantityUnit - the product's own basis unit
+  // and the unit an ingredient is actually logged in never diverge (the
+  // single-save-call-site invariant, spec §9/§10). Reusing it here avoids
+  // selecting the product's basis unit as a separate column.
+  nutritionBasisUnit: ingredient.quantityUnit,
 });
 
 interface ResolveAndSaveQuantityInput {
@@ -74,17 +81,19 @@ interface ResolveAndSaveQuantityInput {
   context: MeasureContext;
 }
 
-const resolveAndSaveQuantity = async (
+// Exported (was previously module-private) so ingredient-row.test.ts can
+// call it directly, same posture as amount-step.tsx's existing exports.
+export const resolveAndSaveQuantity = async (
   input: ResolveAndSaveQuantityInput,
   onSaved: () => void,
   callbacks: MutationCallbacks,
 ): Promise<void> => {
-  const resolution = resolveGrams(`${input.count} ${input.unit}`, input.context);
+  const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
     callbacks.onError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
     return;
   }
-  await saveIngredientQuantity(input.ingredientId, resolution.grams, onSaved, callbacks);
+  await saveIngredientQuantity(input.ingredientId, resolution.quantity, resolution.quantityUnit, onSaved, callbacks);
 };
 
 interface UseIngredientEditingResult {
@@ -106,8 +115,8 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () =
   const router = useRouter();
   const context = contextFor(ingredient);
   const [isEditing, setIsEditing] = useState(false);
-  const [count, setCount] = useState(String(ingredient.quantityG));
-  const [unit, setUnit] = useState("g");
+  const [count, setCount] = useState(String(ingredient.quantity));
+  const [unit, setUnit] = useState(ingredient.quantityUnit);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged };
@@ -177,7 +186,8 @@ const QuantityEditor = ({ ingredientId, count, unit, units, isBusy, onCountChang
 
 interface QuantitySummaryProps {
   productName: string;
-  quantityG: number;
+  quantity: number;
+  quantityUnit: string;
   energyKcal: number;
   isBusy: boolean;
   onEdit: () => void;
@@ -211,10 +221,10 @@ const RowAction = ({ label, toneClass, disabled, onClick, children }: RowActionP
 // gap-5, not gap-3: each RowAction's hit box reaches 4px past its text on
 // each side (TAP_HIT_AREA_SM's -mx-1/px-1), so a tighter gap leaves the two
 // touch targets under the 8px minimum spacing (found via /critique, 2026-09-10).
-const QuantitySummary = ({ productName, quantityG, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+const QuantitySummary = ({ productName, quantity, quantityUnit, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex items-center justify-between text-sm text-text-muted">
     <span className="tabular-nums">
-      {quantityG}g · {Math.round(energyKcal)} kcal
+      {quantity} {quantityUnit} · {Math.round(energyKcal)} kcal
     </span>
     <div className="flex gap-5">
       <RowAction label={`Edit ${productName} amount`} toneClass="text-text-muted" onClick={onEdit}>
@@ -253,7 +263,8 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
   ) : (
     <QuantitySummary
       productName={ingredient.productName}
-      quantityG={ingredient.quantityG}
+      quantity={ingredient.quantity}
+      quantityUnit={ingredient.quantityUnit}
       energyKcal={ingredient.contribution.energyKcal}
       isBusy={editing.isBusy}
       onEdit={editing.startEditing}
