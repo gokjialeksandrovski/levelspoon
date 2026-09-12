@@ -14,7 +14,8 @@ import type { NutritionValues } from "./products";
 export interface SaveMealIngredientInput {
   mealId: string;
   productId: string;
-  quantityG: number;
+  quantity: number;
+  quantityUnit: string;
   quantitySource: "ai_estimated" | "manual";
 }
 
@@ -47,8 +48,8 @@ export const saveMealIngredient = async (
     .values({
       mealId: input.mealId,
       productId: input.productId,
-      quantity: String(input.quantityG),
-      quantityUnit: "g",
+      quantity: String(input.quantity),
+      quantityUnit: input.quantityUnit,
       quantitySource: input.quantitySource,
     })
     .returning({ id: mealIngredients.id });
@@ -129,7 +130,7 @@ const productRowToNutritionValues = (product: ProductNutritionRow): NutritionVal
 interface DayMealIngredientRow {
   mealId: string;
   productName: string;
-  quantityG: string;
+  quantity: string;
   nutritionBasisQuantity: string;
   product: ProductNutritionRow;
 }
@@ -137,7 +138,7 @@ interface DayMealIngredientRow {
 const DAY_MEAL_INGREDIENT_SELECTION = {
   mealId: meals.id,
   productName: products.name,
-  quantityG: mealIngredients.quantity,
+  quantity: mealIngredients.quantity,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
   product: {
     energyKcal: products.energyKcal,
@@ -172,7 +173,7 @@ const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
   rows.reduce<DayMealSummary[]>((summaries, row) => {
     const contribution = computeContribution(
       productRowToNutritionValues(row.product),
-      Number(row.quantityG),
+      Number(row.quantity),
       Number(row.nutritionBasisQuantity),
     );
     const existing = summaries.find((summary) => summary.id === row.mealId);
@@ -203,7 +204,8 @@ export interface MealIngredientDetail {
   id: string;
   productId: string;
   productName: string;
-  quantityG: number;
+  quantity: number;
+  quantityUnit: string;
   quantitySource: "ai_estimated" | "manual";
   contribution: NutritionValues;
   densityGMl: number | null;
@@ -229,7 +231,8 @@ interface MealIngredientRow {
   id: string;
   productId: string;
   productName: string;
-  quantityG: string;
+  quantity: string;
+  quantityUnit: string;
   nutritionBasisQuantity: string;
   quantitySource: "ai_estimated" | "manual";
   product: ProductNutritionRow;
@@ -240,7 +243,8 @@ const MEAL_INGREDIENT_SELECTION = {
   id: mealIngredients.id,
   productId: mealIngredients.productId,
   productName: products.name,
-  quantityG: mealIngredients.quantity,
+  quantity: mealIngredients.quantity,
+  quantityUnit: mealIngredients.quantityUnit,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
   quantitySource: mealIngredients.quantitySource,
   product: {
@@ -271,11 +275,12 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   id: row.id,
   productId: row.productId,
   productName: row.productName,
-  quantityG: Number(row.quantityG),
+  quantity: Number(row.quantity),
+  quantityUnit: row.quantityUnit,
   quantitySource: row.quantitySource,
   contribution: computeContribution(
     productRowToNutritionValues(row.product),
-    Number(row.quantityG),
+    Number(row.quantity),
     Number(row.nutritionBasisQuantity),
   ),
   densityGMl: row.measures.densityGMl === null ? null : Number(row.measures.densityGMl),
@@ -354,13 +359,14 @@ export const discardEmptyMeal = async (mealId: string): Promise<void> => {
 
 export const updateMealIngredientQuantity = async (
   mealIngredientId: string,
-  quantityG: number,
+  quantity: number,
+  quantityUnit: string,
 ): Promise<void> => {
   const userId = await requireUserId();
   await assertMealIngredientOwnership(mealIngredientId, userId);
   await db
     .update(mealIngredients)
-    .set({ quantity: String(quantityG), quantitySource: "manual" })
+    .set({ quantity: String(quantity), quantityUnit, quantitySource: "manual" })
     .where(eq(mealIngredients.id, mealIngredientId));
 };
 
