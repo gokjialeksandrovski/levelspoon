@@ -1,13 +1,12 @@
-// app/src/app/(app)/products/[productId]/correct/correction-form.tsx
 "use client";
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { validateNutrition } from "@/actions/ocr";
 import { updateProduct } from "@/actions/products";
 import type { ProductForCorrection } from "@/actions/products";
-import { validateNutrition } from "@/actions/ocr";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/button";
 import { Field } from "@/components/field";
@@ -15,6 +14,7 @@ import { InlineMessage } from "@/components/inline-message";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
+  focusFirstFlagged,
   toFieldValues,
   toNutritionValues,
 } from "@/lib/ocr/nutrition-fields";
@@ -36,17 +36,6 @@ const toNullableNutritionValues = (values: ProductForCorrection["nutritionPer100
 const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]> => {
   const result = await validateNutrition(toNutritionValues(currentValues));
   return result.flags;
-};
-
-// Mirrors confirm-step.tsx: on a blocked save, take focus straight to the
-// first flagged input instead of leaving a keyboard or screen-reader user
-// to find it after the alert (found via /accessibility, 2026-09-10).
-const focusFirstFlagged = (flags: string[]): void => {
-  const flaggedFields = flaggedFieldSet(flags);
-  const first = (Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).find((field) => flaggedFields.has(field));
-  if (first) {
-    document.getElementById(first)?.focus();
-  }
 };
 
 // Guards two distinct failure shapes with the same fallback: no photoUrl at
@@ -202,7 +191,7 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   const [isSaving, setIsSaving] = useState(false);
 
   const revalidate = useCallback((currentValues: FieldValues) => {
-    validateNutrition(toNutritionValues(currentValues)).then((result) => { setFlags(result.flags); setValidateError(false); }).catch(() => setValidateError(true));
+    checkNutritionFlags(currentValues).then((freshFlags) => { setFlags(freshFlags); setValidateError(false); }).catch(() => setValidateError(true));
   }, []);
 
   useEffect(() => { revalidate(toFieldValues(toNullableNutritionValues(product.nutritionPer100g))); }, [product, revalidate]);
@@ -223,7 +212,7 @@ interface CorrectionFormBodyProps {
 
 const CorrectionFormBody = ({ product, form }: CorrectionFormBodyProps) => (
   <div className="flex flex-col gap-4">
-    <h2 className="text-xl font-semibold">Correct nutrition (per 100g)</h2>
+    <h2 className="text-xl font-semibold">Correct nutrition (per {product.nutritionBasisQuantity} {product.nutritionBasisUnit})</h2>
     <StoredPhoto photoUrl={product.photoUrl} productName={product.name} />
     <ReplacePhotoField onSelect={form.setPhoto} />
     <Field label="Product name" name="name" value={form.name} onChange={(event) => form.setName(event.target.value)} />

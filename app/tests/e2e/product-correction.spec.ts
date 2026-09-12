@@ -10,7 +10,7 @@ test.beforeEach(truncateAll);
 const logOneIngredientThenOpenCorrection = async (page: Page) => {
   const mealUrl = await logOneIngredient(page);
   await page.getByRole("link", { name: "Values look wrong?" }).click();
-  await expect(page.getByRole("heading", { name: "Correct nutrition (per 100g)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Correct nutrition (per 100 g)" })).toBeVisible();
   return mealUrl;
 };
 
