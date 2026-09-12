@@ -143,7 +143,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result.learned).toEqual({ densityGMl: null, servingUnit: "bas", servingGrams: 52 });
   });
 
-  it("asks for a serving size when nothing can resolve a count unit", async () => {
+  it("creates a per-unit product straight to confirm when a count unit is recognized but not convertible", async () => {
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
       perServing: PER_SERVING_VALUES,
@@ -151,23 +151,44 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
       servingGrams: null,
       servingsPerContainer: null,
     });
+    mockValidate.mockResolvedValue({ flags: [] });
 
     const result = await ocrNutritionTable(new Blob(["photo"]), "Snickers");
 
-    expect(result).toEqual({
-      kind: "needs-serving-size",
-      servingSizeText: "1 bas",
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.nutritionBasisUnit).toBe("bas");
+    expect(result.nutritionBasisQuantity).toBe(1);
+    expect(result.values.energyKcal).toBeCloseTo(190, 2);
+    expect(result.learned).toEqual(NOTHING_LEARNED);
+  });
+
+  it("creates a per-unit product straight to confirm for a household measure with no known density (Nutella-shaped)", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
       perServing: PER_SERVING_VALUES,
-      prefillGrams: null,
+      servingSizeText: "2 Tablespoon",
+      servingGrams: null,
     });
-    expect(mockValidate).not.toHaveBeenCalled();
+    mockValidate.mockResolvedValue({ flags: [] });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Nutella Hazelnut Spread");
+
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.nutritionBasisUnit).toBe("tbsp");
+    expect(result.nutritionBasisQuantity).toBe(1);
+    // Full 2-tablespoon perServing macros halve to one tablespoon's worth.
+    expect(result.values.energyKcal).toBeCloseTo(190 / 2, 2);
+    expect(result.values.fatG).toBeCloseTo(16 / 2, 2);
+    expect(result.learned).toEqual(NOTHING_LEARNED);
   });
 
   it("prefills a serving weight from the front panel's net weight and the label's own servings count", async () => {
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
       perServing: PER_SERVING_VALUES,
-      servingSizeText: "1 bar",
+      servingSizeText: "one bar",
       servingGrams: null,
       servingsPerContainer: 48,
     });
@@ -180,9 +201,10 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
 
     expect(result).toEqual({
       kind: "needs-serving-size",
-      servingSizeText: "1 bar",
+      servingSizeText: "one bar",
       perServing: PER_SERVING_VALUES,
       prefillGrams: expect.closeTo(52.7 / 48, 5),
+      unitName: null,
     });
   });
 
@@ -190,7 +212,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
       perServing: PER_SERVING_VALUES,
-      servingSizeText: "1 bar",
+      servingSizeText: "one bar",
       servingGrams: null,
       servingsPerContainer: null,
     });
@@ -208,7 +230,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
       perServing: PER_SERVING_VALUES,
-      servingSizeText: "1 bar",
+      servingSizeText: "one bar",
       servingGrams: null,
       servingsPerContainer: 48,
     });
@@ -222,7 +244,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
       perServing: PER_SERVING_VALUES,
-      servingSizeText: "1 bar",
+      servingSizeText: "one bar",
       servingGrams: null,
       servingsPerContainer: 48,
     });
@@ -232,17 +254,21 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result).toMatchObject({ kind: "needs-serving-size", prefillGrams: null });
   });
 
-  it("never assumes water for an unknown density", async () => {
+  it("never assumes water for an unknown density - builds a per-unit product instead of guessing grams", async () => {
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
       perServing: PER_SERVING_VALUES,
       servingSizeText: "2 tbsp",
       servingGrams: null,
     });
+    mockValidate.mockResolvedValue({ flags: [] });
 
     const result = await ocrNutritionTable(new Blob(["photo"]), "Mystery Spread");
 
-    expect(result.kind).toBe("needs-serving-size");
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.nutritionBasisUnit).toBe("tbsp");
+    expect(result.nutritionBasisQuantity).toBe(1);
   });
 
   it("returns the flags from the revalidate call", async () => {
@@ -296,7 +322,18 @@ describe("resolveServingSize", () => {
       servingSizeText: "1 bas",
       perServing: PER_SERVING_VALUES,
       prefillGrams: null,
+      unitName: null,
     });
+  });
+
+  it("resolves a recognised-but-unconvertible unit straight to a per-unit product instead of asking again", async () => {
+    const result = await resolveServingSize("2 tbsp", "2 Tablespoon", PER_SERVING_VALUES, "Nutella");
+
+    expect(result.kind).toBe("per100g");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.nutritionBasisUnit).toBe("tbsp");
+    expect(result.nutritionBasisQuantity).toBe(1);
+    expect(result.values.energyKcal).toBeCloseTo(190 / 2, 2);
   });
 });
 
@@ -357,7 +394,7 @@ describe("needsServingSizeRead", () => {
   const context: MeasureContext = { productName: "Snickers", densityGMl: null, servingUnit: null, servingGrams: null };
 
   it("prefills grams from the net weight divided by servings per container", async () => {
-    const result = await needsServingSizeRead(usRead, "NET WT 12 OZ (340g)", context);
+    const result = await needsServingSizeRead(usRead, "NET WT 12 OZ (340g)", context, "bar");
 
     if (result.kind !== "needs-serving-size") throw new Error("expected needs-serving-size");
     expect(result).toEqual({
@@ -365,13 +402,21 @@ describe("needsServingSizeRead", () => {
       servingSizeText: "1 bar",
       perServing: PER_SERVING_VALUES,
       prefillGrams: 170,
+      unitName: "bar",
     });
   });
 
   it("leaves the prefill null when there is no net weight text", async () => {
-    const result = await needsServingSizeRead(usRead, null, context);
+    const result = await needsServingSizeRead(usRead, null, context, "bar");
 
     if (result.kind !== "needs-serving-size") throw new Error("expected needs-serving-size");
     expect(result.prefillGrams).toBeNull();
+  });
+
+  it("passes the unresolved unit name through unchanged", async () => {
+    const result = await needsServingSizeRead(usRead, null, context, null);
+
+    if (result.kind !== "needs-serving-size") throw new Error("expected needs-serving-size");
+    expect(result.unitName).toBeNull();
   });
 });

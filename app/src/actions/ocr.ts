@@ -11,7 +11,7 @@ import {
 } from "@/lib/measures/learn";
 import { resolveNetWeightGrams } from "@/lib/measures/net-weight";
 import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
-import { scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
+import { scaleNutrition, scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
 import { HttpOcrProvider } from "@/lib/ocr/http-provider";
 import { MockOcrProvider } from "@/lib/ocr/mock-provider";
 import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "@/lib/ocr/provider";
@@ -28,6 +28,11 @@ export type NutritionRead =
       values: NullableNutritionValues;
       flags: string[];
       learned: LearnedMeasures;
+      /** The product row's own nutrition_basis_unit/nutrition_basis_quantity -
+       * "g"/100 for a gram-resolved read, or the recognized household unit
+       * with quantity 1 when the per-unit fallback built this read instead. */
+      nutritionBasisUnit: string;
+      nutritionBasisQuantity: number;
     }
   | {
       kind: "needs-serving-size";
@@ -38,6 +43,12 @@ export type NutritionRead =
        * missing or unreadable. Always a prefill the user can edit or
        * override, never a value that skips asking. */
       prefillGrams: number | null;
+      /** The household unit `resolveGrams` recognised but could not convert
+       * (e.g. "tbsp" with no known density) - null when the text itself
+       * didn't parse at all. Lets the ask distinguish "we don't know this
+       * unit's weight yet" from "that wasn't a measurement", instead of one
+       * generic message for both. */
+      unitName: string | null;
     };
 
 const getProvider = (): OcrProvider =>
@@ -50,6 +61,10 @@ export const ocrProductName = async (
   return getProvider().extractProductName(photo);
 };
 
+const GRAM_BASIS_UNIT = "g";
+const GRAM_BASIS_QUANTITY = 100;
+const PER_UNIT_BASIS_QUANTITY = 1;
+
 const scaledRead = async (
   perServing: NutritionValues,
   grams: number,
@@ -57,7 +72,35 @@ const scaledRead = async (
 ): Promise<NutritionRead> => {
   const values = scalePerServingToPer100g(perServing, grams);
   const { flags } = await getProvider().validate(values);
-  return { kind: "per100g", values, flags, learned };
+  return {
+    kind: "per100g",
+    values,
+    flags,
+    learned,
+    nutritionBasisUnit: GRAM_BASIS_UNIT,
+    nutritionBasisQuantity: GRAM_BASIS_QUANTITY,
+  };
+};
+
+// Spec §5's fix: a unit resolveGrams recognized but couldn't convert to
+// grams (no density, no learned weight) becomes the product's own basis
+// instead of a dead-end question - "how many grams is 2 tbsp" has no
+// answer the user can give either.
+const perUnitRead = async (
+  perServing: NutritionValues,
+  unitName: string,
+  parsedQuantity: number,
+): Promise<NutritionRead> => {
+  const values = scaleNutrition(perServing, PER_UNIT_BASIS_QUANTITY / parsedQuantity);
+  const { flags } = await getProvider().validate(values);
+  return {
+    kind: "per100g",
+    values,
+    flags,
+    learned: NOTHING_LEARNED,
+    nutritionBasisUnit: unitName,
+    nutritionBasisQuantity: PER_UNIT_BASIS_QUANTITY,
+  };
 };
 
 const contextFor = async (productName: string): Promise<MeasureContext> => ({
@@ -65,9 +108,8 @@ const contextFor = async (productName: string): Promise<MeasureContext> => ({
   ...(await findStoredMeasures(productName)),
 });
 
-// A guess, never a substitute for asking: only reached once every other
-// resolution strategy has already failed, and always lands as an editable
-// prefill on the serving-size question, not an auto-submitted answer.
+// A guess, not a substitute for asking: only reached once every other
+// resolution failed, and lands as an editable prefill, never auto-submitted.
 const netWeightPrefill = (
   netWeightText: string | null,
   servingsPerContainer: number | null,
@@ -80,12 +122,9 @@ const netWeightPrefill = (
   return netWeightGrams === null ? null : netWeightGrams / servingsPerContainer;
 };
 
-// Mirrors scaledRead's already-established shape: a small pure-orchestration
-// wrapper the resolved-serving branch below delegates to, kept separate so it
-// can be exercised directly by a unit test. Every export from a "use server"
-// file is independently reachable as its own Server Action from the client
-// regardless of which other function calls it internally, so this checks
-// auth itself rather than trusting fromUsLabel's caller to have done it.
+// Exported so a unit test can exercise the resolved-serving branch directly.
+// Every export from a "use server" file is independently reachable as its
+// own Server Action, so it checks auth itself.
 export const fromResolvedServing = async (
   perServing: NutritionValues,
   servingSizeText: string,
@@ -96,14 +135,13 @@ export const fromResolvedServing = async (
   return scaledRead(perServing, grams, learned);
 };
 
-// Kept separate from fromUsLabel purely for the line budget - exported so
-// it can be exercised directly, same as fromResolvedServing above it. Same
-// auth rationale as fromResolvedServing: independently reachable from the
-// client once exported from a "use server" file.
+// Split from fromUsLabel for the line budget; exported and auth-checked for
+// the same reason as fromResolvedServing.
 export const needsServingSizeRead = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
   netWeightText: string | null,
   context: MeasureContext,
+  unitName: string | null,
 ): Promise<NutritionRead> => {
   await requireUserId();
   return {
@@ -111,6 +149,7 @@ export const needsServingSizeRead = async (
     servingSizeText: read.servingSizeText,
     perServing: read.perServing,
     prefillGrams: netWeightPrefill(netWeightText, read.servingsPerContainer, context),
+    unitName,
   };
 };
 
@@ -129,7 +168,10 @@ const fromUsLabel = async (
   const context = await contextFor(productNameGuess);
   const resolution = resolveGrams(read.servingSizeText, context);
   if (resolution.kind === "unresolved") {
-    return await needsServingSizeRead(read, netWeightText, context);
+    if (resolution.unitName !== null && resolution.quantity !== null) {
+      return perUnitRead(read.perServing, resolution.unitName, resolution.quantity);
+    }
+    return await needsServingSizeRead(read, netWeightText, context, resolution.unitName);
   }
   // This is a brand-new product row, so all three learned columns start
   // NULL - whatever the lookup or seeded density just resolved is this row's
@@ -149,7 +191,14 @@ export const ocrNutritionTable = async (
   await requireUserId();
   const read = await getProvider().extractNutritionTable(photo);
   if (read.format === "eu") {
-    return { kind: "per100g", values: read.per100g, flags: read.flags, learned: NOTHING_LEARNED };
+    return {
+      kind: "per100g",
+      values: read.per100g,
+      flags: read.flags,
+      learned: NOTHING_LEARNED,
+      nutritionBasisUnit: GRAM_BASIS_UNIT,
+      nutritionBasisQuantity: GRAM_BASIS_QUANTITY,
+    };
   }
   return fromUsLabel(read, productNameGuess, netWeightText);
 };
@@ -171,10 +220,13 @@ export const resolveServingSize = async (
   await requireUserId();
   const resolution = resolveGrams(answerText, await contextFor(productNameGuess));
   if (resolution.kind === "unresolved") {
+    if (resolution.unitName !== null && resolution.quantity !== null) {
+      return perUnitRead(perServing, resolution.unitName, resolution.quantity);
+    }
     // prefillGrams is unused here: ServingSizeStep only checks read.kind on
     // this branch and re-shows its own local error, never re-reading these
     // fields (same as servingSizeText/perServing above).
-    return { kind: "needs-serving-size", servingSizeText, perServing, prefillGrams: null };
+    return { kind: "needs-serving-size", servingSizeText, perServing, prefillGrams: null, unitName: resolution.unitName };
   }
 
   // What the answer teaches is attached to the label's own serving line, not
