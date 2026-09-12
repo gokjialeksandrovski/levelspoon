@@ -8,6 +8,7 @@ const EMPTY_CONTEXT: MeasureContext = {
   densityGMl: null,
   servingUnit: null,
   servingGrams: null,
+  nutritionBasisUnit: "g",
 };
 
 const contextFor = (overrides: Partial<MeasureContext>): MeasureContext => ({
@@ -15,7 +16,7 @@ const contextFor = (overrides: Partial<MeasureContext>): MeasureContext => ({
   ...overrides,
 });
 
-describe("availableUnits", () => {
+describe("availableUnits — grams basis", () => {
   it("offers only grams for a product with nothing learned", () => {
     expect(availableUnits(EMPTY_CONTEXT)).toEqual(["g"]);
   });
@@ -48,6 +49,27 @@ describe("availableUnits", () => {
   });
 });
 
+describe("availableUnits — non-grams basis", () => {
+  it("offers only the basis unit, ignoring a matching serving unit and a known density", () => {
+    // A per-unit product's serving unit is always set to the same value as
+    // its basis (spec §5), and could coincidentally have a seeded density
+    // too - neither should widen the picker past the one unit that's
+    // actually convertible to this product's stored nutrition.
+    const context = contextFor({
+      nutritionBasisUnit: "tbsp",
+      servingUnit: "tbsp",
+      servingGrams: 15,
+      densityGMl: 1.2,
+    });
+    expect(availableUnits(context)).toEqual(["tbsp"]);
+  });
+
+  it("offers only the basis unit for a product with no other measures learned at all", () => {
+    const context = contextFor({ nutritionBasisUnit: "bar" });
+    expect(availableUnits(context)).toEqual(["bar"]);
+  });
+});
+
 describe("defaultUnit", () => {
   it("is the product's serving unit when present", () => {
     expect(defaultUnit(contextFor({ servingUnit: "bar", servingGrams: 52 }))).toBe("bar");
@@ -55,5 +77,11 @@ describe("defaultUnit", () => {
 
   it("is grams when nothing is learned", () => {
     expect(defaultUnit(EMPTY_CONTEXT)).toBe("g");
+  });
+
+  it("is already the basis unit for a non-grams product, since servingUnit mirrors it", () => {
+    // No change needed in defaultUnit itself (spec §6) - this locks in why.
+    const context = contextFor({ nutritionBasisUnit: "tbsp", servingUnit: "tbsp" });
+    expect(defaultUnit(context)).toBe("tbsp");
   });
 });

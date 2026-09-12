@@ -116,6 +116,7 @@ const isPerUnitFallback = (
 
 const contextFor = async (productName: string): Promise<MeasureContext> => ({
   productName,
+  nutritionBasisUnit: "g",
   ...(await findStoredMeasures(productName)),
 });
 

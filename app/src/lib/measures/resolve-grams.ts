@@ -2,12 +2,19 @@ import { seededDensity } from "./densities";
 import { parseMeasure, type Measure } from "./parse-measure";
 import { MASS_UNITS_TO_GRAMS, VOLUME_UNITS_TO_ML } from "./units";
 
-/** What the caller knows about this product. All fields are null for a product with nothing learned yet. */
+/**
+ * What the caller knows about this product. `densityGMl`/`servingUnit`/
+ * `servingGrams` are null for a product with nothing learned yet.
+ * `nutritionBasisUnit` is never null - "g" for the default per-100g
+ * product, otherwise the one unit that product's nutrition is actually
+ * stored per (spec §4/§6).
+ */
 export interface MeasureContext {
   productName: string;
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
+  nutritionBasisUnit: string;
 }
 
 export type Resolution =

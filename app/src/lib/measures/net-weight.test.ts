@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { resolveNetWeightGrams } from "./net-weight";
 
-const EMPTY_CONTEXT = { productName: "", densityGMl: null, servingUnit: null, servingGrams: null };
+const EMPTY_CONTEXT = { productName: "", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
 
 describe("resolveNetWeightGrams", () => {
   it("reads the bracketed metric conversion even when OCR misreads the primary unit", () => {
