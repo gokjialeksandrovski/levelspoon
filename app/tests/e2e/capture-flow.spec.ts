@@ -92,7 +92,7 @@ test("whole food: search and pick a standard food, reach the amount step and sav
 
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
-  await page.getByRole("button", { name: "Whole food / no packaging" }).click();
+  await page.getByRole("button", { name: "Whole food" }).click();
   await page.getByLabel("Food name").fill("Banana");
   await page.getByRole("button", { name: "Search" }).click();
   await page.getByRole("button", { name: "Banana" }).click();
@@ -106,10 +106,47 @@ test("whole food: empty search shows the no-match copy and returns to product ph
   await signUp(page);
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
-  await page.getByRole("button", { name: "Whole food / no packaging" }).click();
+  await page.getByRole("button", { name: "Whole food" }).click();
   await page.getByLabel("Food name").fill("zzznotarealfood");
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText(/No match/)).toBeVisible();
   await page.getByRole("button", { name: "Back to product photo" }).click();
   await expect(page.getByLabel(/product photo/i)).toBeVisible();
+});
+
+test("per-unit product (household measure, no printed grams): capture, log, and see it in the day total", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/no-match-product.jpg");
+  await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-per-unit.jpg");
+
+  // No printed grams and no known density for this name - the label's own
+  // "2 Tablespoon" serving becomes the product's basis instead of asking a
+  // question with no answer ("how many grams is 2 tbsp?"). This is the
+  // reported bug's fix (spec §1/§5).
+  await expect(page.getByText("Confirm nutrition (per 1 tbsp)")).toBeVisible();
+  await expect(page.getByLabel("Energy (kcal)")).toHaveValue("95");
+  await page.getByRole("button", { name: /save product/i }).click();
+
+  // The amount step offers only the product's own basis unit - no grams
+  // fallback exists to convert an unknown density to (spec §6).
+  const unitSelect = page.getByLabel("Unit");
+  await expect(unitSelect).toHaveValue("tbsp");
+  await expect(unitSelect.locator("option")).toHaveCount(1);
+
+  await page.getByLabel("Amount", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Save ingredient" }).click();
+  await expect(page.getByText("Ingredient saved.")).toBeVisible();
+  await page.getByRole("button", { name: /done/i }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+
+  // 2 tbsp at 95 kcal/tbsp = 190 kcal.
+  await expect(page.getByText("2 tbsp · 190 kcal")).toBeVisible();
+
+  await page.goto(`/day/${localToday()}`);
+  const mealLink = page.getByRole("link", { name: /Completely Unrelated Product Name Zzz/ });
+  await expect(mealLink).toBeVisible();
+  await expect(mealLink.getByText(/190/)).toBeVisible();
 });
