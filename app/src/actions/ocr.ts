@@ -10,7 +10,7 @@ import {
   type LearnedMeasures,
 } from "@/lib/measures/learn";
 import { resolveNetWeightGrams } from "@/lib/measures/net-weight";
-import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
+import { resolveGrams, type MeasureContext, type Resolution } from "@/lib/measures/resolve-grams";
 import { scaleNutrition, scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
 import { HttpOcrProvider } from "@/lib/ocr/http-provider";
 import { MockOcrProvider } from "@/lib/ocr/mock-provider";
@@ -18,9 +18,10 @@ import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "@
 
 /**
  * A nutrition read the confirm step can use, or the one question that stands
- * between us and it. `needs-serving-size` is reached only when no bracketed
- * gram weight is printed, no density resolves the measure, and nothing was
- * learned for this product before.
+ * between us and it. `needs-serving-size` is reached only when the serving
+ * text doesn't parse as a measurement at all, or parses to a non-positive
+ * quantity - a recognized-but-unconvertible unit (e.g. "tbsp" with no known
+ * density) fast-paths to a per-unit product instead of asking.
  */
 export type NutritionRead =
   | {
@@ -97,11 +98,21 @@ const perUnitRead = async (
     kind: "per100g",
     values,
     flags,
-    learned: NOTHING_LEARNED,
+    learned: { densityGMl: null, servingUnit: unitName, servingGrams: null },
     nutritionBasisUnit: unitName,
     nutritionBasisQuantity: PER_UNIT_BASIS_QUANTITY,
   };
 };
+
+// A zero (or negative) quantity is "recognized unit, unusable amount" - e.g.
+// resolveGrams("0g", ...) reports unitName "g" with quantity 0, non-null on
+// both fields. Fast-pathing that into perUnitRead would divide by zero and
+// write Infinity into the shared products table, so the fallback requires a
+// genuinely positive quantity, not just a non-null one.
+const isPerUnitFallback = (
+  resolution: Extract<Resolution, { kind: "unresolved" }>,
+): resolution is Extract<Resolution, { kind: "unresolved" }> & { unitName: string; quantity: number } =>
+  resolution.unitName !== null && resolution.quantity !== null && resolution.quantity > 0;
 
 const contextFor = async (productName: string): Promise<MeasureContext> => ({
   productName,
@@ -168,7 +179,7 @@ const fromUsLabel = async (
   const context = await contextFor(productNameGuess);
   const resolution = resolveGrams(read.servingSizeText, context);
   if (resolution.kind === "unresolved") {
-    if (resolution.unitName !== null && resolution.quantity !== null) {
+    if (isPerUnitFallback(resolution)) {
       return perUnitRead(read.perServing, resolution.unitName, resolution.quantity);
     }
     return await needsServingSizeRead(read, netWeightText, context, resolution.unitName);
@@ -208,8 +219,10 @@ export const ocrNutritionTable = async (
  *
  * The answer is fed back through the same resolver, so "1.8 oz" works as well
  * as "52g" - useful because US packages frequently print net weight in
- * ounces. An answer that still cannot be resolved asks again rather than
- * inventing a number.
+ * ounces. A recognized-but-unconvertible unit (e.g. "2 tbsp") fast-paths to a
+ * per-unit product instead of asking again; only an answer that doesn't parse
+ * at all, or parses to a non-positive quantity, re-asks rather than inventing
+ * a number.
  */
 export const resolveServingSize = async (
   answerText: string,
@@ -220,7 +233,7 @@ export const resolveServingSize = async (
   await requireUserId();
   const resolution = resolveGrams(answerText, await contextFor(productNameGuess));
   if (resolution.kind === "unresolved") {
-    if (resolution.unitName !== null && resolution.quantity !== null) {
+    if (isPerUnitFallback(resolution)) {
       return perUnitRead(perServing, resolution.unitName, resolution.quantity);
     }
     // prefillGrams is unused here: ServingSizeStep only checks read.kind on

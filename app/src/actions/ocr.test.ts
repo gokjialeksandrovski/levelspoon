@@ -160,7 +160,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result.nutritionBasisUnit).toBe("bas");
     expect(result.nutritionBasisQuantity).toBe(1);
     expect(result.values.energyKcal).toBeCloseTo(190, 2);
-    expect(result.learned).toEqual(NOTHING_LEARNED);
+    expect(result.learned).toEqual({ densityGMl: null, servingUnit: "bas", servingGrams: null });
   });
 
   it("creates a per-unit product straight to confirm for a household measure with no known density (Nutella-shaped)", async () => {
@@ -181,7 +181,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     // Full 2-tablespoon perServing macros halve to one tablespoon's worth.
     expect(result.values.energyKcal).toBeCloseTo(190 / 2, 2);
     expect(result.values.fatG).toBeCloseTo(16 / 2, 2);
-    expect(result.learned).toEqual(NOTHING_LEARNED);
+    expect(result.learned).toEqual({ densityGMl: null, servingUnit: "tbsp", servingGrams: null });
   });
 
   it("prefills a serving weight from the front panel's net weight and the label's own servings count", async () => {
@@ -271,6 +271,30 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result.nutritionBasisQuantity).toBe(1);
   });
 
+  it("asks again rather than fast-pathing a zero-quantity recognized unit into an Infinity-valued product", async () => {
+    mockExtractNutritionTable.mockResolvedValue({
+      format: "us",
+      perServing: PER_SERVING_VALUES,
+      servingSizeText: "0 tbsp",
+      servingGrams: null,
+    });
+    mockValidate.mockResolvedValue({ flags: [] });
+
+    const result = await ocrNutritionTable(new Blob(["photo"]), "Mystery Spread");
+
+    // resolveGrams("0 tbsp", ...) reports the recognized unit "tbsp" with
+    // quantity 0 - non-null on both fields, same shape as "0g" (asserted in
+    // resolve-grams.test.ts). Fast-pathing that into perUnitRead would divide
+    // by zero and write Infinity into the shared products table.
+    expect(result).toEqual({
+      kind: "needs-serving-size",
+      servingSizeText: "0 tbsp",
+      perServing: PER_SERVING_VALUES,
+      prefillGrams: null,
+      unitName: "tbsp",
+    });
+  });
+
   it("returns the flags from the revalidate call", async () => {
     mockExtractNutritionTable.mockResolvedValue({
       format: "us",
@@ -334,6 +358,7 @@ describe("resolveServingSize", () => {
     expect(result.nutritionBasisUnit).toBe("tbsp");
     expect(result.nutritionBasisQuantity).toBe(1);
     expect(result.values.energyKcal).toBeCloseTo(190 / 2, 2);
+    expect(result.learned).toEqual({ densityGMl: null, servingUnit: "tbsp", servingGrams: null });
   });
 });
 

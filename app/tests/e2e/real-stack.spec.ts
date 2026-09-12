@@ -24,7 +24,7 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   // seeded product on a fresh test database, so this always takes the
   // no-match path. That's expected and is what this test exercises.
   await page.getByLabel(/nutrition table photo/i).setInputFiles("../fixtures/photos/olympus-greek-2pct-nutrition.jpg");
-  await expect(page.getByText("Confirm nutrition (per 100g)")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Confirm nutrition (per 100 g)")).toBeVisible({ timeout: 30_000 });
 
   await expect(page.getByLabel("Energy (kcal)")).toHaveValue("70");
   await expect(page.getByLabel("Fat (g)")).toHaveValue("2");
@@ -67,7 +67,7 @@ test("real stack: correcting one flagged value also clears another flagged only 
   await page
     .getByLabel(/nutrition table photo/i)
     .setInputFiles("../fixtures/photos/bella_farm_yoghurt_nutrition.jpg");
-  await expect(page.getByText("Confirm nutrition (per 100g)")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Confirm nutrition (per 100 g)")).toBeVisible({ timeout: 30_000 });
 
   // Reported defect: the label's header phrase prints aligned with the row
   // descriptions rather than the numeric column, and its low-confidence
@@ -91,7 +91,7 @@ test("real stack: correcting one flagged value also clears another flagged only 
   await expect(page.getByText(/^Using /)).toBeVisible();
 });
 
-test("real stack: a linear US label with no printed gram weight asks once, then scales", async ({ page }) => {
+test("real stack: a linear US label with no printed gram weight resolves straight to a per-unit product", async ({ page }) => {
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
@@ -100,17 +100,15 @@ test("real stack: a linear US label with no printed gram weight asks once, then 
   await page.getByLabel(/product photo/i).setInputFiles("../fixtures/photos/snickers-linear-nutrition.jpg");
   await page.getByLabel(/nutrition table photo/i).setInputFiles("../fixtures/photos/snickers-linear-nutrition.jpg");
 
-  // "1 bar" carries no gram weight and is neither a mass nor a volume, so the
-  // pipeline asks rather than guessing - the one question the whole design
-  // exists to make precise.
-  await expect(page.getByText(/Serving size reads/)).toBeVisible({ timeout: 30_000 });
-  await page.getByLabel("Serving measurement").fill("52g");
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Confirm nutrition (per 100g)")).toBeVisible();
-  // 250 kcal on a 52 g bar -> 480.8 per 100 g; 12 g fat -> 23.1.
-  await expect(page.getByLabel("Energy (kcal)")).toHaveValue("480.8");
-  await expect(page.getByLabel("Fat (g)")).toHaveValue("23.1");
+  // "1 bar" (OCR reads it as "bas") carries no gram weight and is neither a
+  // mass nor a volume, so it's recognized-but-unconvertible - the pipeline
+  // fast-paths straight to confirm with the unit itself as the basis, rather
+  // than asking a question with no answer the user could give either.
+  await expect(page.getByText("Confirm nutrition (per 1 bas)")).toBeVisible({ timeout: 30_000 });
+  // A per-unit basis's nutritionBasisQuantity is always 1, so these are the
+  // label's own per-serving figures, unscaled.
+  await expect(page.getByLabel("Energy (kcal)")).toHaveValue("250");
+  await expect(page.getByLabel("Fat (g)")).toHaveValue("12");
 
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByText(/^Using /)).toBeVisible();
