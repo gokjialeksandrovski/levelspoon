@@ -14,7 +14,8 @@ import { FOCUS_RING, TEXT_LINK_SM } from "@/components/tap-target";
 import { UnitAmountField } from "@/components/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
-import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
+import type { MeasureContext } from "@/lib/measures/resolve-grams";
+import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
 // T3's whole-food search filters to "whole"; this is the other half of the
 // spec §5 category split - oils, butter, ghee, spray.
@@ -25,6 +26,7 @@ const contextFor = (food: StandardFood): MeasureContext => ({
   densityGMl: food.densityGMl,
   servingUnit: food.servingUnit,
   servingGrams: food.servingGrams,
+  nutritionBasisUnit: food.nutritionBasisUnit,
 });
 
 // Cooking fats are near-universally measured by spoon - tbsp is offered
@@ -46,7 +48,8 @@ interface CookingFatCallbacks {
 export interface SaveCookingFatInput {
   mealId: string;
   productId: string;
-  grams: string;
+  quantity: number;
+  quantityUnit: string;
 }
 
 // Always "manual": there is no photo estimate on this path (spec §7's unit-
@@ -62,7 +65,8 @@ export const saveCookingFat = async (
     await saveMealIngredient({
       mealId: input.mealId,
       productId: input.productId,
-      quantityG: Number(input.grams),
+      quantity: input.quantity,
+      quantityUnit: input.quantityUnit,
       quantitySource: "manual",
     });
     triggerLogSuccessHaptic();
@@ -88,13 +92,13 @@ export const resolveAndSaveCookingFat = async (
   onSaved: () => void,
   callbacks: CookingFatCallbacks,
 ): Promise<void> => {
-  const resolution = resolveGrams(`${input.count} ${input.unit}`, input.context);
+  const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
     callbacks.setError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
     return;
   }
   await saveCookingFat(
-    { mealId: input.mealId, productId: input.productId, grams: String(resolution.grams) },
+    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit },
     onSaved,
     callbacks,
   );

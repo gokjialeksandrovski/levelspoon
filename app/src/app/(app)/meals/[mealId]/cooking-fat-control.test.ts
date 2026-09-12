@@ -13,7 +13,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const baseInput = { mealId: "meal-1", productId: "oil-1", grams: "13.8" };
+const baseInput = { mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g" };
 
 describe("saveCookingFat", () => {
   it("fires the haptic and always saves as manual quantity source", async () => {
@@ -24,7 +24,7 @@ describe("saveCookingFat", () => {
     await saveCookingFat(baseInput, onSaved, callbacks);
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "oil-1", quantityG: 13.8, quantitySource: "manual",
+      mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", quantitySource: "manual",
     });
     expect(triggerLogSuccessHaptic).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledTimes(1);
@@ -42,7 +42,7 @@ describe("saveCookingFat", () => {
   });
 });
 
-const OIL_CONTEXT = { productName: "Olive oil", densityGMl: 0.92, servingUnit: null, servingGrams: null };
+const OIL_CONTEXT = { productName: "Olive oil", densityGMl: 0.92, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
 
 describe("resolveAndSaveCookingFat", () => {
   it("resolves a volume unit through density and saves the computed grams", async () => {
@@ -56,7 +56,7 @@ describe("resolveAndSaveCookingFat", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "oil-1", quantityG: 13.8, quantitySource: "manual",
+      mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", quantitySource: "manual",
     });
   });
 
@@ -80,12 +80,12 @@ describe("initialCookingUnit", () => {
   });
 
   it("falls back to the product's serving unit when nothing is measured by volume", () => {
-    const context = { productName: "Egg", densityGMl: null, servingUnit: "large", servingGrams: 50 };
+    const context = { productName: "Egg", densityGMl: null, servingUnit: "large", servingGrams: 50, nutritionBasisUnit: "g" };
     expect(initialCookingUnit(context)).toBe("large");
   });
 
   it("falls back to grams when nothing is learned at all", () => {
-    const context = { productName: "Salt", densityGMl: null, servingUnit: null, servingGrams: null };
+    const context = { productName: "Salt", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
     expect(initialCookingUnit(context)).toBe("g");
   });
 });
