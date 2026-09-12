@@ -32,6 +32,10 @@ export type WizardStep =
       /** A net-weight-derived guess for the ask step's input, or null when
        * unavailable - always editable, never auto-submitted. */
       prefillGrams: number | null;
+      /** The household unit recognised but not yet convertible for this
+       * product (e.g. "tbsp" with no known density), or null when the label
+       * text didn't parse as a measurement at all. */
+      unitName: string | null;
     }
   | {
       kind: "confirm";
@@ -40,6 +44,8 @@ export type WizardStep =
       name: string;
       photo: Blob;
       learned: LearnedMeasures;
+      nutritionBasisUnit: string;
+      nutritionBasisQuantity: number;
     }
   | { kind: "amount"; product: SelectedProduct; alternatives: SelectedProduct[] }
   | { kind: "saved" };
@@ -55,6 +61,7 @@ export type WizardAction =
       name: string;
       photo: Blob;
       prefillGrams: number | null;
+      unitName: string | null;
     }
   | {
       type: "NUTRITION_PARSED";
@@ -63,6 +70,8 @@ export type WizardAction =
       name: string;
       photo: Blob;
       learned: LearnedMeasures;
+      nutritionBasisUnit: string;
+      nutritionBasisQuantity: number;
     }
   | { type: "PRODUCT_CREATED"; product: SelectedProduct }
   | { type: "SAVED" }
@@ -115,6 +124,7 @@ const applyServingSizeNeeded = (action: Extract<WizardAction, { type: "SERVING_S
   name: action.name,
   photo: action.photo,
   prefillGrams: action.prefillGrams,
+  unitName: action.unitName,
 });
 
 const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_PARSED" }>): WizardStep => ({
@@ -124,6 +134,8 @@ const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_P
   name: action.name,
   photo: action.photo,
   learned: action.learned,
+  nutritionBasisUnit: action.nutritionBasisUnit,
+  nutritionBasisQuantity: action.nutritionBasisQuantity,
 });
 
 const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({

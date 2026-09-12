@@ -130,7 +130,7 @@ describe("wizardReducer", () => {
 
     const next = wizardReducer(
       { kind: "nutrition-photo", nameGuess: "Unknown Product", netWeightText: null },
-      { type: "NUTRITION_PARSED", parsed, flags, name: "Unknown Product", photo, learned: NOTHING_LEARNED },
+      { type: "NUTRITION_PARSED", parsed, flags, name: "Unknown Product", photo, learned: NOTHING_LEARNED, nutritionBasisUnit: "g", nutritionBasisQuantity: 100 },
     );
 
     expect(next).toEqual({
@@ -140,6 +140,8 @@ describe("wizardReducer", () => {
       name: "Unknown Product",
       photo,
       learned: NOTHING_LEARNED,
+      nutritionBasisUnit: "g",
+      nutritionBasisQuantity: 100,
     });
   });
 
@@ -152,6 +154,8 @@ describe("wizardReducer", () => {
         name: "Unknown Product",
         photo: new Blob(),
         learned: NOTHING_LEARNED,
+        nutritionBasisUnit: "g",
+        nutritionBasisQuantity: 100,
       },
       { type: "PRODUCT_CREATED", product: { id: "p3", name: "Unknown Product", ...NO_MEASURES } },
     );
@@ -240,6 +244,7 @@ describe("wizardReducer — serving size", () => {
         name: "Snickers",
         photo,
         prefillGrams: 1.098,
+        unitName: "bas",
       },
     );
 
@@ -250,6 +255,7 @@ describe("wizardReducer — serving size", () => {
       name: "Snickers",
       photo,
       prefillGrams: 1.098,
+      unitName: "bas",
     });
   });
 
@@ -264,8 +270,9 @@ describe("wizardReducer — serving size", () => {
         name: "Snickers",
         photo,
         prefillGrams: null,
+        unitName: "bas",
       },
-      { type: "NUTRITION_PARSED", parsed, flags: [], name: "Snickers", photo, learned: LEARNED_BAR },
+      { type: "NUTRITION_PARSED", parsed, flags: [], name: "Snickers", photo, learned: LEARNED_BAR, nutritionBasisUnit: "g", nutritionBasisQuantity: 100 },
     );
 
     expect(next).toEqual({
@@ -275,6 +282,8 @@ describe("wizardReducer — serving size", () => {
       name: "Snickers",
       photo,
       learned: LEARNED_BAR,
+      nutritionBasisUnit: "g",
+      nutritionBasisQuantity: 100,
     });
   });
 });
