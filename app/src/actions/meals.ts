@@ -47,7 +47,8 @@ export const saveMealIngredient = async (
     .values({
       mealId: input.mealId,
       productId: input.productId,
-      quantityG: String(input.quantityG),
+      quantity: String(input.quantityG),
+      quantityUnit: "g",
       quantitySource: input.quantitySource,
     })
     .returning({ id: mealIngredients.id });
@@ -135,7 +136,7 @@ interface DayMealIngredientRow {
 const DAY_MEAL_INGREDIENT_SELECTION = {
   mealId: meals.id,
   productName: products.name,
-  quantityG: mealIngredients.quantityG,
+  quantityG: mealIngredients.quantity,
   product: {
     energyKcal: products.energyKcal,
     fatG: products.fatG,
@@ -232,7 +233,7 @@ const MEAL_INGREDIENT_SELECTION = {
   id: mealIngredients.id,
   productId: mealIngredients.productId,
   productName: products.name,
-  quantityG: mealIngredients.quantityG,
+  quantityG: mealIngredients.quantity,
   quantitySource: mealIngredients.quantitySource,
   product: {
     energyKcal: products.energyKcal,
@@ -347,7 +348,7 @@ export const updateMealIngredientQuantity = async (
   await assertMealIngredientOwnership(mealIngredientId, userId);
   await db
     .update(mealIngredients)
-    .set({ quantityG: String(quantityG), quantitySource: "manual" })
+    .set({ quantity: String(quantityG), quantitySource: "manual" })
     .where(eq(mealIngredients.id, mealIngredientId));
 };
 
@@ -385,7 +386,7 @@ const fetchDayHistoryRows = async (
 ): Promise<DayHistoryRow[]> => {
   const result = await db.execute<DayHistoryRow>(sql`
     SELECT date_trunc('day', mi.created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone})::date AS local_date,
-           SUM(p.energy_kcal * (mi.quantity_g / 100)) AS total_kcal
+           SUM(p.energy_kcal * (mi.quantity / 100)) AS total_kcal
     FROM meal_ingredients mi
     JOIN meals m ON m.id = mi.meal_id
     JOIN products p ON p.id = mi.product_id

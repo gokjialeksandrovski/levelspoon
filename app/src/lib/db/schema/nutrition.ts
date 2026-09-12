@@ -39,6 +39,14 @@ export const products = pgTable(
     sugarsG: nutritionColumn("sugars_g"),
     proteinG: nutritionColumn("protein_g"),
     saltG: nutritionColumn("salt_g"),
+    // Generalizes "per 100g": every nutrition column above means "per
+    // nutritionBasisQuantity of nutritionBasisUnit." Defaults preserve
+    // today's meaning for every existing row - a free migration, no backfill.
+    nutritionBasisUnit: text("nutrition_basis_unit").notNull().default("g"),
+    nutritionBasisQuantity: numeric("nutrition_basis_quantity", {
+      precision: NUTRITION_COLUMN_PRECISION,
+      scale: NUTRITION_COLUMN_SCALE,
+    }).notNull().default("100"),
     // All three are learned at runtime and null until then: a density derived
     // from a label that printed both a volume and a weight, or the weight of
     // one count unit ("1 bar") the user supplied once.
@@ -82,7 +90,11 @@ export const mealIngredients = pgTable("meal_ingredients", {
   productId: uuid("product_id")
     .notNull()
     .references(() => products.id),
-  quantityG: nutritionColumn("quantity_g"),
+  quantity: nutritionColumn("quantity"),
+  // Always equals the product's nutritionBasisUnit - enforced at the
+  // saveMealIngredient/updateMealIngredientQuantity call sites, not a DB
+  // constraint (per-unit-nutrition-basis-design spec §9).
+  quantityUnit: text("quantity_unit").notNull().default("g"),
   quantitySource: quantitySourceEnum("quantity_source").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

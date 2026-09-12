@@ -431,7 +431,7 @@ describe("updateMealIngredientQuantity", () => {
     await updateMealIngredientQuantity(mealIngredientId, 100);
 
     const [row] = await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
-    expect(Number(row.quantityG)).toBe(100);
+    expect(Number(row.quantity)).toBe(100);
     expect(row.quantitySource).toBe("manual");
   });
 
