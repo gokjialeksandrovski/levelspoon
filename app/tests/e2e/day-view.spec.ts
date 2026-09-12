@@ -42,7 +42,7 @@ test("a seeded single-ingredient meal renders as its ingredient's name, with its
     .returning();
   const [meal] = await db.insert(meals).values({ userId: user.id }).returning();
   await db.insert(mealIngredients).values({
-    mealId: meal.id, productId: product.id, quantityG: "200", quantitySource: "manual",
+    mealId: meal.id, productId: product.id, quantity: "200", quantitySource: "manual",
   });
 
   await page.goto(`/day/${localToday()}`);

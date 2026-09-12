@@ -36,7 +36,7 @@ test("history lists past days and paginates", async ({ page }) => {
     await db.insert(mealIngredients).values({
       mealId: meal.id,
       productId: product.id,
-      quantityG: "100",
+      quantity: "100",
       quantitySource: "manual",
       createdAt: new Date(Date.now() - daysAgo * ONE_DAY_MS),
     });

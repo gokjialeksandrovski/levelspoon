@@ -85,7 +85,7 @@ const seedBackdatedMeal = async (email: string): Promise<string> => {
   const createdAt = new Date(PAST_MEAL_CREATED_AT);
   const [meal] = await db.insert(meals).values({ userId: user.id, createdAt }).returning();
   await db.insert(mealIngredients).values({
-    mealId: meal.id, productId: product.id, quantityG: "100", quantitySource: "manual", createdAt,
+    mealId: meal.id, productId: product.id, quantity: "100", quantitySource: "manual", createdAt,
   });
   return meal.id;
 };
