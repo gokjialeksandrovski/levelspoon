@@ -12,12 +12,13 @@ export interface MeasureContext {
 
 export type Resolution =
   | { kind: "grams"; grams: number; via: "mass" | "volume" | "learned" }
-  | { kind: "unresolved"; measureText: string; unitName: string | null };
+  | { kind: "unresolved"; measureText: string; unitName: string | null; quantity: number | null };
 
 const unresolved = (measureText: string, measure: Measure | null): Resolution => ({
   kind: "unresolved",
   measureText,
   unitName: measure?.unit ?? null,
+  quantity: measure?.quantity ?? null,
 });
 
 const massGrams = (measure: Measure): number | null => {

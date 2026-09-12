@@ -61,7 +61,7 @@ describe("resolveGrams — volume times density", () => {
 
   it("is unresolved rather than assuming water when the density is unknown", () => {
     const result = resolveGrams("2 tbsp", contextFor({ productName: "Mystery Spread" }));
-    expect(result).toEqual({ kind: "unresolved", measureText: "2 tbsp", unitName: "tbsp" });
+    expect(result).toEqual({ kind: "unresolved", measureText: "2 tbsp", unitName: "tbsp", quantity: 2 });
   });
 });
 
@@ -82,6 +82,7 @@ describe("resolveGrams — learned serving weight", () => {
       kind: "unresolved",
       measureText: "2 cookies",
       unitName: "cookies",
+      quantity: 2,
     });
   });
 });
@@ -92,6 +93,7 @@ describe("resolveGrams — unresolved", () => {
       kind: "unresolved",
       measureText: "4 gummies",
       unitName: "gummies",
+      quantity: 4,
     });
   });
 
@@ -105,6 +107,7 @@ describe("resolveGrams — unresolved", () => {
       kind: "unresolved",
       measureText: "Serving size",
       unitName: null,
+      quantity: null,
     });
   });
 
@@ -113,6 +116,7 @@ describe("resolveGrams — unresolved", () => {
       kind: "unresolved",
       measureText: "0g",
       unitName: "g",
+      quantity: 0,
     });
   });
 });
