@@ -12,7 +12,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const baseInput = { mealId: "meal-1", productId: "product-1", grams: "150", source: "manual" as const };
+const baseInput = { mealId: "meal-1", productId: "product-1", quantity: 150, quantityUnit: "g", source: "manual" as const };
 
 describe("saveAmount", () => {
   it("fires the haptic on a successful save", async () => {
@@ -41,7 +41,7 @@ describe("saveAmount", () => {
   });
 });
 
-const EMPTY_CONTEXT = { productName: "Test", densityGMl: null, servingUnit: null, servingGrams: null };
+const EMPTY_CONTEXT = { productName: "Test", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
 
 describe("resolveAndSaveAmount", () => {
   it("resolves a mass unit and saves the computed grams", async () => {
@@ -56,7 +56,7 @@ describe("resolveAndSaveAmount", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "product-1", quantityG: 150, quantitySource: "manual",
+      mealId: "meal-1", productId: "product-1", quantity: 150, quantityUnit: "g", quantitySource: "manual",
     });
   });
 
@@ -73,7 +73,26 @@ describe("resolveAndSaveAmount", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "product-1", quantityG: 104, quantitySource: "manual",
+      mealId: "meal-1", productId: "product-1", quantity: 104, quantityUnit: "g", quantitySource: "manual",
+    });
+  });
+
+  it("saves a per-unit-basis product's count directly, in its own unit", async () => {
+    vi.mocked(saveMealIngredient).mockResolvedValue({ mealIngredientId: "ingredient-1" });
+    const dispatch = vi.fn();
+    const onSaved = vi.fn();
+    const callbacks = { setError: vi.fn(), setIsBusy: vi.fn() };
+    // No density here - proves this doesn't go through resolveGrams (it
+    // would fail to convert "tbsp" without one).
+    const context = { ...EMPTY_CONTEXT, servingUnit: "tbsp", nutritionBasisUnit: "tbsp" };
+
+    await resolveAndSaveAmount(
+      { mealId: "meal-1", productId: "product-1", count: "2", unit: "tbsp", context, source: "manual" },
+      dispatch, onSaved, callbacks,
+    );
+
+    expect(saveMealIngredient).toHaveBeenCalledWith({
+      mealId: "meal-1", productId: "product-1", quantity: 2, quantityUnit: "tbsp", quantitySource: "manual",
     });
   });
 

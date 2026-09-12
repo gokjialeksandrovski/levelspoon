@@ -10,7 +10,8 @@ import { TEXT_LINK_SM } from "@/components/tap-target";
 import { UnitAmountField } from "@/components/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
-import { resolveGrams, type MeasureContext } from "@/lib/measures/resolve-grams";
+import type { MeasureContext } from "@/lib/measures/resolve-grams";
+import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -67,7 +68,8 @@ const estimateAmount = async (photo: File, onEstimated: (value: string) => void,
 interface SaveAmountInput {
   mealId: string;
   productId: string;
-  grams: string;
+  quantity: number;
+  quantityUnit: string;
   source: "ai_estimated" | "manual";
 }
 
@@ -77,7 +79,13 @@ export const saveAmount = async (input: SaveAmountInput, dispatch: (action: Wiza
   callbacks.setError(null);
   callbacks.setIsBusy(true);
   try {
-    await saveMealIngredient({ mealId: input.mealId, productId: input.productId, quantityG: Number(input.grams), quantitySource: input.source });
+    await saveMealIngredient({
+      mealId: input.mealId,
+      productId: input.productId,
+      quantity: input.quantity,
+      quantityUnit: input.quantityUnit,
+      quantitySource: input.source,
+    });
     triggerLogSuccessHaptic();
     dispatch({ type: "SAVED" });
     onSaved();
@@ -98,37 +106,36 @@ interface ResolveAndSaveInput {
   source: "ai_estimated" | "manual";
 }
 
-// Splits the "turn a typed count+unit into grams" step out of saveAmount
-// (which only ever dealt in already-resolved grams) rather than folding
-// resolveGrams's call into the hook below - same reasoning as estimateAmount:
-// an async, independently testable, DI'd unit of work.
+// Splits the "turn a typed count+unit into a savable quantity" step out of
+// saveAmount (which only ever deals in an already-resolved quantity+unit)
+// rather than folding resolveQuantity's call into the hook below - same
+// reasoning as estimateAmount: an async, independently testable, DI'd unit
+// of work.
 export const resolveAndSaveAmount = async (
   input: ResolveAndSaveInput,
   dispatch: (action: WizardAction) => void,
   onSaved: () => void,
   callbacks: AmountStepCallbacks,
 ): Promise<void> => {
-  const resolution = resolveGrams(`${input.count} ${input.unit}`, input.context);
+  const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
     callbacks.setError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
     return;
   }
   await saveAmount(
-    { mealId: input.mealId, productId: input.productId, grams: String(resolution.grams), source: input.source },
+    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit, source: input.source },
     dispatch,
     onSaved,
     callbacks,
   );
 };
 
-// A photo estimate always comes back in grams (quantity.ts's estimateQuantity
-// contract), so landing it on "g" regardless of whatever unit was selected
-// is the only reading that makes sense of the number Gemini just returned.
 const contextFor = (product: SelectedProduct): MeasureContext => ({
   productName: product.name,
   densityGMl: product.densityGMl,
   servingUnit: product.servingUnit,
   servingGrams: product.servingGrams,
+  nutritionBasisUnit: product.nutritionBasisUnit,
 });
 
 interface UseAmountStepFormResult {
