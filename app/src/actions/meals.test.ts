@@ -61,15 +61,27 @@ beforeEach(async () => {
 });
 
 describe("computeContribution", () => {
-  it("scales per-100g values by quantity/100", () => {
+  it("scales per-100g values by quantity/basisQuantity", () => {
     const contribution = computeContribution(
       { energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18 },
       150,
+      100,
     );
 
     expect(contribution.energyKcal).toBeCloseTo(105, 5);
     expect(contribution.fatG).toBeCloseTo(3.0, 5);
     expect(contribution.saltG).toBeCloseTo(0.27, 5);
+  });
+
+  it("scales a per-unit basis (e.g. per 1 tbsp) by quantity/basisQuantity", () => {
+    const contribution = computeContribution(
+      { energyKcal: 100, fatG: 9, saturatesG: 1.5, carbohydrateG: 3, sugarsG: 2, proteinG: 0, saltG: 0 },
+      2,
+      1,
+    );
+
+    expect(contribution.energyKcal).toBeCloseTo(200, 5);
+    expect(contribution.fatG).toBeCloseTo(18, 5);
   });
 });
 
@@ -237,6 +249,34 @@ describe("getMealDetail", () => {
     expect(meal?.ingredients[0].servingUnit).toBe("bar");
     expect(meal?.ingredients[0].servingGrams).toBe(52);
     expect(meal?.ingredients[0].densityGMl).toBeCloseTo(1.2333, 4);
+  });
+
+  it("computes contribution from a product's own basis quantity, not a hardcoded 100", async () => {
+    const userId = await seedUser();
+    const [product] = await db
+      .insert(products)
+      .values({
+        name: "Nutella (per tbsp)",
+        energyKcal: "100",
+        fatG: "9",
+        saturatesG: "3.5",
+        carbohydrateG: "10",
+        sugarsG: "10",
+        proteinG: "1",
+        saltG: "0.02",
+        nutritionPhotoKey: "test/placeholder.jpg",
+        createdByUserId: userId,
+        nutritionBasisUnit: "tbsp",
+        nutritionBasisQuantity: "1",
+      })
+      .returning();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId: product.id, quantityG: 2, quantitySource: "manual" });
+
+    const meal = await getMealDetail(mealId, "UTC");
+
+    expect(meal?.ingredients[0].contribution.energyKcal).toBeCloseTo(200, 5);
   });
 });
 
@@ -576,5 +616,33 @@ describe("getDayHistory", () => {
     const secondPage = await getDayHistory("UTC", firstPage.nextOffset ?? 0);
     expect(secondPage.entries).toHaveLength(1);
     expect(secondPage.nextOffset).toBeNull();
+  });
+
+  it("uses a product's own basis quantity in the SQL total, not a hardcoded /100", async () => {
+    const userId = await seedUser();
+    const [product] = await db
+      .insert(products)
+      .values({
+        name: "Nutella (per tbsp)",
+        energyKcal: "100",
+        fatG: "9",
+        saturatesG: "3.5",
+        carbohydrateG: "10",
+        sugarsG: "10",
+        proteinG: "1",
+        saltG: "0.02",
+        nutritionPhotoKey: "test/placeholder.jpg",
+        createdByUserId: userId,
+        nutritionBasisUnit: "tbsp",
+        nutritionBasisQuantity: "1",
+      })
+      .returning();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId: product.id, quantityG: 2, quantitySource: "manual" });
+
+    const page = await getDayHistory("UTC");
+
+    expect(page.entries[0].totalKcal).toBeCloseTo(200, 5);
   });
 });

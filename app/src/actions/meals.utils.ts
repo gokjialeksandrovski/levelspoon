@@ -1,24 +1,17 @@
-import type { NutritionValues } from "./products";
+import { scaleNutrition } from "@/lib/nutrition/scale-per-serving";
 
-export const GRAMS_PER_HUNDRED = 100;
+import type { NutritionValues } from "./products";
 
 // Lives here (not in meals.ts) because meals.ts has "use server" at the top,
 // and a "use server" file may only export async functions - see commit
 // 09270a4, which moved computeContribution out for the same reason.
 export const HISTORY_PAGE_SIZE = 20;
 
+// One ingredient's share of a meal: its product's per-basis-unit figures
+// scaled to the amount actually logged. basisQuantity is the product's
+// nutritionBasisQuantity (100 for a per-100g product, 1 for a per-unit one).
 export const computeContribution = (
   product: NutritionValues,
-  quantityG: number,
-): NutritionValues => {
-  const factor = quantityG / GRAMS_PER_HUNDRED;
-  return {
-    energyKcal: product.energyKcal * factor,
-    fatG: product.fatG * factor,
-    saturatesG: product.saturatesG * factor,
-    carbohydrateG: product.carbohydrateG * factor,
-    sugarsG: product.sugarsG * factor,
-    proteinG: product.proteinG * factor,
-    saltG: product.saltG * factor,
-  };
-};
+  quantity: number,
+  basisQuantity: number,
+): NutritionValues => scaleNutrition(product, quantity / basisQuantity);

@@ -130,6 +130,7 @@ interface DayMealIngredientRow {
   mealId: string;
   productName: string;
   quantityG: string;
+  nutritionBasisQuantity: string;
   product: ProductNutritionRow;
 }
 
@@ -137,6 +138,7 @@ const DAY_MEAL_INGREDIENT_SELECTION = {
   mealId: meals.id,
   productName: products.name,
   quantityG: mealIngredients.quantity,
+  nutritionBasisQuantity: products.nutritionBasisQuantity,
   product: {
     energyKcal: products.energyKcal,
     fatG: products.fatG,
@@ -168,7 +170,11 @@ const fetchDayMealIngredientRows = async (
 
 const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
   rows.reduce<DayMealSummary[]>((summaries, row) => {
-    const contribution = computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG));
+    const contribution = computeContribution(
+      productRowToNutritionValues(row.product),
+      Number(row.quantityG),
+      Number(row.nutritionBasisQuantity),
+    );
     const existing = summaries.find((summary) => summary.id === row.mealId);
     if (!existing) {
       return [...summaries, { id: row.mealId, total: contribution, ingredientNames: [row.productName] }];
@@ -224,6 +230,7 @@ interface MealIngredientRow {
   productId: string;
   productName: string;
   quantityG: string;
+  nutritionBasisQuantity: string;
   quantitySource: "ai_estimated" | "manual";
   product: ProductNutritionRow;
   measures: ProductMeasureColumns;
@@ -234,6 +241,7 @@ const MEAL_INGREDIENT_SELECTION = {
   productId: mealIngredients.productId,
   productName: products.name,
   quantityG: mealIngredients.quantity,
+  nutritionBasisQuantity: products.nutritionBasisQuantity,
   quantitySource: mealIngredients.quantitySource,
   product: {
     energyKcal: products.energyKcal,
@@ -265,7 +273,11 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   productName: row.productName,
   quantityG: Number(row.quantityG),
   quantitySource: row.quantitySource,
-  contribution: computeContribution(productRowToNutritionValues(row.product), Number(row.quantityG)),
+  contribution: computeContribution(
+    productRowToNutritionValues(row.product),
+    Number(row.quantityG),
+    Number(row.nutritionBasisQuantity),
+  ),
   densityGMl: row.measures.densityGMl === null ? null : Number(row.measures.densityGMl),
   servingUnit: row.measures.servingUnit,
   servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
@@ -386,7 +398,7 @@ const fetchDayHistoryRows = async (
 ): Promise<DayHistoryRow[]> => {
   const result = await db.execute<DayHistoryRow>(sql`
     SELECT date_trunc('day', mi.created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone})::date AS local_date,
-           SUM(p.energy_kcal * (mi.quantity / 100)) AS total_kcal
+           SUM(p.energy_kcal * (mi.quantity / p.nutrition_basis_quantity)) AS total_kcal
     FROM meal_ingredients mi
     JOIN meals m ON m.id = mi.meal_id
     JOIN products p ON p.id = mi.product_id
