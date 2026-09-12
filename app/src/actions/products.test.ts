@@ -171,6 +171,26 @@ describe("matchProduct", () => {
       expect(result.product.densityGMl).toBeNull();
     }
   });
+
+  it("carries a product's own nutrition basis unit through to the candidate", async () => {
+    const userId = await seedUser();
+    await db.insert(products).values({
+      name: "Nutella Choc Spread",
+      energyKcal: "100", fatG: "9", saturatesG: "3.5", carbohydrateG: "10", sugarsG: "10", proteinG: "1", saltG: "0.02",
+      nutritionPhotoKey: "test/placeholder.jpg",
+      createdByUserId: userId,
+      nutritionBasisUnit: "tbsp",
+      nutritionBasisQuantity: "1",
+    });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await matchProduct("Nutella Choc Spread");
+
+    expect(result.kind).toBe("confident");
+    if (result.kind === "confident") {
+      expect(result.product.nutritionBasisUnit).toBe("tbsp");
+    }
+  });
 });
 
 describe("searchStandardFoods", () => {
@@ -226,6 +246,15 @@ describe("searchStandardFoods", () => {
     expect(egg.densityGMl).toBeNull();
     expect(oil.densityGMl).toBeCloseTo(0.92, 2);
     expect(oil.servingGrams).toBeNull();
+  });
+
+  it("surfaces the default per-100g basis on every standard row", async () => {
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    const [banana] = await searchStandardFoods("Banana");
+
+    expect(banana.nutritionBasisUnit).toBe("g");
   });
 
   it("throws when there is no authenticated session", async () => {
@@ -406,6 +435,25 @@ describe("getProductForCorrection", () => {
     expect(result?.photoUrl).toEqual(expect.stringContaining("http"));
   });
 
+  it("surfaces the nutrition basis for a per-unit product", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { productId } = await createProduct({
+      name: "Nutella Hazelnut Spread 2",
+      nutritionPer100g: {
+        energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225,
+      },
+      photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
+      nutritionBasisUnit: "tbsp",
+      nutritionBasisQuantity: 1,
+    });
+
+    const result = await getProductForCorrection(productId);
+
+    expect(result?.nutritionBasisUnit).toBe("tbsp");
+    expect(result?.nutritionBasisQuantity).toBe(1);
+  });
+
   it("returns null for a nonexistent product", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
@@ -584,6 +632,8 @@ describe("topTwoScores", () => {
     density_g_ml: null,
     serving_unit: null,
     serving_grams: null,
+    nutrition_basis_unit: "g",
+    nutrition_basis_quantity: "100",
     score,
   });
 

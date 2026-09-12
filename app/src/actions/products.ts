@@ -46,6 +46,7 @@ export interface ProductCandidate {
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
+  nutritionBasisUnit: string;
 }
 
 export type MatchResult =
@@ -68,6 +69,8 @@ export type CandidateRow = {
   density_g_ml: string | null;
   serving_unit: string | null;
   serving_grams: string | null;
+  nutrition_basis_unit: string;
+  nutrition_basis_quantity: string;
   score: number;
 };
 
@@ -100,6 +103,7 @@ const toProductCandidate = (row: CandidateRow): ProductCandidate => ({
   densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
   servingUnit: row.serving_unit,
   servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
+  nutritionBasisUnit: row.nutrition_basis_unit,
 });
 
 const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
@@ -122,6 +126,7 @@ const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
     SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
            sugars_g, protein_g, salt_g, nutrition_photo_key,
            density_g_ml, serving_unit, serving_grams,
+           nutrition_basis_unit, nutrition_basis_quantity,
            similarity(name, ${ocrText}) AS score
     FROM products
     WHERE source = ${USER_SOURCE}
@@ -278,6 +283,8 @@ export interface ProductForCorrection {
   name: string;
   nutritionPer100g: NutritionValues;
   photoUrl: string | null; // null only when getPhotoUrl itself failed - degrade, don't block
+  nutritionBasisUnit: string;
+  nutritionBasisQuantity: number;
 }
 
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
@@ -297,6 +304,8 @@ export const getProductForCorrection = async (productId: string): Promise<Produc
     name: product.name,
     nutritionPer100g: fromNutritionColumns(product),
     photoUrl,
+    nutritionBasisUnit: product.nutritionBasisUnit,
+    nutritionBasisQuantity: Number(product.nutritionBasisQuantity),
   };
 };
 
@@ -358,6 +367,7 @@ export interface StandardFood {
   servingUnit: string | null;
   servingGrams: number | null;
   densityGMl: number | null;
+  nutritionBasisUnit: string;
 }
 
 type StandardFoodRow = SnakeNutritionRow & {
@@ -368,6 +378,7 @@ type StandardFoodRow = SnakeNutritionRow & {
   serving_unit: string | null;
   serving_grams: string | null;
   density_g_ml: string | null;
+  nutrition_basis_unit: string;
   score: number;
 };
 
@@ -386,6 +397,7 @@ const toStandardFood = (row: StandardFoodRow): StandardFood => ({
   servingUnit: row.serving_unit,
   servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
   densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
+  nutritionBasisUnit: row.nutrition_basis_unit,
 });
 
 const fetchStandardFoodRows = async (
@@ -396,7 +408,7 @@ const fetchStandardFoodRows = async (
   const result = await db.execute<StandardFoodRow>(sql`
     SELECT id, standard_slug, name, standard_category,
            energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g,
-           serving_unit, serving_grams, density_g_ml, score
+           serving_unit, serving_grams, density_g_ml, nutrition_basis_unit, score
     FROM (
       SELECT *, similarity(lower(name), lower(${query})) AS score
       FROM products
