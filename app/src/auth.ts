@@ -1,11 +1,9 @@
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 
 import { db } from "@/lib/db";
-import { accounts, users } from "@/lib/db/schema";
+import { users } from "@/lib/db/schema";
 import { verifyPassword } from "@/lib/password";
 
 class InvalidCredentialsError extends Error {
@@ -16,10 +14,8 @@ class InvalidCredentialsError extends Error {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: DrizzleAdapter(db, { usersTable: users, accountsTable: accounts }),
   // Required whenever a Credentials provider is present - Auth.js throws
-  // UnsupportedStrategy otherwise. This is app-wide, not per-provider: Google
-  // logins get JWT sessions too, not database ones (spec §15).
+  // UnsupportedStrategy otherwise (spec §15).
   session: { strategy: "jwt" },
   providers: [
     Credentials({
@@ -55,7 +51,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return { id: user.id, email: user.email, name: user.name };
       },
     }),
-    Google,
   ],
   callbacks: {
     jwt: ({ token, user }) => {

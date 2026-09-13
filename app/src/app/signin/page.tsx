@@ -47,9 +47,6 @@ const SignInCard = ({ error, pending, onSubmit }: SignInCardProps) => (
         Sign in
       </Button>
     </form>
-    <Button variant="ghost" disabled title="Google sign-in is not yet configured">
-      Continue with Google
-    </Button>
   </div>
 );
 

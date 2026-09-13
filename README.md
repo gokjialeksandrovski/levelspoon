@@ -1,26 +1,24 @@
 # Per100
 
-Nutrition/meal-logging app. `docs/superpowers/archive/` holds the design specs
+Nutrition/meal-logging app. `docs/superpowers/archive/` hold design specs
 and implementation plans for shipped milestones (M0-M3, app redesign &
-quick-log) — historical record, not current status; checklists inside were
-never edited back after implementation, so ignore their checkbox state.
+quick-log) — old record, not current status; checklists inside never edited back after implementation, so ignore checkbox state.
 
 ## Current milestone: direct Gemini quantity estimation
 
-Precedes M4 — see
+Before M4 — see
 `docs/superpowers/specs/2026-09-03-direct-gemini-quantity-estimation-design.md`.
-It supersedes the self-hosted OmniRoute gateway approach
-(`2026-08-31-omniroute-quantity-provider-design.md`, kept as historical
-record only — the gateway and its container have been removed).
-M4 (provision cloud) resumes once this lands.
+This replace self-hosted OmniRoute gateway approach
+(`2026-08-31-omniroute-quantity-provider-design.md`, kept as old record
+only — gateway and container gone now).
+M4 (provision cloud) start again once this land.
 
 ### Known gap: no capture path for unpackaged/solid food
 
-The product database is sourced entirely from OCR'd packaging text
-(`matchProduct`/`createProduct`). A food with no label — a loose egg, a
-potato, a piece of fruit — has nothing for OCR to read and no product row
-to match, so there is currently no way to log it. Flagged during the
-2026-08-31 design pass; to be designed as its own pass before M4 starts.
+Product database come all from OCR'd packaging text
+(`matchProduct`/`createProduct`). Food with no label — loose egg, potato,
+piece of fruit — got nothing for OCR read and no product row
+to match, so no way to log it now. Flagged during 2026-08-31 design pass; need own design pass before M4 start.
 
 ### Setup
 
@@ -30,43 +28,43 @@ source .venv/Scripts/activate    # Windows Git Bash; use .venv/bin/activate on L
 pip install -e "./ocr-service[dev]"
 ```
 
-paddlepaddle is **not** installed locally — it lives only in the container.
-Unit tests import pure modules; the verification gate talks HTTP to the
+paddlepaddle **not** installed local — live only in container.
+Unit tests import pure modules; verify gate talk HTTP to
 running container.
 
 ### Commands
 
 | Command | Does |
 |---|---|
-| `npm run ocr:build` | Build the OCR image (slow first time — bakes the model) |
-| `npm run lint` | Ruff, with the Clean Code rules (root-level only — see note below) |
+| `npm run ocr:build` | Build OCR image (slow first time — bake model) |
+| `npm run lint` | Ruff, with Clean Code rules (root-level only — see note below) |
 | `npm run test:ocr` | Tier-1 unit tests (fast, no Docker) |
-| `npm run verify:ocr` | Tier-4 gate: real photos through the real service |
-| `npm run ocr:down` | Stop the stack |
+| `npm run verify:ocr` | Tier-4 gate: real photos through real service |
+| `npm run ocr:down` | Stop stack |
 | `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
-| `npm run dev:app` | Run the Next.js app's dev server |
-| `npm run dev:up` | Bring up Postgres, MinIO, and the OCR service for local dev |
-| `npm run dev:down` | Stop the local dev stack |
-| `npm run db:migrate` | Apply Drizzle migrations to the local Postgres |
-| `npm run db:seed` | Seed a test user and the 2%/10% variant pair |
-| `npm run db:reset` | Drop, migrate, seed — a clean slate for a repeatable run |
-| `npm run test` | Tier-2 tests against the real local Postgres (delegates into `app/`) |
+| `npm run dev:app` | Run Next.js app dev server |
+| `npm run dev:up` | Bring up Postgres, MinIO, OCR service for local dev |
+| `npm run dev:down` | Stop local dev stack |
+| `npm run db:migrate` | Apply Drizzle migrations to local Postgres |
+| `npm run db:seed` | Seed test user and 2%/10% variant pair |
+| `npm run db:reset` | Drop, migrate, seed — clean slate for repeatable run |
+| `npm run test` | Tier-2 tests against real local Postgres (go into `app/`) |
 
-`npm run lint` at the repo root only runs Ruff (Python) — it does **not** lint
-the Next.js app. Run `cd app && npm run lint` separately to check the app's
-own ESLint + Clean Code rules; this is a Milestone Exit Criterion for M2a and
-is otherwise easy to miss.
+`npm run lint` at repo root only run Ruff (Python) — it do **not** lint
+Next.js app. Run `cd app && npm run lint` separate to check app's
+own ESLint + Clean Code rules; this Milestone Exit Criterion for M2a and
+easy to miss otherwise.
 
-Docker Desktop must be running. It is installed per-user here, so `docker`
-is on the **User** PATH at `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin`.
+Docker Desktop must run. It installed per-user here, so `docker`
+sit on **User** PATH at `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin`.
 
 ### Object storage (M2a, one-time local setup)
 
-MinIO does not auto-create buckets. After `npm run dev:up`, create the
-`per100-photos` bucket once (the value of `S3_BUCKET` in `app/.env.local`)
-via the MinIO console at `http://localhost:9001` (login `per100` /
-`per100_minio`), or via the `mc` CLI — the `minio/minio` image bundles its
-own `mc`, reachable with `docker exec per100-minio-1 mc alias set local
+MinIO not auto-create buckets. After `npm run dev:up`, make
+`per100-photos` bucket once (value of `S3_BUCKET` in `app/.env.local`)
+via MinIO console at `http://localhost:9001` (login `per100` /
+`per100_minio`), or via `mc` CLI — `minio/minio` image bundle its
+own `mc`, reach with `docker exec per100-minio-1 mc alias set local
 http://localhost:9000 per100 per100_minio && docker exec per100-minio-1 mc mb
-local/per100-photos`. Required before `app/src/lib/s3.test.ts` or any photo
-upload can succeed locally.
+local/per100-photos`. Need this before `app/src/lib/s3.test.ts` or any photo
+upload can work local.

@@ -43,6 +43,13 @@
       "when": 1789216195589,
       "tag": "0005_per-unit-nutrition-basis",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789301586878,
+      "tag": "0006_drop-oauth-account-table",
+      "breakpoints": true
     }
   ]
 }
