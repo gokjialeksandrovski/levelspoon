@@ -6,10 +6,12 @@ import { logOneIngredient, seedConfidentProduct, signUp, truncateAll } from "./s
 test.beforeEach(truncateAll);
 
 // The correction screen is reached from a real meal detail page (itself
-// reached through the /capture wizard) via its "Values look wrong?" link.
+// reached through the /capture wizard) via its "Values look wrong?" link,
+// whose accessible name is "Correct values for <product name>" (accessibility
+// pass, commit b4391ed) rather than its visible text.
 const logOneIngredientThenOpenCorrection = async (page: Page) => {
   const mealUrl = await logOneIngredient(page);
-  await page.getByRole("link", { name: "Values look wrong?" }).click();
+  await page.getByRole("link", { name: /Correct values for/ }).click();
   await expect(page.getByRole("heading", { name: "Correct nutrition (per 100 g)" })).toBeVisible();
   return mealUrl;
 };
@@ -65,4 +67,35 @@ test("clicking Save right after typing an invalid value (before blur) still bloc
   await expect(page.getByText("Please fix the flagged values before saving.")).toBeVisible();
   // Still on the correction page - the invalid value was never saved.
   await expect(page).toHaveURL(/\/products\/.+\/correct$/);
+});
+
+test("correcting a per-unit product shows its own basis heading and saves in that same unit", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/no-match-product.jpg");
+  await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-per-unit.jpg");
+  await expect(page.getByText("Confirm nutrition (per 1 tbsp)")).toBeVisible();
+  await page.getByRole("button", { name: /save product/i }).click();
+  await page.getByLabel("Amount", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Save ingredient" }).click();
+  await expect(page.getByText("Ingredient saved.")).toBeVisible();
+  await page.getByRole("button", { name: /done/i }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+  const mealUrl = page.url();
+
+  await page.getByRole("link", { name: /Correct values for/ }).click();
+  // The correction screen's heading is basis-aware, not a hardcoded
+  // "per 100g" (spec §6, T3's correction-form.tsx change).
+  await expect(page.getByRole("heading", { name: "Correct nutrition (per 1 tbsp)" })).toBeVisible();
+
+  await page.getByLabel("Energy (kcal)").fill("100");
+  await page.getByLabel("Energy (kcal)").blur();
+  await page.getByRole("button", { name: "Save correction" }).click();
+  await page.waitForURL(mealUrl);
+
+  // 2 tbsp at the corrected 100 kcal/tbsp = 200 kcal - the edited number
+  // stays in the row's existing basis, never converted to grams (spec §6).
+  await expect(page.getByText("2 tbsp · 200 kcal")).toBeVisible();
 });
