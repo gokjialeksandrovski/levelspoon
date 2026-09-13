@@ -92,7 +92,7 @@ test("whole food: search and pick a standard food, reach the amount step and sav
 
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
-  await page.getByRole("button", { name: "Whole food" }).click();
+  await page.getByRole("button", { name: "Whole food / no packaging" }).click();
   await page.getByLabel("Food name").fill("Banana");
   await page.getByRole("button", { name: "Search" }).click();
   await page.getByRole("button", { name: "Banana" }).click();
@@ -106,7 +106,7 @@ test("whole food: empty search shows the no-match copy and returns to product ph
   await signUp(page);
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
-  await page.getByRole("button", { name: "Whole food" }).click();
+  await page.getByRole("button", { name: "Whole food / no packaging" }).click();
   await page.getByLabel("Food name").fill("zzznotarealfood");
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText(/No match/)).toBeVisible();
