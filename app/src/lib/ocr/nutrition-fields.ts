@@ -63,3 +63,18 @@ export const flaggedFieldSet = (flags: string[]): Set<keyof NullableNutritionVal
       .map((flag) => FLAG_TO_FIELD[flag])
       .filter((field): field is keyof NullableNutritionValues => Boolean(field)),
   );
+
+// When a save is blocked by fresh flags, move focus to the first flagged
+// input so a keyboard or screen-reader user is taken straight to the field
+// that needs a fix rather than having to hunt for it after the alert
+// (found via /accessibility, 2026-09-10). Field renders <input id={name}>,
+// so the flag name is the element id.
+export const focusFirstFlagged = (flags: string[]): void => {
+  const flaggedFields = flaggedFieldSet(flags);
+  const first = (Object.keys(FIELD_LABELS) as (keyof NullableNutritionValues)[]).find((field) =>
+    flaggedFields.has(field),
+  );
+  if (first) {
+    document.getElementById(first)?.focus();
+  }
+};

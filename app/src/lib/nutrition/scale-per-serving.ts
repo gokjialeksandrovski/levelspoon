@@ -2,18 +2,15 @@ import type { NutritionValues } from "@/actions/products";
 
 const PER_100G_GRAMS = 100;
 
-export const scalePerServingToPer100g = (
-  perServing: NutritionValues,
-  grams: number,
-): NutritionValues => {
-  const scale = PER_100G_GRAMS / grams;
-  return {
-    energyKcal: perServing.energyKcal * scale,
-    fatG: perServing.fatG * scale,
-    saturatesG: perServing.saturatesG * scale,
-    carbohydrateG: perServing.carbohydrateG * scale,
-    sugarsG: perServing.sugarsG * scale,
-    proteinG: perServing.proteinG * scale,
-    saltG: perServing.saltG * scale,
-  };
-};
+export const scaleNutrition = (values: NutritionValues, factor: number): NutritionValues => ({
+  energyKcal: values.energyKcal * factor,
+  fatG: values.fatG * factor,
+  saturatesG: values.saturatesG * factor,
+  carbohydrateG: values.carbohydrateG * factor,
+  sugarsG: values.sugarsG * factor,
+  proteinG: values.proteinG * factor,
+  saltG: values.saltG * factor,
+});
+
+export const scalePerServingToPer100g = (perServing: NutritionValues, grams: number): NutritionValues =>
+  scaleNutrition(perServing, PER_100G_GRAMS / grams);
