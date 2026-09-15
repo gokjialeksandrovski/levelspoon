@@ -2,7 +2,9 @@ const DIGITS_ONLY = /^\d+$/;
 
 const EAN_13_LENGTH = 13;
 const UPC_A_LENGTH = 12;
-const UPC_E_LENGTH = 8;
+// Eight digits is both EAN-8 and UPC-E; resolveEightDigitCode picks the reading.
+const EIGHT_DIGIT_LENGTH = 8;
+const EAN_8_PAD = "00000";
 
 const CHECK_DIGIT_ODD_WEIGHT = 3;
 const CHECK_DIGIT_EVEN_WEIGHT = 1;
@@ -12,6 +14,13 @@ const RESTRICTED_PREFIX_DELI = "02";
 const RESTRICTED_PREFIX_INTERNAL = "04";
 const RESTRICTED_PREFIX_RANGE_START = 20;
 const RESTRICTED_PREFIX_RANGE_END = 29;
+
+export class InvalidBarcodeError extends Error {
+  constructor(rawCode: string) {
+    super(`Barcode "${rawCode}" failed normalization or validation`);
+    this.name = "InvalidBarcodeError";
+  }
+}
 
 export type NormalizeBarcodeResult =
   | { kind: "ok"; barcode: string }
@@ -52,6 +61,15 @@ const expandUpcEToUpcA = (upce: string): string => {
   }
 };
 
+// EU-first: a real EAN-8 run through the UPC-E table expands into a different,
+// wrong EAN-13 whose check digit still validates, so the EAN-8 reading is tried
+// first. A code valid under both readings is inherently ambiguous - a raw digit
+// string carries no symbology hint - and EAN-8 wins by that same bias.
+const resolveEightDigitCode = (rawCode: string): string => {
+  const ean8Candidate = `${EAN_8_PAD}${rawCode}`;
+  return hasValidCheckDigit(ean8Candidate) ? ean8Candidate : `0${expandUpcEToUpcA(rawCode)}`;
+};
+
 const toCanonicalEan13 = (rawCode: string): string | null => {
   if (!DIGITS_ONLY.test(rawCode)) {
     return null;
@@ -62,8 +80,8 @@ const toCanonicalEan13 = (rawCode: string): string | null => {
   if (rawCode.length === UPC_A_LENGTH) {
     return `0${rawCode}`;
   }
-  if (rawCode.length === UPC_E_LENGTH) {
-    return `0${expandUpcEToUpcA(rawCode)}`;
+  if (rawCode.length === EIGHT_DIGIT_LENGTH) {
+    return resolveEightDigitCode(rawCode);
   }
   return null;
 };
@@ -89,4 +107,14 @@ export const normalizeBarcode = (rawCode: string): NormalizeBarcodeResult => {
     return { kind: "restricted_circulation" };
   }
   return { kind: "ok", barcode: canonical };
+};
+
+// For write paths: every Server Action is independently reachable, so a
+// caller-supplied barcode is validated there too, not just on lookup.
+export const toCanonicalBarcode = (rawCode: string): string => {
+  const normalized = normalizeBarcode(rawCode);
+  if (normalized.kind !== "ok") {
+    throw new InvalidBarcodeError(rawCode);
+  }
+  return normalized.barcode;
 };

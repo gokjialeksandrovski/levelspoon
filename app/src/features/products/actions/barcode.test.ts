@@ -10,6 +10,7 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 import { db } from "@/lib/db";
 import { productBarcodes, products, users } from "@/lib/db/schema";
 import { MOCK_NOT_FOUND_BARCODE } from "@/lib/barcode/mock-lookup-provider";
+import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 
 import { linkBarcode, lookupBarcode } from "./barcode";
 
@@ -126,6 +127,35 @@ describe("linkBarcode", () => {
     if (result.kind === "already_linked_elsewhere") {
       expect(result.product.id).toBe(ownerProductId);
     }
+  });
+
+  it("stores a valid 12-digit UPC-A in its canonical EAN-13 form", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Canonical Form Product");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await linkBarcode("012345678905", productId);
+
+    const [row] = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, ALREADY_BOUND_BARCODE));
+    expect(row.productId).toBe(productId);
+  });
+
+  it("refuses a restricted-circulation barcode instead of writing it to the shared table", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Test Cereal");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await expect(linkBarcode(RESTRICTED_BARCODE, productId)).rejects.toThrow(InvalidBarcodeError);
+    expect(await db.select().from(productBarcodes)).toEqual([]);
+  });
+
+  it("refuses a bad check digit instead of writing it to the shared table", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Test Cereal");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await expect(linkBarcode("5901234123458", productId)).rejects.toThrow(InvalidBarcodeError);
+    expect(await db.select().from(productBarcodes)).toEqual([]);
   });
 
   it("throws when there is no authenticated session", async () => {

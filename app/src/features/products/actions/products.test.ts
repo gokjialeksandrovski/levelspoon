@@ -6,11 +6,12 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
 import { products, productBarcodes, users } from "@/lib/db/schema";
+import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, topTwoScores, updateProduct } from "./products";
 import type { CandidateRow } from "./products";
-import { ProductNotEditableError } from "./products.errors";
+import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -396,6 +397,41 @@ describe("createProduct", () => {
     const [barcodeRow] = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, "5901234123457"));
     expect(barcodeRow.productId).toBe(productId);
     expect(barcodeRow.createdByUserId).toBe(userId);
+  });
+
+  it("rejects an invalid barcode before writing anything or uploading a photo", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await expect(
+      createProduct({
+        name: "Bad Barcode Product",
+        nutritionPer100g: {
+          energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
+        },
+        photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
+        barcode: "5901234123458",
+      }),
+    ).rejects.toThrow(InvalidBarcodeError);
+
+    expect(await db.select().from(products)).toEqual([]);
+  });
+
+  it("throws a named error, not a raw driver error, when the barcode is already linked", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const nutritionPer100g = {
+      energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
+    };
+    await createProduct({ name: "First Owner", nutritionPer100g, barcode: "0012345678905" });
+
+    // Same code in its non-canonical UPC-A form - the collision is on the
+    // normalized value, not the raw string.
+    await expect(
+      createProduct({ name: "Second Claimant", nutritionPer100g, barcode: "012345678905" }),
+    ).rejects.toThrow(BarcodeAlreadyLinkedError);
+
+    expect(await db.select().from(products)).toHaveLength(1);
   });
 });
 

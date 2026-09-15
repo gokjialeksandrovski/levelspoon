@@ -5,9 +5,7 @@ import type { BarcodeLookupProvider, ExternalBarcodeMatch, ExternalLookupResult 
 const OFF_API_BASE = "https://world.openfoodfacts.org/api/v3/product";
 const OFF_NOT_FOUND_STATUS = 404;
 const OFF_RATE_LIMITED_STATUS = 429;
-const LIQUID_BASIS_UNIT = "ml";
 const SOLID_BASIS_UNIT = "g";
-const OFF_LIQUID_NUTRITION_DATA_PER = "100ml";
 const MISSING_NUTRIENT_VALUE = 0;
 const APP_VERSION = "0.1.0";
 
@@ -31,7 +29,8 @@ interface OffNutriments {
 interface OffProduct {
   product_name?: string;
   quantity?: string;
-  nutrition_data_per?: string;
+  product_quantity_unit?: string;
+  serving_quantity_unit?: string;
   nutriments?: OffNutriments;
 }
 
@@ -60,7 +59,10 @@ const toNutritionValues = (nutriments: OffNutriments = {}): NutritionValues => (
 const toExternalMatch = (product: OffProduct): ExternalBarcodeMatch => ({
   nameGuess: product.product_name ?? "",
   nutritionPer100g: toNutritionValues(product.nutriments),
-  nutritionBasisUnit: product.nutrition_data_per === OFF_LIQUID_NUTRITION_DATA_PER ? LIQUID_BASIS_UNIT : SOLID_BASIS_UNIT,
+  // Measured against the live v3 API: nutrition_data_per is never "100ml"
+  // (it reads "100g" or "serving", or is absent) - the quantity units are
+  // the fields that actually carry "ml" for a beverage.
+  nutritionBasisUnit: product.product_quantity_unit ?? product.serving_quantity_unit ?? SOLID_BASIS_UNIT,
   netWeightText: product.quantity ?? null,
 });
 

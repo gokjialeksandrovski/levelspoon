@@ -15,8 +15,13 @@ describe("normalizeBarcode", () => {
     expect(normalizeBarcode("012345678905")).toEqual({ kind: "ok", barcode: "0012345678905" });
   });
 
-  it("expands a valid 8-digit UPC-E through UPC-A to EAN-13", () => {
-    expect(normalizeBarcode("02345659")).toEqual({ kind: "ok", barcode: "0023456000059" });
+  it("pads a valid 8-digit EAN-8 to EAN-13 rather than expanding it as UPC-E", () => {
+    expect(normalizeBarcode("96385074")).toEqual({ kind: "ok", barcode: "0000096385074" });
+  });
+
+  // "01234611" verified to fail the EAN-8 check digit, so it can only be UPC-E.
+  it("falls back to UPC-E expansion when the EAN-8 reading has a bad check digit", () => {
+    expect(normalizeBarcode("01234611")).toEqual({ kind: "ok", barcode: "0012100003461" });
   });
 
   it("rejects a restricted-circulation prefix (20-29 range) before it would look like a normal product", () => {

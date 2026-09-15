@@ -3,7 +3,7 @@
 import { sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
-import { normalizeBarcode } from "@/lib/barcode/normalize";
+import { normalizeBarcode, toCanonicalBarcode } from "@/lib/barcode/normalize";
 import type { BarcodeLookupProvider } from "@/lib/barcode/lookup-provider";
 import { MockBarcodeLookupProvider } from "@/lib/barcode/mock-lookup-provider";
 import { OpenFoodFactsProvider } from "@/lib/barcode/open-food-facts-provider";
@@ -88,11 +88,12 @@ export const lookupBarcode = async (rawCode: string): Promise<LookupBarcodeResul
     return { kind: "not_found", barcode };
   }
   const { flags } = await validateNutrition(external.match.nutritionPer100g);
-  return { kind: "external_match", barcode, flags, ...external.match };
+  return { kind: "external_match", ...external.match, barcode, flags };
 };
 
-export const linkBarcode = async (barcode: string, productId: string): Promise<LinkBarcodeResult> => {
+export const linkBarcode = async (rawCode: string, productId: string): Promise<LinkBarcodeResult> => {
   const userId = await requireUserId();
+  const barcode = toCanonicalBarcode(rawCode);
   try {
     await db.insert(productBarcodes).values({ barcode, productId, createdByUserId: userId });
     return { kind: "linked" };

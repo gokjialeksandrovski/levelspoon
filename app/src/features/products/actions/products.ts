@@ -5,13 +5,14 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
+import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { products, productBarcodes, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
-import { ProductNotEditableError } from "./products.errors";
+import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
 
 // Spec §1's margin rule: absolute-threshold-only would let nutritionally-
 // different variants (e.g. "2% Fat" vs "10% Fat") take the no-confirm path,
@@ -219,10 +220,44 @@ const toProductInsertValues = (input: CreateProductInput, userId: string, photoK
   ...(input.nutritionOrigin ? { nutritionOrigin: input.nutritionOrigin } : {}),
 });
 
+const UNIQUE_VIOLATION = "23505";
+
+// Drizzle wraps the driver's error in a `cause` property; matches barcode.ts's
+// isUniqueViolation exactly. Duplicated rather than imported because barcode.ts
+// already imports from this file - sharing it would close a cycle.
+const isUniqueViolation = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  if ("code" in error && (error as { code: unknown }).code === UNIQUE_VIOLATION) {
+    return true;
+  }
+  const cause = (error as { cause?: unknown }).cause;
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "code" in cause &&
+    (cause as { code: unknown }).code === UNIQUE_VIOLATION
+  );
+};
+
+const insertBarcodeLink = async (link: () => Promise<unknown>, barcode: string): Promise<void> => {
+  try {
+    await link();
+  } catch (error) {
+    if (!isUniqueViolation(error)) {
+      throw error;
+    }
+    throw new BarcodeAlreadyLinkedError(barcode);
+  }
+};
+
 export const createProduct = async (
   input: CreateProductInput,
 ): Promise<{ productId: string }> => {
   const userId = await requireUserId();
+  // Before the upload: a rejected barcode must not leave an orphaned photo.
+  const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
   const photoKey = input.photo ? await uploadProductPhoto(input.photo) : null;
 
   return db.transaction(async (tx) => {
@@ -231,8 +266,9 @@ export const createProduct = async (
       .values(toProductInsertValues(input, userId, photoKey))
       .returning({ id: products.id });
 
-    if (input.barcode) {
-      await tx.insert(productBarcodes).values({ barcode: input.barcode, productId: row.id, createdByUserId: userId });
+    if (barcode) {
+      const values = { barcode, productId: row.id, createdByUserId: userId };
+      await insertBarcodeLink(() => tx.insert(productBarcodes).values(values), barcode);
     }
     return { productId: row.id };
   });

@@ -19,7 +19,7 @@ describe("OpenFoodFactsProvider.lookup", () => {
       product: {
         product_name: "Test Cereal",
         quantity: "375 g",
-        nutrition_data_per: "100g",
+        product_quantity_unit: "g",
         nutriments: {
           "energy-kcal_100g": 380, fat_100g: 5, "saturated-fat_100g": 1,
           carbohydrates_100g: 70, sugars_100g: 20, proteins_100g: 8, salt_100g: 1.1,
@@ -45,13 +45,13 @@ describe("OpenFoodFactsProvider.lookup", () => {
     expect((requestInit.headers as Record<string, string>)["User-Agent"]).toMatch(/^per100\//);
   });
 
-  it("maps nutrition_data_per '100ml' to a ml basis unit", async () => {
+  it("maps a liquid's serving_quantity_unit to a ml basis unit when product_quantity_unit is absent", async () => {
     stubFetchJson(200, {
       status: 1,
       product: {
         product_name: "Test Juice",
         quantity: "1 L",
-        nutrition_data_per: "100ml",
+        serving_quantity_unit: "ml",
         nutriments: { "energy-kcal_100g": 45 },
       },
     });
@@ -61,6 +61,36 @@ describe("OpenFoodFactsProvider.lookup", () => {
     expect(result.kind).toBe("found");
     if (result.kind === "found") {
       expect(result.match.nutritionBasisUnit).toBe("ml");
+    }
+  });
+
+  it("maps a real-shaped liquid product (no nutrition_data_per field) to ml via product_quantity_unit", async () => {
+    stubFetchJson(200, {
+      status: 1,
+      product: {
+        product_name: "Coca-Cola",
+        quantity: "330 ml",
+        product_quantity_unit: "ml",
+        nutriments: { "energy-kcal_100g": 42 },
+      },
+    });
+
+    const result = await new OpenFoodFactsProvider().lookup("5449000000996");
+
+    expect(result.kind).toBe("found");
+    if (result.kind === "found") {
+      expect(result.match.nutritionBasisUnit).toBe("ml");
+    }
+  });
+
+  it("defaults to a g basis when neither quantity-unit field is present", async () => {
+    stubFetchJson(200, { status: 1, product: { product_name: "Unitless", nutriments: {} } });
+
+    const result = await new OpenFoodFactsProvider().lookup("4000000000006");
+
+    expect(result.kind).toBe("found");
+    if (result.kind === "found") {
+      expect(result.match.nutritionBasisUnit).toBe("g");
     }
   });
 
