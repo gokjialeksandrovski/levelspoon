@@ -1,4 +1,3 @@
-// app/src/app/(app)/meals/[mealId]/capture/wizard-shell.tsx
 "use client";
 
 import { CaretLeftIcon } from "@phosphor-icons/react";
@@ -14,11 +13,9 @@ interface WizardShellProps {
 
 const PERCENT = 100;
 
-// Exposed as a real progressbar so its value reaches assistive tech, not
-// just the eye. Deliberately coarse (aria-valuenow is rounded, the label
-// says "adding this ingredient" not "step 3 of 5") because the underlying
-// number is momentum, not an exact step count (found via /accessibility,
-// 2026-09-10).
+// Real progressbar so its value reaches assistive tech. Deliberately coarse
+// (rounded, "adding this ingredient" not "step 3 of 5") - the number is
+// momentum, not an exact step count.
 const ProgressRail = ({ progress }: { progress: number }) => (
   <div
     className="h-0.5 bg-surface-raised"
@@ -46,12 +43,9 @@ const BackButton = ({ onBack }: { onBack: () => void }) => (
   </button>
 );
 
-// Not AppHeader's "back" variant: the wizard's back control pops a step
-// rather than navigating, and the header carries a progress rail underneath.
-// The step title is this screen's h1, so each step's own <h2> instruction
-// nests under it cleanly (found via /accessibility, 2026-09-10). Row and
-// rail sit together in the <header> so the progressbar is inside a landmark
-// (axe: region), not orphaned between header and main.
+// Not AppHeader's "back" variant: this back control pops a step rather than
+// navigating. Row and rail sit together in <header> so the progressbar is
+// inside a landmark, not orphaned between header and main.
 export const WizardShell = ({ title, progress, onBack, children }: WizardShellProps) => (
   <div className="flex min-h-dvh flex-col">
     <header>

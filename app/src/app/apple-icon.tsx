@@ -1,17 +1,13 @@
-// app/src/app/apple-icon.tsx
 import { ImageResponse } from "next/og";
 
-// Apple's home-screen icon needs a real raster with no transparency (iOS
-// applies its own rounded-square mask) - ImageResponse can only render
-// styled divs, not an <svg>, so this mirrors icon.svg's geometry rather than
-// sharing it directly (see the Next.js app-icons docs).
+// ImageResponse can only render styled divs, not an <svg>, so this mirrors
+// icon.svg's geometry rather than sharing it directly.
 const CANVAS = 180;
 export const size = { width: CANVAS, height: CANVAS };
 export const contentType = "image/png";
 
 // Same three rects as icon.svg's viewBox 0 0 100 100, scaled ~1.12x with a
-// 34px margin - iOS's own mask needs that breathing room, full-bleed would
-// clip the shortest bar.
+// 34px margin - iOS's own mask needs that breathing room.
 const BARS = [
   { left: 50, top: 92, width: 18, height: 36, color: "#cb4735" },
   { left: 81, top: 65, width: 18, height: 63, color: "#ab6200" },

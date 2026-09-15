@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/day-action-bar.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -25,13 +24,8 @@ const startMeal = async (router: ReturnType<typeof useRouter>, callbacks: StartM
   }
 };
 
-// Was two entry points (Quick log / New meal) differing only in whether the
-// wizard's post-save screen was skipped. That made "Quick log" redundant
-// with just tapping Done on the first ingredient - one fewer decision to
-// make up front, at the cost of one tap saved, for a choice most people
-// couldn't reliably predict before starting anyway (found via /critique on
-// a live screenshot, 2026-09-06; the "keep two paths or one" call is the
-// user's own). Collapsed to a single entry point.
+// Single entry point deliberately: a separate "Quick log" button only
+// duplicated tapping Done on the first ingredient.
 export const DayActionBar = () => {
   const router = useRouter();
   const [hasError, setHasError] = useState(false);

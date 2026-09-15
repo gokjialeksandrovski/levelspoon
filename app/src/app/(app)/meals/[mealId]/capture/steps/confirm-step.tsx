@@ -32,12 +32,8 @@ interface ConfirmStepProps {
 }
 
 const UNREADABLE_FIELD_ERROR = "Could not read this value - please enter it";
-// Matches correction-form.tsx's wording for the same situation: a value the
-// OCR did read, just not one that passes a cross-field plausibility rule
-// (e.g. saturates can't exceed fat). "Could not read" would be false here -
-// the field with the genuinely wrong number and the field only implicated
-// by its relationship to it both need a look, but they aren't the same
-// problem and shouldn't say they are.
+// A value OCR did read, just failing a cross-field plausibility rule (e.g.
+// saturates > fat) - "Could not read" would be false here.
 const INCONSISTENT_FIELD_ERROR = "This value looks off - please double-check it";
 const SAVE_BLOCKED_ERROR = "Please fix the flagged values before saving.";
 
@@ -48,13 +44,9 @@ const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues
   return values[field].trim() === "" ? UNREADABLE_FIELD_ERROR : INCONSISTENT_FIELD_ERROR;
 };
 
-// Re-checks the whole row on blur and again right before saving, rather
-// than trusting the flags the OCR call first returned: a field can be
-// flagged purely because of its RELATIONSHIP to another (saturates can't
-// exceed fat), so fixing saturates must also clear fat's now-stale
-// warning, and a click on Save before a blur fires must not let a still-
-// flagged value slip through with the mount-time flags. Mirrors
-// correction-form.tsx's already-proven pattern for the same problem.
+// Re-checks on blur and again before saving, not just the OCR call's initial
+// flags: a field can be flagged only via its relationship to another, so
+// fixing one must clear the other's now-stale warning.
 const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]> => {
   const result = await validateNutrition(toNutritionValues(currentValues));
   return result.flags;
@@ -120,10 +112,8 @@ interface ConfirmSaveCallbacks {
   setIsSaving: (isSaving: boolean) => void;
 }
 
-// Standalone (not a hook) so useConfirmStepForm's own body stays under the
-// line budget - takes a bundled callbacks object rather than closing over
-// the hook's state, mirroring this pass's other DI'd handlers (e.g.
-// ingredient-row.tsx's existing shape, amount-step.tsx's estimateAmount).
+// Standalone, not a hook, so useConfirmStepForm's body stays under the line
+// budget - bundled callbacks object rather than closing over hook state.
 const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, callbacks: ConfirmSaveCallbacks): Promise<void> => {
   callbacks.setError(null);
   callbacks.setIsSaving(true);
@@ -193,9 +183,8 @@ const useConfirmStepForm = (props: ConfirmStepProps): UseConfirmStepFormResult =
   const revalidate = useCallback((currentValues: FieldValues) => {
     checkNutritionFlags(currentValues)
       .then(setFlags)
-      // A transient failure here just leaves the existing flags in place -
-      // revalidation is a convenience, not something that should block the
-      // user, and handleSave's own pre-save check still guards the save.
+      // Transient failure leaves existing flags in place - handleSave's own
+      // pre-save check still guards the save.
       .catch(() => {});
   }, []);
 

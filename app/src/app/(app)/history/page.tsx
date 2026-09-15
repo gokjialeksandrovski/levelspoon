@@ -1,4 +1,3 @@
-// app/src/app/(app)/history/page.tsx
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
@@ -54,12 +53,8 @@ const useHistoryState = (): UseHistoryStateResult => {
   return { state, loadPage };
 };
 
-// A guess at how many rows a real history has, same class of problem as the
-// day view's old fixed-3-meals skeleton (day-view.tsx): whatever this
-// number is, it's usually wrong, and the swap to real content used to
-// collapse (or grow) the instant it resolved. Kept small on purpose so a
-// wrong guess overshoots by less; useDelayedSkeleton and the contentFade
-// below (2026-09-09) do the rest of the work.
+// A guess at row count, kept small so a wrong guess overshoots less;
+// useDelayedSkeleton and contentFade below cover the rest.
 const SKELETON_ROW_COUNT = 3;
 
 // Mirrors a ready row (label left, figure right) so the loading -> ready
@@ -75,8 +70,7 @@ const HistorySkeleton = () => (
   </div>
 );
 
-// A fresh account reaches /history with nothing logged - plain, calm text,
-// no call to action (there is no way to log into the past from here).
+// No way to log into the past from here, so plain text with no CTA.
 const HistoryEmptyState = () => (
   <div className="mt-16 flex flex-col items-center gap-4 text-center">
     <p className="text-text-muted">No history yet</p>
@@ -123,9 +117,7 @@ const HistoryReadyBody = ({ entries, nextOffset, onLoadMore }: HistoryReadyBodyP
   );
 };
 
-// Same delayed-skeleton + fade-in treatment as the day view's DayViewBody:
-// skip the placeholder entirely for fast loads, and fade resolved content in
-// rather than snapping it into place once it does show (2026-09-09).
+// Same delayed-skeleton + fade-in treatment as the day view's DayViewBody.
 const HistoryBody = ({ state, onLoadMore }: { state: HistoryState; onLoadMore: (offset: number) => void }) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");

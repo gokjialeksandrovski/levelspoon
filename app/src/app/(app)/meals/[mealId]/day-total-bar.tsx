@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/day-total-bar.tsx
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
@@ -40,14 +39,10 @@ const DayTotalContent = ({ state }: { state: DayTotalReadyOrErrorState }) =>
   );
 
 // A quiet single line of context, not the boxed macro breakdown the day view
-// itself owns - this is just enough to place the meal within the day's total
-// while looking at it, not a second copy of the day view.
+// owns - enough to place the meal within the day's total, not a second copy.
 //
-// Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody
-// (found via /critique, 2026-09-10) - this previously flashed "Loading…"
-// the instant it mounted (which happens on every ingredient add/edit/remove,
-// since meal-detail.tsx remounts it via a reloadCounter key) rather than
-// skipping the flash on the common fast-refetch case.
+// Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody, so
+// the reloadCounter remount on every ingredient change doesn't flash "Loading…".
 export const DayTotalBar = () => {
   const state = useDayTotal();
   const reduceMotion = useReducedMotion();

@@ -19,16 +19,12 @@ interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
   onError: (message: string | null) => void;
-  // Beside router.refresh() (a no-op once the parent page is a Client
-  // Component with no server data of its own to refetch - see meal-detail.tsx),
-  // this is what actually makes the parent's fetched ingredient list and
-  // DayTotalBar pick up the change.
+  // router.refresh() is a no-op here (parent is a Client Component); this is
+  // what makes the ingredient list and DayTotalBar pick up the change.
   onChanged?: () => void;
 }
 
-// Confirmation lives in the caller now (a Sheet, opened from the row's
-// "Remove" trigger) - this only performs the mutation itself, invoked from
-// the sheet's own confirm button.
+// Confirmation lives in the caller's Sheet - this only performs the mutation.
 const removeIngredient = async (mealIngredientId: string, callbacks: MutationCallbacks): Promise<void> => {
   callbacks.onBusyChange(true);
   try {
@@ -77,8 +73,7 @@ interface ResolveAndSaveQuantityInput {
   context: MeasureContext;
 }
 
-// Exported (was previously module-private) so ingredient-row.test.ts can
-// call it directly, same posture as amount-step.tsx's existing exports.
+// Exported so ingredient-row.test.ts can call it directly.
 export const resolveAndSaveQuantity = async (
   input: ResolveAndSaveQuantityInput,
   onSaved: () => void,
@@ -179,11 +174,7 @@ const QuantityEditor = ({ ingredientId, count, unit, units, isBusy, onCountChang
         count={count}
         unit={unit}
         units={units}
-        // The editor mounts only when the user taps "Edit", so pulling
-        // focus straight into the field is the right move - it's where a
-        // keyboard or screen-reader user needs to be, and it stops focus
-        // being dropped on the now-unmounted "Edit" button (found via
-        // /accessibility, 2026-09-10).
+        // Stops focus dropping on the now-unmounted "Edit" button.
         autoFocus
         onCountChange={onCountChange}
         onUnitChange={onUnitChange}
@@ -213,9 +204,8 @@ interface RowActionProps {
   children: string;
 }
 
-// The visible text is the bare verb; `label` carries the product name so a
-// screen-reader user in a multi-ingredient meal can tell which row's action
-// they've landed on (found via /accessibility, 2026-09-10).
+// Visible text is the bare verb; `label` carries the product name so a
+// screen reader can tell which row's action this is in a multi-ingredient meal.
 const RowAction = ({ label, toneClass, disabled, onClick, children }: RowActionProps) => (
   <button
     type="button"
@@ -229,9 +219,8 @@ const RowAction = ({ label, toneClass, disabled, onClick, children }: RowActionP
   </button>
 );
 
-// gap-5, not gap-3: each RowAction's hit box reaches 4px past its text on
-// each side (TAP_HIT_AREA_SM's -mx-1/px-1), so a tighter gap leaves the two
-// touch targets under the 8px minimum spacing (found via /critique, 2026-09-10).
+// gap-5, not gap-3: each RowAction's hit box reaches 4px past its text
+// (TAP_HIT_AREA_SM), so a tighter gap leaves targets under the 8px minimum.
 const QuantitySummary = ({ productName, quantity, quantityUnit, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex items-center justify-between text-sm text-text-muted">
     <span className="tabular-nums">
@@ -293,12 +282,8 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
     <SummaryControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
   );
 
-// `block` makes the negative-margin cancellation explicit rather than
-// relying on this <a> being blockified by its flex-col parent - vertical
-// margin is a no-op on a plain inline element, so TAP_HIT_AREA_XS's -my-3.5
-// would silently do nothing without it. aria-label carries the product name
-// for the same reason QuantitySummary's buttons do (found via
-// /accessibility, 2026-09-10).
+// `block` is explicit: vertical margin is a no-op on inline elements, so
+// TAP_HIT_AREA_XS's -my-3.5 would silently do nothing without it.
 const CorrectionLink = ({ productId, productName }: { productId: string; productName: string }) => (
   <Link
     href={`/products/${productId}/correct`}
@@ -317,11 +302,8 @@ interface RemoveIngredientSheetProps {
   onConfirm: () => void;
 }
 
-// Mounted only while the confirm flow is actually open (see IngredientRow) -
-// rendering one of these per row unconditionally would keep every row's
-// product name in the DOM twice (once visible in IngredientHeader, once
-// hidden in this Sheet's title), which throws off any test or screen reader
-// query that counts occurrences of a product name across a meal's rows.
+// Mounted only while open - rendering unconditionally would duplicate the
+// product name in the DOM, throwing off any query that counts occurrences.
 const RemoveIngredientSheet = ({ productName, isBusy, error, onClose, onConfirm }: RemoveIngredientSheetProps) => (
   <Sheet open onClose={onClose} title={`Remove ${productName}?`}>
     <div className="flex flex-col gap-4">

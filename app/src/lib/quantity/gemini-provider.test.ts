@@ -63,10 +63,9 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
     vi.stubEnv("GEMINI_MODEL", "gemini-3.5-flash-lite");
   });
 
-  // Regression test for the reported failure: OMNIROUTE_MODEL=auto routed to
-  // a reasoning model that consumed the whole token budget on reasoning and
-  // returned content: null with finish_reason: "length". The old parser
-  // coerced that to "" and reported "non-numeric response: ".
+  // Regression: a reasoning model once consumed the whole token budget and
+  // returned content: null with finish_reason: "length"; the old parser
+  // coerced that to "" and reported a misleading "non-numeric response".
   it("reports truncation, not a non-numeric reply, when the budget runs out", async () => {
     stubFetchJson({ choices: [{ finish_reason: "length", message: { content: null } }] });
 
@@ -100,12 +99,10 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // Regression test for the reported failure: Gemini's flash-lite tier
-  // answers 503 "high demand" on an otherwise-healthy request (confirmed
-  // 2026-09-04 via direct curl: 3/3 consecutive calls to
-  // gemini-3.5-flash-lite failed 503 while gemini-3.5-flash succeeded
-  // immediately). A short retry absorbs that instead of surfacing an
-  // otherwise-working request as a failure.
+  // Regression: flash-lite occasionally answers 503 "high demand" on an
+  // otherwise-healthy request (confirmed via direct curl: 3/3 calls to
+  // flash-lite failed 503 while flash succeeded immediately). A short retry
+  // absorbs that instead of surfacing a transient blip as a failure.
   it("retries after a 503 and succeeds on the next attempt", async () => {
     const fetchMock = stubFetchSequence([
       { ok: false, status: 503, body: {} },

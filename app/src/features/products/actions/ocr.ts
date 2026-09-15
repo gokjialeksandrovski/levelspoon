@@ -104,11 +104,9 @@ const perUnitRead = async (
   };
 };
 
-// A zero (or negative) quantity is "recognized unit, unusable amount" - e.g.
-// resolveGrams("0g", ...) reports unitName "g" with quantity 0, non-null on
-// both fields. Fast-pathing that into perUnitRead would divide by zero and
-// write Infinity into the shared products table, so the fallback requires a
-// genuinely positive quantity, not just a non-null one.
+// Zero/negative quantity is "recognized unit, unusable amount" - fast-pathing
+// it into perUnitRead would divide by zero and write Infinity into the
+// shared products table, so the fallback requires a genuinely positive quantity.
 const isPerUnitFallback = (
   resolution: Extract<Resolution, { kind: "unresolved" }>,
 ): resolution is Extract<Resolution, { kind: "unresolved" }> & { unitName: string; quantity: number } =>
@@ -134,9 +132,8 @@ const netWeightPrefill = (
   return netWeightGrams === null ? null : netWeightGrams / servingsPerContainer;
 };
 
-// Exported so a unit test can exercise the resolved-serving branch directly.
-// Every export from a "use server" file is independently reachable as its
-// own Server Action, so it checks auth itself.
+// Exported for direct unit-testing; checks auth itself since every export
+// from a "use server" file is independently reachable as its own Server Action.
 export const fromResolvedServing = async (
   perServing: NutritionValues,
   servingSizeText: string,
@@ -170,9 +167,8 @@ const fromUsLabel = async (
   productNameGuess: string,
   netWeightText: string | null,
 ): Promise<NutritionRead> => {
-  // A printed weight is the most certain figure on the label, and it also
-  // states the product's density for free when the measure beside it is a
-  // volume - no user input and no AI, derived from data already being read.
+  // A printed weight is the label's most certain figure, and free density
+  // data when paired with a volume - no user input or AI needed.
   if (read.servingGrams !== null) {
     return fromResolvedServing(read.perServing, read.servingSizeText, read.servingGrams);
   }
@@ -185,11 +181,8 @@ const fromUsLabel = async (
     }
     return await needsServingSizeRead(read, netWeightText, context, resolution.unitName);
   }
-  // This is a brand-new product row, so all three learned columns start
-  // NULL - whatever the lookup or seeded density just resolved is this row's
-  // first-ever learned data, not a duplicate of anything already on it.
-  // Persisting it now means the next scan of this exact product resolves
-  // straight from its own row instead of re-deriving via density or a lookup.
+  // Brand-new row (all learned columns NULL): persisting the resolved density
+  // now lets the next scan of this product read it straight from its own row.
   const fromLabel = learnFromServing(read.servingSizeText, resolution.grams);
   const learned = hasLearned(fromLabel) ? fromLabel : NOTHING_LEARNED;
   return scaledRead(read.perServing, resolution.grams, learned);
@@ -237,9 +230,8 @@ export const resolveServingSize = async (
     if (isPerUnitFallback(resolution)) {
       return perUnitRead(perServing, resolution.unitName, resolution.quantity);
     }
-    // prefillGrams is unused here: ServingSizeStep only checks read.kind on
-    // this branch and re-shows its own local error, never re-reading these
-    // fields (same as servingSizeText/perServing above).
+    // prefillGrams unused here: ServingSizeStep only checks read.kind on this
+    // branch and re-shows its own local error.
     return { kind: "needs-serving-size", servingSizeText, perServing, prefillGrams: null, unitName: resolution.unitName };
   }
 

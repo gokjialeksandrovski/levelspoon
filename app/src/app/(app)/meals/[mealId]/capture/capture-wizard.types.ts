@@ -143,20 +143,15 @@ const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_P
 });
 
 const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
-  // Starts from the amount step, which never had a front-panel net weight to
-  // begin with - a SelectedProduct only ever carries id/name - so there is
-  // nothing to carry forward here.
+  // From the amount step, which never carried a net weight - nothing to forward.
   kind: "match-result",
   nameGuess: action.nameGuess,
   candidates: action.candidates,
   netWeightText: null,
 });
 
-// One case per line (label and return together) rather than this repo's
-// usual two-line case style - with 9 cases, the two-line form alone put
-// this switch 2 lines over budget even after extracting the three longest
-// branches above. Every branch is already a single expression, so this
-// only changes formatting, not structure.
+// One case per line, not this repo's usual two-line style - 9 cases in
+// two-line form put this switch over the line budget.
 export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {
     case "MATCH_RESOLVED": return resolveMatch(action.nameGuess, action.result, action.netWeightText);

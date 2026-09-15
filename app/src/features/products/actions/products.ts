@@ -13,12 +13,9 @@ import type { NutritionValues } from "@/types/nutrition";
 
 import { ProductNotEditableError } from "./products.errors";
 
-// Spec §1's margin rule: an absolute-threshold-only rule would let two
-// nutritionally-different product variants (e.g. "2% Fat" vs "10% Fat")
-// silently take the no-confirm fast path, since trigram similarity alone
-// cannot distinguish a few-character variant difference. Requiring a
-// margin between the top two candidates routes exactly these collisions
-// into the ambiguous path instead.
+// Spec §1's margin rule: absolute-threshold-only would let nutritionally-
+// different variants (e.g. "2% Fat" vs "10% Fat") take the no-confirm path,
+// since trigram similarity alone can't separate them. The margin catches it.
 const CONFIDENT_SIMILARITY_THRESHOLD = 0.65;
 const CONFIDENT_MARGIN = 0.15;
 const AMBIGUOUS_SIMILARITY_THRESHOLD = 0.35;
@@ -103,8 +100,7 @@ const isRelevantScore = (row: CandidateRow): boolean =>
   Number(row.score) >= AMBIGUOUS_SIMILARITY_THRESHOLD;
 
 // Every export from a "use server" file is independently reachable as its
-// own Server Action from the client regardless of which other function
-// calls it internally, so this checks auth itself rather than trusting
+// own Server Action, so this checks auth itself rather than trusting
 // matchProduct's caller to have done it.
 export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number; top2: number }> => {
   await requireUserId();
@@ -169,9 +165,8 @@ const uploadProductPhoto = async (photo: Blob): Promise<string> => {
   return photoKey;
 };
 
-// Shared with updateProduct's photo branch (and the reverse mapping in
-// getProductForCorrection) so the per100g <-> numeric-column conversion
-// lives in exactly one place.
+// Shared with updateProduct's photo branch and getProductForCorrection's
+// reverse mapping, so the per100g<->numeric-column conversion is one place.
 const toNutritionColumns = (values: NutritionValues) => ({
   energyKcal: String(values.energyKcal),
   fatG: String(values.fatG),
@@ -182,9 +177,8 @@ const toNutritionColumns = (values: NutritionValues) => ({
   saltG: String(values.saltG),
 });
 
-// Drizzle's numeric columns round-trip as strings, so a learned value is
-// stringified on the way in and parsed on the way out - the same treatment
-// the seven nutrition columns already get.
+// Drizzle's numeric columns round-trip as strings: stringified going in,
+// parsed coming out - same treatment the seven nutrition columns get.
 const toLearnedColumns = (learned: LearnedMeasures) => ({
   densityGMl: learned.densityGMl === null ? null : String(learned.densityGMl),
   servingUnit: learned.servingUnit,
@@ -248,11 +242,9 @@ export const updateProduct = async (
   // spec's existing risk-acceptance style (spec §4.2).
   const photoKey = updates.photo ? await uploadProductPhoto(updates.photo) : undefined;
 
-  // A standard row (curated, no owner) must never be silently overwritten by
-  // whoever learned its id from a search result - editing standard rows is
-  // out of scope (spec §2). Scoping the WHERE to source='user' and failing
-  // loudly on a zero-row update (rather than a silent no-op) catches both a
-  // standard-row id and a nonexistent one.
+  // A standard row (curated, no owner) must never be silently overwritten via
+  // a guessed id (spec §2). Scoping WHERE to source='user' and failing loudly
+  // on a zero-row update catches both a standard-row id and a nonexistent one.
   const updated = await db
     .update(products)
     .set({
@@ -311,24 +303,17 @@ const toNumberOrNull = (value: string | null): number | null =>
 /**
  * What a previously-saved product of the SAME name already taught us.
  *
- * Deliberately an exact match (case/whitespace-normalized), not a fuzzy one:
- * this is called from the wizard's nutrition-photo step, reachable after the
- * user has already rejected a screen of trigram-similar candidates ("None of
- * these"). Reusing matchProduct's similarity floor here would happily
- * re-match one of those just-rejected products and silently hand back ITS
- * learned serving weight for a different product - exactly the cross-product
- * density borrowing this pipeline's global constraint forbids. An exact match
- * still serves the real target scenario (re-scanning the same product, whose
- * name was confirmed and saved verbatim last time), while a near-miss now
- * safely falls through to NOTHING_LEARNED and the caller asks the user
- * instead of guessing.
+ * Exact match (case/whitespace-normalized), not fuzzy: called after the user
+ * has already rejected a screen of trigram-similar candidates ("None of
+ * these"), so reusing matchProduct's similarity floor would re-match one of
+ * those rejected products and hand back its learned serving weight - the
+ * cross-product borrowing this pipeline forbids. A near-miss falls through
+ * to NOTHING_LEARNED and the caller asks the user instead of guessing.
  */
 export const findStoredMeasures = async (productName: string): Promise<LearnedMeasures> => {
   await requireUserId();
-  // source = user only: a curated standard row (USDA "Egg", "Banana") sharing a
-  // name must never lend its learned serving weight to an OCR'd label - the
-  // cross-row measure borrowing this pipeline forbids (spec §10 OCR-vs-standard
-  // collision, §6).
+  // source = user only: a standard row (USDA "Egg", "Banana") sharing a name
+  // must never lend its learned serving weight to an OCR'd label (spec §10, §6).
   const result = await db.execute<StoredMeasuresRow>(sql`
     SELECT density_g_ml, serving_unit, serving_grams
     FROM products
@@ -373,9 +358,8 @@ type StandardFoodRow = SnakeNutritionRow & {
 };
 
 const STANDARD_SEARCH_LIMIT = 8;
-// Low floor: this is a pick list, not the shared-cache write path, so the
-// confident-match margin rule (spec §6) does not apply. Just high enough that
-// a no-hope query returns nothing and the wizard can show its empty state.
+// Low floor: a pick list, not the shared-cache write path, so the margin
+// rule (spec §6) doesn't apply - just high enough to filter no-hope queries.
 const STANDARD_SEARCH_MIN_SIMILARITY = 0.15;
 
 const toStandardFood = (row: StandardFoodRow): StandardFood => ({

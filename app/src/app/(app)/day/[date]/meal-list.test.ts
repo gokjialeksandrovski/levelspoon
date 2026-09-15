@@ -1,6 +1,5 @@
-// This repo doesn't render components in tests (vitest runs in a node
-// environment, no jsdom - see vitest.config.ts). These tests instead lock in
-// the two pure functions MealList's JSX calls to decide what to show.
+// No jsdom in this repo's tests - locks in the two pure functions MealList's
+// JSX calls to decide what to show.
 import { describe, expect, it } from "vitest";
 
 import type { DayMealSummary } from "@/features/meals/actions/meals";

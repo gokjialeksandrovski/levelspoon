@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/day-view.tsx
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
@@ -28,12 +27,9 @@ type DayViewState =
   | { status: "error" }
   | { status: "ready"; log: DayLog; isToday: boolean };
 
-// Only sets state from within the fetch's `.then`/`.catch` - never
-// synchronously at the top of the effect - matching the precedent in
-// day-total-bar.tsx and history/page.tsx (react-hooks/set-state-in-effect
-// flags a synchronous setState call in an effect body as an error, even one
-// reached indirectly through a helper, and even for the "reset to loading"
-// call React's own data-fetching docs show).
+// setState only inside .then/.catch, never synchronously in the effect body -
+// react-hooks/set-state-in-effect flags that as an error even for a "reset to
+// loading" call.
 const useDayLog = (date: string): DayViewState => {
   const [state, setState] = useState<DayViewState>({ status: "loading" });
 
@@ -51,13 +47,9 @@ const useDayLog = (date: string): DayViewState => {
   return state;
 };
 
-// Only the kcal stat placeholder - the one piece of the ready state whose
-// size never depends on the day's data. This used to also mock a macro line
-// and three meal rows, but that guessed shape collapsed by ~300px the
-// instant real (often emptier) data arrived, mid-slide - a jump-cut, not a
-// loading state (found via a throttled Playwright repro, 2026-09-09). Real
-// content fades in on its own below this once it resolves - see
-// DayViewBody's contentFade*.
+// Only the kcal stat placeholder, the one piece whose size never depends on
+// the day's data - a guessed macro/meal-row shape collapsed on arrival of
+// real (often emptier) data, a jump-cut rather than a loading state.
 const DayViewSkeleton = () => <Skeleton className="h-11 w-32" />;
 
 const DayViewReady = ({ log, isToday }: { log: DayLog; isToday: boolean }) => (
@@ -68,14 +60,9 @@ const DayViewReady = ({ log, isToday }: { log: DayLog; isToday: boolean }) => (
   </>
 );
 
-// Skeleton only appears past useDelayedSkeleton's fast-load threshold, so
-// the common case (a local fetch resolving in well under 300ms) shows
-// nothing at all and fades straight to real content instead of flashing a
-// placeholder that's about to be wrong. Resolved content fades in
-// (contentFade*) rather than snapping in, so whatever size difference
-// remains between "nothing yet" and the day's actual data reads as a soft
-// entrance, not a jump - this component only mounts once loading ends, so
-// motion's `initial` fires on that first appearance without needing a key.
+// Skeleton only shows past useDelayedSkeleton's fast-load threshold, so a
+// quick fetch fades straight to real content instead of flashing a
+// placeholder that's about to be wrong.
 const DayViewBody = ({ state }: { state: DayViewState }) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");
@@ -104,12 +91,8 @@ interface DaySlideProps {
   reduceMotion: boolean | null;
 }
 
-// One of two pre-existing places in the app using motion/react (the other
-// is the capture wizard); the 2026-09-05 re-theme added two more (Button's
-// press-feedback spring, LogSuccessPulse's log-success pulse), for four
-// total - see the design spec's §2.5. The slide's own numbers live in
-// lib/motion/step-transition.ts, shared with the wizard. id/tabIndex are
-// the skip link's landing target.
+// Slide timing lives in lib/motion/step-transition.ts, shared with the
+// wizard. id/tabIndex are the skip link's landing target.
 const DaySlide = ({ state, reduceMotion }: DaySlideProps) => (
   <motion.main
     id="main-content"
@@ -123,11 +106,8 @@ const DaySlide = ({ state, reduceMotion }: DaySlideProps) => (
   </motion.main>
 );
 
-// DaySlide is keyed on `date` so prev/next navigation remounts it and its
-// `initial` slide replays; `useReducedMotion` collapses that to an instant,
-// motion-free swap. The action bar sits outside it deliberately: it must
-// stay pinned while the day's content scrolls and slides underneath, and it
-// only exists for today - there is no way to log into the past.
+// Keyed on `date` so day navigation remounts DaySlide and replays its slide.
+// Action bar sits outside it: stays pinned while content slides underneath.
 export const DayView = ({ date }: DayViewProps) => {
   const state = useDayLog(date);
   const reduceMotion = useReducedMotion();

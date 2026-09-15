@@ -19,11 +19,8 @@ type AppHeaderProps =
 
 const HEADER_CLASS = "flex h-16 items-center justify-between border-b border-border px-4";
 
-// The day being viewed is what the screen is "about", so its label is the
-// h1 - matching BackHeader, which already titles its screens with one
-// (found via /accessibility, 2026-09-10; axe: page-has-heading-one). The
-// edge-pull classes align the outer carets/icons with the body content
-// column below (found via /layout + /critique, 2026-09-10).
+// Day label is the h1, matching BackHeader's screens-title convention.
+// Edge-pull classes align the outer icons with the body content column.
 const DayHeader = ({ date }: { date: string }) => (
   <header className={HEADER_CLASS}>
     <div className={`flex items-center gap-1 ${ICON_ROW_EDGE_PULL_LEFT}`}>

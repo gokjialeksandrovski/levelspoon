@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/day-macros.tsx
 "use client";
 
 import { useId, useState } from "react";
@@ -10,13 +9,8 @@ import { macroGramShares, type MacroShares } from "./day-macros.utils";
 
 const round = (value: number): number => Math.round(value);
 
-// Five steps, ordered smallest to largest. A five-way split of the 0-1
-// share range gives visibly distinct sizes without needing more steps than
-// three figures ever justify (spec §4.2's "hierarchy from type, not
-// containers"). The lowest step is the legibility floor (spec §10) - even a
-// near-zero share stays readable, never shrinking below text-lg. Share is
-// gram-based (see day-macros.utils.ts), matching the number printed right
-// next to it.
+// Five-way split of the 0-1 share range (spec §4.2). Lowest step is the
+// legibility floor (spec §10) - never shrinks below text-lg.
 const SIZE_STEPS = ["text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"] as const;
 const SIZE_STEP_COUNT = SIZE_STEPS.length;
 
@@ -32,10 +26,7 @@ interface MacroFigureProps {
   accentClass: string;
 }
 
-// P/C/F label stays adjacent to every figure unconditionally - the
-// colorblind-redundancy requirement from spec §3.4 applied directly, since
-// three adjacent accent-coded figures is the worst case for accents
-// converging for someone who can't distinguish hue at all.
+// P/C/F label always adjacent - colorblind-redundancy requirement, spec §3.4.
 const MacroFigure = ({ label, grams, share, accentClass }: MacroFigureProps) => (
   <span className={`font-display font-semibold ${macroFigureSizeClass(share)} ${accentClass}`}>
     {label} {grams}g
@@ -45,18 +36,12 @@ const MacroFigure = ({ label, grams, share, accentClass }: MacroFigureProps) => 
 const PERCENT_SCALE = 100;
 const segmentWidth = (share: number): string => `${share * PERCENT_SCALE}%`;
 
-// The rule always spans the full width and is a composition of the day's
-// calories, never a fill toward a target - there is no target concept in
-// this app (spec §9), and a full-width tri-color bar reading as an
-// incomplete-quantity fill was explicitly rejected in the day-view design
-// pass (spec §4.2).
+// Always full-width, a composition not a fill toward a target - no target
+// concept in this app (spec §9).
 //
-// No minimum-segment-width floor: a macro at a very small share renders as
-// a proportionally thin sliver rather than being padded up to a visible
-// minimum. Spec §10 leaves this open deliberately ("whether the segmented
-// rule needs a minimum segment width, or whether a sub-threshold macro's
-// segment drops out entirely") - resolve it here only if real data makes a
-// sliver actually look broken, not preemptively.
+// No minimum-segment-width floor: a tiny share renders as a thin sliver
+// rather than padded up. Spec §10 leaves this open; revisit only if real
+// data makes a sliver look broken.
 const SegmentedRule = ({ shares }: { shares: MacroShares }) => (
   <div className="mt-2 flex h-1 w-full overflow-hidden rounded-full" role="presentation">
     <div className="bg-accent-protein" style={{ width: segmentWidth(shares.protein) }} />
@@ -65,10 +50,8 @@ const SegmentedRule = ({ shares }: { shares: MacroShares }) => (
   </div>
 );
 
-// Always rendered, hidden until expanded, so the toggle's aria-controls can
-// point at a real element in both states (found via /accessibility,
-// 2026-09-10). `hidden` also drops it from the accessibility tree while
-// collapsed, matching what a sighted user sees.
+// Always rendered so aria-controls points at a real element in both states;
+// `hidden` also drops it from the a11y tree while collapsed.
 const ExpandedLine = ({ total, id, expanded }: { total: NutritionValues; id: string; expanded: boolean }) => (
   <p id={id} className={`mt-1 text-sm tabular-nums text-text-muted ${expanded ? "" : "hidden"}`}>
     Sugars {round(total.sugarsG)}g · Saturates {round(total.saturatesG)}g · Salt {total.saltG.toFixed(1)}g
@@ -83,22 +66,12 @@ interface MacroFiguresProps {
   onToggle: () => void;
 }
 
-// The tap-to-toggle affordance: the whole P/C/F line is the button, and its
-// own aria-expanded state (not a separate chevron) communicates whether the
-// expanded sugars/saturates/salt line is showing. aria-controls names that
-// line so a screen reader can tell what the button operates (found via
-// /accessibility, 2026-09-10).
+// Whole P/C/F line is the button; aria-expanded + aria-controls tell a
+// screen reader what it operates.
 //
-// -my-2/py-2 grows the tappable area to ui-ux-pro-max's 44px floor without
-// growing the row itself, mirroring ingredient-row's negative-margin trick
-// (TAP_HIT_AREA_SM) - not that constant itself, since this button's height
-// is data-driven (macroFigureSizeClass), not a fixed text-sm line-height.
-// Solved for the worst case: the smallest figure size (text-lg, 28px
-// line-height) still needs to clear 44px, so py-2 (8px*2=16) is the floor;
-// on days where a figure renders larger, the button is taller still, same
-// as today (found via ui-ux-pro-max review, 2026-09-10). FOCUS_RING is the
-// shared branded focus outline - the button previously fell back to the
-// browser's own thin default.
+// -my-2/py-2 grows the tap area to the 44px floor without growing the row -
+// py-2 (16px) covers the worst case, the smallest figure (text-lg, 28px
+// line-height). FOCUS_RING is the shared branded focus outline.
 const MacroFigures = ({ total, shares, expanded, detailsId, onToggle }: MacroFiguresProps) => (
   <button
     type="button"
@@ -113,9 +86,7 @@ const MacroFigures = ({ total, shares, expanded, detailsId, onToggle }: MacroFig
   </button>
 );
 
-// A day with no meals has no shape to show - the macro line and rule
-// collapse entirely rather than rendering a zero-width bar or a flat grey
-// placeholder (spec §4.2's empty state).
+// No meals: collapse entirely rather than render a zero-width bar (spec §4.2).
 export const DayMacros = ({ total }: { total: NutritionValues }) => {
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();

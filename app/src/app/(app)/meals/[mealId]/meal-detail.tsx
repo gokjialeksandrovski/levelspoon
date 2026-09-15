@@ -187,8 +187,7 @@ const MealDetailContent = ({ state, mealId, reloadCounter, onIngredientChanged }
 };
 
 // Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody, so
-// a fast fetch doesn't flash "Loading…" then jump-cut to content
-// (/critique, 2026-09-10).
+// a fast fetch doesn't flash "Loading…" then jump-cut to content.
 const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");

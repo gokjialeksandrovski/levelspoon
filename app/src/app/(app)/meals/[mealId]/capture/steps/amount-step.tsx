@@ -47,10 +47,8 @@ interface AmountStepCallbacks {
   setIsBusy: (isBusy: boolean) => void;
 }
 
-// Standalone (not a hook) so useAmountStepForm's own body stays under the
-// line budget - takes a bundled callbacks object rather than a hook's
-// internal state, mirroring ingredient-row.tsx's existing callback-
-// injection shape (MutationCallbacks).
+// Standalone, not a hook, so useAmountStepForm's body stays under the line
+// budget - bundled callbacks object, mirroring ingredient-row.tsx's shape.
 const estimateAmount = async (photo: File, onEstimated: (value: string) => void, callbacks: AmountStepCallbacks): Promise<void> => {
   callbacks.setIsBusy(true);
   callbacks.setError(null);
@@ -90,8 +88,7 @@ const commitAmountSave = async (
   onSaved();
 };
 
-// Exported (was previously module-private) so amount-step.test.ts can call
-// it directly, same posture as this file's existing estimateAmount.
+// Exported so amount-step.test.ts can call it directly.
 export const saveAmount = async (input: SaveAmountInput, dispatch: (action: WizardAction) => void, onSaved: () => void, callbacks: AmountStepCallbacks): Promise<void> => {
   callbacks.setError(null);
   callbacks.setIsBusy(true);
@@ -114,11 +111,9 @@ interface ResolveAndSaveInput {
   source: "ai_estimated" | "manual";
 }
 
-// Splits the "turn a typed count+unit into a savable quantity" step out of
-// saveAmount (which only ever deals in an already-resolved quantity+unit)
-// rather than folding resolveQuantity's call into the hook below - same
-// reasoning as estimateAmount: an async, independently testable, DI'd unit
-// of work.
+// Splits "turn typed count+unit into a savable quantity" out of saveAmount
+// (which only deals in an already-resolved quantity+unit) as its own
+// testable, DI'd unit of work.
 export const resolveAndSaveAmount = async (
   input: ResolveAndSaveInput,
   dispatch: (action: WizardAction) => void,

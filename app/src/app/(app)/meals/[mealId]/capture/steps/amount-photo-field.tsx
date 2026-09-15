@@ -1,4 +1,3 @@
-// app/src/app/(app)/meals/[mealId]/capture/steps/amount-photo-field.tsx
 "use client";
 
 import { useState } from "react";
@@ -83,10 +82,8 @@ const AiConsentSheet = ({ open, onAgree, onDecline }: AiConsentSheetProps) => (
   </Sheet>
 );
 
-// The OS picker still opens on tap (that's local); the chosen file is held
-// and only handed on - i.e. only sent for estimation - once the user agrees
-// to the terms. "Not now" discards it and bumps resetKey so PhotoInput
-// remounts and drops the preview it showed for the not-yet-consented photo.
+// Chosen file is held and only sent for estimation once the user agrees to
+// the terms. "Not now" discards it and remounts PhotoInput via resetKey.
 const useAmountPhotoGate = (onSelect: (photo: File) => void) => {
   const [heldPhoto, setHeldPhoto] = useState<File | null>(null);
   const [resetKey, setResetKey] = useState(0);

@@ -168,14 +168,9 @@ interface AnimatedStepProps {
   children: React.ReactNode;
 }
 
-// Moves focus to the step container on every step change after the first,
-// so a keyboard or screen-reader user who just pressed "Continue" isn't
-// dropped back to the document body - they land at the top of the step
-// that just appeared and its <h2> is read out (found via /accessibility,
-// 2026-09-10). The first run is skipped so arriving at the wizard doesn't
-// yank focus off the page start on load. The key change on the returned
-// node already remounts it per step, and the effect re-runs against the
-// fresh ref because stepKind is in its dependency list.
+// Moves focus to the step container on every step change after the first, so
+// a keyboard/screen-reader user isn't dropped back to the document body.
+// First run is skipped so arriving at the wizard doesn't yank focus on load.
 const useFocusOnStepChange = (stepKind: WizardStep["kind"]) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInitialStep = useRef(true);
@@ -209,10 +204,8 @@ const AnimatedStep = ({ stepKind, reduceMotion, children }: AnimatedStepProps) =
   );
 };
 
-// Leaving the wizard is a real navigation now that it owns a route, so there
-// is no in-page listener left to notify: the destination remounts and fetches
-// for itself. A meal created by the action bar but never filled in is deleted
-// on the way out so it never shows up as an empty row on the day view.
+// A meal created by the action bar but never filled in is deleted on the way
+// out so it never shows up as an empty row on the day view.
 const useWizardExit = (mealId: string, savedCount: number, today: string) => {
   const router = useRouter();
 
@@ -241,9 +234,8 @@ interface UseCaptureWizardResult {
   savedCount: number;
 }
 
-// Bundles the wizard's own path/save-count state and its exit strategy into
-// one hook, purely so CaptureWizard's own body stays under the line budget -
-// every value here is still just what CaptureWizard needs to render.
+// Bundles path/save-count state and exit strategy so CaptureWizard's body
+// stays under the line budget.
 const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
   const [savedCount, setSavedCount] = useState(0);

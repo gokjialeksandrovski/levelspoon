@@ -1,4 +1,3 @@
-// app/src/app/day/[date]/page.tsx
 import { notFound } from "next/navigation";
 
 import { DayView } from "./day-view";

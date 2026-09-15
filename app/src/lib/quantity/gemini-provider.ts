@@ -21,12 +21,10 @@ const MAX_RESPONSE_TOKENS = 64;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 // Gemini's flash-lite tier occasionally answers 503 "high demand" on an
-// otherwise-healthy request (confirmed 2026-09-04 via direct curl: 3/3
-// consecutive calls to gemini-3.5-flash-lite failed 503 while
-// gemini-3.5-flash succeeded immediately) - a short retry absorbs that
-// instead of surfacing a transient blip as a failure. Scoped to 503 only:
-// 429 is rate-limiting and retrying it would just hammer an already-
-// throttled key.
+// otherwise-healthy request (confirmed via direct curl: 3/3 consecutive
+// calls to flash-lite failed 503 while flash succeeded immediately) - a
+// short retry absorbs that. Scoped to 503 only: 429 is rate-limiting and
+// retrying would hammer an already-throttled key.
 const RETRYABLE_STATUS = 503;
 const MAX_FETCH_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 300;
@@ -129,9 +127,8 @@ const requestWithRetry = async (apiKey: string, photo: Buffer, mimeType: string)
 
 export class GeminiQuantityProvider implements QuantityProvider {
   async estimateGrams(photo: Buffer): Promise<number> {
-    // Both guards run before the try block, so a misconfiguration or a bad
-    // input propagates unwrapped instead of being flattened into a generic
-    // QuantityEstimationError (same posture as the OCR provider's guard).
+    // Both guards run before the try block, so misconfiguration or bad input
+    // propagates unwrapped instead of flattening into QuantityEstimationError.
     const apiKey = geminiApiKey();
     const mimeType = imageMimeType(photo);
     try {

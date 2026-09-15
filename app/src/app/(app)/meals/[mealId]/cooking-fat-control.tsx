@@ -17,8 +17,7 @@ import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
-// T3's whole-food search filters to "whole"; this is the other half of the
-// spec §5 category split - oils, butter, ghee, spray.
+// Other half of the spec §5 category split - oils, butter, ghee, spray.
 const COOKING_FAT_CATEGORY = "fat" as const;
 
 const contextFor = (food: StandardFood): MeasureContext => ({
@@ -29,10 +28,8 @@ const contextFor = (food: StandardFood): MeasureContext => ({
   nutritionBasisUnit: food.nutritionBasisUnit,
 });
 
-// Cooking fats are near-universally measured by spoon - tbsp is offered
-// first whenever the product's density resolves it (spec §8 T4). Falls back
-// to available-units.ts's own default (servingUnit, else grams) for a fat
-// row that has no density, which the committed fixture never actually seeds.
+// Cooking fats are near-universally measured by spoon - tbsp offered first
+// when density resolves it (spec §8), else available-units.ts's default.
 const COOKING_FAT_PREFERRED_UNIT = "tbsp";
 
 export const initialCookingUnit = (context: MeasureContext): string => {
@@ -64,8 +61,7 @@ const commitCookingFat = async (input: SaveCookingFatInput, onSaved: () => void)
   onSaved();
 };
 
-// Always "manual": there is no photo estimate on this path (spec §7's unit-
-// choice-is-manual-entry rule, with no ai_estimated branch at all here).
+// Always "manual" - no photo estimate on this path (spec §7).
 export const saveCookingFat = async (
   input: SaveCookingFatInput,
   onSaved: () => void,
@@ -230,9 +226,8 @@ const useCookingFatAmount = (mealId: string, food: StandardFood, onSaved: () => 
   return { count, unit, units: availableUnits(context), error, isBusy, setCount, setUnit, handleSave };
 };
 
-// Keyed by food.id in CookingFatSheet below, so picking a different result
-// remounts this with fresh state instead of needing an effect to reset it -
-// the same pattern meal-detail.tsx already uses for DayTotalBar.
+// Keyed by food.id in CookingFatSheet so a different result remounts this
+// with fresh state, no reset effect needed.
 const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmountStageProps) => {
   const { count, unit, units, error, isBusy, setCount, setUnit, handleSave } = useCookingFatAmount(
     mealId,

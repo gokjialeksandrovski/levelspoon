@@ -7,9 +7,8 @@ interface SheetProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  // Rendered below the scroll area, pinned to the sheet's bottom edge.
-  // For actions that must stay reachable when the body overflows a short
-  // screen (the AI consent terms) - short sheets can ignore it.
+  // Pinned below the scroll area for actions that must stay reachable when
+  // the body overflows a short screen (e.g. AI consent terms).
   footer?: React.ReactNode;
 }
 
@@ -27,24 +26,16 @@ const useDialogSync = (ref: React.RefObject<HTMLDialogElement | null>, open: boo
   }, [ref, open]);
 };
 
-// pb reserves env(safe-area-inset-bottom) the way DayActionBar already does -
-// a bottom sheet is the surface most likely to sit over a phone's
-// home-indicator gesture bar (found via /critique, 2026-09-10). 1.25rem
-// matches p-5 so the floor is unchanged with no inset. mx-auto centers it on
-// wide viewports (m-0 alone pinned it bottom-LEFT); mt-auto/mb-0 keep it a
-// bottom sheet. open:flex + flex-col + max-h let the body scroll between a
-// fixed title and a fixed footer - `open:` not a bare `flex`, because an
-// author display value would beat the UA `dialog:not([open]){display:none}`
-// and leave the closed sheet laid out, intercepting clicks (found via
-// /critique, 2026-09-10).
+// pb reserves safe-area-inset-bottom (bottom sheets sit over the home
+// indicator); 1.25rem matches p-5 so the floor is unchanged with no inset.
+// mx-auto centers on wide viewports - m-0 alone pins it bottom-LEFT.
+// open:flex (not bare flex) is required: a bare `flex` would beat the UA's
+// `dialog:not([open]){display:none}` and leave the closed sheet clickable.
 const DIALOG_CLASS =
   "mx-auto mb-0 mt-auto max-h-[85dvh] w-full max-w-md flex-col rounded-t-(--radius-surface) border border-border bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-text open:flex backdrop:bg-black/50";
 
-// The scroll wrapper takes tabIndex only when a footer marks this as a
-// potentially-long sheet - the body then genuinely scrolls and a keyboard
-// user needs to focus it to scroll with the arrow keys (axe:
-// scrollable-region-focusable). Short sheets don't scroll, so they skip the
-// extra tab stop.
+// tabIndex only when a footer marks this as scrollable, so keyboard users
+// can focus the body to scroll it (axe: scrollable-region-focusable).
 const SheetBody = ({ title, children, footer }: Pick<SheetProps, "title" | "children" | "footer">) => (
   <>
     <h2 className="mb-3 shrink-0 text-base font-semibold">{title}</h2>

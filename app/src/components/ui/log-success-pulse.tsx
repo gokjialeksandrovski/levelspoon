@@ -5,22 +5,15 @@ import { motion, useReducedMotion } from "motion/react";
 const PULSE_DURATION_SECONDS = 0.15;
 
 interface LogSuccessPulseProps {
-  // An incrementing counter, not a boolean - motion/react's animate prop
-  // needs the value itself to change to retrigger, and two saves in a row
-  // both need their own pulse even if the first one is still finishing.
+  // Incrementing counter, not boolean: motion/react's animate prop needs the
+  // value itself to change to retrigger on back-to-back saves.
   trigger: number;
 }
 
-// Non-blocking: this renders inline and never delays onSaved()'s
-// navigation (spec §2.5, motion category 2 of 2). Fixed-position so it
-// doesn't affect layout while animating.
-//
-// Reduced-motion gating is explicit here (unlike the step-transition
-// surfaces, this app's MotionConfig reducedMotion="user" only auto-gates
-// transform/layout animations, not opacity): a purely decorative flash has
-// no informational content worth preserving, so it renders nothing at all
-// and the haptic (fired independently in saveAmount) remains the
-// reduced-motion-safe feedback channel.
+// Non-blocking, fixed-position flash (spec §2.5) - never delays onSaved()'s
+// navigation or affects layout.
+// Reduced-motion renders nothing: MotionConfig only auto-gates
+// transform/layout, not opacity, and the haptic in saveAmount covers feedback.
 export const LogSuccessPulse = ({ trigger }: LogSuccessPulseProps) => {
   const reduceMotion = useReducedMotion();
 

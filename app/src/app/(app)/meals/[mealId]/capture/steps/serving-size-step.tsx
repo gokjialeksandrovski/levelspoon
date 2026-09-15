@@ -25,12 +25,9 @@ const UNPARSEABLE_ANSWER_ERROR =
 const SAVE_ERROR = "Could not work out the serving size. Please try again.";
 const PREFILL_DECIMALS = 2;
 
-// unitName is non-null whenever resolveGrams recognised the household unit
-// but has no density or learned weight to convert it - "tbsp" for a product
-// with no known density, say. That is a different problem than unparseable
-// text, and telling the user to retype the very thing they already typed
-// (see bug: Nutella's "2 Tablespoon" rejected with the generic message) is
-// the wrong fix; asking for a weight instead is the only way to resolve it.
+// unitName is non-null when resolveGrams recognised the unit but has no
+// density/learned weight to convert it - a different problem than unparseable
+// text, so ask for a weight instead of telling the user to retype it.
 const measurementSuggestion = (unitName: string | null): string =>
   unitName === null
     ? "Accepts 52g, 1.8 oz, or 2 tbsp"
@@ -55,10 +52,8 @@ interface ServingSizeCallbacks {
   dispatch: (action: WizardAction) => void;
 }
 
-// Standalone (not nested inside the hook) so both this function's own body
-// and useServingSizeStep's own body stay under the line budget - this was
-// previously a 23-line closure nested inside the component, which ESLint
-// flags independently of its container's own size.
+// Standalone, not nested in the hook, so both this and useServingSizeStep
+// stay under the line budget.
 const submitServingSizeAnswer = async (answer: string, servingSizeText: string, perServing: NutritionValues, name: string, photo: Blob, callbacks: ServingSizeCallbacks): Promise<void> => {
   callbacks.onError(null);
   callbacks.onResolvingChange(true);

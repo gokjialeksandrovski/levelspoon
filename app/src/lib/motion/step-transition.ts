@@ -1,12 +1,6 @@
-// app/src/lib/motion/step-transition.ts
-//
-// The one horizontal-slide recipe shared by two of the app's four
-// motion/react surfaces - the day view's prev/next swap and the capture
-// wizard's step advance, both pre-existing; the 2026-09-05 re-theme added
-// two more (Button's press-feedback spring, LogSuccessPulse's log-success
-// pulse) that don't need this shared recipe - see the design spec's §2.5.
-// Extracted here so the second caller reuses the first's numbers instead of
-// restating them.
+// Shared horizontal-slide recipe for the day view's prev/next swap and the
+// capture wizard's step advance (design spec §2.5), so the second caller
+// reuses the first's numbers instead of restating them.
 import type { Transition } from "motion/react";
 
 export const SLIDE_OFFSET_PX = 24;
@@ -34,12 +28,9 @@ export const slideInitial = (reduceMotion: boolean | null): { opacity: number; x
 export const slideTransition = (reduceMotion: boolean | null): Transition =>
   reduceMotion ? { duration: 0 } : { duration: TRANSITION_DURATION_SECONDS, ease: TRANSITION_EASE };
 
-// A second, quieter recipe for content that resolves *inside* an
-// already-moving surface (a loading state swapping to real data) - the day
-// view and history's loading→ready swap, both added 2026-09-09 alongside
-// useDelayedSkeleton. Deliberately shorter than the slide above and
-// opacity-only: ui-ux-pro-max's exit-faster-than-enter rule puts an
-// inner event at ~60-70% of the surface's own entrance (0.18/0.26 ≈ 69%).
+// Quieter recipe for content resolving *inside* an already-moving surface
+// (a loading→ready swap). Deliberately shorter and opacity-only: an inner
+// event should land at ~60-70% of the surface's own entrance (0.18/0.26 ≈ 69%).
 const CONTENT_FADE_DURATION_SECONDS = 0.18;
 
 export const contentFadeInitial = (reduceMotion: boolean | null): { opacity: number } | false =>

@@ -11,15 +11,13 @@ import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 import { signOutAction } from "./account-menu.actions";
 
 // `session` starts undefined while next-auth resolves the client session
-// (and Auth.js types `user.email` itself as nullable), so this reads "..."
-// briefly rather than crashing on `session.user.email`.
+// (Auth.js types `user.email` as nullable), so this reads "..." briefly.
 const AccountEmail = ({ email }: { email: string | null | undefined }) => (
   <p className="mb-4 text-sm text-text-muted">{email ?? "..."}</p>
 );
 
 // Split out of AccountMenu purely for the line budget once the 44px hit
-// target grew this past a single-line button (ui-ux-pro-max review,
-// 2026-09-10).
+// target grew this past a single-line button.
 const AccountTrigger = ({ open, onOpen }: { open: boolean; onOpen: () => void }) => (
   <button type="button" onClick={onOpen} aria-label="Account" aria-expanded={open} className={ICON_TAP_TARGET_CLASS}>
     <UserCircleIcon />

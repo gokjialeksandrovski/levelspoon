@@ -38,12 +38,9 @@ const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]
   return result.flags;
 };
 
-// Guards two distinct failure shapes with the same fallback: no photoUrl at
-// all (product has none), and a photoUrl that fails to actually load (a
-// stale/expired presigned URL, a deleted object) - the latter previously had
-// no handling and rendered a bare broken-image glyph instead of this message
-// (confirmed live - a 404'd URL still resolves, then fires onError once the
-// browser gives up loading it; found via /critique, 2026-09-10).
+// Guards two failure shapes with the same fallback: no photoUrl at all, and
+// one that fails to load (stale presigned URL, deleted object) - the latter
+// otherwise renders a bare broken-image glyph.
 const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; productName: string }) => {
   const [failedToLoad, setFailedToLoad] = useState(false);
 
@@ -123,10 +120,8 @@ const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProp
   </>
 );
 
-// The meal-detail page a user lands back on is served from the client
-// Router Cache; without a refresh it would show pre-correction values.
-// Standalone (not nested inside the hook) so both this function's own body
-// and useCorrectionForm's own body stay under the line budget.
+// meal-detail is served from the client Router Cache; without a refresh it
+// would show pre-correction values.
 const applyCorrection = async (
   product: ProductForCorrection,
   name: string,

@@ -53,13 +53,10 @@ const timeZoneOffsetMinutes = (instant: Date, timeZone: string): number => {
 const localMidnightUtcInstant = (date: string, timezone: string): Date => {
   const [year, month, day] = date.split("-").map(Number);
   const naiveGuess = Date.UTC(year, month - 1, day);
-  // A DST transition between `naiveGuess` and the true local-midnight instant
-  // can mean the offset sampled at `naiveGuess` isn't the offset actually in
-  // effect at local midnight itself (verified against Australia/Sydney's
-  // October DST-start, where a single fixed sample is off by the DST delta).
-  // Resampling at the corrected instant and re-applying converges to the
-  // right offset - real-world zones never have two transitions close enough
-  // together for this to need more than one resample.
+  // A DST transition between `naiveGuess` and true local midnight can mean
+  // the sampled offset isn't the one in effect at midnight itself (verified
+  // against Sydney's October DST-start). Resampling at the corrected instant
+  // converges - no real-world zone has two transitions close enough for more.
   const firstOffsetMinutes = timeZoneOffsetMinutes(new Date(naiveGuess), timezone);
   const secondOffsetMinutes = timeZoneOffsetMinutes(
     new Date(naiveGuess - firstOffsetMinutes * MINUTES_TO_MS),

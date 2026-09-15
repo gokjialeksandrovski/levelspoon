@@ -1,9 +1,5 @@
-// app/src/app/(app)/day/[date]/day-macros.test.ts
-//
-// This repo doesn't render components in tests (vitest runs in a node
-// environment, no jsdom - see vitest.config.ts). This test instead locks in
-// the type-size mapping function that DayMacros' JSX will call, so the
-// visual rule ("larger share -> larger type") is verified without a DOM.
+// No jsdom in this repo's tests - locks in the size-mapping function DayMacros'
+// JSX calls, verifying "larger share -> larger type" without a DOM.
 import { describe, expect, it } from "vitest";
 
 import { macroFigureSizeClass } from "./day-macros";

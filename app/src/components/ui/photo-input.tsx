@@ -7,10 +7,8 @@ import { type ChangeEvent, useId, useState } from "react";
 interface PhotoInputProps {
   label: string;
   onSelect: (photo: File) => void;
-  // Persistent guidance shown under the dropzone and linked to the file
-  // input via aria-describedby. Used by the amount step to disclose, before
-  // anyone opts in, that the photo estimate is a rough guess and that the
-  // image is sent to a third-party service (found via /accessibility, 2026-09-10).
+  // Guidance shown under the dropzone, linked via aria-describedby - used to
+  // disclose the rough-estimate/third-party-service caveat before opt-in.
   hint?: string;
 }
 
@@ -52,9 +50,7 @@ const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
   </label>
 );
 
-// Standalone handler, not a hook, since previewUrl is the component's only
-// piece of state - mirrors the same shape used elsewhere in this pass for
-// single-flag handlers.
+// Standalone handler, not a hook: previewUrl is the component's only state.
 const handlePhotoChange = (
   event: ChangeEvent<HTMLInputElement>,
   onSelect: (photo: File) => void,
@@ -67,9 +63,8 @@ const handlePhotoChange = (
   }
   setPreviewUrl(URL.createObjectURL(file));
   onSelect(file);
-  // Clear the input so picking the same file again still fires `change` -
-  // otherwise a retry (e.g. after declining the AI terms, or after a failed
-  // estimate) with the identical photo does nothing.
+  // Clears the input so re-picking the same file still fires `change` -
+  // otherwise a retry after declining consent or a failed estimate does nothing.
   input.value = "";
 };
 

@@ -1,7 +1,5 @@
-// Resolves the project's .venv Python explicitly, so `npm run` scripts work
-// regardless of whether the venv is activated or what else sits on PATH -
-// a system Python with none of the project's dependencies was resolving
-// first on this machine.
+// Resolves .venv's Python explicitly so `npm run` scripts work regardless of
+// PATH - a system Python with none of the project's deps was resolving first.
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 

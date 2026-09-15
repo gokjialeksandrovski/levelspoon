@@ -16,9 +16,8 @@ interface StandardFoodSearchStepProps {
   dispatch: (action: PathAction) => void;
 }
 
-// T3 is the "whole food, no packaging" entry point; cooking fats/oils get
-// their own T4 affordance (category "fat") on meal-detail, so this step
-// filters to "whole" to keep the two pick lists from overlapping.
+// Cooking fats/oils get their own "fat"-category affordance on meal-detail,
+// so this filters to "whole" to keep the two pick lists from overlapping.
 const WHOLE_FOOD_CATEGORY = "whole" as const;
 
 interface SearchCallbacks {

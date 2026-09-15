@@ -27,15 +27,9 @@ export const FLAG_TO_FIELD: Record<string, keyof NullableNutritionValues> = {
 export type FieldValues = Record<keyof NullableNutritionValues, string>;
 
 // Two decimals, not one: an EU label's own figures (e.g. Salt 0.18g) are
-// already exactly what the manufacturer printed - not noise, and salt in
-// particular is meaningful to the second decimal - so rounding to one would
-// silently discard real label data. Scaling a US per-serving label to
-// per-100g produces genuine noise instead (200 kcal over a 37g serving is
-// 540.5405405405405); two decimals is still enough to clean that up. This
-// also matches the DB columns' own numeric(10, 2) precision - rounding
-// tighter than that would already be losing data the schema was built to
-// hold. Since these strings are both what the confirm step shows and what
-// it saves, this is the one rounding pass for both.
+// printed data, not noise - rounding to one digit would discard it. Also
+// matches the DB's numeric(10, 2) columns, and this is the one rounding
+// pass for both what the confirm step shows and what it saves.
 const DISPLAY_DECIMALS = 2;
 
 const toDisplayValue = (value: number | null): string =>
@@ -64,10 +58,8 @@ export const flaggedFieldSet = (flags: string[]): Set<keyof NullableNutritionVal
       .filter((field): field is keyof NullableNutritionValues => Boolean(field)),
   );
 
-// When a save is blocked by fresh flags, move focus to the first flagged
-// input so a keyboard or screen-reader user is taken straight to the field
-// that needs a fix rather than having to hunt for it after the alert
-// (found via /accessibility, 2026-09-10). Field renders <input id={name}>,
+// Moves focus to the first flagged input so a keyboard/screen-reader user
+// lands on the field that needs fixing. Field renders <input id={name}>,
 // so the flag name is the element id.
 export const focusFirstFlagged = (flags: string[]): void => {
   const flaggedFields = flaggedFieldSet(flags);

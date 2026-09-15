@@ -1,4 +1,3 @@
-// app/src/app/signin/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -33,9 +32,7 @@ interface SignInCardProps {
   onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
-// autoComplete lets a password manager fill this reliably - "current-password"
-// (not "new-password") because this is the sign-in form (found via
-// /accessibility, 2026-09-10).
+// "current-password", not "new-password", since this is the sign-in form.
 const SignInCard = ({ error, pending, onSubmit }: SignInCardProps) => (
   <div className="flex flex-col gap-4 rounded-surface border border-border bg-surface p-6">
     <h1 className="text-xl font-semibold text-text">Sign in</h1>
@@ -50,9 +47,8 @@ const SignInCard = ({ error, pending, onSubmit }: SignInCardProps) => (
   </div>
 );
 
-// The brand mark, not UI chrome - spec §2.3 reserves Bricolage Grotesque
-// for display headings, and this is the one place in the app that's pure
-// wordmark (found via /critique, 2026-09-10).
+// Brand mark, not UI chrome - spec §2.3 reserves Bricolage Grotesque for
+// display headings; this is the one place that's pure wordmark.
 const Wordmark = () => <p className="text-center font-display text-lg font-semibold text-text">Per100</p>;
 
 const SignInPage = () => {

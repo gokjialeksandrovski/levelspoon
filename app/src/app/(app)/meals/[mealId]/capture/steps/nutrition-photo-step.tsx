@@ -47,10 +47,8 @@ interface OcrNutritionCallbacks {
   dispatch: (action: WizardAction) => void;
 }
 
-// Standalone (not a hook, not nested inside one) so both this function's own
-// body and useNutritionPhotoStep's own body stay under the line budget -
-// this was previously a single 31-line closure nested inside the component,
-// which ESLint flags independently of its container's own size.
+// Standalone, not nested in a hook, so both this and useNutritionPhotoStep
+// stay under the line budget - ESLint flags a nested closure's size too.
 const handleNutritionPhoto = async (selected: File, nameGuess: string, netWeightText: string | null, callbacks: OcrNutritionCallbacks): Promise<void> => {
   callbacks.onPhotoSelected(selected);
   callbacks.onError(null);

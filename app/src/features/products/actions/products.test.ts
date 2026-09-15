@@ -98,7 +98,7 @@ describe("matchProduct", () => {
   });
 
   it("routes the 2%-vs-10% variant pair to ambiguous, not confident", async () => {
-    // Measured directly against these two exact seeded strings (2026-08-28):
+    // Measured against these exact seeded strings:
     // similarity("Olympus Greek Yogurt Fat", "...2% Fat") ~= 0.926
     // similarity("Olympus Greek Yogurt Fat", "...10% Fat") ~= 0.893
     // margin ~= 0.033, well under CONFIDENT_MARGIN (0.15) -> ambiguous.

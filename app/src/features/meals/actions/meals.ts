@@ -303,12 +303,9 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   nutritionBasisUnit: row.measures.nutritionBasisUnit,
 });
 
-// The upper bound is read back out of the meal's own row in SQL rather than
-// bound as a JS value: Postgres keeps `timestamp` to microseconds while a JS
-// Date only carries milliseconds, so a parsed-then-rebound createdAt is
-// *earlier* than the row it came from whenever defaultNow() landed off a whole
-// millisecond - which excluded the meal from its own count and made every
-// number one too low (the first meal of a day rendered as "Meal 0").
+// Upper bound is read back in SQL, not bound as a JS value: Postgres keeps
+// microsecond precision but a JS Date only carries milliseconds, so a
+// rebound createdAt could exclude the meal from its own count.
 const mealNumberInLocalDay = async (
   userId: string,
   mealId: string,
@@ -395,9 +392,8 @@ export interface DayHistoryPage {
   nextOffset: number | null;
 }
 
-// A `type` alias (not `interface`) so it structurally satisfies db.execute's
-// `Record<string, unknown>` constraint - matching matchProduct's CandidateRow
-// precedent for raw sql`` row shapes.
+// `type` (not `interface`) so it structurally satisfies db.execute's
+// `Record<string, unknown>` constraint, matching CandidateRow's precedent.
 type DayHistoryRow = {
   local_date: string | Date;
   total_kcal: string;
@@ -405,10 +401,8 @@ type DayHistoryRow = {
 
 const ISO_DATE_LENGTH = 10; // "YYYY-MM-DD".length
 
-// Postgres's `date` type comes back from `pg` as a JS Date at UTC midnight in
-// some driver/type-parser configurations and as a string in others; handling
-// both here keeps this correct regardless of which applies. (Verified against
-// this project's actual db.execute path: it returns a string.)
+// Postgres's `date` type can come back as a JS Date (UTC midnight) or a
+// string depending on driver config; this handles both regardless of which.
 const toLocalDateString = (value: string | Date): string =>
   value instanceof Date ? value.toISOString().slice(0, ISO_DATE_LENGTH) : value;
 

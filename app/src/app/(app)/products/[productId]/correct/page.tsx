@@ -1,4 +1,3 @@
-// app/src/app/products/[productId]/correct/page.tsx
 import { notFound } from "next/navigation";
 
 import { getProductForCorrection } from "@/features/products/actions/products";

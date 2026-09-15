@@ -1,4 +1,3 @@
-// app/src/app/meals/[mealId]/delete-meal.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -42,10 +41,8 @@ interface DeleteMealCallbacks {
   onError: (message: string | null) => void;
 }
 
-// A failed delete keeps the sheet open with an inline error instead of
-// silently doing nothing or navigating away from an intact meal (rule 18 /
-// rule 10). Navigates to the meal's own local day - not necessarily today -
-// so deleting a meal reached from History returns to the day it came from.
+// Navigates to the meal's own local day, not necessarily today, so a delete
+// reached from History returns to the day it came from.
 const deleteMealAndNavigate = async (
   mealId: string,
   mealDate: string,
