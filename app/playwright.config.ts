@@ -1,4 +1,6 @@
 // app/playwright.config.ts
+import path from "node:path";
+
 import { config } from "dotenv";
 import { defineConfig, devices } from "@playwright/test";
 
@@ -8,6 +10,12 @@ import { defineConfig, devices } from "@playwright/test";
 // Playwright (unlike Vitest) never loads .env.local on its own.
 config({ path: ".env.local" });
 
+// Committed fixture (spec 2026-09-15-barcode-scanning-design T2) - a real,
+// decodable EAN-13, not a blank clip. Chromium loops this file for every
+// getUserMedia call made anywhere in the suite; only barcode-scanner.spec.ts
+// actually calls it, so this is inert for every other spec file.
+const FAKE_BARCODE_VIDEO = path.resolve("../fixtures/barcodes/product-barcode.y4m");
+
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: [
@@ -16,6 +24,7 @@ export default defineConfig({
     "history.spec.ts",
     "day-view.spec.ts",
     "product-correction.spec.ts",
+    "barcode-scanner.spec.ts",
   ],
   fullyParallel: false,
   // Every spec file's `beforeEach` truncates the same shared Postgres tables,
@@ -26,7 +35,32 @@ export default defineConfig({
   // while this config listed only one spec file - now that it lists two.
   workers: 1,
   use: { baseURL: "http://localhost:3000" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // Playwright's own CDP-level grant. Kept alongside the launch flags
+        // below for defense in depth, but --use-fake-ui-for-media-stream is
+        // what actually makes getUserMedia() succeed deterministically here -
+        // without it, headless Chromium rejects getUserMedia() nondeterministically
+        // even with this permission granted (observed empirically: repeated,
+        // isolated runs of the live-scan test failed with a real denial ~every
+        // time until this flag was added). Because that flag auto-accepts every
+        // getUserMedia() call unconditionally, context.clearPermissions() alone
+        // can no longer simulate a denial - the one test that needs a real
+        // denial stubs getUserMedia() directly instead (see barcode-scanner.spec.ts).
+        permissions: ["camera"],
+        launchOptions: {
+          args: [
+            "--use-fake-device-for-media-stream",
+            "--use-fake-ui-for-media-stream",
+            `--use-file-for-fake-video-capture=${FAKE_BARCODE_VIDEO}`,
+          ],
+        },
+      },
+    },
+  ],
   webServer: {
     command: "npm run dev",
     url: "http://localhost:3000",

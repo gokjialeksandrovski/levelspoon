@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1119.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/postcss": "^4.3.3",
+    "barcode-detector": "^3.2.2",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "motion": "^13.1.1",
