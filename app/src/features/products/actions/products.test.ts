@@ -5,7 +5,7 @@ const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
-import { products, users } from "@/lib/db/schema";
+import { products, productBarcodes, users } from "@/lib/db/schema";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, topTwoScores, updateProduct } from "./products";
@@ -343,6 +343,59 @@ describe("createProduct", () => {
         photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
       }),
     ).rejects.toThrow();
+  });
+
+  it("creates a product with no photo, leaving nutritionPhotoKey null", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createProduct({
+      name: "Loose Banana",
+      nutritionPer100g: {
+        energyKcal: 89, fatG: 0.33, saturatesG: 0.11, carbohydrateG: 22.84,
+        sugarsG: 12.23, proteinG: 1.09, saltG: 0,
+      },
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionPhotoKey).toBeNull();
+  });
+
+  it("defaults nutritionOrigin to label_photo when not given", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createProduct({
+      name: "Fresh Milk 3.2%",
+      nutritionPer100g: {
+        energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
+      },
+      photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionOrigin).toBe("label_photo");
+  });
+
+  it("stores a given nutritionOrigin and attaches a barcode transactionally", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createProduct({
+      name: "Test Cereal",
+      nutritionPer100g: {
+        energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
+      },
+      nutritionOrigin: "open_food_facts",
+      barcode: "5901234123457",
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionOrigin).toBe("open_food_facts");
+
+    const [barcodeRow] = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, "5901234123457"));
+    expect(barcodeRow.productId).toBe(productId);
+    expect(barcodeRow.createdByUserId).toBe(userId);
   });
 });
 

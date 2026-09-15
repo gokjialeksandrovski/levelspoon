@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
-import { products, productSource } from "@/lib/db/schema";
+import { products, productBarcodes, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
@@ -30,7 +30,9 @@ export interface ProductCandidate {
   name: string;
   brand: string | null;
   nutritionPer100g: NutritionValues;
-  nutritionPhotoKey: string;
+  // Null on standard rows and on any barcode-created row with no label
+  // photo (OFF-sourced products never had one taken).
+  nutritionPhotoKey: string | null;
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
@@ -53,7 +55,7 @@ export type CandidateRow = {
   sugars_g: string;
   protein_g: string;
   salt_g: string;
-  nutrition_photo_key: string;
+  nutrition_photo_key: string | null;
   density_g_ml: string | null;
   serving_unit: string | null;
   serving_grams: string | null;
@@ -81,7 +83,7 @@ const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
   saltG: Number(row.salt_g),
 });
 
-const toProductCandidate = (row: CandidateRow): ProductCandidate => ({
+export const toProductCandidate = (row: Omit<CandidateRow, "score">): ProductCandidate => ({
   id: row.id,
   name: row.name,
   brand: row.brand,
@@ -148,13 +150,18 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
 export interface CreateProductInput {
   name: string;
   nutritionPer100g: NutritionValues;
-  photo: Blob;
+  photo?: Blob;
   /** What the label or the user taught about this product's measurements. */
   learned?: LearnedMeasures;
   /** The product's storage basis - omitted for the default per-100g
    * product, set by the capture pipeline's per-unit fallback (spec §5). */
   nutritionBasisUnit?: string;
   nutritionBasisQuantity?: number;
+  /** Set only by the barcode-scan capture path - attached to the new
+   * product's row in the same transaction as its creation (barcode spec §4). */
+  barcode?: string;
+  /** Omitted defaults to "label_photo" via the column's own DB default. */
+  nutritionOrigin?: "label_photo" | "manual" | "open_food_facts";
 }
 
 const uploadProductPhoto = async (photo: Blob): Promise<string> => {
@@ -198,26 +205,34 @@ const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValue
 const DEFAULT_NUTRITION_BASIS_UNIT = "g";
 const DEFAULT_NUTRITION_BASIS_QUANTITY = 100;
 
+const toProductInsertValues = (input: CreateProductInput, userId: string, photoKey: string | null) => ({
+  name: input.name,
+  ...toNutritionColumns(input.nutritionPer100g),
+  ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
+  nutritionBasisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
+  nutritionBasisQuantity: String(input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY),
+  nutritionPhotoKey: photoKey,
+  createdByUserId: userId,
+  ...(input.nutritionOrigin ? { nutritionOrigin: input.nutritionOrigin } : {}),
+});
+
 export const createProduct = async (
   input: CreateProductInput,
 ): Promise<{ productId: string }> => {
   const userId = await requireUserId();
-  const photoKey = await uploadProductPhoto(input.photo);
+  const photoKey = input.photo ? await uploadProductPhoto(input.photo) : null;
 
-  const [row] = await db
-    .insert(products)
-    .values({
-      name: input.name,
-      ...toNutritionColumns(input.nutritionPer100g),
-      ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
-      nutritionBasisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
-      nutritionBasisQuantity: String(input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY),
-      nutritionPhotoKey: photoKey,
-      createdByUserId: userId,
-    })
-    .returning({ id: products.id });
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(products)
+      .values(toProductInsertValues(input, userId, photoKey))
+      .returning({ id: products.id });
 
-  return { productId: row.id };
+    if (input.barcode) {
+      await tx.insert(productBarcodes).values({ barcode: input.barcode, productId: row.id, createdByUserId: userId });
+    }
+    return { productId: row.id };
+  });
 };
 
 export interface UpdateProductInput {
