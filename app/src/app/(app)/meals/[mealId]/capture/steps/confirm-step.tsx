@@ -24,7 +24,7 @@ interface ConfirmStepProps {
   name: string;
   parsed: NullableNutritionValues;
   flags: string[];
-  photo: Blob;
+  photo?: Blob;
   learned: LearnedMeasures;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
@@ -100,7 +100,7 @@ const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: 
 interface SaveConfirmInput {
   nameValue: string;
   values: FieldValues;
-  photo: Blob;
+  photo?: Blob;
   learned: LearnedMeasures;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;

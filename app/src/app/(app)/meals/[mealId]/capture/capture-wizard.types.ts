@@ -120,28 +120,14 @@ export const toSelectedProduct = (candidate: {
   nutritionBasisUnit: candidate.nutritionBasisUnit,
 });
 
-// eslint-disable-next-line max-lines-per-function
 const resolveMatch = (
   nameGuess: string,
   result: MatchResult,
   netWeightText: string | null,
   pendingBarcode: string | null,
 ): WizardStep => {
-  if (result.kind === "confident") {
-    return {
-      kind: "amount",
-      product: toSelectedProduct(result.product),
-      alternatives: result.alternatives.map(toSelectedProduct),
-    };
-  }
-  if (result.kind === "ambiguous") {
-    return {
-      kind: "match-result",
-      nameGuess,
-      candidates: result.candidates.map(toSelectedProduct),
-      netWeightText,
-    };
-  }
+  if (result.kind === "confident") return { kind: "amount", product: toSelectedProduct(result.product), alternatives: result.alternatives.map(toSelectedProduct) };
+  if (result.kind === "ambiguous") return { kind: "match-result", nameGuess, candidates: result.candidates.map(toSelectedProduct), netWeightText };
   return { kind: "nutrition-photo", nameGuess, netWeightText, pendingBarcode };
 };
 
@@ -184,19 +170,18 @@ type ResolvedBarcodeLookup = Extract<WizardAction, { type: "BARCODE_SCANNED" }>[
 
 const EXTERNAL_MATCH_BASIS_QUANTITY = 100;
 
+// A barcode already known-good (internal or Open Food Facts) attaches on
+// save with no opt-out; a barcode neither source recognised threads through
+// as pendingBarcode instead, surfaced at confirm as a declinable checkbox
+// (T4) - the two never overlap on the same step (barcode spec §3, §7).
 const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
   switch (result.kind) {
     case "internal_match":
       return { kind: "amount", product: toSelectedProduct(result.product), alternatives: [] };
+    case "external_match":
+      return { kind: "confirm", parsed: result.nutritionPer100g, flags: result.flags, name: result.nameGuess, photo: undefined, learned: NOTHING_LEARNED, nutritionBasisUnit: result.nutritionBasisUnit, nutritionBasisQuantity: EXTERNAL_MATCH_BASIS_QUANTITY, pendingBarcode: null, barcode: result.barcode, nutritionOrigin: "open_food_facts" };
     case "not_found":
       return { kind: "product-photo", pendingBarcode: result.barcode };
-    case "external_match":
-      return {
-        kind: "confirm", parsed: result.nutritionPer100g, flags: result.flags, name: result.nameGuess,
-        photo: undefined, learned: NOTHING_LEARNED, nutritionBasisUnit: result.nutritionBasisUnit,
-        nutritionBasisQuantity: EXTERNAL_MATCH_BASIS_QUANTITY, pendingBarcode: null, barcode: result.barcode,
-        nutritionOrigin: "open_food_facts",
-      };
   }
 };
 
