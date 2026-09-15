@@ -9,16 +9,17 @@ const NO_MEASURES = { densityGMl: null, servingUnit: null, servingGrams: null, n
 describe("wizardReducer", () => {
   it("routes a confident match straight to the amount step with alternatives carried over", () => {
     const next = wizardReducer(
-      { kind: "product-photo" },
+      { kind: "product-photo", pendingBarcode: null },
       {
         type: "MATCH_RESOLVED",
         nameGuess: "Olympus Greek Yogurt 2 Fat",
         result: {
           kind: "confident",
-          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "", ...NO_MEASURES },
-          alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "", ...NO_MEASURES }],
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
+          alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }],
         },
         netWeightText: null,
+        pendingBarcode: null,
       },
     );
 
@@ -31,12 +32,13 @@ describe("wizardReducer", () => {
 
   it("routes an ambiguous match to the match-result step, carrying the net weight forward", () => {
     const next = wizardReducer(
-      { kind: "product-photo" },
+      { kind: "product-photo", pendingBarcode: null },
       {
         type: "MATCH_RESOLVED",
         nameGuess: "Olympus Greek Yogurt Fat",
-        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: "", ...NO_MEASURES }] },
+        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }] },
         netWeightText: "NET WT 1.86 0Z (52.7g)",
+        pendingBarcode: null,
       },
     );
 
@@ -48,14 +50,15 @@ describe("wizardReducer", () => {
     });
   });
 
-  it("routes a no_match straight to the nutrition-photo step, carrying the net weight", () => {
+  it("routes a no_match straight to the nutrition-photo step, carrying the net weight and a pending barcode", () => {
     const next = wizardReducer(
-      { kind: "product-photo" },
+      { kind: "product-photo", pendingBarcode: "0000000000000" },
       {
         type: "MATCH_RESOLVED",
         nameGuess: "Unknown Product",
         result: { kind: "no_match" },
         netWeightText: "NET WT 1.86 0Z (52.7g)",
+        pendingBarcode: "0000000000000",
       },
     );
 
@@ -63,12 +66,13 @@ describe("wizardReducer", () => {
       kind: "nutrition-photo",
       nameGuess: "Unknown Product",
       netWeightText: "NET WT 1.86 0Z (52.7g)",
+      pendingBarcode: "0000000000000",
     });
   });
 
   it("returns to product-photo on ADD_ANOTHER", () => {
     const next = wizardReducer({ kind: "saved" }, { type: "ADD_ANOTHER" });
-    expect(next).toEqual({ kind: "product-photo" });
+    expect(next).toEqual({ kind: "product-photo", pendingBarcode: null });
   });
 
   it("routes CANDIDATE_CHOSEN from match-result to the amount step", () => {
@@ -112,6 +116,11 @@ describe("wizardReducer", () => {
       kind: "nutrition-photo",
       nameGuess: "Olympus Greek Yogurt Fat",
       netWeightText: "NET WT 1.86 0Z (52.7g)",
+      // match-result was never decorated with pendingBarcode (T3 scope, see
+      // capture-wizard.types.ts) - a not_found scan that lands on an ambiguous
+      // name match and gets rejected here loses the pending code. Accepted gap,
+      // closed when T4 decorates match-result for its own link-offer feature.
+      pendingBarcode: null,
     });
   });
 
@@ -129,8 +138,8 @@ describe("wizardReducer", () => {
     const photo = new Blob(["fake-photo-bytes"]);
 
     const next = wizardReducer(
-      { kind: "nutrition-photo", nameGuess: "Unknown Product", netWeightText: null },
-      { type: "NUTRITION_PARSED", parsed, flags, name: "Unknown Product", photo, learned: NOTHING_LEARNED, nutritionBasisUnit: "g", nutritionBasisQuantity: 100 },
+      { kind: "nutrition-photo", nameGuess: "Unknown Product", netWeightText: null, pendingBarcode: null },
+      { type: "NUTRITION_PARSED", parsed, flags, name: "Unknown Product", photo, learned: NOTHING_LEARNED, nutritionBasisUnit: "g", nutritionBasisQuantity: 100, pendingBarcode: null },
     );
 
     expect(next).toEqual({
@@ -142,6 +151,9 @@ describe("wizardReducer", () => {
       learned: NOTHING_LEARNED,
       nutritionBasisUnit: "g",
       nutritionBasisQuantity: 100,
+      pendingBarcode: null,
+      barcode: null,
+      nutritionOrigin: null,
     });
   });
 
@@ -156,6 +168,9 @@ describe("wizardReducer", () => {
         learned: NOTHING_LEARNED,
         nutritionBasisUnit: "g",
         nutritionBasisQuantity: 100,
+        pendingBarcode: null,
+        barcode: null,
+        nutritionOrigin: null,
       },
       { type: "PRODUCT_CREATED", product: { id: "p3", name: "Unknown Product", ...NO_MEASURES } },
     );
@@ -207,7 +222,7 @@ describe("wizardReducer", () => {
 
 describe("wizardReducer — whole food search", () => {
   it("routes WHOLE_FOOD_SEARCH from product-photo to the standard-food-search step", () => {
-    const next = wizardReducer({ kind: "product-photo" }, { type: "WHOLE_FOOD_SEARCH" });
+    const next = wizardReducer({ kind: "product-photo", pendingBarcode: null }, { type: "WHOLE_FOOD_SEARCH" });
     expect(next).toEqual({ kind: "standard-food-search" });
   });
 
@@ -233,10 +248,10 @@ const PER_SERVING = {
 const LEARNED_BAR = { densityGMl: null, servingUnit: "bas", servingGrams: 52 };
 
 describe("wizardReducer — serving size", () => {
-  it("routes SERVING_SIZE_NEEDED to the serving-size step carrying the label's own text", () => {
+  it("routes SERVING_SIZE_NEEDED to the serving-size step carrying the label's own text and a pending barcode", () => {
     const photo = new Blob(["photo"]);
     const next = wizardReducer(
-      { kind: "nutrition-photo", nameGuess: "Snickers", netWeightText: "NET WT 1.86 0Z (52.7g)" },
+      { kind: "nutrition-photo", nameGuess: "Snickers", netWeightText: "NET WT 1.86 0Z (52.7g)", pendingBarcode: "1111111111116" },
       {
         type: "SERVING_SIZE_NEEDED",
         servingSizeText: "1 bas",
@@ -245,6 +260,7 @@ describe("wizardReducer — serving size", () => {
         photo,
         prefillGrams: 1.098,
         unitName: "bas",
+        pendingBarcode: "1111111111116",
       },
     );
 
@@ -256,10 +272,11 @@ describe("wizardReducer — serving size", () => {
       photo,
       prefillGrams: 1.098,
       unitName: "bas",
+      pendingBarcode: "1111111111116",
     });
   });
 
-  it("routes NUTRITION_PARSED from the serving-size step to confirm, carrying what was learned", () => {
+  it("routes NUTRITION_PARSED from the serving-size step to confirm, carrying what was learned and the pending barcode", () => {
     const photo = new Blob(["photo"]);
     const parsed = { ...PER_SERVING };
     const next = wizardReducer(
@@ -271,8 +288,9 @@ describe("wizardReducer — serving size", () => {
         photo,
         prefillGrams: null,
         unitName: "bas",
+        pendingBarcode: "1111111111116",
       },
-      { type: "NUTRITION_PARSED", parsed, flags: [], name: "Snickers", photo, learned: LEARNED_BAR, nutritionBasisUnit: "g", nutritionBasisQuantity: 100 },
+      { type: "NUTRITION_PARSED", parsed, flags: [], name: "Snickers", photo, learned: LEARNED_BAR, nutritionBasisUnit: "g", nutritionBasisQuantity: 100, pendingBarcode: "1111111111116" },
     );
 
     expect(next).toEqual({
@@ -284,6 +302,75 @@ describe("wizardReducer — serving size", () => {
       learned: LEARNED_BAR,
       nutritionBasisUnit: "g",
       nutritionBasisQuantity: 100,
+      pendingBarcode: "1111111111116",
+      barcode: null,
+      nutritionOrigin: null,
     });
+  });
+});
+
+const MOCK_NUTRITION = {
+  energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5,
+};
+
+describe("wizardReducer — barcode scan", () => {
+  it("routes an internal_match straight to the amount step with no alternatives", () => {
+    const next = wizardReducer(
+      { kind: "product-photo", pendingBarcode: null },
+      {
+        type: "BARCODE_SCANNED",
+        result: {
+          kind: "internal_match",
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
+        },
+      },
+    );
+
+    expect(next).toEqual({
+      kind: "amount",
+      product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+      alternatives: [],
+    });
+  });
+
+  it("routes an external_match to a prefilled, photo-less confirm step with the barcode carried for attach-on-save", () => {
+    const next = wizardReducer(
+      { kind: "product-photo", pendingBarcode: null },
+      {
+        type: "BARCODE_SCANNED",
+        result: {
+          kind: "external_match",
+          barcode: "4006381333931",
+          nameGuess: "Mock Product",
+          nutritionPer100g: MOCK_NUTRITION,
+          nutritionBasisUnit: "g",
+          netWeightText: "250 g",
+          flags: [],
+        },
+      },
+    );
+
+    expect(next).toEqual({
+      kind: "confirm",
+      parsed: MOCK_NUTRITION,
+      flags: [],
+      name: "Mock Product",
+      photo: undefined,
+      learned: NOTHING_LEARNED,
+      nutritionBasisUnit: "g",
+      nutritionBasisQuantity: 100,
+      pendingBarcode: null,
+      barcode: "4006381333931",
+      nutritionOrigin: "open_food_facts",
+    });
+  });
+
+  it("routes a not_found result back to product-photo, carrying the scanned code as pendingBarcode", () => {
+    const next = wizardReducer(
+      { kind: "product-photo", pendingBarcode: null },
+      { type: "BARCODE_SCANNED", result: { kind: "not_found", barcode: "0000000000000" } },
+    );
+
+    expect(next).toEqual({ kind: "product-photo", pendingBarcode: "0000000000000" });
   });
 });

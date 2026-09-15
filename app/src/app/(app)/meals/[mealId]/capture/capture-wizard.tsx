@@ -60,7 +60,10 @@ const SavedStep = ({ dispatch, onDone }: { dispatch: (action: PathAction) => voi
   </div>
 );
 
-const renderProductPhotoStep = (dispatch: (action: PathAction) => void) => <ProductNameStep dispatch={dispatch} />;
+const renderProductPhotoStep = (
+  step: Extract<WizardStep, { kind: "product-photo" }>,
+  dispatch: (action: PathAction) => void,
+) => <ProductNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
 
 const renderStandardFoodSearchStep = (dispatch: (action: PathAction) => void) => (
   <StandardFoodSearchStep dispatch={dispatch} />
@@ -81,7 +84,14 @@ const renderMatchResultStep = (
 const renderNutritionPhotoStep = (
   step: Extract<WizardStep, { kind: "nutrition-photo" }>,
   dispatch: (action: PathAction) => void,
-) => <NutritionPhotoStep nameGuess={step.nameGuess} netWeightText={step.netWeightText} dispatch={dispatch} />;
+) => (
+  <NutritionPhotoStep
+    nameGuess={step.nameGuess}
+    netWeightText={step.netWeightText}
+    pendingBarcode={step.pendingBarcode}
+    dispatch={dispatch}
+  />
+);
 
 const renderServingSizeStep = (
   step: Extract<WizardStep, { kind: "serving-size" }>,
@@ -94,6 +104,7 @@ const renderServingSizeStep = (
     photo={step.photo}
     prefillGrams={step.prefillGrams}
     unitName={step.unitName}
+    pendingBarcode={step.pendingBarcode}
     dispatch={dispatch}
   />
 );
@@ -144,7 +155,7 @@ interface StepViewProps {
 const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo":
-      return renderProductPhotoStep(dispatch);
+      return renderProductPhotoStep(step, dispatch);
     case "standard-food-search":
       return renderStandardFoodSearchStep(dispatch);
     case "match-result":

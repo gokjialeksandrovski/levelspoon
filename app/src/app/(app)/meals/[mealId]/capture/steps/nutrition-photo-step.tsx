@@ -14,6 +14,7 @@ import type { WizardAction } from "../capture-wizard.types";
 interface NutritionPhotoStepProps {
   nameGuess: string;
   netWeightText: string | null;
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -49,17 +50,17 @@ interface OcrNutritionCallbacks {
 
 // Standalone, not nested in a hook, so both this and useNutritionPhotoStep
 // stay under the line budget - ESLint flags a nested closure's size too.
-const handleNutritionPhoto = async (selected: File, nameGuess: string, netWeightText: string | null, callbacks: OcrNutritionCallbacks): Promise<void> => {
+const handleNutritionPhoto = async (selected: File, nameGuess: string, netWeightText: string | null, pendingBarcode: string | null, callbacks: OcrNutritionCallbacks): Promise<void> => {
   callbacks.onPhotoSelected(selected);
   callbacks.onError(null);
   callbacks.onLoadingChange(true);
   try {
     const read = await ocrNutritionTable(selected, nameGuess, netWeightText);
     if (read.kind === "needs-serving-size") {
-      callbacks.dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName });
+      callbacks.dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName, pendingBarcode });
       return;
     }
-    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity });
+    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
   } catch {
     callbacks.onError("Could not read the nutrition table from this photo.");
   } finally {
@@ -75,18 +76,18 @@ interface UseNutritionPhotoStepResult {
   handleManualEntry: () => void;
 }
 
-const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, dispatch: (action: WizardAction) => void): UseNutritionPhotoStepResult => {
+const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, pendingBarcode: string | null, dispatch: (action: WizardAction) => void): UseNutritionPhotoStepResult => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
 
   const callbacks: OcrNutritionCallbacks = { onPhotoSelected: setPhoto, onError: setError, onLoadingChange: setIsLoading, dispatch };
-  const handleSelect = (selected: File) => handleNutritionPhoto(selected, nameGuess, netWeightText, callbacks);
+  const handleSelect = (selected: File) => handleNutritionPhoto(selected, nameGuess, netWeightText, pendingBarcode, callbacks);
   const handleManualEntry = () => {
     if (!photo) {
       return;
     }
-    dispatch({ type: "NUTRITION_PARSED", parsed: ALL_NULL_NUTRITION, flags: ALL_NUTRITION_FLAGS, name: nameGuess, photo, learned: NOTHING_LEARNED, nutritionBasisUnit: MANUAL_ENTRY_BASIS_UNIT, nutritionBasisQuantity: MANUAL_ENTRY_BASIS_QUANTITY });
+    dispatch({ type: "NUTRITION_PARSED", parsed: ALL_NULL_NUTRITION, flags: ALL_NUTRITION_FLAGS, name: nameGuess, photo, learned: NOTHING_LEARNED, nutritionBasisUnit: MANUAL_ENTRY_BASIS_UNIT, nutritionBasisQuantity: MANUAL_ENTRY_BASIS_QUANTITY, pendingBarcode });
   };
 
   return { error, isLoading, photo, handleSelect, handleManualEntry };
@@ -100,8 +101,8 @@ const LoadingSkeletons = () => (
   </div>
 );
 
-export const NutritionPhotoStep = ({ nameGuess, netWeightText, dispatch }: NutritionPhotoStepProps) => {
-  const form = useNutritionPhotoStep(nameGuess, netWeightText, dispatch);
+export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, dispatch }: NutritionPhotoStepProps) => {
+  const form = useNutritionPhotoStep(nameGuess, netWeightText, pendingBarcode, dispatch);
 
   return (
     <div className="flex flex-col gap-4">

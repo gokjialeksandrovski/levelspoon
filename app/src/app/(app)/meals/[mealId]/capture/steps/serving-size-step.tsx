@@ -17,6 +17,7 @@ interface ServingSizeStepProps {
   photo: Blob;
   prefillGrams: number | null;
   unitName: string | null;
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -54,7 +55,7 @@ interface ServingSizeCallbacks {
 
 // Standalone, not nested in the hook, so both this and useServingSizeStep
 // stay under the line budget.
-const submitServingSizeAnswer = async (answer: string, servingSizeText: string, perServing: NutritionValues, name: string, photo: Blob, callbacks: ServingSizeCallbacks): Promise<void> => {
+const submitServingSizeAnswer = async (answer: string, servingSizeText: string, perServing: NutritionValues, name: string, photo: Blob, pendingBarcode: string | null, callbacks: ServingSizeCallbacks): Promise<void> => {
   callbacks.onError(null);
   callbacks.onResolvingChange(true);
   try {
@@ -63,7 +64,7 @@ const submitServingSizeAnswer = async (answer: string, servingSizeText: string, 
       callbacks.onError(unresolvedAnswerError(read.unitName));
       return;
     }
-    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name, photo, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity });
+    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name, photo, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
   } catch {
     callbacks.onError(SAVE_ERROR);
   } finally {
@@ -85,6 +86,7 @@ const useServingSizeStep = (
   name: string,
   photo: Blob,
   prefillGrams: number | null,
+  pendingBarcode: string | null,
   dispatch: (action: WizardAction) => void,
 ): UseServingSizeStepResult => {
   const [answer, setAnswer] = useState(() => (prefillGrams === null ? "" : formatPrefill(prefillGrams)));
@@ -92,7 +94,7 @@ const useServingSizeStep = (
   const [isResolving, setIsResolving] = useState(false);
 
   const callbacks: ServingSizeCallbacks = { onError: setError, onResolvingChange: setIsResolving, dispatch };
-  const handleSubmit = () => submitServingSizeAnswer(answer, servingSizeText, perServing, name, photo, callbacks);
+  const handleSubmit = () => submitServingSizeAnswer(answer, servingSizeText, perServing, name, photo, pendingBarcode, callbacks);
 
   return { answer, error, isResolving, setAnswer, handleSubmit };
 };
@@ -114,8 +116,8 @@ const ServingMeasurementField = ({ answer, prefillGrams, unitName, onChange }: S
   />
 );
 
-export const ServingSizeStep = ({ servingSizeText, perServing, name, photo, prefillGrams, unitName, dispatch }: ServingSizeStepProps) => {
-  const form = useServingSizeStep(servingSizeText, perServing, name, photo, prefillGrams, dispatch);
+export const ServingSizeStep = ({ servingSizeText, perServing, name, photo, prefillGrams, unitName, pendingBarcode, dispatch }: ServingSizeStepProps) => {
+  const form = useServingSizeStep(servingSizeText, perServing, name, photo, prefillGrams, pendingBarcode, dispatch);
 
   return (
     <div className="flex flex-col gap-4">

@@ -14,18 +14,25 @@ import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import type { WizardAction } from "../capture-wizard.types";
 
 interface ProductNameStepProps {
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
-const resolveProductMatch = async (text: string, netWeightText: string | null, dispatch: (action: WizardAction) => void): Promise<void> => {
+const resolveProductMatch = async (
+  text: string,
+  netWeightText: string | null,
+  pendingBarcode: string | null,
+  dispatch: (action: WizardAction) => void,
+): Promise<void> => {
   const result = await matchProduct(text);
-  dispatch({ type: "MATCH_RESOLVED", nameGuess: text, result, netWeightText });
+  dispatch({ type: "MATCH_RESOLVED", nameGuess: text, result, netWeightText, pendingBarcode });
 };
 
 interface ProductNameCallbacks {
   onError: (error: string | null) => void;
   onLoadingChange: (isLoading: boolean) => void;
   dispatch: (action: WizardAction) => void;
+  pendingBarcode: string | null;
 }
 
 const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Promise<void> => {
@@ -33,7 +40,7 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
   callbacks.onLoadingChange(true);
   try {
     const { text, netWeightText } = await ocrProductName(photo);
-    await resolveProductMatch(text, netWeightText, callbacks.dispatch);
+    await resolveProductMatch(text, netWeightText, callbacks.pendingBarcode, callbacks.dispatch);
   } catch {
     callbacks.onError("Could not read the product name from the photo.");
   } finally {
@@ -46,7 +53,7 @@ const handleManualName = async (manualName: string, callbacks: ProductNameCallba
   callbacks.onError(null);
   callbacks.onLoadingChange(true);
   try {
-    await resolveProductMatch(manualName, null, callbacks.dispatch);
+    await resolveProductMatch(manualName, null, callbacks.pendingBarcode, callbacks.dispatch);
   } catch {
     callbacks.onError("Could not look up this product name. Please try again.");
   } finally {
@@ -65,13 +72,13 @@ interface UseProductNameStepResult {
   handleManualSubmit: () => Promise<void>;
 }
 
-const useProductNameStep = (dispatch: (action: WizardAction) => void): UseProductNameStepResult => {
+const useProductNameStep = (pendingBarcode: string | null, dispatch: (action: WizardAction) => void): UseProductNameStepResult => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualName, setManualName] = useState("");
 
-  const callbacks: ProductNameCallbacks = { onError: setError, onLoadingChange: setIsLoading, dispatch };
+  const callbacks: ProductNameCallbacks = { onError: setError, onLoadingChange: setIsLoading, dispatch, pendingBarcode };
   const handleSelect = (photo: File) => handlePhotoName(photo, callbacks);
   const handleManualSubmit = () => handleManualName(manualName, callbacks);
 
@@ -125,8 +132,8 @@ const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry, onWholeFood
   </div>
 );
 
-export const ProductNameStep = ({ dispatch }: ProductNameStepProps) => {
-  const form = useProductNameStep(dispatch);
+export const ProductNameStep = ({ pendingBarcode, dispatch }: ProductNameStepProps) => {
+  const form = useProductNameStep(pendingBarcode, dispatch);
 
   return form.manualEntry ? (
     <ManualNameEntry
