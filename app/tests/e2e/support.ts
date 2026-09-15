@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { sql } from "drizzle-orm";
 
 import { db } from "../../src/lib/db";
-import { products, users } from "../../src/lib/db/schema";
+import { productBarcodes, products, users } from "../../src/lib/db/schema";
 import { todayLocalDateString } from "../../src/lib/date/day-bounds";
 
 export const freshEmail = (prefix = "e2e") => `${prefix}-${crypto.randomUUID()}@example.com`;
@@ -39,6 +39,18 @@ export const seedProductFor = async (userId: string, name = "Test Product") => {
     .values({ ...BASE_NUTRITION, name, createdByUserId: userId })
     .returning();
   return product;
+};
+
+// The e2e equivalent of T1's barcode.test.ts seedProduct - a product row
+// with a product_barcodes row already pointing at it, for the internal_match
+// wizard scenario.
+export const seedProductWithBarcode = async (barcode: string, name = "Existing Scanned Product") => {
+  const [user] = await db.insert(users).values({ email: freshEmail("seed") }).returning();
+  const [product] = await db
+    .insert(products)
+    .values({ ...BASE_NUTRITION, name, createdByUserId: user.id })
+    .returning();
+  await db.insert(productBarcodes).values({ barcode, productId: product.id, createdByUserId: user.id });
 };
 
 type StandardFoodOverrides = {

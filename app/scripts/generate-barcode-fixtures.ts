@@ -53,19 +53,30 @@ const rgbToV = (r: number, g: number, b: number): number => clampByte(CR_R * r +
 // package's own reader (a different API surface than the component's
 // barcode-detector wrapper, but the same underlying decoder) fails loudly if
 // this ever generates an unreadable fixture instead of committing a bad one.
-const generateBarcodePng = async (): Promise<InstanceType<typeof PNG>> => {
-  const { image, error } = await writeBarcode(BARCODE_VALUE, { format: "EAN13", scale: BARCODE_SCALE });
+const generateBarcodePng = async (value: string, outPath: string): Promise<InstanceType<typeof PNG>> => {
+  const { image, error } = await writeBarcode(value, { format: "EAN13", scale: BARCODE_SCALE });
   if (!image) {
     throw new Error(`writeBarcode failed: ${error}`);
   }
   const buffer = Buffer.from(await image.arrayBuffer());
   const [decoded] = await readBarcodes(buffer);
-  if (decoded?.text !== BARCODE_VALUE) {
-    throw new Error(`Round-trip decode mismatch: expected ${BARCODE_VALUE}, got ${decoded?.text}`);
+  if (decoded?.text !== value) {
+    throw new Error(`Round-trip decode mismatch: expected ${value}, got ${decoded?.text}`);
   }
-  await writeFile(PNG_PATH, buffer);
+  await writeFile(outPath, buffer);
   return PNG.sync.read(buffer);
 };
+
+// One PNG per T3 e2e scenario that needs a distinct decoded value (Chromium's
+// fake-video-capture flag is fixed for the whole Playwright project, so only
+// the photo-upload path can exercise these - see barcode-wizard.spec.ts).
+// Values verified valid (correct GTIN check digit) and non-restricted via
+// normalizeBarcode's own algorithm before being committed here.
+const EXTRA_PNG_FIXTURES: { value: string; filename: string }[] = [
+  { value: "4006381333931", filename: "external-match-barcode.png" },
+  { value: "0000000000000", filename: "not-found-barcode.png" },
+  { value: "2012345678903", filename: "restricted-barcode.png" },
+];
 
 // White canvas, barcode centered - a real camera frame isn't borderless
 // either, so this mirrors a phone photographing a label.
@@ -141,8 +152,13 @@ const writeY4m = async (png: InstanceType<typeof PNG>): Promise<void> => {
 
 (async () => {
   await mkdir(FIXTURES_DIR, { recursive: true });
-  const png = await generateBarcodePng();
+  const png = await generateBarcodePng(BARCODE_VALUE, PNG_PATH);
   await writeY4m(png);
   console.log(`Wrote ${PNG_PATH}`);
   console.log(`Wrote ${Y4M_PATH}`);
+  for (const fixture of EXTRA_PNG_FIXTURES) {
+    const outPath = `${FIXTURES_DIR}${fixture.filename}`;
+    await generateBarcodePng(fixture.value, outPath);
+    console.log(`Wrote ${outPath}`);
+  }
 })();

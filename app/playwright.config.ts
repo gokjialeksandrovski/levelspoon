@@ -25,6 +25,7 @@ export default defineConfig({
     "day-view.spec.ts",
     "product-correction.spec.ts",
     "barcode-scanner.spec.ts",
+    "barcode-wizard.spec.ts",
   ],
   fullyParallel: false,
   // Every spec file's `beforeEach` truncates the same shared Postgres tables,
@@ -66,6 +67,6 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { OCR_PROVIDER: "mock", QUANTITY_PROVIDER: "mock" },
+    env: { OCR_PROVIDER: "mock", QUANTITY_PROVIDER: "mock", BARCODE_LOOKUP_PROVIDER: "mock" },
   },
 });
