@@ -83,17 +83,20 @@ const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
   saltG: Number(row.salt_g),
 });
 
-export const toProductCandidate = (row: Omit<CandidateRow, "score">): ProductCandidate => ({
-  id: row.id,
-  name: row.name,
-  brand: row.brand,
-  nutritionPer100g: nutritionFromSnakeRow(row),
-  nutritionPhotoKey: row.nutrition_photo_key,
-  densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
-  servingUnit: row.serving_unit,
-  servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
-  nutritionBasisUnit: row.nutrition_basis_unit,
-});
+export const toProductCandidate = async (row: Omit<CandidateRow, "score">): Promise<ProductCandidate> => {
+  await requireUserId();
+  return {
+    id: row.id,
+    name: row.name,
+    brand: row.brand,
+    nutritionPer100g: nutritionFromSnakeRow(row),
+    nutritionPhotoKey: row.nutrition_photo_key,
+    densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
+    servingUnit: row.serving_unit,
+    servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
+    nutritionBasisUnit: row.nutrition_basis_unit,
+  };
+};
 
 const isConfidentMatch = (top1Score: number, top2Score: number): boolean =>
   top1Score >= CONFIDENT_SIMILARITY_THRESHOLD && top1Score - top2Score >= CONFIDENT_MARGIN;
@@ -137,12 +140,12 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
   if (isConfidentMatch(top1, top2)) {
     return {
       kind: "confident",
-      product: toProductCandidate(rows[0]),
-      alternatives: rows.slice(1).filter(isRelevantScore).map(toProductCandidate),
+      product: await toProductCandidate(rows[0]),
+      alternatives: await Promise.all(rows.slice(1).filter(isRelevantScore).map(toProductCandidate)),
     };
   }
   if (top1 >= AMBIGUOUS_SIMILARITY_THRESHOLD) {
-    return { kind: "ambiguous", candidates: rows.filter(isRelevantScore).map(toProductCandidate) };
+    return { kind: "ambiguous", candidates: await Promise.all(rows.filter(isRelevantScore).map(toProductCandidate)) };
   }
   return { kind: "no_match" };
 };
