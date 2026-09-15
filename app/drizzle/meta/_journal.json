@@ -50,6 +50,13 @@
       "when": 1789301586878,
       "tag": "0006_drop-oauth-account-table",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789485549074,
+      "tag": "0007_add-product-barcodes",
+      "breakpoints": true
     }
   ]
 }

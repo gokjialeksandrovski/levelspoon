@@ -12,6 +12,11 @@ export const productSource = pgEnum("product_source", ["user", "standard"]);
 // searchStandardFoods category filter needs a stored column.)
 export const productCategory = pgEnum("product_category", ["whole", "fat"]);
 
+// ODbL (OFF's license) requires derived-database share-alike; keeping
+// OFF-sourced rows distinguishable is the only way to separate them later
+// if any data-sharing deal ever needs it (spec §3).
+export const nutritionOriginEnum = pgEnum("nutrition_origin", ["label_photo", "manual", "open_food_facts"]);
+
 const NUTRITION_COLUMN_PRECISION = 10;
 const NUTRITION_COLUMN_SCALE = 2;
 
@@ -61,6 +66,7 @@ export const products = pgTable(
     }),
     // Null on standard rows — they have no label photo. (spec §4)
     nutritionPhotoKey: text("nutrition_photo_key"),
+    nutritionOrigin: nutritionOriginEnum("nutrition_origin").notNull().default("label_photo"),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => users.id),
