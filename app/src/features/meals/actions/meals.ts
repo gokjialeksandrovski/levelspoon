@@ -9,7 +9,7 @@ import { mealIngredients, meals, products } from "@/lib/db/schema";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
-import type { NutritionValues } from "./products";
+import type { NutritionValues } from "@/types/nutrition";
 
 export interface SaveMealIngredientInput {
   mealId: string;
@@ -169,27 +169,38 @@ const fetchDayMealIngredientRows = async (
     )
     .orderBy(meals.createdAt, mealIngredients.createdAt);
 
+const contributionForRow = (row: DayMealIngredientRow): NutritionValues =>
+  computeContribution(
+    productRowToNutritionValues(row.product),
+    Number(row.quantity),
+    Number(row.nutritionBasisQuantity),
+  );
+
+const mergeRowIntoSummaries = (
+  summaries: DayMealSummary[],
+  row: DayMealIngredientRow,
+  contribution: NutritionValues,
+): DayMealSummary[] => {
+  const existing = summaries.find((summary) => summary.id === row.mealId);
+  if (!existing) {
+    return [...summaries, { id: row.mealId, total: contribution, ingredientNames: [row.productName] }];
+  }
+  return summaries.map((summary) =>
+    summary.id === row.mealId
+      ? {
+          ...summary,
+          total: addNutrition(summary.total, contribution),
+          ingredientNames: [...summary.ingredientNames, row.productName],
+        }
+      : summary,
+  );
+};
+
 const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
-  rows.reduce<DayMealSummary[]>((summaries, row) => {
-    const contribution = computeContribution(
-      productRowToNutritionValues(row.product),
-      Number(row.quantity),
-      Number(row.nutritionBasisQuantity),
-    );
-    const existing = summaries.find((summary) => summary.id === row.mealId);
-    if (!existing) {
-      return [...summaries, { id: row.mealId, total: contribution, ingredientNames: [row.productName] }];
-    }
-    return summaries.map((summary) =>
-      summary.id === row.mealId
-        ? {
-            ...summary,
-            total: addNutrition(summary.total, contribution),
-            ingredientNames: [...summary.ingredientNames, row.productName],
-          }
-        : summary,
-    );
-  }, []);
+  rows.reduce<DayMealSummary[]>(
+    (summaries, row) => mergeRowIntoSummaries(summaries, row, contributionForRow(row)),
+    [],
+  );
 
 export const getDayLog = async (date: string, timezone: string): Promise<DayLog> => {
   const userId = await requireUserId();

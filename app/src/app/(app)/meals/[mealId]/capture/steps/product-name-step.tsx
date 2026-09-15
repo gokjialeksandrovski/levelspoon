@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 
-import { ocrProductName } from "@/actions/ocr";
-import { matchProduct } from "@/actions/products";
-import { Button } from "@/components/button";
-import { Field } from "@/components/field";
-import { InlineMessage } from "@/components/inline-message";
-import { PhotoInput } from "@/components/photo-input";
-import { Skeleton } from "@/components/skeleton";
-import { TEXT_LINK_SM } from "@/components/tap-target";
+import { ocrProductName } from "@/features/products/actions/ocr";
+import { matchProduct } from "@/features/products/actions/products";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { PhotoInput } from "@/components/ui/photo-input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 
 import type { WizardAction } from "../capture-wizard.types";
 

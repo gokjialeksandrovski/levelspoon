@@ -4,10 +4,10 @@ import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { getMealDetail } from "@/actions/meals";
-import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/actions/meals";
-import { AppHeader } from "@/components/app-header";
-import { buttonClassName } from "@/components/button";
+import { getMealDetail } from "@/features/meals/actions/meals";
+import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/features/meals/actions/meals";
+import { AppHeader } from "@/components/layout/app-header";
+import { buttonClassName } from "@/components/ui/button";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
@@ -119,6 +119,27 @@ const IngredientsSection = ({ ingredients, energyKcal, onIngredientChanged }: In
     <EmptyIngredients />
   );
 
+interface MealActionsProps {
+  mealId: string;
+  mealDate: string;
+  onIngredientChanged: () => void;
+}
+
+const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps) => (
+  <div className="mt-6 flex flex-col gap-3">
+    {/*
+      A plain navigation link, not an inline reveal: the capture wizard
+      owns the full-screen /capture route now, and returning from it
+      remounts this page rather than refreshing it in place.
+    */}
+    <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
+      Add ingredient
+    </Link>
+    <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
+    <DeleteMeal mealId={mealId} mealDate={mealDate} />
+  </div>
+);
+
 const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: MealReadyBodyProps) => (
   <>
     {/* Keyed on reloadCounter so any ingredient change remounts DayTotalBar
@@ -129,18 +150,7 @@ const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: Mea
       energyKcal={meal.total.energyKcal}
       onIngredientChanged={onIngredientChanged}
     />
-    <div className="mt-6 flex flex-col gap-3">
-      {/*
-        A plain navigation link, not an inline reveal: the capture wizard
-        owns the full-screen /capture route now, and returning from it
-        remounts this page rather than refreshing it in place.
-      */}
-      <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
-        Add ingredient
-      </Link>
-      <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
-      <DeleteMeal mealId={mealId} mealDate={meal.date} />
-    </div>
+    <MealActions mealId={mealId} mealDate={meal.date} onIngredientChanged={onIngredientChanged} />
   </>
 );
 

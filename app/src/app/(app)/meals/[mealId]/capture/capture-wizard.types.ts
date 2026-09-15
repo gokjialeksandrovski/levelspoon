@@ -1,6 +1,7 @@
-import type { MatchResult, NutritionValues } from "@/actions/products";
+import type { MatchResult } from "@/features/products/actions/products";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
+import type { NutritionValues } from "@/types/nutrition";
 
 export interface SelectedProduct {
   id: string;

@@ -4,12 +4,12 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 
-import { getDayLog } from "@/actions/meals";
-import type { DayLog } from "@/actions/meals";
-import { AppHeader } from "@/components/app-header";
-import { InlineMessage } from "@/components/inline-message";
-import { Skeleton } from "@/components/skeleton";
-import { Stat } from "@/components/stat";
+import { getDayLog } from "@/features/meals/actions/meals";
+import type { DayLog } from "@/features/meals/actions/meals";
+import { AppHeader } from "@/components/layout/app-header";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition, slideInitial, slideTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";

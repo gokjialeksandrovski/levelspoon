@@ -1,7 +1,7 @@
 "use server";
 
-import type { NutritionValues } from "@/actions/products";
-import { findStoredMeasures } from "@/actions/products";
+import type { NutritionValues } from "@/types/nutrition";
+import { findStoredMeasures } from "@/features/products/actions/products";
 import { requireUserId } from "@/lib/auth/require-user";
 import {
   hasLearned,

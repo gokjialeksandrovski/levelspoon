@@ -33,7 +33,7 @@ export const viewport: Viewport = {
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
   <html lang="en" className={`${bricolage.variable} ${karla.variable}`}>
-    <body className="min-h-[100dvh] bg-bg font-sans text-text antialiased">
+    <body className="min-h-dvh bg-bg font-sans text-text antialiased">
       <Providers>{children}</Providers>
     </body>
   </html>

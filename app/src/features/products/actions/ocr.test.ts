@@ -21,8 +21,8 @@ vi.mock("@/lib/ocr/http-provider", async (importOriginal) => {
   };
 });
 
-vi.mock("@/actions/products", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/actions/products")>();
+vi.mock("@/features/products/actions/products", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/products/actions/products")>();
   return { ...actual, findStoredMeasures: mockFindStoredMeasures };
 });
 

@@ -1,8 +1,8 @@
 // app/src/app/(app)/day/[date]/meal-list.tsx
 import Link from "next/link";
 
-import type { DayMealSummary } from "@/actions/meals";
-import { FOCUS_RING } from "@/components/tap-target";
+import type { DayMealSummary } from "@/features/meals/actions/meals";
+import { FOCUS_RING } from "@/components/ui/tap-target";
 
 const MAX_NAMES_SHOWN = 2;
 

@@ -2,11 +2,11 @@
 
 import { useCallback, useState } from "react";
 
-import { validateNutrition } from "@/actions/ocr";
-import { createProduct } from "@/actions/products";
-import { Button } from "@/components/button";
-import { Field } from "@/components/field";
-import { InlineMessage } from "@/components/inline-message";
+import { validateNutrition } from "@/features/products/actions/ocr";
+import { createProduct } from "@/features/products/actions/products";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { InlineMessage } from "@/components/ui/inline-message";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -60,34 +60,24 @@ const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]
   return result.flags;
 };
 
-const saveProduct = async (
-  nameValue: string,
-  values: FieldValues,
-  photo: Blob,
-  learned: LearnedMeasures,
-  nutritionBasisUnit: string,
-  nutritionBasisQuantity: number,
-  dispatch: (action: WizardAction) => void,
-): Promise<void> => {
+const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void): Promise<void> => {
   const { productId } = await createProduct({
-    name: nameValue,
-    nutritionPer100g: toNutritionValues(values),
-    photo,
-    learned,
-    nutritionBasisUnit,
-    nutritionBasisQuantity,
+    name: input.nameValue,
+    nutritionPer100g: toNutritionValues(input.values),
+    photo: input.photo,
+    learned: input.learned,
+    nutritionBasisUnit: input.nutritionBasisUnit,
+    nutritionBasisQuantity: input.nutritionBasisQuantity,
   });
-  dispatch({
-    type: "PRODUCT_CREATED",
-    product: {
-      id: productId,
-      name: nameValue,
-      densityGMl: learned.densityGMl,
-      servingUnit: learned.servingUnit,
-      servingGrams: learned.servingGrams,
-      nutritionBasisUnit,
-    },
-  });
+  const product = {
+    id: productId,
+    name: input.nameValue,
+    densityGMl: input.learned.densityGMl,
+    servingUnit: input.learned.servingUnit,
+    servingGrams: input.learned.servingGrams,
+    nutritionBasisUnit: input.nutritionBasisUnit,
+  };
+  dispatch({ type: "PRODUCT_CREATED", product });
 };
 
 interface NutritionFieldsProps {
@@ -145,7 +135,7 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
       focusFirstFlagged(freshFlags);
       return;
     }
-    await saveProduct(input.nameValue, input.values, input.photo, input.learned, input.nutritionBasisUnit, input.nutritionBasisQuantity, dispatch);
+    await saveProduct(input, dispatch);
   } catch {
     callbacks.setError("Could not save this product. Please try again.");
   } finally {
@@ -166,19 +156,37 @@ interface UseConfirmStepFormResult {
   handleSave: () => Promise<void>;
 }
 
-const useConfirmStepForm = (
-  name: string,
-  parsed: NullableNutritionValues,
-  initialFlags: string[],
-  photo: Blob,
-  learned: LearnedMeasures,
-  nutritionBasisUnit: string,
-  nutritionBasisQuantity: number,
-  dispatch: (action: WizardAction) => void,
-): UseConfirmStepFormResult => {
-  const [nameValue, setNameValue] = useState(name);
-  const [values, setValues] = useState(() => toFieldValues(parsed));
-  const [flags, setFlags] = useState(initialFlags);
+interface ConfirmFormState {
+  nameValue: string;
+  values: FieldValues;
+  setValues: (values: FieldValues) => void;
+  flags: string[];
+  setFlags: (flags: string[]) => void;
+  setError: (error: string | null) => void;
+  setIsSaving: (isSaving: boolean) => void;
+  revalidate: (values: FieldValues) => void;
+}
+
+const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormState) => {
+  const flaggedFields = flaggedFieldSet(state.flags);
+  const canSave = [...flaggedFields].every((field) => state.values[field].trim() !== "");
+  const setFieldValue = (field: keyof FieldValues, value: string) => state.setValues({ ...state.values, [field]: value });
+  const saveInput = { nameValue: state.nameValue, values: state.values, photo: props.photo, learned: props.learned, nutritionBasisUnit: props.nutritionBasisUnit, nutritionBasisQuantity: props.nutritionBasisQuantity };
+  const saveCallbacks = { setFlags: state.setFlags, setError: state.setError, setIsSaving: state.setIsSaving };
+
+  return {
+    flaggedFields,
+    canSave,
+    setFieldValue,
+    revalidateNow: () => state.revalidate(state.values),
+    handleSave: () => saveConfirmedProduct(saveInput, props.dispatch, saveCallbacks),
+  };
+};
+
+const useConfirmStepForm = (props: ConfirmStepProps): UseConfirmStepFormResult => {
+  const [nameValue, setNameValue] = useState(props.name);
+  const [values, setValues] = useState(() => toFieldValues(props.parsed));
+  const [flags, setFlags] = useState(props.flags);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -191,13 +199,9 @@ const useConfirmStepForm = (
       .catch(() => {});
   }, []);
 
-  const flaggedFields = flaggedFieldSet(flags);
-  const canSave = [...flaggedFields].every((field) => values[field].trim() !== "");
-  const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
-  const revalidateNow = () => revalidate(values);
-  const handleSave = () => saveConfirmedProduct({ nameValue, values, photo, learned, nutritionBasisUnit, nutritionBasisQuantity }, dispatch, { setFlags, setError, setIsSaving });
+  const actions = buildConfirmStepActions(props, { nameValue, values, setValues, flags, setFlags, setError, setIsSaving, revalidate });
 
-  return { nameValue, values, error, isSaving, flaggedFields, canSave, setNameValue, setFieldValue, revalidateNow, handleSave };
+  return { nameValue, values, error, isSaving, setNameValue, ...actions };
 };
 
 interface ProductNameFieldProps {
@@ -209,12 +213,12 @@ const ProductNameField = ({ value, onChange }: ProductNameFieldProps) => (
   <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
 );
 
-export const ConfirmStep = ({ name, parsed, flags: initialFlags, photo, learned, nutritionBasisUnit, nutritionBasisQuantity, dispatch }: ConfirmStepProps) => {
-  const form = useConfirmStepForm(name, parsed, initialFlags, photo, learned, nutritionBasisUnit, nutritionBasisQuantity, dispatch);
+export const ConfirmStep = (props: ConfirmStepProps) => {
+  const form = useConfirmStepForm(props);
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Confirm nutrition (per {nutritionBasisQuantity} {nutritionBasisUnit})</h2>
+      <h2 className="text-lg font-semibold">Confirm nutrition (per {props.nutritionBasisQuantity} {props.nutritionBasisUnit})</h2>
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields
         values={form.values}

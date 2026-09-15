@@ -3,9 +3,9 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/button";
-import { PhotoInput } from "@/components/photo-input";
-import { Sheet } from "@/components/sheet";
+import { Button } from "@/components/ui/button";
+import { PhotoInput } from "@/components/ui/photo-input";
+import { Sheet } from "@/components/ui/sheet";
 
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
 
@@ -48,7 +48,7 @@ const ConsentTermList = () => (
     {CONSENT_TERMS.map(({ term, detail }) => (
       <div key={term} className="flex flex-col gap-1">
         <dt className="text-sm font-semibold text-text">{term}</dt>
-        <dd className="text-sm leading-relaxed text-text-muted">{detail}</dd>
+        <dd className="text-sm/relaxed  text-text-muted">{detail}</dd>
       </div>
     ))}
   </dl>

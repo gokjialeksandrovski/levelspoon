@@ -4,9 +4,9 @@ import { motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
-import { discardEmptyMeal } from "@/actions/meals";
-import { Button } from "@/components/button";
-import { LogSuccessPulse } from "@/components/log-success-pulse";
+import { discardEmptyMeal } from "@/features/meals/actions/meals";
+import { Button } from "@/components/ui/button";
+import { LogSuccessPulse } from "@/components/ui/log-success-pulse";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
 

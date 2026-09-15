@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 
-import { ocrNutritionTable } from "@/actions/ocr";
-import { InlineMessage } from "@/components/inline-message";
-import { PhotoInput } from "@/components/photo-input";
-import { Skeleton } from "@/components/skeleton";
-import { TEXT_LINK_SM } from "@/components/tap-target";
+import { ocrNutritionTable } from "@/features/products/actions/ocr";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { PhotoInput } from "@/components/ui/photo-input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";

@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { removeMealIngredient, updateMealIngredientQuantity } from "@/actions/meals";
-import type { MealIngredientDetail } from "@/actions/meals";
-import { Button } from "@/components/button";
-import { InlineMessage } from "@/components/inline-message";
-import { Sheet } from "@/components/sheet";
-import { TAP_HIT_AREA_SM, TAP_HIT_AREA_XS } from "@/components/tap-target";
-import { UnitAmountField } from "@/components/unit-amount-field";
+import { removeMealIngredient, updateMealIngredientQuantity } from "@/features/meals/actions/meals";
+import type { MealIngredientDetail } from "@/features/meals/actions/meals";
+import { Button } from "@/components/ui/button";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { Sheet } from "@/components/ui/sheet";
+import { TAP_HIT_AREA_SM, TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
+import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { availableUnits } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
@@ -107,6 +107,26 @@ interface UseIngredientEditingResult {
   clearError: () => void;
 }
 
+const buildQuantityActions = (
+  ingredient: MealIngredientDetail,
+  context: MeasureContext,
+  count: string,
+  unit: string,
+  setIsEditing: (value: boolean) => void,
+  setCount: (value: string) => void,
+  setUnit: (value: string) => void,
+  setError: (value: string | null) => void,
+  callbacks: MutationCallbacks,
+) => ({
+  startEditing: () => setIsEditing(true),
+  setCount,
+  setUnit,
+  saveQuantity: () =>
+    resolveAndSaveQuantity({ ingredientId: ingredient.id, count, unit, context }, () => setIsEditing(false), callbacks),
+  remove: () => removeIngredient(ingredient.id, callbacks),
+  clearError: () => setError(null),
+});
+
 const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void): UseIngredientEditingResult => {
   const router = useRouter();
   const context = contextFor(ingredient);
@@ -124,12 +144,7 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () =
     units: availableUnits(context),
     isBusy,
     error,
-    startEditing: () => setIsEditing(true),
-    setCount,
-    setUnit,
-    saveQuantity: () => resolveAndSaveQuantity({ ingredientId: ingredient.id, count, unit, context }, () => setIsEditing(false), callbacks),
-    remove: () => removeIngredient(ingredient.id, callbacks),
-    clearError: () => setError(null),
+    ...buildQuantityActions(ingredient, context, count, unit, setIsEditing, setCount, setUnit, setError, callbacks),
   };
 };
 
@@ -244,28 +259,38 @@ interface QuantityControlsProps {
   onRequestRemove: () => void;
 }
 
+type EditingControlsProps = Pick<QuantityControlsProps, "ingredient" | "editing">;
+
+const EditingControls = ({ ingredient, editing }: EditingControlsProps) => (
+  <QuantityEditor
+    ingredientId={ingredient.id}
+    count={editing.count}
+    unit={editing.unit}
+    units={editing.units}
+    isBusy={editing.isBusy}
+    onCountChange={editing.setCount}
+    onUnitChange={editing.setUnit}
+    onSave={editing.saveQuantity}
+  />
+);
+
+const SummaryControls = ({ ingredient, editing, onRequestRemove }: QuantityControlsProps) => (
+  <QuantitySummary
+    productName={ingredient.productName}
+    quantity={ingredient.quantity}
+    quantityUnit={ingredient.quantityUnit}
+    energyKcal={ingredient.contribution.energyKcal}
+    isBusy={editing.isBusy}
+    onEdit={editing.startEditing}
+    onRemove={onRequestRemove}
+  />
+);
+
 const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityControlsProps) =>
   editing.isEditing ? (
-    <QuantityEditor
-      ingredientId={ingredient.id}
-      count={editing.count}
-      unit={editing.unit}
-      units={editing.units}
-      isBusy={editing.isBusy}
-      onCountChange={editing.setCount}
-      onUnitChange={editing.setUnit}
-      onSave={editing.saveQuantity}
-    />
+    <EditingControls ingredient={ingredient} editing={editing} />
   ) : (
-    <QuantitySummary
-      productName={ingredient.productName}
-      quantity={ingredient.quantity}
-      quantityUnit={ingredient.quantityUnit}
-      energyKcal={ingredient.contribution.energyKcal}
-      isBusy={editing.isBusy}
-      onEdit={editing.startEditing}
-      onRemove={onRequestRemove}
-    />
+    <SummaryControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
   );
 
 // `block` makes the negative-margin cancellation explicit rather than

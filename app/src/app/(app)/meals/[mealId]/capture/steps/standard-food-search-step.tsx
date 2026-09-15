@@ -1,13 +1,13 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
-import { searchStandardFoods, type StandardFood } from "@/actions/products";
-import { Button } from "@/components/button";
-import { Field } from "@/components/field";
-import { InlineMessage } from "@/components/inline-message";
-import { Skeleton } from "@/components/skeleton";
-import { FOCUS_RING, TEXT_LINK_SM } from "@/components/tap-target";
+import { searchStandardFoods, type StandardFood } from "@/features/products/actions/products";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FOCUS_RING, TEXT_LINK_SM } from "@/components/ui/tap-target";
 
 import type { PathAction } from "../capture-wizard.path";
 import { toSelectedProduct } from "../capture-wizard.types";
@@ -46,7 +46,7 @@ interface UseStandardFoodSearchResult {
   results: StandardFood[] | null;
   isLoading: boolean;
   error: string | null;
-  handleSearch: (event: FormEvent<HTMLFormElement>) => void;
+  handleSearch: (event: SubmitEvent<HTMLFormElement>) => void;
   choose: (food: StandardFood) => void;
 }
 
@@ -57,7 +57,7 @@ const useStandardFoodSearch = (dispatch: (action: PathAction) => void): UseStand
   const [error, setError] = useState<string | null>(null);
 
   const callbacks: SearchCallbacks = { onResults: setResults, onError: setError, onLoadingChange: setIsLoading };
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+  const handleSearch = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     void runSearch(query, callbacks);
   };
@@ -70,7 +70,7 @@ interface StandardFoodSearchFormProps {
   query: string;
   isLoading: boolean;
   onChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
 const StandardFoodSearchForm = ({ query, isLoading, onChange, onSubmit }: StandardFoodSearchFormProps) => (

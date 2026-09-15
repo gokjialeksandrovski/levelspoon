@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { products, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
+import type { NutritionValues } from "@/types/nutrition";
 
 import { ProductNotEditableError } from "./products.errors";
 
@@ -26,16 +27,6 @@ const CANDIDATE_LIMIT = 5;
 // productSource.enumValues is the tuple ["user", "standard"].
 const STANDARD_SOURCE = productSource.enumValues[1];
 const USER_SOURCE = productSource.enumValues[0];
-
-export interface NutritionValues {
-  energyKcal: number;
-  fatG: number;
-  saturatesG: number;
-  carbohydrateG: number;
-  sugarsG: number;
-  proteinG: number;
-  saltG: number;
-}
 
 export interface ProductCandidate {
   id: string;

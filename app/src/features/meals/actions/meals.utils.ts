@@ -1,6 +1,6 @@
 import { scaleNutrition } from "@/lib/nutrition/scale-per-serving";
 
-import type { NutritionValues } from "./products";
+import type { NutritionValues } from "@/types/nutrition";
 
 // Lives here (not in meals.ts) because meals.ts has "use server" at the top,
 // and a "use server" file may only export async functions - see commit

@@ -56,7 +56,7 @@ most test files hit real database. e2e `TRUNCATE`s shared DB mid-run.
 Gemini used **only** for amount/quantity estimation from amount-used
 photo. **Never** for product-name or nutrition-value extraction — those stay
 fully deterministic (OCR + parsing + rule-based validation). `estimateQuantity`
-in `app/src/actions/quantity.ts` only action allowed call LLM.
+in `app/src/features/quantity/actions/quantity.ts` only action allowed call LLM.
 `matchProduct` / `createProduct` / `updateProduct` deterministic, always.
 
 ### Gemini model
@@ -111,11 +111,11 @@ arithmetic; column type protect storage precision, not runtime type.
 
 ### Server/client boundary
 
-Every file under `app/src/lib/db/`, `app/src/lib/s3.ts`, `app/src/actions/*`,
-`app/src/auth.ts` start with `"use server"` or only imported by files that
-do. Never imported from Client Component. Server actions only path
-from browser to Postgres, storage, or Gemini. `'use server'` files export only
-async functions.
+Every file under `app/src/lib/db/`, `app/src/lib/s3.ts`,
+`app/src/features/*/actions/*`, `app/src/auth.ts` start with `"use server"`
+or only imported by files that do. Never imported from Client Component.
+Server actions only path from browser to Postgres, storage, or Gemini.
+`'use server'` files export only async functions.
 
 ### Auth
 
@@ -162,15 +162,27 @@ per request), never server's UTC day.
 
 ## App conventions
 
+- Feature-based directory structure (CLAUDE.md global Rule 20): `app/src/app/`
+  is routing shell only. Business logic groups by domain under
+  `app/src/features/<domain>/actions/` (`auth`, `meals`, `products` — includes
+  `ocr.ts`, `quantity`). `app/src/components/ui/` holds dumb presentational
+  primitives only, `app/src/components/layout/` holds global chrome
+  (`app-header.tsx`) — neither imports from `features/`. `app/src/lib/`
+  holds shared infra and must not import from `features/` or `app/`.
+  Route-specific UI (e.g. the capture wizard's steps, day/meal detail views)
+  stays colocated inside its own route folder under `app/src/app/(app)/`
+  rather than moving to `features/` until a second route needs it.
+  Cross-domain shared types (e.g. `NutritionValues`) live in `app/src/types/`.
 - Clean Code rules **mechanically enforced** by `app/eslint.config.mjs`
   (vendored `app/clean-code-rules.mjs`): named exports only (error), arrow
   functions not `function` (`func-style`), functions under ~20 lines
   (`max-lines-per-function`, warn), no magic numbers (only `-1, 0, 1, 2`
   exempt), named error types never bare `throw new Error` for domain
-  failure, no silently swallowed errors. Framework entry points (`page.tsx`,
-  `layout.tsx`, `route.ts`) and tool-loaded configs (`drizzle.config.ts`,
-  `vitest.config.ts`, `next.config.ts`, `eslint.config.mjs`) keep their
-  default exports — compliant, not finding.
+  failure, no silently swallowed errors, `components/ui/`↔`features/` and
+  `lib/`↔`features/`/`app/` import-direction boundaries (Rule 20). Framework
+  entry points (`page.tsx`, `layout.tsx`, `route.ts`) and tool-loaded configs
+  (`drizzle.config.ts`, `vitest.config.ts`, `next.config.ts`,
+  `eslint.config.mjs`) keep their default exports — compliant, not finding.
 - Impure/heavy deps sit behind env-var-selected interface: `OCR_PROVIDER`
   and `QUANTITY_PROVIDER` pick real vs mock. `.env.example` default both to
   `mock` — real deployment must set them or every photo return canned

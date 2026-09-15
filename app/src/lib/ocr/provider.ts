@@ -1,4 +1,4 @@
-import type { NutritionValues } from "@/actions/products";
+import type { NutritionValues } from "@/types/nutrition";
 
 export type NullableNutritionValues = {
   [K in keyof NutritionValues]: number | null;

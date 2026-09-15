@@ -3,8 +3,8 @@
 
 import { useId, useState } from "react";
 
-import type { NutritionValues } from "@/actions/products";
-import { FOCUS_RING } from "@/components/tap-target";
+import type { NutritionValues } from "@/types/nutrition";
+import { FOCUS_RING } from "@/components/ui/tap-target";
 
 import { macroGramShares, type MacroShares } from "./day-macros.utils";
 

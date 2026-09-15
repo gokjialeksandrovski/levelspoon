@@ -4,13 +4,13 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { validateNutrition } from "@/actions/ocr";
-import { updateProduct } from "@/actions/products";
-import type { ProductForCorrection } from "@/actions/products";
-import { AppHeader } from "@/components/app-header";
-import { Button } from "@/components/button";
-import { Field } from "@/components/field";
-import { InlineMessage } from "@/components/inline-message";
+import { validateNutrition } from "@/features/products/actions/ocr";
+import { updateProduct } from "@/features/products/actions/products";
+import type { ProductForCorrection } from "@/features/products/actions/products";
+import { AppHeader } from "@/components/layout/app-header";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { InlineMessage } from "@/components/ui/inline-message";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -52,7 +52,7 @@ const StoredPhoto = ({ photoUrl, productName }: { photoUrl: string | null; produ
   }
 
   return (
-    <div className="overflow-hidden rounded-(--radius-surface) border border-border">
+    <div className="overflow-hidden rounded-surface border border-border">
       <Image
         src={photoUrl}
         alt={`${productName} nutrition label`}
@@ -76,7 +76,7 @@ const ReplacePhotoField = ({ onSelect }: { onSelect: (photo: Blob | null) => voi
       type="file"
       accept="image/*"
       onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
-      className="text-sm text-text-muted file:mr-3 file:rounded-(--radius-control) file:border-0 file:bg-surface-raised file:px-3 file:py-2 file:text-sm file:text-text"
+      className="text-sm text-text-muted file:mr-3 file:rounded-control file:border-0 file:bg-surface-raised file:px-3 file:py-2 file:text-sm file:text-text"
     />
   </div>
 );

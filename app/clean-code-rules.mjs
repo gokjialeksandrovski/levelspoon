@@ -12,12 +12,16 @@
  * quality, colocation) aren't lintable and stay enforced via self-review /
  * `/code-review` against CLAUDE.md instead — see the clean-code-lint skill.
  *
- * Severity policy: 'error' only for violations that are unambiguous and
- * genuinely risky (empty catch, stray default exports). Everything more
- * stylistic/subjective is 'warn' so first-time adoption on an existing
- * codebase doesn't hard-block on day one. The Stop hook only blocks on
- * 'error'-level findings (ESLint's own exit-code behavior), so this
- * severity split IS the enforcement policy, not just cosmetics.
+ * Severity policy: 'error' for violations that are unambiguous and
+ * genuinely risky (empty catch, stray default exports, deprecated-API
+ * usage), plus max-lines-per-function — left at 'warn' long enough that
+ * violations accumulated silently across projects uncorrected (found
+ * 2026-09-15), so it's graduated to 'error' too. Everything else more
+ * stylistic/subjective (magic numbers, func-style) stays 'warn' so
+ * first-time adoption on an existing codebase doesn't hard-block on day
+ * one. The Stop hook only blocks on 'error'-level findings (ESLint's own
+ * exit-code behavior), so this severity split IS the enforcement policy,
+ * not just cosmetics.
  */
 
 // Base rules: core ESLint only, safe for any JS or TS project.
@@ -25,7 +29,7 @@ export const cleanCodeBaseRules = {
   rules: {
     // Rule 6: functions under 20 lines.
     'max-lines-per-function': [
-      'warn',
+      'error',
       { max: 20, skipBlankLines: true, skipComments: true, IIFEs: true },
     ],
 
@@ -80,6 +84,12 @@ export const cleanCodeTypeAwareRules = {
   rules: {
     // Rule 18: no fire-and-forget promises that swallow rejections.
     '@typescript-eslint/no-floating-promises': 'warn',
+
+    // No deprecated-API usage. Catches things like @phosphor-icons/react's
+    // bare `Camera` export (superseded by `CameraIcon`) at lint time instead
+    // of relying on an editor-only TS hint, which a headless agent run never
+    // sees. 'error': agents must not ship deprecated calls (found 2026-09-15).
+    '@typescript-eslint/no-deprecated': 'error',
   },
 }
 
@@ -119,5 +129,67 @@ export const cleanCodeServerClientRules = {
         })),
       },
     ],
+  },
+}
+
+// Rule 20 directory-boundary checks (Next.js/TS feature architecture). Only
+// wired in for projects that actually use the features/<domain> layout —
+// forcing these onto a project with a different pre-existing structure
+// (flat app/src/{actions,components,lib}, say) would false-positive on
+// every import. The skill checks for a features/ directory before wiring
+// either of these in; existing projects predating Rule 20 are never
+// retrofitted automatically.
+export const cleanCodeUiPrimitiveRules = {
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['*/features/*', '@/features/*'],
+            message:
+              'components/ui and components/layout are dumb presentational primitives ' +
+              '(CLAUDE.md Rule 20) — no business logic, no domain imports. Pass data in ' +
+              'via props instead of importing from features/.',
+          },
+        ],
+      },
+    ],
+  },
+}
+
+export const cleanCodeInfraRules = {
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['*/features/*', '@/features/*', '*/app/*', '@/app/*'],
+            message:
+              'lib/ is shared infra (CLAUDE.md Rule 20) — it must not import from ' +
+              'features/ or app/. Dependencies point one direction: features/app depend ' +
+              'on lib, never the reverse.',
+          },
+        ],
+      },
+    ],
+  },
+}
+
+// Tailwind canonical-class check. Only wired in by the skill when
+// `tailwindcss` is detected in package.json — requires the
+// `eslint-plugin-better-tailwindcss` dependency and a `settings['better-tailwindcss']`
+// block (entryPoint for Tailwind v4's CSS-based config, or tailwindConfig for
+// v3) registered alongside it; see the clean-code-lint skill for the wiring.
+// Deliberately just this one rule, not the plugin's full `recommended`
+// bundle — the bundle's no-unknown-classes / consistent-order rules
+// false-positive against a project's custom `@theme` design tokens.
+// 'error': matches the Tailwind CSS IntelliSense "suggestCanonicalClasses"
+// hint (e.g. `min-h-[100dvh]` -> `min-h-dvh`), which a headless agent run
+// never sees since it's IDE-only (found 2026-09-15).
+export const cleanCodeTailwindRules = {
+  rules: {
+    'better-tailwindcss/enforce-canonical-classes': 'error',
   },
 }

@@ -4,9 +4,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { createMeal } from "@/actions/meals";
-import { Button } from "@/components/button";
-import { InlineMessage } from "@/components/inline-message";
+import { createMeal } from "@/features/meals/actions/meals";
+import { Button } from "@/components/ui/button";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 interface StartMealCallbacks {
   onBusyChange: (isBusy: boolean) => void;

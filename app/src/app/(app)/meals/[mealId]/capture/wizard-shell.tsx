@@ -1,9 +1,9 @@
 // app/src/app/(app)/meals/[mealId]/capture/wizard-shell.tsx
 "use client";
 
-import { CaretLeft } from "@phosphor-icons/react";
+import { CaretLeftIcon } from "@phosphor-icons/react";
 
-import { ICON_ROW_EDGE_PULL_LEFT, ICON_TAP_TARGET_CLASS } from "@/components/tap-target";
+import { ICON_ROW_EDGE_PULL_LEFT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 interface WizardShellProps {
   title: string;
@@ -42,7 +42,7 @@ const BackButton = ({ onBack }: { onBack: () => void }) => (
     aria-label="Back"
     className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_LEFT}`}
   >
-    <CaretLeft />
+    <CaretLeftIcon />
   </button>
 );
 
@@ -53,7 +53,7 @@ const BackButton = ({ onBack }: { onBack: () => void }) => (
 // rail sit together in the <header> so the progressbar is inside a landmark
 // (axe: region), not orphaned between header and main.
 export const WizardShell = ({ title, progress, onBack, children }: WizardShellProps) => (
-  <div className="flex min-h-[100dvh] flex-col">
+  <div className="flex min-h-dvh flex-col">
     <header>
       <div className="flex h-16 items-center gap-1 border-b border-border px-4">
         <BackButton onBack={onBack} />

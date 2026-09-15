@@ -1,9 +1,14 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
+import betterTailwindcss from "eslint-plugin-better-tailwindcss";
 import {
   cleanCodeBaseRules,
   cleanCodeTypeScriptRules,
+  cleanCodeTypeAwareRules,
   cleanCodeServerClientRules,
+  cleanCodeUiPrimitiveRules,
+  cleanCodeInfraRules,
+  cleanCodeTailwindRules,
 } from "./clean-code-rules.mjs";
 
 const eslintConfig = [
@@ -22,6 +27,29 @@ const eslintConfig = [
   // Vendored copy: ./clean-code-rules.mjs — see clean-code-lint skill.
   cleanCodeBaseRules,
   cleanCodeTypeScriptRules,
+  {
+    // Type-aware linting, scoped to app source (excludes config/script files
+    // outside the tsconfig `include`). Enables cleanCodeTypeAwareRules:
+    // no-floating-promises, and no-deprecated (e.g. @phosphor-icons/react's
+    // bare `Camera` export).
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: cleanCodeTypeAwareRules.rules,
+  },
+  {
+    // Tailwind canonical-class check — see clean-code-lint skill.
+    files: ["src/**/*.tsx"],
+    plugins: { "better-tailwindcss": betterTailwindcss },
+    settings: {
+      "better-tailwindcss": { entryPoint: "src/app/globals.css" },
+    },
+    rules: cleanCodeTailwindRules.rules,
+  },
   {
     // A leading underscore is TypeScript's own convention for a binding that
     // is deliberately unused — most often a parameter an interface requires
@@ -61,6 +89,21 @@ const eslintConfig = [
     // legitimate server-side imports in scripts/config files outside the UI tree.
     files: ["src/app/**"],
     rules: cleanCodeServerClientRules.rules,
+  },
+  {
+    // Rule 20: components/ui/ is dumb presentational primitives — no
+    // business logic, no imports from features/. Scoped to ui/ specifically
+    // (not all of src/components), since components/layout/ (global chrome)
+    // is allowed to compose feature components, e.g. AppHeader -> AccountMenu.
+    files: ["src/components/ui/**"],
+    rules: cleanCodeUiPrimitiveRules.rules,
+  },
+  {
+    // Rule 20: lib/ is shared infra — must not import from features/ or app/.
+    // Dependencies point one direction: features/app depend on lib, never
+    // the reverse.
+    files: ["src/lib/**"],
+    rules: cleanCodeInfraRules.rules,
   },
   {
     // Default-export carve-out: Next.js framework entry points require a

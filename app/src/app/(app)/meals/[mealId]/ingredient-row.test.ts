@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/actions/meals", () => ({ updateMealIngredientQuantity: vi.fn() }));
+vi.mock("@/features/meals/actions/meals", () => ({ updateMealIngredientQuantity: vi.fn() }));
 
-import { updateMealIngredientQuantity } from "@/actions/meals";
+import { updateMealIngredientQuantity } from "@/features/meals/actions/meals";
 
 import { resolveAndSaveQuantity } from "./ingredient-row";
 

@@ -1,7 +1,7 @@
 // app/src/app/products/[productId]/correct/page.tsx
 import { notFound } from "next/navigation";
 
-import { getProductForCorrection } from "@/actions/products";
+import { getProductForCorrection } from "@/features/products/actions/products";
 
 import { CorrectionForm } from "./correction-form";
 

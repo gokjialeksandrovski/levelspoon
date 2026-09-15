@@ -3,7 +3,7 @@
 // the two pure functions MealList's JSX calls to decide what to show.
 import { describe, expect, it } from "vitest";
 
-import type { DayMealSummary } from "@/actions/meals";
+import type { DayMealSummary } from "@/features/meals/actions/meals";
 
 import { mealHeading, summariseIngredients } from "./meal-list";
 

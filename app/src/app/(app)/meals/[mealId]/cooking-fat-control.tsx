@@ -1,17 +1,17 @@
 "use client";
 
-import { Drop } from "@phosphor-icons/react";
-import { type FormEvent, useState } from "react";
+import { DropIcon } from "@phosphor-icons/react";
+import { type SubmitEvent, useState } from "react";
 
-import { saveMealIngredient } from "@/actions/meals";
-import { searchStandardFoods, type StandardFood } from "@/actions/products";
-import { Button } from "@/components/button";
-import { Field } from "@/components/field";
-import { InlineMessage } from "@/components/inline-message";
-import { Sheet } from "@/components/sheet";
-import { Skeleton } from "@/components/skeleton";
-import { FOCUS_RING, TEXT_LINK_SM } from "@/components/tap-target";
-import { UnitAmountField } from "@/components/unit-amount-field";
+import { saveMealIngredient } from "@/features/meals/actions/meals";
+import { searchStandardFoods, type StandardFood } from "@/features/products/actions/products";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { Sheet } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FOCUS_RING, TEXT_LINK_SM } from "@/components/ui/tap-target";
+import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
@@ -52,6 +52,18 @@ export interface SaveCookingFatInput {
   quantityUnit: string;
 }
 
+const commitCookingFat = async (input: SaveCookingFatInput, onSaved: () => void): Promise<void> => {
+  await saveMealIngredient({
+    mealId: input.mealId,
+    productId: input.productId,
+    quantity: input.quantity,
+    quantityUnit: input.quantityUnit,
+    quantitySource: "manual",
+  });
+  triggerLogSuccessHaptic();
+  onSaved();
+};
+
 // Always "manual": there is no photo estimate on this path (spec §7's unit-
 // choice-is-manual-entry rule, with no ai_estimated branch at all here).
 export const saveCookingFat = async (
@@ -62,15 +74,7 @@ export const saveCookingFat = async (
   callbacks.setError(null);
   callbacks.setIsBusy(true);
   try {
-    await saveMealIngredient({
-      mealId: input.mealId,
-      productId: input.productId,
-      quantity: input.quantity,
-      quantityUnit: input.quantityUnit,
-      quantitySource: "manual",
-    });
-    triggerLogSuccessHaptic();
-    onSaved();
+    await commitCookingFat(input, onSaved);
   } catch (error) {
     console.error("Saving the cooking fat ingredient failed", error);
     callbacks.setError("Could not add this to the meal. Please try again.");
@@ -129,7 +133,7 @@ interface UseCookingFatSearchResult {
   results: StandardFood[] | null;
   isLoading: boolean;
   error: string | null;
-  handleSearch: (event: FormEvent<HTMLFormElement>) => void;
+  handleSearch: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
 const useCookingFatSearch = (): UseCookingFatSearchResult => {
@@ -139,7 +143,7 @@ const useCookingFatSearch = (): UseCookingFatSearchResult => {
   const [error, setError] = useState<string | null>(null);
   const callbacks = { onResults: setResults, onError: setError, onLoadingChange: setIsLoading };
 
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+  const handleSearch = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     void runCookingFatSearch(query, callbacks);
   };
@@ -151,7 +155,7 @@ interface CookingFatSearchFormProps {
   query: string;
   isLoading: boolean;
   onChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
 const CookingFatSearchForm = ({ query, isLoading, onChange, onSubmit }: CookingFatSearchFormProps) => (
@@ -213,12 +217,8 @@ interface CookingFatAmountStageProps {
   onSaved: () => void;
 }
 
-// Keyed by food.id in CookingFatSheet below, so picking a different result
-// remounts this with fresh state instead of needing an effect to reset it -
-// the same pattern meal-detail.tsx already uses for DayTotalBar.
-const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmountStageProps) => {
+const useCookingFatAmount = (mealId: string, food: StandardFood, onSaved: () => void) => {
   const context = contextFor(food);
-  const units = availableUnits(context);
   const [count, setCount] = useState("");
   const [unit, setUnit] = useState(initialCookingUnit(context));
   const [error, setError] = useState<string | null>(null);
@@ -226,6 +226,19 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
   const callbacks = { setError, setIsBusy };
   const handleSave = () =>
     resolveAndSaveCookingFat({ mealId, productId: food.id, count, unit, context }, onSaved, callbacks);
+
+  return { count, unit, units: availableUnits(context), error, isBusy, setCount, setUnit, handleSave };
+};
+
+// Keyed by food.id in CookingFatSheet below, so picking a different result
+// remounts this with fresh state instead of needing an effect to reset it -
+// the same pattern meal-detail.tsx already uses for DayTotalBar.
+const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmountStageProps) => {
+  const { count, unit, units, error, isBusy, setCount, setUnit, handleSave } = useCookingFatAmount(
+    mealId,
+    food,
+    onSaved,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -272,37 +285,55 @@ interface CookingFatControlProps {
   onIngredientChanged: () => void;
 }
 
-// The meal-detail affordance itself (spec §8 T4): optional, defaults to
-// nothing added, sits between "Add ingredient" and "Delete meal".
-export const CookingFatControl = ({ mealId, onIngredientChanged }: CookingFatControlProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [stage, setStage] = useState<CookingFatStage>({ kind: "search" });
-  const search = useCookingFatSearch();
-
+const buildCookingFatActions = (
+  setIsOpen: (value: boolean) => void,
+  setStage: (value: CookingFatStage) => void,
+  onIngredientChanged: () => void,
+) => {
   const close = () => {
     setIsOpen(false);
     setStage({ kind: "search" });
   };
-  const saved = () => {
-    close();
-    onIngredientChanged();
+
+  return {
+    open: () => setIsOpen(true),
+    close,
+    saved: () => {
+      close();
+      onIngredientChanged();
+    },
+    choose: (food: StandardFood) => setStage({ kind: "amount", food }),
+    back: () => setStage({ kind: "search" }),
   };
+};
+
+const useCookingFatControl = (onIngredientChanged: () => void) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [stage, setStage] = useState<CookingFatStage>({ kind: "search" });
+  const search = useCookingFatSearch();
+
+  return { isOpen, stage, search, ...buildCookingFatActions(setIsOpen, setStage, onIngredientChanged) };
+};
+
+// The meal-detail affordance itself (spec §8 T4): optional, defaults to
+// nothing added, sits between "Add ingredient" and "Delete meal".
+export const CookingFatControl = ({ mealId, onIngredientChanged }: CookingFatControlProps) => {
+  const control = useCookingFatControl(onIngredientChanged);
 
   return (
     <>
-      <Button variant="fat" onClick={() => setIsOpen(true)}>
-        <Drop />
-        Add cooking oil or fat
+      <Button variant="fat" onClick={control.open}>
+        <DropIcon /> Add cooking oil or fat
       </Button>
       <CookingFatSheet
-        isOpen={isOpen}
-        stage={stage}
+        isOpen={control.isOpen}
+        stage={control.stage}
         mealId={mealId}
-        search={search}
-        onChoose={(food) => setStage({ kind: "amount", food })}
-        onBack={() => setStage({ kind: "search" })}
-        onClose={close}
-        onSaved={saved}
+        search={control.search}
+        onChoose={control.choose}
+        onBack={control.back}
+        onClose={control.close}
+        onSaved={control.saved}
       />
     </>
   );

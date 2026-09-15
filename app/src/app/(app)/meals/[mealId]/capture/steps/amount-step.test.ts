@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/actions/meals", () => ({ saveMealIngredient: vi.fn() }));
+vi.mock("@/features/meals/actions/meals", () => ({ saveMealIngredient: vi.fn() }));
 vi.mock("@/lib/haptics/log-success", () => ({ triggerLogSuccessHaptic: vi.fn() }));
 
-import { saveMealIngredient } from "@/actions/meals";
+import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 
 import { resolveAndSaveAmount, saveAmount } from "./amount-step";

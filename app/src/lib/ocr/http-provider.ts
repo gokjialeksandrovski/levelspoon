@@ -1,4 +1,4 @@
-import type { NutritionValues } from "@/actions/products";
+import type { NutritionValues } from "@/types/nutrition";
 
 import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "./provider";
 

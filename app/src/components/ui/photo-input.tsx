@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera } from "@phosphor-icons/react";
+import { CameraIcon } from "@phosphor-icons/react";
 import Image from "next/image";
 import { type ChangeEvent, useId, useState } from "react";
 
@@ -17,7 +17,7 @@ interface PhotoInputProps {
 const PREVIEW_SIZE_PX = 300;
 
 const PhotoPreview = ({ previewUrl }: { previewUrl: string }) => (
-  <div className="overflow-hidden rounded-(--radius-surface) border border-border">
+  <div className="overflow-hidden rounded-surface border border-border">
     <Image
       src={previewUrl}
       alt="Selected preview"
@@ -38,8 +38,8 @@ interface DropzoneProps {
 // The label wraps the (visually hidden) file input, so the label text is
 // the input's accessible name; the camera glyph is decorative.
 const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
-  <label className="relative flex min-h-36 flex-col items-center justify-center gap-2 rounded-(--radius-surface) border-2 border-dashed border-border bg-surface px-4 py-6 text-center transition-colors active:bg-surface-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
-    <Camera size={32} className="text-text-muted" aria-hidden="true" />
+  <label className="relative flex min-h-36 flex-col items-center justify-center gap-2 rounded-surface border-2 border-dashed border-border bg-surface px-4 py-6 text-center transition-colors active:bg-surface-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
+    <CameraIcon size={32} className="text-text-muted" aria-hidden="true" />
     <span className="text-sm font-medium text-text">{label}</span>
     <input
       type="file"

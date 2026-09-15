@@ -1,4 +1,4 @@
-import type { NutritionValues } from "@/actions/products";
+import type { NutritionValues } from "@/types/nutrition";
 
 const PER_100G_GRAMS = 100;
 

@@ -1,5 +1,5 @@
 // app/src/app/meals/[mealId]/steps/match-result-step.tsx
-import { FOCUS_RING, TAP_HIT_AREA_SM } from "@/components/tap-target";
+import { FOCUS_RING, TAP_HIT_AREA_SM } from "@/components/ui/tap-target";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 

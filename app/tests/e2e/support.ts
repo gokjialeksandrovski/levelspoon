@@ -41,34 +41,35 @@ export const seedProductFor = async (userId: string, name = "Test Product") => {
   return product;
 };
 
+type StandardFoodOverrides = {
+  servingUnit?: string | null;
+  servingGrams?: string | null;
+  category?: "whole" | "fat";
+  densityGMl?: string | null;
+  nutrition?: Partial<typeof BASE_NUTRITION>;
+};
+
+const standardFoodValues = (name: string, overrides: StandardFoodOverrides, createdByUserId: string) => ({
+  ...BASE_NUTRITION,
+  ...overrides.nutrition,
+  name,
+  nutritionPhotoKey: null,
+  source: "standard" as const,
+  standardSlug: `e2e-${crypto.randomUUID()}`,
+  standardCategory: overrides.category ?? "whole",
+  createdByUserId,
+  servingUnit: overrides.servingUnit ?? null,
+  servingGrams: overrides.servingGrams ?? null,
+  densityGMl: overrides.densityGMl ?? null,
+});
+
 // A source='standard' row, like scripts/seed.ts's real fixture loader but
 // without touching fixtures/standard-foods.json - each e2e test truncates
 // products between runs (truncateAll), so a per-test seed is simpler than
 // re-running the full fixture loader before every test.
-export const seedStandardFood = async (
-  name = "Banana",
-  overrides: {
-    servingUnit?: string | null;
-    servingGrams?: string | null;
-    category?: "whole" | "fat";
-    densityGMl?: string | null;
-    nutrition?: Partial<typeof BASE_NUTRITION>;
-  } = {},
-) => {
+export const seedStandardFood = async (name = "Banana", overrides: StandardFoodOverrides = {}) => {
   const [systemUser] = await db.insert(users).values({ email: freshEmail("system") }).returning();
-  await db.insert(products).values({
-    ...BASE_NUTRITION,
-    ...overrides.nutrition,
-    name,
-    nutritionPhotoKey: null,
-    source: "standard",
-    standardSlug: `e2e-${crypto.randomUUID()}`,
-    standardCategory: overrides.category ?? "whole",
-    createdByUserId: systemUser.id,
-    servingUnit: overrides.servingUnit ?? null,
-    servingGrams: overrides.servingGrams ?? null,
-    densityGMl: overrides.densityGMl ?? null,
-  });
+  await db.insert(products).values(standardFoodValues(name, overrides, systemUser.id));
 };
 
 // Signing up lands on "/", which redirects to the local day view - so the

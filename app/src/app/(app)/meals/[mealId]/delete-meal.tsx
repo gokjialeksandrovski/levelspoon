@@ -4,10 +4,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { deleteMeal } from "@/actions/meals";
-import { Button } from "@/components/button";
-import { InlineMessage } from "@/components/inline-message";
-import { Sheet } from "@/components/sheet";
+import { deleteMeal } from "@/features/meals/actions/meals";
+import { Button } from "@/components/ui/button";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { Sheet } from "@/components/ui/sheet";
 
 interface DeleteMealProps {
   mealId: string;

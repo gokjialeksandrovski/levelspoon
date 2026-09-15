@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 
-import { resolveServingSize } from "@/actions/ocr";
-import type { NutritionValues } from "@/actions/products";
-import { Button } from "@/components/button";
-import { Field } from "@/components/field";
-import { InlineMessage } from "@/components/inline-message";
+import { resolveServingSize } from "@/features/products/actions/ocr";
+import type { NutritionValues } from "@/types/nutrition";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 import type { WizardAction } from "../capture-wizard.types";
 
