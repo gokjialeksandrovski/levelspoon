@@ -33,7 +33,7 @@ export default defineConfig({
   // alone only serializes tests *within* one file; Playwright still hands
   // separate files to separate workers by default, which races their
   // TRUNCATEs against each other. Pinning a single worker was never needed
-  // while this config listed only one spec file - now that it lists two.
+  // while this config listed only one spec file - it now lists several.
   workers: 1,
   use: { baseURL: "http://localhost:3000" },
   projects: [

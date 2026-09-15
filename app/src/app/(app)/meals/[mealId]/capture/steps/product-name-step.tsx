@@ -191,10 +191,17 @@ interface BarcodeNameEntryProps {
   onCancel: () => void;
 }
 
+// BarcodeScanner must stay mounted across loading states: its live-scan
+// effect only runs once per mount (see handleBarcodeDetected above), so
+// swapping it out for a loading placeholder would restart the camera scan
+// on every lookup instead of just overlaying a loading state on top of it.
 const BarcodeNameEntry = ({ isLoading, error, onDetect, onCancel }: BarcodeNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Scan the barcode</h2>
-    {isLoading ? <Skeleton className="h-48 w-full" /> : <BarcodeScanner onDetect={onDetect} />}
+    <div className="relative">
+      <BarcodeScanner onDetect={onDetect} />
+      {isLoading && <Skeleton className="absolute inset-0" />}
+    </div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <button type="button" onClick={onCancel} className={TEXT_LINK_SM}>
       <span>Enter the name another way instead</span>

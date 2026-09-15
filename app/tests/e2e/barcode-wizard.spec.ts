@@ -6,7 +6,19 @@ import { productBarcodes } from "../../src/lib/db/schema";
 
 import { seedProductWithBarcode, signUp, truncateAll } from "./support";
 
-test.beforeEach(truncateAll);
+test.beforeEach(async ({ page, context }) => {
+  await truncateAll();
+  await context.clearPermissions();
+  // Forces every test onto the deterministic photo-upload path: the fake
+  // camera flags in playwright.config.ts apply project-wide, so without this
+  // stub a real live scan races the photo upload these tests intend to
+  // exercise (see barcode-scanner.spec.ts's own permission-denied test for
+  // the same pattern).
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = () =>
+      Promise.reject(new DOMException("Permission denied", "NotAllowedError"));
+  });
+});
 
 test("scanning an already-linked barcode skips straight to the amount step", async ({ page }) => {
   await seedProductWithBarcode("5901234123457", "Existing Scanned Product");
@@ -14,19 +26,17 @@ test("scanning an already-linked barcode skips straight to the amount step", asy
 
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByRole("button", { name: "Scan barcode instead" }).click();
-  await page.getByRole("button", { name: "Or upload a photo instead" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/product-barcode.png");
 
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
   await expect(page.getByText("Using Existing Scanned Product")).toBeVisible();
 });
 
-test("scanning a barcode Open Food Facts has lands on a prefilled confirm step, and saving attaches it", async ({ page }) => {
+test("scanning a barcode Open Food Facts recognizes lands on a prefilled confirm step, and saving attaches it", async ({ page }) => {
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByRole("button", { name: "Scan barcode instead" }).click();
-  await page.getByRole("button", { name: "Or upload a photo instead" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/external-match-barcode.png");
 
   await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
@@ -44,7 +54,6 @@ test("a barcode neither source has falls through to the normal flow without sile
 
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByRole("button", { name: "Scan barcode instead" }).click();
-  await page.getByRole("button", { name: "Or upload a photo instead" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
 
   // Falls back to the ordinary chooser - same step, nothing attached yet.
@@ -73,9 +82,8 @@ test("a restricted-circulation code shows an inline message and stays on the sca
 
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByRole("button", { name: "Scan barcode instead" }).click();
-  await page.getByRole("button", { name: "Or upload a photo instead" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/restricted-barcode.png");
 
   await expect(page.getByText(/isn't a product barcode/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Product name" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Scan the barcode" })).toBeVisible();
 });
