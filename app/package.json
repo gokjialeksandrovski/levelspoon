@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:drop": "tsx --env-file=.env.local scripts/drop.ts",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "fixtures:barcodes": "tsx scripts/generate-barcode-fixtures.ts",
     "test": "vitest run",
     "test:e2e": "playwright test -c playwright.config.ts",
     "test:e2e:real": "playwright test -c playwright.config.real.ts"
@@ -36,6 +37,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
@@ -43,8 +45,10 @@
     "eslint": "^9",
     "eslint-config-next": "^16.3.3",
     "eslint-plugin-better-tailwindcss": "^4.7.0",
+    "pngjs": "^7.0.0",
     "tsx": "^4.23.12",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "zxing-wasm": "^3.1.3"
   }
 }
