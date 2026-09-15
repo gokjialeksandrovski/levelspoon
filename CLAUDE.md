@@ -1,10 +1,11 @@
 # Per100
 
 Multi-user web app. Log meals built from ingredients. Each ingredient is a
-"product" in a **shared cross-user table** (name + nutrition per 100g). Product
-discovery photo/OCR only — **no barcode scanning**. Name encode model:
-every product store nutrition per 100g; every consumed amount compute from
-that base.
+"product" in a **shared cross-user table** (name + nutrition per 100g).
+Product discovery: photo/OCR, manual entry, or barcode scan (internal
+crowd-sourced DB first, Open Food Facts fallback on miss — no barcode typing,
+camera only). Name encode model: every product store nutrition per 100g;
+every consumed amount compute from that base.
 
 Rules below forward-looking: what keep true, what not repeat.
 Rejected/superseded approaches and reasons live in
