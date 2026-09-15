@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { createProduct } from "@/features/products/actions/products";
+import { BarcodeAlreadyLinkedError } from "@/features/products/actions/products.errors";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -18,7 +19,7 @@ import type { FieldValues } from "@/lib/ocr/nutrition-fields";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
-import type { WizardAction } from "../capture-wizard.types";
+import type { NutritionOrigin, WizardAction } from "../capture-wizard.types";
 
 interface ConfirmStepProps {
   name: string;
@@ -28,6 +29,11 @@ interface ConfirmStepProps {
   learned: LearnedMeasures;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
+  /** Carried through for T4's future confirm-step checkbox - unused by this
+   * component today (barcode spec §7). */
+  pendingBarcode: string | null;
+  barcode: string | null;
+  nutritionOrigin: NutritionOrigin | null;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -36,6 +42,11 @@ const UNREADABLE_FIELD_ERROR = "Could not read this value - please enter it";
 // saturates > fat) - "Could not read" would be false here.
 const INCONSISTENT_FIELD_ERROR = "This value looks off - please double-check it";
 const SAVE_BLOCKED_ERROR = "Please fix the flagged values before saving.";
+const SAVE_ERROR = "Could not save this product. Please try again.";
+// A second user's scan/OFF-save of the same not-yet-in-per100 barcode won
+// the race between this confirm step's own lookup and its save - a distinct,
+// named failure (CLAUDE.md Rule 10), not the generic save error.
+const BARCODE_CONFLICT_ERROR = "This barcode was just linked to a different product. Search for that product instead of creating a new one.";
 
 const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
   if (!flaggedFields.has(field)) {
@@ -52,6 +63,15 @@ const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]
   return result.flags;
 };
 
+const toProductCreatedPayload = (productId: string, input: SaveConfirmInput) => ({
+  id: productId,
+  name: input.nameValue,
+  densityGMl: input.learned.densityGMl,
+  servingUnit: input.learned.servingUnit,
+  servingGrams: input.learned.servingGrams,
+  nutritionBasisUnit: input.nutritionBasisUnit,
+});
+
 const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void): Promise<void> => {
   const { productId } = await createProduct({
     name: input.nameValue,
@@ -60,16 +80,10 @@ const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAct
     learned: input.learned,
     nutritionBasisUnit: input.nutritionBasisUnit,
     nutritionBasisQuantity: input.nutritionBasisQuantity,
+    barcode: input.barcode ?? undefined,
+    nutritionOrigin: input.nutritionOrigin ?? undefined,
   });
-  const product = {
-    id: productId,
-    name: input.nameValue,
-    densityGMl: input.learned.densityGMl,
-    servingUnit: input.learned.servingUnit,
-    servingGrams: input.learned.servingGrams,
-    nutritionBasisUnit: input.nutritionBasisUnit,
-  };
-  dispatch({ type: "PRODUCT_CREATED", product });
+  dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(productId, input) });
 };
 
 interface NutritionFieldsProps {
@@ -104,6 +118,8 @@ interface SaveConfirmInput {
   learned: LearnedMeasures;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
+  barcode: string | null;
+  nutritionOrigin: NutritionOrigin | null;
 }
 
 interface ConfirmSaveCallbacks {
@@ -126,8 +142,8 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
       return;
     }
     await saveProduct(input, dispatch);
-  } catch {
-    callbacks.setError("Could not save this product. Please try again.");
+  } catch (error) {
+    callbacks.setError(error instanceof BarcodeAlreadyLinkedError ? BARCODE_CONFLICT_ERROR : SAVE_ERROR);
   } finally {
     callbacks.setIsSaving(false);
   }
@@ -157,11 +173,22 @@ interface ConfirmFormState {
   revalidate: (values: FieldValues) => void;
 }
 
+const buildSaveInput = (props: ConfirmStepProps, state: ConfirmFormState): SaveConfirmInput => ({
+  nameValue: state.nameValue,
+  values: state.values,
+  photo: props.photo,
+  learned: props.learned,
+  nutritionBasisUnit: props.nutritionBasisUnit,
+  nutritionBasisQuantity: props.nutritionBasisQuantity,
+  barcode: props.barcode,
+  nutritionOrigin: props.nutritionOrigin,
+});
+
 const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormState) => {
   const flaggedFields = flaggedFieldSet(state.flags);
   const canSave = [...flaggedFields].every((field) => state.values[field].trim() !== "");
   const setFieldValue = (field: keyof FieldValues, value: string) => state.setValues({ ...state.values, [field]: value });
-  const saveInput = { nameValue: state.nameValue, values: state.values, photo: props.photo, learned: props.learned, nutritionBasisUnit: props.nutritionBasisUnit, nutritionBasisQuantity: props.nutritionBasisQuantity };
+  const saveInput = buildSaveInput(props, state);
   const saveCallbacks = { setFlags: state.setFlags, setError: state.setError, setIsSaving: state.setIsSaving };
 
   return {

@@ -121,6 +121,9 @@ const renderConfirmStep = (
     learned={step.learned}
     nutritionBasisUnit={step.nutritionBasisUnit}
     nutritionBasisQuantity={step.nutritionBasisQuantity}
+    pendingBarcode={step.pendingBarcode}
+    barcode={step.barcode}
+    nutritionOrigin={step.nutritionOrigin}
     dispatch={dispatch}
   />
 );
