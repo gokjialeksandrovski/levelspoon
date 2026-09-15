@@ -11,7 +11,7 @@ interface BarcodeScannerProps {
   onDetect: (code: string) => void;
 }
 
-type ScanStage = "starting" | "scanning" | "permission-denied";
+type ScanStage = "starting" | "scanning" | "permission-denied" | "error";
 
 const DETECT_INTERVAL_MS = 300;
 const WASM_PUBLIC_PATH = "/zxing";
@@ -33,14 +33,18 @@ const loadDetector = async (): Promise<BarcodeDetectorApi> => {
 
 interface LiveScanHandle {
   stream: MediaStream;
-  intervalId: ReturnType<typeof setInterval>;
+  // null between acquiring the stream and starting the poll - lets a failure
+  // in between (e.g. video.play() rejecting) still find and stop the stream.
+  intervalId: ReturnType<typeof setInterval> | null;
 }
 
 const stopLiveScan = (handle: LiveScanHandle | null): void => {
   if (!handle) {
     return;
   }
-  clearInterval(handle.intervalId);
+  if (handle.intervalId) {
+    clearInterval(handle.intervalId);
+  }
   handle.stream.getTracks().forEach((track) => track.stop());
 };
 
@@ -83,32 +87,48 @@ interface StartLiveScanCallbacks {
 // line budget - same split as nutrition-photo-step's handler functions.
 // Writes the result onto handleRef instead of returning it, so the caller
 // doesn't need a `.then()` of its own just to stash it.
+const runCameraAcquisition = async (
+  video: HTMLVideoElement,
+  handleRef: { current: LiveScanHandle | null },
+  isCancelled: () => boolean,
+  detector: BarcodeDetectorApi,
+  callbacks: StartLiveScanCallbacks,
+): Promise<void> => {
+  const stream = await requestCameraStream(() => callbacks.onStage("permission-denied"));
+  if (!stream || isCancelled()) {
+    stream?.getTracks().forEach((track) => track.stop());
+    return;
+  }
+  // Stashed before video.play() (which can itself reject) so a failure past
+  // this point still has a handle to stop the already-acquired stream by.
+  handleRef.current = { stream, intervalId: null };
+  video.srcObject = stream;
+  await video.play();
+  callbacks.onStage("scanning");
+  handleRef.current = { stream, intervalId: pollForBarcode(video, detector, callbacks.onFound) };
+};
+
+// Any rejection in this chain stops whatever stream was acquired and reports
+// a real "error" stage, instead of an unhandled rejection or a stuck stage.
 const startLiveScan = async (
   video: HTMLVideoElement,
   handleRef: { current: LiveScanHandle | null },
   isCancelled: () => boolean,
   callbacks: StartLiveScanCallbacks,
 ): Promise<void> => {
-  const detector = await loadDetector();
-  // React StrictMode (dev only) double-invokes this effect: mount, cleanup,
-  // mount again. The stale first invocation's cleanup can fire while this
-  // await is still pending, and without this check it would go on to make a
-  // real getUserMedia() call anyway - racing a second concurrent call from
-  // the live invocation against the same device and occasionally losing,
-  // which this component would then (correctly, per its own logic) report
-  // as a permission denial that never actually happened.
-  if (isCancelled()) {
-    return;
+  try {
+    const detector = await loadDetector();
+    // StrictMode double-invoke: the stale invocation's cleanup can fire during
+    // this await; without the guard it races a second getUserMedia() and reports a phantom denial.
+    if (isCancelled()) {
+      return;
+    }
+    await runCameraAcquisition(video, handleRef, isCancelled, detector, callbacks);
+  } catch {
+    stopLiveScan(handleRef.current);
+    handleRef.current = null;
+    callbacks.onStage("error");
   }
-  const stream = await requestCameraStream(() => callbacks.onStage("permission-denied"));
-  if (!stream || isCancelled()) {
-    stream?.getTracks().forEach((track) => track.stop());
-    return;
-  }
-  video.srcObject = stream;
-  await video.play();
-  callbacks.onStage("scanning");
-  handleRef.current = { stream, intervalId: pollForBarcode(video, detector, callbacks.onFound) };
 };
 
 const makeCleanup = (cancelledRef: { current: boolean }, handleRef: { current: LiveScanHandle | null }) => (): void => {
@@ -143,33 +163,54 @@ interface UseLiveScanResult {
 const useLiveScan = (onDetect: (code: string) => void): UseLiveScanResult => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stage, setStage] = useState<ScanStage>("starting");
+  // Latest-callback-ref pattern: the mount effect below reads through this
+  // ref, so an inline onDetect from the caller never restarts the camera.
+  const onDetectRef = useRef(onDetect);
 
-  useEffect(() => runLiveScan(videoRef, onDetect, setStage), [onDetect]);
+  useEffect(() => {
+    onDetectRef.current = onDetect;
+  }, [onDetect]);
+
+  useEffect(() => runLiveScan(videoRef, (code) => onDetectRef.current(code), setStage), []);
 
   return { stage, videoRef };
 };
 
+const SCANNER_LOAD_ERROR_MESSAGE = "Couldn't load the barcode scanner. Try again in a moment.";
 const NO_BARCODE_FOUND_MESSAGE = "No barcode found in that photo. Try again with the code centered and in focus.";
+
+// A photo with no decodable barcode can make the underlying WASM throw
+// instead of resolving empty - both mean "no barcode found" to the user
+// (CLAUDE.md Rule 18: no unhandled rejection, no silent dead end).
+const detectFromPhoto = async (detector: BarcodeDetectorApi, photo: File): Promise<string | null> => {
+  try {
+    const results = await detector.detect(photo);
+    return results.length > 0 ? results[0].rawValue : null;
+  } catch {
+    return null;
+  }
+};
 
 const handlePhotoFallback = async (
   photo: File,
   onDetect: (code: string) => void,
   onError: (message: string) => void,
 ): Promise<void> => {
-  const detector = await loadDetector();
-  // A photo with no decodable barcode can make the underlying WASM throw
-  // instead of resolving empty - both mean the same thing to the user
-  // (CLAUDE.md Rule 18: no unhandled rejection, no silent dead end).
+  let detector: BarcodeDetectorApi;
   try {
-    const results = await detector.detect(photo);
-    if (results.length === 0) {
-      onError(NO_BARCODE_FOUND_MESSAGE);
-      return;
-    }
-    onDetect(results[0].rawValue);
+    detector = await loadDetector();
   } catch {
-    onError(NO_BARCODE_FOUND_MESSAGE);
+    onError(SCANNER_LOAD_ERROR_MESSAGE);
+    return;
   }
+  const code = await detectFromPhoto(detector, photo);
+  if (code === null) {
+    onError(NO_BARCODE_FOUND_MESSAGE);
+    return;
+  }
+  // Deliberately outside any try/catch here - a throw from the caller's own
+  // onDetect must propagate, not get mislabeled as a decode failure.
+  onDetect(code);
 };
 
 interface UsePhotoFallbackResult {
@@ -190,11 +231,17 @@ const LiveScanVideo = ({ videoRef, hidden }: { videoRef: React.RefObject<HTMLVid
   <video ref={videoRef} muted autoPlay playsInline hidden={hidden} className="w-full rounded-surface border border-border" />
 );
 
+const SCANNER_START_ERROR_MESSAGE = "Couldn't start the scanner. Try uploading a photo instead.";
+
+const StartingNotice = () => <p className="text-sm text-text-muted">Starting camera…</p>;
+
 const PermissionDeniedNotice = () => (
   <InlineMessage tone="error">
     Camera access was denied. Upload a barcode photo instead, or go back and enter the product another way.
   </InlineMessage>
 );
+
+const ScannerErrorNotice = () => <InlineMessage tone="error">{SCANNER_START_ERROR_MESSAGE}</InlineMessage>;
 
 interface PhotoFallbackProps {
   visible: boolean;
@@ -220,12 +267,16 @@ export const BarcodeScanner = ({ onDetect }: BarcodeScannerProps) => {
   const [showPhotoFallback, setShowPhotoFallback] = useState(false);
   const photoFallback = usePhotoFallback(onDetect);
 
+  const cameraUnavailable = stage === "permission-denied" || stage === "error";
+
   return (
     <div className="flex flex-col gap-4">
-      <LiveScanVideo videoRef={videoRef} hidden={stage === "permission-denied"} />
+      <LiveScanVideo videoRef={videoRef} hidden={cameraUnavailable} />
+      {stage === "starting" && <StartingNotice />}
       {stage === "permission-denied" && <PermissionDeniedNotice />}
+      {stage === "error" && <ScannerErrorNotice />}
       <PhotoFallback
-        visible={showPhotoFallback || stage === "permission-denied"}
+        visible={showPhotoFallback || cameraUnavailable}
         onReveal={() => setShowPhotoFallback(true)}
         onSelect={photoFallback.handleSelect}
         error={photoFallback.error}

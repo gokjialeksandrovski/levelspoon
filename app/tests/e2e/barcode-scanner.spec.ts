@@ -5,9 +5,22 @@ import { signUp, truncateAll } from "./support";
 test.beforeEach(truncateAll);
 
 test("live scan: the fake camera feed decodes the fixture barcode", async ({ page }) => {
+  // Guards the self-hosted-WASM decision: if locateFile's override ever
+  // regressed to the library's built-in CDN fallback, decoding would still
+  // work and this test would still pass without this check.
+  const wasmUrls: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith(".wasm")) {
+      wasmUrls.push(request.url());
+    }
+  });
   await signUp(page);
   await page.goto("/dev/barcode-scanner");
   await expect(page.getByTestId("detected-barcode")).toHaveText("5901234123457", { timeout: 15_000 });
+  expect(wasmUrls.length).toBeGreaterThan(0);
+  for (const url of wasmUrls) {
+    expect(new URL(url).pathname).toMatch(/^\/zxing\//);
+  }
 });
 
 test("photo fallback: uploading a barcode photo decodes the same code", async ({ page }) => {
@@ -30,13 +43,8 @@ test("photo fallback: a photo with no barcode shows an inline error, not a silen
 
 test("camera permission denied: shows an explicit error and the photo fallback is immediately visible", async ({ page, context }) => {
   await context.clearPermissions();
-  // The chromium project's --use-fake-ui-for-media-stream launch flag (needed
-  // so the other three tests get a real, deterministic camera grant under
-  // headless Chromium - without it getUserMedia() non-deterministically
-  // rejects even with `permissions: ["camera"]` set) auto-accepts every
-  // getUserMedia() call unconditionally, which makes context.clearPermissions()
-  // alone insufficient to reproduce a denial here. Stub getUserMedia directly
-  // so this test still exercises the app's real denial-handling path.
+  // Why a stub on top of clearPermissions(): see playwright.config.ts's
+  // --use-fake-ui-for-media-stream comment.
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("Permission denied", "NotAllowedError"));
   });
