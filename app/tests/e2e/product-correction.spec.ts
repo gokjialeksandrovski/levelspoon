@@ -44,9 +44,9 @@ test("correcting a product from the meal detail page: an invalid value blocks sa
   // and the page must show it fresh, not the pre-correction value from the
   // client Router Cache.
   await expect(page.getByText(/200 g · 150 kcal/)).toBeVisible();
-  // Task 12's redesigned MealTotal renders "Meal total <n> kcal" (a space, no
-  // colon) - the old assertion checked "Meal total:.*150 kcal".
-  await expect(page.getByText(/Meal total\s+150 kcal/)).toBeVisible();
+  // \s* not \s+: MealTotal's label and figure are adjacent spans, so the
+  // paragraph's text content has no separator between them.
+  await expect(page.getByText(/Meal total\s*150 kcal/)).toBeVisible();
 });
 
 test("clicking Save right after typing an invalid value (before blur) still blocks the save", async ({ page }) => {

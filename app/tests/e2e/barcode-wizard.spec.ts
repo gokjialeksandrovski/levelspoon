@@ -25,7 +25,7 @@ test("scanning an already-linked barcode skips straight to the amount step", asy
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/product-barcode.png");
 
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
@@ -36,7 +36,7 @@ test("scanning a barcode Open Food Facts recognizes lands on a prefilled confirm
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/external-match-barcode.png");
 
   await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
@@ -53,7 +53,7 @@ test("a barcode neither source has falls through to the normal flow and surfaces
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
 
   // Falls back to the ordinary chooser - same step, nothing attached yet.
@@ -62,7 +62,7 @@ test("a barcode neither source has falls through to the normal flow and surfaces
   // here, and the latter contains "Product name" as a substring.
   await expect(page.getByRole("heading", { name: "Product name", exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Enter the name manually instead" }).click();
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -85,9 +85,9 @@ test("unchecking the pre-scanned barcode opt-in saves the product with no barcod
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
-  await page.getByRole("button", { name: "Enter the name manually instead" }).click();
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
@@ -104,9 +104,9 @@ test("a pre-scanned code already bound elsewhere shows that product at confirm a
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
-  await page.getByRole("button", { name: "Enter the name manually instead" }).click();
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -130,7 +130,7 @@ test("a restricted-circulation code shows an inline message and stays on the sca
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/restricted-barcode.png");
 
   await expect(page.getByText(/isn't a product barcode/i)).toBeVisible();
@@ -168,9 +168,9 @@ test("a not-found-then-name-matched flow shows the link offer, and accepting it 
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
-  await page.getByRole("button", { name: "Enter the name manually instead" }).click();
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -190,9 +190,9 @@ test("accepting the amount-step link offer after another user just bound the cod
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
-  await page.getByRole("button", { name: "Enter the name manually instead" }).click();
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
   await page.getByRole("button", { name: "Continue" }).click();
 
