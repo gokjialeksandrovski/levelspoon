@@ -296,7 +296,14 @@ const useBarcodeLinkOffer = (pendingBarcode: string, productId: string) => {
   return { state, accept, decline: () => setState({ kind: "resolved" }) };
 };
 
-const BarcodeLinkOfferPrompt = ({ productName, isLinking, onAccept, onDecline }: { productName: string; isLinking: boolean; onAccept: () => void; onDecline: () => void }) => (
+interface BarcodeLinkOfferPromptProps {
+  productName: string;
+  isLinking: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+}
+
+const BarcodeLinkOfferPrompt = ({ productName, isLinking, onAccept, onDecline }: BarcodeLinkOfferPromptProps) => (
   <div className="flex flex-col gap-2">
     <p className="text-sm text-text">Link barcode to {productName}?</p>
     <div className="flex gap-2">
@@ -306,7 +313,12 @@ const BarcodeLinkOfferPrompt = ({ productName, isLinking, onAccept, onDecline }:
   </div>
 );
 
-const BarcodeLinkConflict = ({ product, dispatch }: { product: ProductCandidate; dispatch: (action: WizardAction) => void }) => (
+interface BarcodeLinkConflictProps {
+  product: ProductCandidate;
+  dispatch: (action: WizardAction) => void;
+}
+
+const BarcodeLinkConflict = ({ product, dispatch }: BarcodeLinkConflictProps) => (
   <div className="flex flex-col gap-2">
     <InlineMessage tone="warning">This barcode is already linked to {product.name}.</InlineMessage>
     <Button
