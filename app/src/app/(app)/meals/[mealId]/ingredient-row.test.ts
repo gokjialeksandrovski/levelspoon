@@ -51,6 +51,6 @@ describe("resolveAndSaveQuantity", () => {
     );
 
     expect(updateMealIngredientQuantity).not.toHaveBeenCalled();
-    expect(callbacks.onError).toHaveBeenCalledWith('Could not work out the amount in "gummies" - try a different unit.');
+    expect(callbacks.onError).toHaveBeenCalledWith('Couldn\'t work out the amount in "gummies". Try a different unit.');
   });
 });

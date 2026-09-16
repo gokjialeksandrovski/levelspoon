@@ -230,7 +230,7 @@ const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
       type="file"
       accept="image/*"
       capture="environment"
-      aria-label="Photograph the label"
+      aria-label="Product photo"
       disabled={isLoading}
       onChange={(event) => handlePhotoRowChange(event, onSelect)}
       className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"

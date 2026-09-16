@@ -38,7 +38,7 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await page.getByLabel("Amount", { exact: true }).fill("0");
   await page.getByRole("button", { name: "Save" }).click();
 
-  const errorMessage = page.getByText('Could not work out the amount in "g" - try a different unit.');
+  const errorMessage = page.getByText('Couldn\'t work out the amount in "g". Try a different unit.');
   await expect(errorMessage).toBeVisible();
   // A failed resolve doesn't close the editor - the Amount field stays.
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
