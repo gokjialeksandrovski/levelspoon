@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
+import { linkBarcode } from "@/features/products/actions/barcode";
 import { saveMealIngredient } from "@/features/meals/actions/meals";
+import type { ProductCandidate } from "@/features/products/actions/products";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -13,6 +15,7 @@ import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
+import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
 import { AmountPhotoField } from "./amount-photo-field";
@@ -239,6 +242,99 @@ const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
   </>
 );
 
+interface AcceptBarcodeLinkOfferCallbacks {
+  onLinked: () => void;
+  onConflict: (product: ProductCandidate) => void;
+  onError: (message: string) => void;
+}
+
+const LINK_BARCODE_ERROR = "Could not link this barcode. Please try again.";
+
+// Exported so amount-step.test.ts can call it directly, mirroring
+// saveAmount's own standalone-async-function pattern above.
+export const acceptBarcodeLinkOffer = async (
+  barcode: string,
+  productId: string,
+  callbacks: AcceptBarcodeLinkOfferCallbacks,
+): Promise<void> => {
+  try {
+    const result = await linkBarcode(barcode, productId);
+    if (result.kind === "linked") {
+      callbacks.onLinked();
+      return;
+    }
+    callbacks.onConflict(result.product);
+  } catch {
+    callbacks.onError(LINK_BARCODE_ERROR);
+  }
+};
+
+type LinkOfferState =
+  | { kind: "idle" }
+  | { kind: "linking" }
+  | { kind: "resolved" }
+  | { kind: "conflict"; product: ProductCandidate }
+  | { kind: "error" };
+
+interface BarcodeLinkOfferProps {
+  pendingBarcode: string;
+  productId: string;
+  productName: string;
+  dispatch: (action: WizardAction) => void;
+}
+
+const useBarcodeLinkOffer = (pendingBarcode: string, productId: string) => {
+  const [state, setState] = useState<LinkOfferState>({ kind: "idle" });
+  const accept = () => {
+    setState({ kind: "linking" });
+    void acceptBarcodeLinkOffer(pendingBarcode, productId, {
+      onLinked: () => setState({ kind: "resolved" }),
+      onConflict: (product) => setState({ kind: "conflict", product }),
+      onError: () => setState({ kind: "error" }),
+    });
+  };
+  return { state, accept, decline: () => setState({ kind: "resolved" }) };
+};
+
+const BarcodeLinkOfferPrompt = ({ productName, isLinking, onAccept, onDecline }: { productName: string; isLinking: boolean; onAccept: () => void; onDecline: () => void }) => (
+  <div className="flex flex-col gap-2">
+    <p className="text-sm text-text">Link barcode to {productName}?</p>
+    <div className="flex gap-2">
+      <Button variant="ghost" pending={isLinking} onClick={onAccept}>Yes, link it</Button>
+      <Button variant="ghost" onClick={onDecline}>No thanks</Button>
+    </div>
+  </div>
+);
+
+const BarcodeLinkConflict = ({ product, dispatch }: { product: ProductCandidate; dispatch: (action: WizardAction) => void }) => (
+  <div className="flex flex-col gap-2">
+    <InlineMessage tone="warning">This barcode is already linked to {product.name}.</InlineMessage>
+    <Button
+      variant="ghost"
+      onClick={() => dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(product), alternatives: [], pendingBarcode: null })}
+    >
+      Use {product.name} instead
+    </Button>
+  </div>
+);
+
+const BarcodeLinkOffer = ({ pendingBarcode, productId, productName, dispatch }: BarcodeLinkOfferProps) => {
+  const { state, accept, decline } = useBarcodeLinkOffer(pendingBarcode, productId);
+
+  if (state.kind === "resolved") {
+    return null;
+  }
+  if (state.kind === "conflict") {
+    return <BarcodeLinkConflict product={state.product} dispatch={dispatch} />;
+  }
+  return (
+    <>
+      <BarcodeLinkOfferPrompt productName={productName} isLinking={state.kind === "linking"} onAccept={accept} onDecline={decline} />
+      {state.kind === "error" && <InlineMessage tone="error">{LINK_BARCODE_ERROR}</InlineMessage>}
+    </>
+  );
+};
+
 export const AmountStep = ({ mealId, product, alternatives, pendingBarcode, dispatch, onSaved }: AmountStepProps) => {
   const form = useAmountStepForm(mealId, product, alternatives, pendingBarcode, dispatch, onSaved);
 
@@ -249,6 +345,9 @@ export const AmountStep = ({ mealId, product, alternatives, pendingBarcode, disp
         hasAlternatives={alternatives.length > 0}
         onChangeMatch={form.changeMatch}
       />
+      {pendingBarcode && (
+        <BarcodeLinkOffer pendingBarcode={pendingBarcode} productId={product.id} productName={product.name} dispatch={dispatch} />
+      )}
       <AmountStepFields form={form} />
     </div>
   );

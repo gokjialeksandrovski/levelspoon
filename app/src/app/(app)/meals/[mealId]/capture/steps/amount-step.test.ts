@@ -6,7 +6,11 @@ vi.mock("@/lib/haptics/log-success", () => ({ triggerLogSuccessHaptic: vi.fn() }
 import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 
-import { resolveAndSaveAmount, saveAmount } from "./amount-step";
+import { acceptBarcodeLinkOffer, resolveAndSaveAmount, saveAmount } from "./amount-step";
+
+vi.mock("@/features/products/actions/barcode", () => ({ linkBarcode: vi.fn() }));
+
+import { linkBarcode } from "@/features/products/actions/barcode";
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -108,5 +112,38 @@ describe("resolveAndSaveAmount", () => {
 
     expect(saveMealIngredient).not.toHaveBeenCalled();
     expect(callbacks.setError).toHaveBeenCalledWith('Could not work out the amount in "gummies" - try a different unit.');
+  });
+});
+
+describe("acceptBarcodeLinkOffer", () => {
+  it("calls onLinked when the barcode links cleanly", async () => {
+    vi.mocked(linkBarcode).mockResolvedValue({ kind: "linked" });
+    const callbacks = { onLinked: vi.fn(), onConflict: vi.fn(), onError: vi.fn() };
+
+    await acceptBarcodeLinkOffer("5901234123457", "product-1", callbacks);
+
+    expect(linkBarcode).toHaveBeenCalledWith("5901234123457", "product-1");
+    expect(callbacks.onLinked).toHaveBeenCalledTimes(1);
+    expect(callbacks.onConflict).not.toHaveBeenCalled();
+  });
+
+  it("calls onConflict with the other product when the barcode is already bound elsewhere", async () => {
+    const otherProduct = { id: "product-2", name: "Other Product" };
+    vi.mocked(linkBarcode).mockResolvedValue({ kind: "already_linked_elsewhere", product: otherProduct as never });
+    const callbacks = { onLinked: vi.fn(), onConflict: vi.fn(), onError: vi.fn() };
+
+    await acceptBarcodeLinkOffer("5901234123457", "product-1", callbacks);
+
+    expect(callbacks.onConflict).toHaveBeenCalledWith(otherProduct);
+    expect(callbacks.onLinked).not.toHaveBeenCalled();
+  });
+
+  it("calls onError when linkBarcode throws", async () => {
+    vi.mocked(linkBarcode).mockRejectedValue(new Error("db down"));
+    const callbacks = { onLinked: vi.fn(), onConflict: vi.fn(), onError: vi.fn() };
+
+    await acceptBarcodeLinkOffer("5901234123457", "product-1", callbacks);
+
+    expect(callbacks.onError).toHaveBeenCalledWith("Could not link this barcode. Please try again.");
   });
 });
