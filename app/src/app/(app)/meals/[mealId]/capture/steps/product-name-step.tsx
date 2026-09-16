@@ -169,12 +169,12 @@ interface PhotoNameEntryProps {
 const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry, onBarcodeEntry, onWholeFood }: PhotoNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Photograph the product name</h2>
-    <PhotoInput label="Product photo" onSelect={onSelect} />
-    {isLoading && <Skeleton className="h-9 w-40" />}
-    {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <button type="button" onClick={onBarcodeEntry} className={TEXT_LINK_SM}>
       <span>Scan barcode instead</span>
     </button>
+    <PhotoInput label="Product photo" onSelect={onSelect} />
+    {isLoading && <Skeleton className="h-9 w-40" />}
+    {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <button type="button" onClick={onManualEntry} className={TEXT_LINK_SM}>
       <span>Enter the name manually instead</span>
     </button>
