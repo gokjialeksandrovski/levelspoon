@@ -1,4 +1,8 @@
+import { CaretDownIcon } from "@phosphor-icons/react";
+
 import { fieldInputClassName } from "./field";
+
+const UNIT_CHEVRON_SIZE = 14;
 
 interface UnitAmountFieldProps {
   name: string;
@@ -17,7 +21,12 @@ interface CountInputProps {
   onCountChange: (value: string) => void;
 }
 
-const CountInput = ({ name, count, autoFocus, onCountChange }: CountInputProps) => (
+const CountInput = ({
+  name,
+  count,
+  autoFocus,
+  onCountChange,
+}: CountInputProps) => (
   <input
     id={name}
     name={name}
@@ -36,28 +45,47 @@ interface UnitSelectProps {
   onUnitChange: (value: string) => void;
 }
 
-const UnitSelect = ({ unit, units, onUnitChange }: UnitSelectProps) => (
-  <select
-    aria-label="Unit"
-    value={unit}
-    onChange={(event) => onUnitChange(event.target.value)}
-    className={fieldInputClassName(false, undefined)}
-  >
-    {units.map((option) => (
-      <option key={option} value={option}>
-        {option}
-      </option>
-    ))}
-  </select>
+const SelectChevron = () => (
+  <CaretDownIcon
+    size={UNIT_CHEVRON_SIZE}
+    aria-hidden
+    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+  />
 );
 
-export const UnitAmountField = ({ name, count, unit, units, autoFocus, onCountChange, onUnitChange }: UnitAmountFieldProps) => (
+const UnitSelect = ({ unit, units, onUnitChange }: UnitSelectProps) => (
+  <div className="relative">
+    <select
+      aria-label="Unit"
+      value={unit}
+      onChange={(event) => onUnitChange(event.target.value)}
+      className={`w-full appearance-none pr-9 ${fieldInputClassName(false, undefined)}`}
+    >
+      {units.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+    <SelectChevron />
+  </div>
+);
+
+export const UnitAmountField = ({
+  name,
+  count,
+  unit,
+  units,
+  autoFocus,
+  onCountChange,
+  onUnitChange,
+}: UnitAmountFieldProps) => (
   <div className="flex flex-col gap-2">
     <label htmlFor={name} className="text-xs font-medium text-text-muted">
       Amount
     </label>
     <div className="flex gap-2">
-      <CountInput name={name} count={count} autoFocus={autoFocus} onCountChange={onCountChange} />
+      <CountInput {...{ name, count, autoFocus, onCountChange }} />
       <UnitSelect unit={unit} units={units} onUnitChange={onUnitChange} />
     </div>
   </div>

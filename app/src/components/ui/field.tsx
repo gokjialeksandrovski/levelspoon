@@ -17,9 +17,19 @@ interface FieldProps {
 
 // py-3 matches Button's 4pt-scale correction so a Field and adjacent Button
 // land on the same height.
+// border-text-muted, not border-border: --color-border (~1.1:1 against
+// --color-surface) is a divider weight, invisible as a control outline.
+// text-muted already clears 3:1 UI-component contrast and matches the
+// label's ink tone above it.
+// Focus paints an inset ring on top of the border, not an offset outline: an
+// offset outline reads as a second, detached ring, and its left/right arcs get
+// clipped flat by Sheet's scroll container. Inset stays inside the box.
+const FIELD_FOCUS_RING =
+  "focus-visible:outline-none focus-visible:border-text focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-text";
+
 export const fieldInputClassName = (flagged: boolean, error: string | undefined): string =>
-  `rounded-(--radius-control) border bg-surface px-3 py-3 text-sm text-text placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text ${
-    flagged || error ? "border-flag" : "border-border"
+  `rounded-(--radius-control) border bg-surface px-3 py-3 text-sm text-text placeholder:text-text-muted ${FIELD_FOCUS_RING} ${
+    flagged || error ? "border-flag" : "border-text-muted"
   }`;
 
 // Points aria-describedby at the error (replaces helper text visually, so

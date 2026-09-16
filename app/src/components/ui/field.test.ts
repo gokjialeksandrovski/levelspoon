@@ -4,7 +4,7 @@ import { fieldInputClassName } from "./field";
 
 describe("fieldInputClassName", () => {
   it("uses the plain border color when neither flagged nor errored", () => {
-    expect(fieldInputClassName(false, undefined)).toContain("border-border");
+    expect(fieldInputClassName(false, undefined)).toContain("border-text-muted");
     expect(fieldInputClassName(false, undefined)).not.toContain("border-flag");
   });
 
