@@ -8,7 +8,6 @@ import type { ProductCandidate } from "@/features/products/actions/products";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
@@ -42,9 +41,9 @@ const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: Amoun
   <div className="flex items-center justify-between">
     <h2 className="text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
-      <button type="button" onClick={onChangeMatch} className={TEXT_LINK_SM}>
-        <span>Change?</span>
-      </button>
+      <Button variant="ghost" link onClick={onChangeMatch}>
+        Change?
+      </Button>
     )}
   </div>
 );

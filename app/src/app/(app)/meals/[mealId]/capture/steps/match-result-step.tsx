@@ -1,4 +1,5 @@
-import { FOCUS_RING, TAP_HIT_AREA_SM } from "@/components/ui/tap-target";
+import { Button } from "@/components/ui/button";
+import { FOCUS_RING } from "@/components/ui/tap-target";
 
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -44,12 +45,12 @@ export const MatchResultStep = ({ nameGuess, candidates, netWeightText, pendingB
         <CandidateButton key={candidate.id} candidate={candidate} candidates={candidates} pendingBarcode={pendingBarcode} dispatch={dispatch} />
       ))}
     </ul>
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      link
       onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess, netWeightText, pendingBarcode })}
-      className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}
     >
-      <span>None of these</span>
-    </button>
+      None of these
+    </Button>
   </div>
 );

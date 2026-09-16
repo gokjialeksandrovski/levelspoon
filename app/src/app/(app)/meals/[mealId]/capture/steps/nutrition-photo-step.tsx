@@ -3,10 +3,10 @@
 import { useState } from "react";
 
 import { ocrNutritionTable } from "@/features/products/actions/ocr";
+import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";
@@ -111,9 +111,9 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
       {form.isLoading && <LoadingSkeletons />}
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {form.error && form.photo && (
-        <button type="button" onClick={form.handleManualEntry} className={TEXT_LINK_SM}>
-          <span>Enter the values manually instead</span>
-        </button>
+        <Button variant="ghost" link onClick={form.handleManualEntry}>
+          Enter the values manually instead
+        </Button>
       )}
     </div>
   );

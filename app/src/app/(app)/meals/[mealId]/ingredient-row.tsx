@@ -9,7 +9,7 @@ import type { MealIngredientDetail } from "@/features/meals/actions/meals";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
-import { TAP_HIT_AREA_SM, TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
+import { TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { availableUnits } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
@@ -32,7 +32,7 @@ const removeIngredient = async (mealIngredientId: string, callbacks: MutationCal
     callbacks.router.refresh();
     callbacks.onChanged?.();
   } catch {
-    callbacks.onError("Could not remove this ingredient. Please try again.");
+    callbacks.onError("Couldn't remove this ingredient. Try again.");
     callbacks.onBusyChange(false);
   }
 };
@@ -52,7 +52,7 @@ const saveIngredientQuantity = async (
     callbacks.router.refresh();
     callbacks.onChanged?.();
   } catch {
-    callbacks.onError("Could not update this ingredient. Please try again.");
+    callbacks.onError("Couldn't update this ingredient. Try again.");
   } finally {
     callbacks.onBusyChange(false);
   }
@@ -81,7 +81,7 @@ export const resolveAndSaveQuantity = async (
 ): Promise<void> => {
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
-    callbacks.onError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
+    callbacks.onError(`Couldn't work out the amount in "${input.unit}". Try a different unit.`);
     return;
   }
   await saveIngredientQuantity(input.ingredientId, resolution.quantity, resolution.quantityUnit, onSaved, callbacks);
@@ -149,9 +149,11 @@ interface IngredientHeaderProps {
 }
 
 const IngredientHeader = ({ productName, quantitySource }: IngredientHeaderProps) => (
-  <div className="flex items-center justify-between">
-    <span className="font-medium text-text">{productName}</span>
-    <span className="text-sm text-text-muted">{quantitySource === "manual" ? "manual" : "estimated"}</span>
+  <div className="flex items-center justify-between gap-2">
+    <span className="truncate font-medium text-text">{productName}</span>
+    <span className="shrink-0 text-sm text-text-muted">
+      {quantitySource === "manual" ? "Manual entry" : "AI estimate"}
+    </span>
   </div>
 );
 
@@ -198,7 +200,7 @@ interface QuantitySummaryProps {
 
 interface RowActionProps {
   label: string;
-  toneClass: string;
+  variant: "ghost" | "danger";
   disabled?: boolean;
   onClick: () => void;
   children: string;
@@ -206,17 +208,10 @@ interface RowActionProps {
 
 // Visible text is the bare verb; `label` carries the product name so a
 // screen reader can tell which row's action this is in a multi-ingredient meal.
-const RowAction = ({ label, toneClass, disabled, onClick, children }: RowActionProps) => (
-  <button
-    type="button"
-    disabled={disabled}
-    aria-busy={disabled || undefined}
-    onClick={onClick}
-    aria-label={label}
-    className={`${TAP_HIT_AREA_SM} ${toneClass}`}
-  >
-    <span className="underline">{children}</span>
-  </button>
+const RowAction = ({ label, variant, disabled, onClick, children }: RowActionProps) => (
+  <Button variant={variant} link disabled={disabled} aria-busy={disabled || undefined} onClick={onClick} aria-label={label}>
+    {children}
+  </Button>
 );
 
 // gap-5, not gap-3: each RowAction's hit box reaches 4px past its text
@@ -227,12 +222,12 @@ const QuantitySummary = ({ productName, quantity, quantityUnit, energyKcal, isBu
       {quantity} {quantityUnit} · {Math.round(energyKcal)} kcal
     </span>
     <div className="flex gap-5">
-      <RowAction label={`Edit ${productName} amount`} toneClass="text-text-muted" onClick={onEdit}>
+      <RowAction label={`Edit ${productName} amount`} variant="ghost" onClick={onEdit}>
         Edit
       </RowAction>
       <RowAction
         label={`Remove ${productName}`}
-        toneClass="text-danger disabled:opacity-50"
+        variant="danger"
         disabled={isBusy}
         onClick={onRemove}
       >
@@ -285,13 +280,15 @@ const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityCont
 // `block` is explicit: vertical margin is a no-op on inline elements, so
 // TAP_HIT_AREA_XS's -my-3.5 would silently do nothing without it.
 const CorrectionLink = ({ productId, productName }: { productId: string; productName: string }) => (
-  <Link
-    href={`/products/${productId}/correct`}
-    aria-label={`Correct values for ${productName}`}
-    className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}
-  >
-    <span>Values look wrong?</span>
-  </Link>
+  <div className="mt-1">
+    <Link
+      href={`/products/${productId}/correct`}
+      aria-label={`Correct values for ${productName}`}
+      className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}
+    >
+      <span>Values look wrong?</span>
+    </Link>
+  </div>
 );
 
 interface RemoveIngredientSheetProps {

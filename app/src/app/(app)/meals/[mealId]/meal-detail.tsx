@@ -59,8 +59,9 @@ const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProp
 );
 
 const MealTotal = ({ energyKcal }: { energyKcal: number }) => (
-  <p className="mt-4 text-sm text-text-muted">
-    Meal total <span className="tabular-nums text-text">{Math.round(energyKcal)} kcal</span>
+  <p className="mt-4 flex items-baseline justify-between border-t border-border pt-3 text-sm text-text-muted">
+    <span>Meal total</span>
+    <span className="tabular-nums text-base font-semibold text-text">{Math.round(energyKcal)} kcal</span>
   </p>
 );
 
@@ -170,7 +171,7 @@ interface MealDetailContentProps {
 
 const MealDetailContent = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailContentProps) => {
   if (state.status === "error") {
-    return <p className="text-sm text-danger">Could not load this meal. Please try again.</p>;
+    return <p className="text-sm text-danger">Couldn&apos;t load this meal. Try again.</p>;
   }
   if (state.status === "not-found") {
     return <MealNotFound />;

@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FOCUS_RING, TEXT_LINK_SM } from "@/components/ui/tap-target";
+import { FOCUS_RING } from "@/components/ui/tap-target";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
@@ -73,7 +73,7 @@ export const saveCookingFat = async (
     await commitCookingFat(input, onSaved);
   } catch (error) {
     console.error("Saving the cooking fat ingredient failed", error);
-    callbacks.setError("Could not add this to the meal. Please try again.");
+    callbacks.setError("Couldn't add this to the meal. Try again.");
   } finally {
     callbacks.setIsBusy(false);
   }
@@ -94,7 +94,7 @@ export const resolveAndSaveCookingFat = async (
 ): Promise<void> => {
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
-    callbacks.setError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
+    callbacks.setError(`Couldn't work out the amount in "${input.unit}". Try a different unit.`);
     return;
   }
   await saveCookingFat(
@@ -237,9 +237,9 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
 
   return (
     <div className="flex flex-col gap-4">
-      <button type="button" onClick={onBack} className={TEXT_LINK_SM}>
-        <span>Search again</span>
-      </button>
+      <Button variant="ghost" link onClick={onBack}>
+        Search again
+      </Button>
       <UnitAmountField name="cooking-fat-amount" count={count} unit={unit} units={units} autoFocus onCountChange={setCount} onUnitChange={setUnit} />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <Button disabled={count.trim() === ""} pending={isBusy} onClick={handleSave}>

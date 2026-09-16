@@ -35,6 +35,12 @@ const DeleteConfirmSheet = ({ isOpen, isBusy, error, onClose, onConfirm }: Delet
   </Sheet>
 );
 
+const DeleteMealTrigger = ({ onClick }: { onClick: () => void }) => (
+  <Button variant="danger" link className="self-center" onClick={onClick}>
+    Delete meal
+  </Button>
+);
+
 interface DeleteMealCallbacks {
   router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
@@ -69,9 +75,7 @@ export const DeleteMeal = ({ mealId, mealDate }: DeleteMealProps) => {
 
   return (
     <>
-      <Button variant="danger" onClick={() => setIsOpen(true)}>
-        Delete meal
-      </Button>
+      <DeleteMealTrigger onClick={() => setIsOpen(true)} />
       <DeleteConfirmSheet
         isOpen={isOpen}
         isBusy={isBusy}

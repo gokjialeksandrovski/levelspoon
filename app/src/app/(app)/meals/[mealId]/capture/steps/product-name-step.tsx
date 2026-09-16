@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
+
+import { BarcodeIcon, CameraIcon, CarrotIcon, PencilSimpleIcon, type Icon } from "@phosphor-icons/react";
 
 import { ocrProductName } from "@/features/products/actions/ocr";
 import { matchProduct } from "@/features/products/actions/products";
@@ -8,9 +10,7 @@ import { lookupBarcode } from "@/features/products/actions/barcode";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { PhotoInput } from "@/components/ui/photo-input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 
 import type { WizardAction } from "../capture-wizard.types";
@@ -139,9 +139,10 @@ interface ManualNameEntryProps {
   isLoading: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onCancel: () => void;
 }
 
-const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: ManualNameEntryProps) => (
+const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit, onCancel }: ManualNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Type the product name</h2>
     <Field
@@ -154,7 +155,81 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: M
     <Button disabled={manualName.trim() === ""} pending={isLoading} onClick={onSubmit}>
       Continue
     </Button>
+    <Button variant="ghost" link onClick={onCancel}>
+      Enter the name another way instead
+    </Button>
   </div>
+);
+
+// No border-radius: this is a full-bleed list row, not a standalone control -
+// rounding it would curve the divide-y hairline inward at both ends instead
+// of running edge to edge, which reads as separate capsules, not one list.
+// Layout only - callers add their own focus-visible (button) or focus-within
+// (label wrapping a hidden input, which never receives focus itself) ring.
+const OPTION_ROW_LAYOUT =
+  "flex w-full cursor-pointer items-start gap-3 px-1 py-3 text-left transition-colors hover:bg-surface-raised active:bg-surface-raised";
+const OPTION_ROW_BUTTON = `${OPTION_ROW_LAYOUT} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:opacity-50 disabled:pointer-events-none`;
+const OPTION_ROW_LABEL = `${OPTION_ROW_LAYOUT} relative focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text`;
+
+interface EntryOptionRowProps {
+  icon: Icon;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+const EntryOptionRow = ({ icon: RowIcon, title, description, onClick, disabled }: EntryOptionRowProps) => (
+  <button type="button" onClick={onClick} disabled={disabled} className={OPTION_ROW_BUTTON}>
+    <RowIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+    <span className="flex flex-col gap-0.5">
+      <span className="text-sm font-medium text-text">{title}</span>
+      <span className="text-xs text-text-muted">{description}</span>
+    </span>
+  </button>
+);
+
+const handlePhotoRowChange = (event: ChangeEvent<HTMLInputElement>, onSelect: (photo: File) => void): void => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  onSelect(file);
+  event.target.value = "";
+};
+
+interface PhotoOptionRowProps {
+  isLoading: boolean;
+  onSelect: (photo: File) => void;
+}
+
+const PhotoRowStatus = ({ isLoading }: { isLoading: boolean }) =>
+  isLoading ? (
+    <span className="flex items-center gap-2 text-xs text-text-muted">
+      <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent" />
+      Reading the label...
+    </span>
+  ) : (
+    <span className="text-xs text-text-muted">Reads the product name off the label when scanning the barcode doesn&apos;t work.</span>
+  );
+
+const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
+  <label className={OPTION_ROW_LABEL}>
+    <CameraIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+    <span className="flex flex-col gap-0.5">
+      <span className="text-sm font-medium text-text">Photograph the product name</span>
+      <PhotoRowStatus isLoading={isLoading} />
+    </span>
+    <input
+      type="file"
+      accept="image/*"
+      capture="environment"
+      aria-label="Photograph the label"
+      disabled={isLoading}
+      onChange={(event) => handlePhotoRowChange(event, onSelect)}
+      className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+    />
+  </label>
 );
 
 interface PhotoNameEntryProps {
@@ -166,21 +241,70 @@ interface PhotoNameEntryProps {
   onWholeFood: () => void;
 }
 
+interface BarcodeAndPhotoRowsProps {
+  isLoading: boolean;
+  onSelect: (photo: File) => void;
+  onBarcodeEntry: () => void;
+}
+
+const BarcodeAndPhotoRows = ({ isLoading, onSelect, onBarcodeEntry }: BarcodeAndPhotoRowsProps) => (
+  <>
+    <EntryOptionRow
+      icon={BarcodeIcon}
+      title="Scan the barcode"
+      description="Finds the product automatically, whether or not you've logged it before."
+      onClick={onBarcodeEntry}
+      disabled={isLoading}
+    />
+    <PhotoOptionRow isLoading={isLoading} onSelect={onSelect} />
+  </>
+);
+
+interface ManualAndWholeFoodRowsProps {
+  isLoading: boolean;
+  onManualEntry: () => void;
+  onWholeFood: () => void;
+}
+
+const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: ManualAndWholeFoodRowsProps) => (
+  <>
+    <EntryOptionRow
+      icon={PencilSimpleIcon}
+      title="Type a packaged product's name"
+      description="For a packaged product when the photo or barcode scan doesn't work."
+      onClick={onManualEntry}
+      disabled={isLoading}
+    />
+    <EntryOptionRow
+      icon={CarrotIcon}
+      title="Whole food, no packaging"
+      description="For loose fruit, vegetables, eggs, and other unpackaged food."
+      onClick={onWholeFood}
+      disabled={isLoading}
+    />
+  </>
+);
+
+type EntryOptionListProps = Omit<PhotoNameEntryProps, "error">;
+
+const EntryOptionList = ({ isLoading, onSelect, onManualEntry, onBarcodeEntry, onWholeFood }: EntryOptionListProps) => (
+  <div className="flex flex-col divide-y divide-border">
+    <BarcodeAndPhotoRows isLoading={isLoading} onSelect={onSelect} onBarcodeEntry={onBarcodeEntry} />
+    <ManualAndWholeFoodRows isLoading={isLoading} onManualEntry={onManualEntry} onWholeFood={onWholeFood} />
+  </div>
+);
+
 const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry, onBarcodeEntry, onWholeFood }: PhotoNameEntryProps) => (
   <div className="flex flex-col gap-4">
-    <h2 className="text-lg font-semibold">Photograph the product name</h2>
-    <button type="button" onClick={onBarcodeEntry} className={TEXT_LINK_SM}>
-      <span>Scan barcode instead</span>
-    </button>
-    <PhotoInput label="Product photo" onSelect={onSelect} />
-    {isLoading && <Skeleton className="h-9 w-40" />}
+    <h2 className="text-lg font-semibold">Add a product</h2>
+    <EntryOptionList
+      isLoading={isLoading}
+      onSelect={onSelect}
+      onManualEntry={onManualEntry}
+      onBarcodeEntry={onBarcodeEntry}
+      onWholeFood={onWholeFood}
+    />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <button type="button" onClick={onManualEntry} className={TEXT_LINK_SM}>
-      <span>Enter the name manually instead</span>
-    </button>
-    <button type="button" onClick={onWholeFood} className={TEXT_LINK_SM}>
-      <span>Whole food / no packaging</span>
-    </button>
   </div>
 );
 
@@ -203,9 +327,9 @@ const BarcodeNameEntry = ({ isLoading, error, onDetect, onCancel }: BarcodeNameE
       {isLoading && <Skeleton className="absolute inset-0" />}
     </div>
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <button type="button" onClick={onCancel} className={TEXT_LINK_SM}>
-      <span>Enter the name another way instead</span>
-    </button>
+    <Button variant="ghost" link onClick={onCancel}>
+      Enter the name another way instead
+    </Button>
   </div>
 );
 
@@ -216,6 +340,7 @@ const renderManualMode = (form: UseProductNameStepResult) => (
     isLoading={form.isLoading}
     onChange={form.setManualName}
     onSubmit={form.handleManualSubmit}
+    onCancel={form.showPhotoEntry}
   />
 );
 

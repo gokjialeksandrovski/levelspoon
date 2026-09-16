@@ -11,7 +11,6 @@ import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -379,9 +378,9 @@ const FreshScanPrompt = ({ attachment }: { attachment: UseBarcodeAttachmentResul
   <div className="flex flex-col gap-2">
     <BarcodeScanner onDetect={attachment.handleDetect} />
     {attachment.scanError && <InlineMessage tone="error">{attachment.scanError}</InlineMessage>}
-    <button type="button" onClick={attachment.cancelScan} className={TEXT_LINK_SM}>
-      <span>Cancel</span>
-    </button>
+    <Button variant="ghost" link onClick={attachment.cancelScan}>
+      Cancel
+    </Button>
   </div>
 );
 
@@ -399,9 +398,9 @@ const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: Barc
     return <p className="text-sm text-text-muted">Barcode captured.</p>;
   }
   return (
-    <button type="button" onClick={attachment.startScan} className={TEXT_LINK_SM}>
-      <span>Help the app — scan this product&apos;s barcode</span>
-    </button>
+    <Button variant="ghost" link onClick={attachment.startScan}>
+      Help the app — scan this product&apos;s barcode
+    </Button>
   );
 };
 

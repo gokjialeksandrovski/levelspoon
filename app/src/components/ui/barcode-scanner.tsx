@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { BarcodeDetector as BarcodeDetectorApi } from "barcode-detector/ponyfill";
 
+import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
-import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 
 interface BarcodeScannerProps {
   onDetect: (code: string) => void;
@@ -257,9 +257,9 @@ const PhotoFallback = ({ visible, onReveal, onSelect, error }: PhotoFallbackProp
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </div>
   ) : (
-    <button type="button" onClick={onReveal} className={TEXT_LINK_SM}>
-      <span>Or upload a photo instead</span>
-    </button>
+    <Button variant="ghost" link onClick={onReveal}>
+      Or upload a photo instead
+    </Button>
   );
 
 export const BarcodeScanner = ({ onDetect }: BarcodeScannerProps) => {

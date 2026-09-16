@@ -2,12 +2,15 @@
 
 import { type SubmitEvent, useState } from "react";
 
-import { searchStandardFoods, type StandardFood } from "@/features/products/actions/products";
+import {
+  searchStandardFoods,
+  type StandardFood,
+} from "@/features/products/actions/products";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FOCUS_RING, TEXT_LINK_SM } from "@/components/ui/tap-target";
+import { FOCUS_RING } from "@/components/ui/tap-target";
 
 import type { PathAction } from "../capture-wizard.path";
 import { toSelectedProduct } from "../capture-wizard.types";
@@ -97,9 +100,9 @@ const StandardFoodResultButton = ({ food, onChoose }: StandardFoodResultButtonPr
 const EmptyResults = ({ dispatch }: { dispatch: (action: PathAction) => void }) => (
   <div className="flex flex-col gap-2">
     <p className="text-sm text-text-muted">No match. If it is packaged, photograph the label.</p>
-    <button type="button" onClick={() => dispatch({ type: "BACK" })} className={TEXT_LINK_SM}>
-      <span>Back to product photo</span>
-    </button>
+    <Button variant="ghost" link onClick={() => dispatch({ type: "BACK" })}>
+      Back to product photo
+    </Button>
   </div>
 );
 
