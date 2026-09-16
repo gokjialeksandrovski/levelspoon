@@ -108,3 +108,24 @@ export const linkBarcode = async (rawCode: string, productId: string): Promise<L
     return { kind: "already_linked_elsewhere", product: await toProductCandidate(existing) };
   }
 };
+
+export type CheckBarcodeBindingResult =
+  | { kind: "available"; barcode: string }
+  | { kind: "already_linked_elsewhere"; product: ProductCandidate }
+  | { kind: "rejected" };
+
+// Internal-only counterpart to lookupBarcode's internal-then-external check -
+// used right before a new product would be created, when Open Food Facts
+// data is moot (barcode spec §7, T4).
+export const checkBarcodeBinding = async (rawCode: string): Promise<CheckBarcodeBindingResult> => {
+  await requireUserId();
+  const normalized = normalizeBarcode(rawCode);
+  if (normalized.kind !== "ok") {
+    return { kind: "rejected" };
+  }
+  const row = await fetchProductByBarcode(normalized.barcode);
+  if (!row) {
+    return { kind: "available", barcode: normalized.barcode };
+  }
+  return { kind: "already_linked_elsewhere", product: await toProductCandidate(row) };
+};

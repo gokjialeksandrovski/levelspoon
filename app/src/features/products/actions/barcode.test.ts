@@ -12,7 +12,7 @@ import { productBarcodes, products, users } from "@/lib/db/schema";
 import { MOCK_NOT_FOUND_BARCODE } from "@/lib/barcode/mock-lookup-provider";
 import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 
-import { linkBarcode, lookupBarcode } from "./barcode";
+import { checkBarcodeBinding, linkBarcode, lookupBarcode } from "./barcode";
 
 const EXISTING_BARCODE = "5901234123457";
 const EXTERNAL_HIT_BARCODE = "4000000000006";
@@ -162,5 +162,45 @@ describe("linkBarcode", () => {
     mockAuth.mockResolvedValue(null);
 
     await expect(linkBarcode(FRESH_LINK_BARCODE, "00000000-0000-0000-0000-000000000000")).rejects.toThrow();
+  });
+});
+
+describe("checkBarcodeBinding", () => {
+  it("returns available for a barcode no product has claimed", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await checkBarcodeBinding(FRESH_LINK_BARCODE);
+
+    expect(result).toEqual({ kind: "available", barcode: FRESH_LINK_BARCODE });
+  });
+
+  it("returns already_linked_elsewhere for a barcode already bound to a product", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Original Owner Product");
+    await db.insert(productBarcodes).values({ barcode: ALREADY_BOUND_BARCODE, productId, createdByUserId: userId });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await checkBarcodeBinding(ALREADY_BOUND_BARCODE);
+
+    expect(result.kind).toBe("already_linked_elsewhere");
+    if (result.kind === "already_linked_elsewhere") {
+      expect(result.product.id).toBe(productId);
+    }
+  });
+
+  it("rejects a restricted-circulation code without writing anything", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await checkBarcodeBinding(RESTRICTED_BARCODE);
+
+    expect(result).toEqual({ kind: "rejected" });
+  });
+
+  it("throws when there is no authenticated session", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    await expect(checkBarcodeBinding(FRESH_LINK_BARCODE)).rejects.toThrow();
   });
 });
