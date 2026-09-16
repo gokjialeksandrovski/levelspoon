@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { checkBarcodeBinding } from "@/features/products/actions/barcode";
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { createProduct } from "@/features/products/actions/products";
+import type { ProductCandidate } from "@/features/products/actions/products";
 import { BarcodeAlreadyLinkedError } from "@/features/products/actions/products.errors";
+import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { TEXT_LINK_SM } from "@/components/ui/tap-target";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
@@ -19,6 +23,7 @@ import type { FieldValues } from "@/lib/ocr/nutrition-fields";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
+import { toSelectedProduct } from "../capture-wizard.types";
 import type { NutritionOrigin, WizardAction } from "../capture-wizard.types";
 
 interface ConfirmStepProps {
@@ -29,8 +34,9 @@ interface ConfirmStepProps {
   learned: LearnedMeasures;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
-  /** Carried through for T4's future confirm-step checkbox - unused by this
-   * component today (barcode spec §7). */
+  /** A barcode scanned earlier in this capture that neither per100 nor Open
+   * Food Facts recognised - surfaced below as a declinable, default-on
+   * checkbox (barcode spec §7). */
   pendingBarcode: string | null;
   barcode: string | null;
   nutritionOrigin: NutritionOrigin | null;
@@ -42,6 +48,8 @@ const UNREADABLE_FIELD_ERROR = "Could not read this value - please enter it";
 // saturates > fat) - "Could not read" would be false here.
 const INCONSISTENT_FIELD_ERROR = "This value looks off - please double-check it";
 const SAVE_BLOCKED_ERROR = "Please fix the flagged values before saving.";
+const REJECTED_BARCODE_ERROR = "This code isn't a product barcode.";
+const BARCODE_CHECK_ERROR = "Could not check this barcode. Please try again.";
 const SAVE_ERROR = "Could not save this product. Please try again.";
 // A second user's scan/OFF-save of the same not-yet-in-per100 barcode won
 // the race between this confirm step's own lookup and its save - a distinct,
@@ -61,6 +69,110 @@ const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues
 const checkNutritionFlags = async (currentValues: FieldValues): Promise<string[]> => {
   const result = await validateNutrition(toNutritionValues(currentValues));
   return result.flags;
+};
+
+interface BarcodeBindingCallbacks {
+  onAvailable: (barcode: string) => void;
+  onConflict: (product: ProductCandidate) => void;
+  onRejected: () => void;
+  onError: (message: string) => void;
+}
+
+// Internal-only check (no OFF call - the product doesn't exist yet, so
+// external nutrition data is moot). Shared by the pre-scanned-code mount
+// check and the fresh-scan detect handler below (barcode spec §7, T4).
+export const resolveBarcodeBinding = async (rawCode: string, callbacks: BarcodeBindingCallbacks): Promise<void> => {
+  try {
+    const result = await checkBarcodeBinding(rawCode);
+    if (result.kind === "available") {
+      callbacks.onAvailable(result.barcode);
+      return;
+    }
+    if (result.kind === "already_linked_elsewhere") {
+      callbacks.onConflict(result.product);
+      return;
+    }
+    callbacks.onRejected();
+  } catch {
+    callbacks.onError(BARCODE_CHECK_ERROR);
+  }
+};
+
+interface BarcodeAttachmentSetters {
+  setChecked: (checked: boolean) => void;
+  setFreshBarcode: (barcode: string | null) => void;
+  setConflict: (product: ProductCandidate | null) => void;
+  setScanError: (message: string | null) => void;
+}
+
+const checkPendingBarcodeOnMount = (pendingBarcode: string | null, setters: BarcodeAttachmentSetters): void => {
+  if (!pendingBarcode) {
+    return;
+  }
+  void resolveBarcodeBinding(pendingBarcode, {
+    onAvailable: () => {},
+    onConflict: (product) => { setters.setConflict(product); setters.setChecked(false); },
+    onRejected: () => setters.setChecked(false),
+    onError: () => {},
+  });
+};
+
+const detectFreshBarcode = (code: string, setters: BarcodeAttachmentSetters, onScanned: () => void): void => {
+  setters.setScanError(null);
+  void resolveBarcodeBinding(code, {
+    onAvailable: (barcode) => { setters.setFreshBarcode(barcode); onScanned(); },
+    onConflict: (product) => { setters.setConflict(product); onScanned(); },
+    onRejected: () => setters.setScanError(REJECTED_BARCODE_ERROR),
+    onError: (message) => setters.setScanError(message),
+  });
+};
+
+const barcodeToAttachFrom = (
+  props: ConfirmStepProps,
+  checked: boolean,
+  freshBarcode: string | null,
+  conflict: ProductCandidate | null,
+): string | null => {
+  if (props.barcode) return props.barcode;
+  if (conflict) return null;
+  if (props.pendingBarcode) return checked ? props.pendingBarcode : null;
+  return freshBarcode;
+};
+
+interface UseBarcodeAttachmentResult {
+  barcodeToAttach: string | null;
+  checked: boolean;
+  conflict: ProductCandidate | null;
+  freshBarcode: string | null;
+  isScanning: boolean;
+  scanError: string | null;
+  toggleChecked: (checked: boolean) => void;
+  startScan: () => void;
+  cancelScan: () => void;
+  handleDetect: (code: string) => void;
+}
+
+const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResult => {
+  const [checked, setChecked] = useState(true);
+  const [freshBarcode, setFreshBarcode] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<ProductCandidate | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  // useState setters are referentially stable, so this memo only recomputes
+  // once - giving the effect below a stable dependency instead of a fresh
+  // object every render (react-hooks/exhaustive-deps).
+  const setters = useMemo(() => ({ setChecked, setFreshBarcode, setConflict, setScanError }), []);
+
+  useEffect(() => checkPendingBarcodeOnMount(props.pendingBarcode, setters), [props.pendingBarcode, setters]);
+
+  return {
+    barcodeToAttach: barcodeToAttachFrom(props, checked, freshBarcode, conflict),
+    checked, conflict, freshBarcode, isScanning, scanError,
+    toggleChecked: setChecked,
+    startScan: () => setIsScanning(true),
+    cancelScan: () => setIsScanning(false),
+    handleDetect: (code: string) => detectFreshBarcode(code, setters, () => setIsScanning(false)),
+  };
 };
 
 const toProductCreatedPayload = (productId: string, input: SaveConfirmInput) => ({
@@ -173,22 +285,22 @@ interface ConfirmFormState {
   revalidate: (values: FieldValues) => void;
 }
 
-const buildSaveInput = (props: ConfirmStepProps, state: ConfirmFormState): SaveConfirmInput => ({
+const buildSaveInput = (props: ConfirmStepProps, state: ConfirmFormState, barcodeToAttach: string | null): SaveConfirmInput => ({
   nameValue: state.nameValue,
   values: state.values,
   photo: props.photo,
   learned: props.learned,
   nutritionBasisUnit: props.nutritionBasisUnit,
   nutritionBasisQuantity: props.nutritionBasisQuantity,
-  barcode: props.barcode,
+  barcode: barcodeToAttach,
   nutritionOrigin: props.nutritionOrigin,
 });
 
-const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormState) => {
+const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormState, barcodeToAttach: string | null) => {
   const flaggedFields = flaggedFieldSet(state.flags);
   const canSave = [...flaggedFields].every((field) => state.values[field].trim() !== "");
   const setFieldValue = (field: keyof FieldValues, value: string) => state.setValues({ ...state.values, [field]: value });
-  const saveInput = buildSaveInput(props, state);
+  const saveInput = buildSaveInput(props, state, barcodeToAttach);
   const saveCallbacks = { setFlags: state.setFlags, setError: state.setError, setIsSaving: state.setIsSaving };
 
   return {
@@ -200,7 +312,7 @@ const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormStat
   };
 };
 
-const useConfirmStepForm = (props: ConfirmStepProps): UseConfirmStepFormResult => {
+const useConfirmStepForm = (props: ConfirmStepProps, barcodeToAttach: string | null): UseConfirmStepFormResult => {
   const [nameValue, setNameValue] = useState(props.name);
   const [values, setValues] = useState(() => toFieldValues(props.parsed));
   const [flags, setFlags] = useState(props.flags);
@@ -215,7 +327,7 @@ const useConfirmStepForm = (props: ConfirmStepProps): UseConfirmStepFormResult =
       .catch(() => {});
   }, []);
 
-  const actions = buildConfirmStepActions(props, { nameValue, values, setValues, flags, setFlags, setError, setIsSaving, revalidate });
+  const actions = buildConfirmStepActions(props, { nameValue, values, setValues, flags, setFlags, setError, setIsSaving, revalidate }, barcodeToAttach);
 
   return { nameValue, values, error, isSaving, setNameValue, ...actions };
 };
@@ -229,19 +341,80 @@ const ProductNameField = ({ value, onChange }: ProductNameFieldProps) => (
   <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
 );
 
+interface BarcodeAttachmentControlProps {
+  pendingBarcode: string | null;
+  attachment: UseBarcodeAttachmentResult;
+  dispatch: (action: WizardAction) => void;
+}
+
+interface ConflictNoticeProps {
+  conflict: ProductCandidate;
+  dispatch: (action: WizardAction) => void;
+}
+
+const ConflictNotice = ({ conflict, dispatch }: ConflictNoticeProps) => (
+  <div className="flex flex-col gap-2">
+    <InlineMessage tone="warning">This barcode is already linked to {conflict.name}.</InlineMessage>
+    <Button
+      variant="ghost"
+      onClick={() => dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(conflict), alternatives: [], pendingBarcode: null })}
+    >
+      Use {conflict.name} instead
+    </Button>
+  </div>
+);
+
+const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
+  <label className="flex items-center gap-2 text-sm text-text">
+    <input
+      type="checkbox"
+      checked={attachment.checked}
+      onChange={(event) => attachment.toggleChecked(event.target.checked)}
+    />
+    Use the barcode you just scanned for this product
+  </label>
+);
+
+const FreshScanPrompt = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
+  <div className="flex flex-col gap-2">
+    <BarcodeScanner onDetect={attachment.handleDetect} />
+    {attachment.scanError && <InlineMessage tone="error">{attachment.scanError}</InlineMessage>}
+    <button type="button" onClick={attachment.cancelScan} className={TEXT_LINK_SM}>
+      <span>Cancel</span>
+    </button>
+  </div>
+);
+
+const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: BarcodeAttachmentControlProps) => {
+  if (attachment.conflict) {
+    return <ConflictNotice conflict={attachment.conflict} dispatch={dispatch} />;
+  }
+  if (pendingBarcode) {
+    return <PendingBarcodeCheckbox attachment={attachment} />;
+  }
+  if (attachment.isScanning) {
+    return <FreshScanPrompt attachment={attachment} />;
+  }
+  if (attachment.freshBarcode) {
+    return <p className="text-sm text-text-muted">Barcode captured.</p>;
+  }
+  return (
+    <button type="button" onClick={attachment.startScan} className={TEXT_LINK_SM}>
+      <span>Help the app — scan this product&apos;s barcode</span>
+    </button>
+  );
+};
+
 export const ConfirmStep = (props: ConfirmStepProps) => {
-  const form = useConfirmStepForm(props);
+  const attachment = useBarcodeAttachment(props);
+  const form = useConfirmStepForm(props, attachment.barcodeToAttach);
 
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Confirm nutrition (per {props.nutritionBasisQuantity} {props.nutritionBasisUnit})</h2>
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
-      <NutritionFields
-        values={form.values}
-        flaggedFields={form.flaggedFields}
-        onFieldChange={form.setFieldValue}
-        onFieldBlur={form.revalidateNow}
-      />
+      <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />
+      {props.barcode === null && <BarcodeAttachmentControl pendingBarcode={props.pendingBarcode} attachment={attachment} dispatch={props.dispatch} />}
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
         Save product
