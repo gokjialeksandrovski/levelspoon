@@ -55,7 +55,10 @@ interface AmountStepCallbacks {
 
 // Standalone, not a hook, so useAmountStepForm's body stays under the line
 // budget - bundled callbacks object, mirroring ingredient-row.tsx's shape.
-const estimateAmount = async (photo: File, onEstimated: (value: string) => void, callbacks: AmountStepCallbacks): Promise<void> => {
+// Separate from setIsBusy, which also covers the save: otherwise saving would
+// light the photo overlay with nothing being read.
+const estimateAmount = async (photo: File, onEstimated: (value: string) => void, callbacks: AmountStepCallbacks, setIsEstimating: (value: boolean) => void): Promise<void> => {
+  setIsEstimating(true);
   callbacks.setIsBusy(true);
   callbacks.setError(null);
   try {
@@ -66,6 +69,7 @@ const estimateAmount = async (photo: File, onEstimated: (value: string) => void,
     callbacks.setError("Could not estimate the amount - enter it manually.");
   } finally {
     callbacks.setIsBusy(false);
+    setIsEstimating(false);
   }
 };
 
@@ -153,6 +157,7 @@ interface UseAmountStepFormResult {
   units: string[];
   error: string | null;
   isBusy: boolean;
+  isEstimating: boolean;
   setCount: (value: string) => void;
   setUnit: (value: string) => void;
   handlePhoto: (photo: File) => Promise<void>;
@@ -169,6 +174,7 @@ interface AmountStepActionDeps {
   dispatch: (action: WizardAction) => void;
   onSaved: () => void;
   callbacks: AmountStepCallbacks;
+  setIsEstimating: (value: boolean) => void;
 }
 
 interface AmountStepFormState {
@@ -188,7 +194,7 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
   return {
     setCount: setCountManually,
     setUnit: setUnitManually,
-    handlePhoto: (photo: File) => estimateAmount(photo, setCountFromPhoto, deps.callbacks),
+    handlePhoto: (photo: File) => estimateAmount(photo, setCountFromPhoto, deps.callbacks, deps.setIsEstimating),
     handleSave: () =>
       resolveAndSaveAmount({ mealId: deps.mealId, productId: deps.product.id, count: state.count, unit: state.unit, context: deps.context, source: state.source }, deps.dispatch, deps.onSaved, deps.callbacks),
     changeMatch: () =>
@@ -196,13 +202,7 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
   };
 };
 
-const useAmountStepForm = (
-  mealId: string,
-  product: SelectedProduct,
-  alternatives: SelectedProduct[],
-  pendingBarcode: string | null,
-  dispatch: (action: WizardAction) => void, onSaved: () => void,
-): UseAmountStepFormResult => {
+const useAmountStepForm = (mealId: string, product: SelectedProduct, alternatives: SelectedProduct[], pendingBarcode: string | null, dispatch: (action: WizardAction) => void, onSaved: () => void): UseAmountStepFormResult => {
   const context = contextFor(product);
   const units = availableUnits(context);
   const [count, setCount] = useState("");
@@ -210,13 +210,14 @@ const useAmountStepForm = (
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isEstimating, setIsEstimating] = useState(false);
 
   const actions = buildAmountStepActions(
-    { mealId, product, alternatives, context, pendingBarcode, dispatch, onSaved, callbacks: { setError, setIsBusy } },
+    { mealId, product, alternatives, context, pendingBarcode, dispatch, onSaved, callbacks: { setError, setIsBusy }, setIsEstimating },
     { count, unit, source, setCount, setUnit, setSource },
   );
 
-  return { count, unit, units, error, isBusy, ...actions };
+  return { count, unit, units, error, isBusy, isEstimating, ...actions };
 };
 
 interface AmountStepFieldsProps {
@@ -225,7 +226,7 @@ interface AmountStepFieldsProps {
 
 const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
   <>
-    {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} />}
+    {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} isEstimating={form.isEstimating} />}
     <UnitAmountField
       name="grams"
       count={form.count}
@@ -235,7 +236,8 @@ const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
       onUnitChange={form.setUnit}
     />
     {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-    <Button disabled={form.count.trim() === ""} pending={form.isBusy} onClick={form.handleSave}>
+    {/* Spinning Save during an estimate would claim a save is in flight. */}
+    <Button disabled={form.count.trim() === "" || form.isEstimating} pending={form.isBusy && !form.isEstimating} onClick={form.handleSave}>
       Save ingredient
     </Button>
   </>

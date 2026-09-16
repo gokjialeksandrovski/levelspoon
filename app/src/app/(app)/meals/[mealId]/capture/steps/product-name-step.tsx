@@ -10,10 +10,11 @@ import { lookupBarcode } from "@/features/products/actions/barcode";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PhotoPreview, usePreviewUrl } from "@/components/ui/photo-input";
 import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 
-import type { WizardAction } from "../capture-wizard.types";
+import type { PathAction } from "../capture-wizard.path";
+import { BACK_TO_OPTIONS_LABEL, type WizardAction } from "../capture-wizard.types";
 
 interface ProductNameStepProps {
   pendingBarcode: string | null;
@@ -35,9 +36,6 @@ interface ProductNameCallbacks {
   onLoadingChange: (isLoading: boolean) => void;
   dispatch: (action: WizardAction) => void;
   pendingBarcode: string | null;
-  /** Only used by the barcode entry mode's not_found branch - see
-   * handleBarcodeDetected below for why it's needed. */
-  resetToPhotoMode: () => void;
 }
 
 const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Promise<void> => {
@@ -66,21 +64,11 @@ const handleManualName = async (manualName: string, callbacks: ProductNameCallba
   }
 };
 
-type EntryMode = "photo" | "manual" | "barcode";
-
 const REJECTED_BARCODE_ERROR = "This code isn't a product barcode.";
 const BARCODE_LOOKUP_ERROR = "Could not look up this barcode. Please try again.";
 
-// internal_match/external_match change the WizardStep's own `kind`, so
-// StepView mounts a different step component entirely - this one unmounts
-// on its own. not_found is the one outcome that returns to the SAME
-// `product-photo` kind (spec §7), so React never remounts this component
-// (same position, same key) and the local `mode` state would otherwise be
-// stuck on "barcode" - hence the explicit resetToPhotoMode() call below.
-// rejected leaves `mode` alone on purpose: the scanner's own live-scan effect
-// only ever runs once per mount (see barcode-scanner.tsx's onDetectRef
-// pattern), so staying on this mode and using its "Or upload a photo
-// instead" fallback is the realistic retry path, not a fresh camera scan.
+// rejected stays on this step on purpose: the live-scan effect only runs once
+// per mount, so the photo fallback is the real retry path, not a fresh scan.
 const handleBarcodeDetected = async (code: string, callbacks: ProductNameCallbacks): Promise<void> => {
   callbacks.onError(null);
   callbacks.onLoadingChange(true);
@@ -90,9 +78,6 @@ const handleBarcodeDetected = async (code: string, callbacks: ProductNameCallbac
       callbacks.onError(REJECTED_BARCODE_ERROR);
       return;
     }
-    if (result.kind === "not_found") {
-      callbacks.resetToPhotoMode();
-    }
     callbacks.dispatch({ type: "BARCODE_SCANNED", result });
   } catch {
     callbacks.onError(BARCODE_LOOKUP_ERROR);
@@ -101,36 +86,16 @@ const handleBarcodeDetected = async (code: string, callbacks: ProductNameCallbac
   }
 };
 
-interface UseProductNameStepResult {
+interface UseStepRequestResult {
   error: string | null;
   isLoading: boolean;
-  mode: EntryMode;
-  manualName: string;
-  setManualName: (value: string) => void;
-  showManualEntry: () => void;
-  showBarcodeEntry: () => void;
-  showPhotoEntry: () => void;
-  handleSelect: (photo: File) => Promise<void>;
-  handleManualSubmit: () => Promise<void>;
-  handleDetect: (code: string) => Promise<void>;
+  callbacks: ProductNameCallbacks;
 }
 
-const useProductNameStep = (pendingBarcode: string | null, dispatch: (action: WizardAction) => void): UseProductNameStepResult => {
+const useStepRequest = (pendingBarcode: string | null, dispatch: (action: WizardAction) => void): UseStepRequestResult => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<EntryMode>("photo");
-  const [manualName, setManualName] = useState("");
-  const switchMode = (next: EntryMode) => { setError(null); setMode(next); };
-  const callbacks: ProductNameCallbacks = { onError: setError, onLoadingChange: setIsLoading, dispatch, pendingBarcode, resetToPhotoMode: () => switchMode("photo") };
-  return {
-    error, isLoading, mode, manualName, setManualName,
-    showManualEntry: () => switchMode("manual"),
-    showBarcodeEntry: () => switchMode("barcode"),
-    showPhotoEntry: () => switchMode("photo"),
-    handleSelect: (photo: File) => handlePhotoName(photo, callbacks),
-    handleManualSubmit: () => handleManualName(manualName, callbacks),
-    handleDetect: (code: string) => handleBarcodeDetected(code, callbacks),
-  };
+  return { error, isLoading, callbacks: { onError: setError, onLoadingChange: setIsLoading, dispatch, pendingBarcode } };
 };
 
 interface ManualNameEntryProps {
@@ -139,10 +104,10 @@ interface ManualNameEntryProps {
   isLoading: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onCancel: () => void;
+  onBack: () => void;
 }
 
-const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit, onCancel }: ManualNameEntryProps) => (
+const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit, onBack }: ManualNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Type the product name</h2>
     <Field
@@ -155,8 +120,8 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit, onC
     <Button disabled={manualName.trim() === ""} pending={isLoading} onClick={onSubmit}>
       Continue
     </Button>
-    <Button variant="ghost" link onClick={onCancel}>
-      Enter the name another way instead
+    <Button variant="ghost" link onClick={onBack}>
+      {BACK_TO_OPTIONS_LABEL}
     </Button>
   </div>
 );
@@ -203,28 +168,15 @@ interface PhotoOptionRowProps {
   onSelect: (photo: File) => void;
 }
 
-const PhotoRowStatus = ({ isLoading }: { isLoading: boolean }) =>
-  isLoading ? (
-    <span className="flex items-center gap-2 text-xs text-text-muted">
-      <span
-        aria-hidden="true"
-        className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
-      />
-      Reading the label...
-    </span>
-  ) : (
-    <span className="text-xs text-text-muted">
-      Reads the product name off the label. Use when scanning the barcode
-      doesn&apos;t provide info for the product.
-    </span>
-  );
+const PHOTO_ROW_DESCRIPTION =
+  "Reads the product name off the label. Use when scanning the barcode doesn't provide info for the product.";
 
 const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
   <label className={OPTION_ROW_LABEL}>
     <CameraIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
     <span className="flex flex-col gap-0.5">
       <span className="text-sm font-medium text-text">Photograph the product name</span>
-      <PhotoRowStatus isLoading={isLoading} />
+      <span className="text-xs text-text-muted">{PHOTO_ROW_DESCRIPTION}</span>
     </span>
     <input
       type="file"
@@ -241,6 +193,7 @@ const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
 interface PhotoNameEntryProps {
   isLoading: boolean;
   error: string | null;
+  previewUrl: string | null;
   onSelect: (photo: File) => void;
   onManualEntry: () => void;
   onBarcodeEntry: () => void;
@@ -295,7 +248,7 @@ const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: Manua
   </>
 );
 
-type EntryOptionListProps = Omit<PhotoNameEntryProps, "error">;
+type EntryOptionListProps = Omit<PhotoNameEntryProps, "error" | "previewUrl">;
 
 const EntryOptionList = ({ isLoading, onSelect, onManualEntry, onBarcodeEntry, onWholeFood }: EntryOptionListProps) => (
   <div className="flex flex-col divide-y divide-border">
@@ -304,9 +257,14 @@ const EntryOptionList = ({ isLoading, onSelect, onManualEntry, onBarcodeEntry, o
   </div>
 );
 
-const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry, onBarcodeEntry, onWholeFood }: PhotoNameEntryProps) => (
-  <div className="flex flex-col gap-4">
-    <h2 className="text-lg font-semibold">Add a product</h2>
+const READING_NAME_LABEL = "Reading the product name…";
+
+// The option rows are all disabled while the photo is read, so showing the
+// photo beats four dead rows and a 12px spinner.
+const PhotoEntryBody = ({ isLoading, previewUrl, onSelect, onManualEntry, onBarcodeEntry, onWholeFood }: Omit<PhotoNameEntryProps, "error">) =>
+  isLoading && previewUrl ? (
+    <PhotoPreview previewUrl={previewUrl} scanningLabel={READING_NAME_LABEL} />
+  ) : (
     <EntryOptionList
       isLoading={isLoading}
       onSelect={onSelect}
@@ -314,6 +272,12 @@ const PhotoNameEntry = ({ isLoading, error, onSelect, onManualEntry, onBarcodeEn
       onBarcodeEntry={onBarcodeEntry}
       onWholeFood={onWholeFood}
     />
+  );
+
+const PhotoNameEntry = ({ error, ...body }: PhotoNameEntryProps) => (
+  <div className="flex flex-col gap-4">
+    <h2 className="text-lg font-semibold">Add a product</h2>
+    <PhotoEntryBody {...body} />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
   </div>
 );
@@ -322,67 +286,76 @@ interface BarcodeNameEntryProps {
   isLoading: boolean;
   error: string | null;
   onDetect: (code: string) => void;
-  onCancel: () => void;
+  onBack: () => void;
 }
+
+const BARCODE_LOOKUP_LABEL = "Looking up the code…";
 
 // BarcodeScanner must stay mounted across loading states: its live-scan
 // effect only runs once per mount (see handleBarcodeDetected above), so
 // swapping it out for a loading placeholder would restart the camera scan
 // on every lookup instead of just overlaying a loading state on top of it.
-const BarcodeNameEntry = ({ isLoading, error, onDetect, onCancel }: BarcodeNameEntryProps) => (
+const BarcodeNameEntry = ({ isLoading, error, onDetect, onBack }: BarcodeNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Scan the barcode</h2>
-    <div className="relative">
-      <BarcodeScanner onDetect={onDetect} />
-      {isLoading && <Skeleton className="absolute inset-0" />}
-    </div>
+    <BarcodeScanner onDetect={onDetect} scanningLabel={isLoading ? BARCODE_LOOKUP_LABEL : undefined} />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <Button variant="ghost" link onClick={onCancel}>
-      Enter the name another way instead
+    <Button variant="ghost" link onClick={onBack}>
+      {BACK_TO_OPTIONS_LABEL}
     </Button>
   </div>
 );
 
-const renderManualMode = (form: UseProductNameStepResult) => (
-  <ManualNameEntry
-    manualName={form.manualName}
-    error={form.error}
-    isLoading={form.isLoading}
-    onChange={form.setManualName}
-    onSubmit={form.handleManualSubmit}
-    onCancel={form.showPhotoEntry}
-  />
-);
-
-const renderBarcodeMode = (form: UseProductNameStepResult) => (
-  <BarcodeNameEntry
-    isLoading={form.isLoading}
-    error={form.error}
-    onDetect={form.handleDetect}
-    onCancel={form.showPhotoEntry}
-  />
-);
-
-const renderPhotoMode = (form: UseProductNameStepResult, dispatch: (action: WizardAction) => void) => (
-  <PhotoNameEntry
-    isLoading={form.isLoading}
-    error={form.error}
-    onSelect={form.handleSelect}
-    onManualEntry={form.showManualEntry}
-    onBarcodeEntry={form.showBarcodeEntry}
-    onWholeFood={() => dispatch({ type: "WHOLE_FOOD_SEARCH" })}
-  />
-);
-
 export const ProductNameStep = ({ pendingBarcode, dispatch }: ProductNameStepProps) => {
-  const form = useProductNameStep(pendingBarcode, dispatch);
+  const { error, isLoading, callbacks } = useStepRequest(pendingBarcode, dispatch);
+  const { previewUrl, showPreview } = usePreviewUrl();
 
-  switch (form.mode) {
-    case "manual":
-      return renderManualMode(form);
-    case "barcode":
-      return renderBarcodeMode(form);
-    case "photo":
-      return renderPhotoMode(form, dispatch);
-  }
+  return (
+    <PhotoNameEntry
+      isLoading={isLoading}
+      error={error}
+      previewUrl={previewUrl}
+      onSelect={(photo) => {
+        showPreview(photo);
+        void handlePhotoName(photo, callbacks);
+      }}
+      onManualEntry={() => dispatch({ type: "MANUAL_NAME_ENTRY", pendingBarcode })}
+      onBarcodeEntry={() => dispatch({ type: "BARCODE_ENTRY", pendingBarcode })}
+      onWholeFood={() => dispatch({ type: "WHOLE_FOOD_SEARCH" })}
+    />
+  );
+};
+
+interface ProductSubStepProps {
+  pendingBarcode: string | null;
+  dispatch: (action: PathAction) => void;
+}
+
+export const ManualNameStep = ({ pendingBarcode, dispatch }: ProductSubStepProps) => {
+  const { error, isLoading, callbacks } = useStepRequest(pendingBarcode, dispatch);
+  const [manualName, setManualName] = useState("");
+
+  return (
+    <ManualNameEntry
+      manualName={manualName}
+      error={error}
+      isLoading={isLoading}
+      onChange={setManualName}
+      onSubmit={() => void handleManualName(manualName, callbacks)}
+      onBack={() => dispatch({ type: "BACK" })}
+    />
+  );
+};
+
+export const BarcodeNameStep = ({ pendingBarcode, dispatch }: ProductSubStepProps) => {
+  const { error, isLoading, callbacks } = useStepRequest(pendingBarcode, dispatch);
+
+  return (
+    <BarcodeNameEntry
+      isLoading={isLoading}
+      error={error}
+      onDetect={(code) => void handleBarcodeDetected(code, callbacks)}
+      onBack={() => dispatch({ type: "BACK" })}
+    />
+  );
 };

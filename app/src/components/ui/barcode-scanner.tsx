@@ -6,9 +6,12 @@ import type { BarcodeDetector as BarcodeDetectorApi } from "barcode-detector/pon
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
+import { ScanningOverlay } from "@/components/ui/scanning-overlay";
 
 interface BarcodeScannerProps {
   onDetect: (code: string) => void;
+  // Set only while a detected code is being looked up.
+  scanningLabel?: string;
 }
 
 type ScanStage = "starting" | "scanning" | "permission-denied" | "error";
@@ -227,8 +230,19 @@ const usePhotoFallback = (onDetect: (code: string) => void): UsePhotoFallbackRes
   return { error, handleSelect };
 };
 
-const LiveScanVideo = ({ videoRef, hidden }: { videoRef: React.RefObject<HTMLVideoElement | null>; hidden: boolean }) => (
-  <video ref={videoRef} muted autoPlay playsInline hidden={hidden} className="w-full rounded-surface border border-border" />
+interface LiveScanVideoProps {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  hidden: boolean;
+  scanningLabel: string | undefined;
+}
+
+// The overlay needs a positioned wrapper, and `hidden` has to sit on that
+// wrapper or it still claims a flex gap once the camera is unavailable.
+const LiveScanVideo = ({ videoRef, hidden, scanningLabel }: LiveScanVideoProps) => (
+  <div className={hidden ? "hidden" : "relative"}>
+    <video ref={videoRef} muted autoPlay playsInline className="w-full rounded-surface border border-border" />
+    {scanningLabel && <ScanningOverlay label={scanningLabel} />}
+  </div>
 );
 
 const SCANNER_START_ERROR_MESSAGE = "Couldn't start the scanner. Try uploading a photo instead.";
@@ -243,17 +257,32 @@ const PermissionDeniedNotice = () => (
 
 const ScannerErrorNotice = () => <InlineMessage tone="error">{SCANNER_START_ERROR_MESSAGE}</InlineMessage>;
 
+// switch, not a Record: TypeScript narrows the union per case.
+const StageNotice = ({ stage }: { stage: ScanStage }) => {
+  switch (stage) {
+    case "starting":
+      return <StartingNotice />;
+    case "permission-denied":
+      return <PermissionDeniedNotice />;
+    case "error":
+      return <ScannerErrorNotice />;
+    case "scanning":
+      return null;
+  }
+};
+
 interface PhotoFallbackProps {
   visible: boolean;
   onReveal: () => void;
   onSelect: (photo: File) => void;
   error: string | null;
+  scanningLabel: string | undefined;
 }
 
-const PhotoFallback = ({ visible, onReveal, onSelect, error }: PhotoFallbackProps) =>
+const PhotoFallback = ({ visible, onReveal, onSelect, error, scanningLabel }: PhotoFallbackProps) =>
   visible ? (
     <div className="flex flex-col gap-2">
-      <PhotoInput label="Barcode photo" onSelect={onSelect} />
+      <PhotoInput label="Barcode photo" onSelect={onSelect} scanningLabel={scanningLabel} />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </div>
   ) : (
@@ -262,24 +291,26 @@ const PhotoFallback = ({ visible, onReveal, onSelect, error }: PhotoFallbackProp
     </Button>
   );
 
-export const BarcodeScanner = ({ onDetect }: BarcodeScannerProps) => {
+export const BarcodeScanner = ({ onDetect, scanningLabel }: BarcodeScannerProps) => {
   const { stage, videoRef } = useLiveScan(onDetect);
   const [showPhotoFallback, setShowPhotoFallback] = useState(false);
   const photoFallback = usePhotoFallback(onDetect);
 
   const cameraUnavailable = stage === "permission-denied" || stage === "error";
+  // Picks which single surface carries the overlay - two would announce the
+  // same lookup twice.
+  const isLive = stage === "scanning";
 
   return (
     <div className="flex flex-col gap-4">
-      <LiveScanVideo videoRef={videoRef} hidden={cameraUnavailable} />
-      {stage === "starting" && <StartingNotice />}
-      {stage === "permission-denied" && <PermissionDeniedNotice />}
-      {stage === "error" && <ScannerErrorNotice />}
+      <LiveScanVideo videoRef={videoRef} hidden={cameraUnavailable} scanningLabel={isLive ? scanningLabel : undefined} />
+      <StageNotice stage={stage} />
       <PhotoFallback
         visible={showPhotoFallback || cameraUnavailable}
         onReveal={() => setShowPhotoFallback(true)}
         onSelect={photoFallback.handleSelect}
         error={photoFallback.error}
+        scanningLabel={isLive ? undefined : scanningLabel}
       />
     </div>
   );

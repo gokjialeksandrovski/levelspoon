@@ -22,6 +22,16 @@
   --raw-danger: #e5675c;
   --raw-flag: #e0913a;
 
+  /* Outside the four semantic accents on purpose: a light source over a
+     photo, not a data color. Weaker here - the alpha that reads on cream
+     becomes a hard white stripe against dark surfaces. */
+  --gradient-scan-sweep: linear-gradient(
+    to bottom,
+    transparent,
+    oklch(0.99 0.012 85 / 0.26),
+    transparent
+  );
+
   color-scheme: light dark;
 }
 
@@ -47,6 +57,13 @@
 
     --raw-danger: #b93b30;
     --raw-flag: #a1631c;
+
+    --gradient-scan-sweep: linear-gradient(
+      to bottom,
+      transparent,
+      oklch(0.99 0.012 85 / 0.62),
+      transparent
+    );
   }
 }
 
@@ -81,6 +98,17 @@
 
   --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-step: 260ms;
+
+  --animate-scan-sweep: scan-sweep 1600ms cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes scan-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(300%);
+  }
 }
 
 html {

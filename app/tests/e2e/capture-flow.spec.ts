@@ -110,8 +110,23 @@ test("whole food: empty search shows the no-match copy and returns to product ph
   await page.getByLabel("Food name").fill("zzznotarealfood");
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText(/No match/)).toBeVisible();
-  await page.getByRole("button", { name: "Back to product photo" }).click();
+  await page.getByRole("button", { name: "Choose a different way" }).click();
   await expect(page.getByLabel(/product photo/i)).toBeVisible();
+});
+
+// Back on a single-step path discards the capture, so manual entry has to be
+// a step of its own.
+test("manual name entry: the header's Back returns to the entry options, not out of the wizard", async ({ page }) => {
+  await signUp(page);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
+  await expect(page.getByRole("heading", { name: "Type the product name" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
+  await expect(page).toHaveURL(/\/meals\/[^/]+\/capture$/);
 });
 
 test("per-unit product (household measure, no printed grams): capture, log, and see it in the day total", async ({ page }) => {

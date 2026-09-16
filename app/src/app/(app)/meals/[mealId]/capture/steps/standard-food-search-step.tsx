@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StandardFoodPicker, useStandardFoodPicker } from "../../standard-food-picker";
 
 import type { PathAction } from "../capture-wizard.path";
-import { toSelectedProduct } from "../capture-wizard.types";
+import { BACK_TO_OPTIONS_LABEL, toSelectedProduct } from "../capture-wizard.types";
 
 interface StandardFoodSearchStepProps {
   dispatch: (action: PathAction) => void;
@@ -18,7 +18,7 @@ const SEARCH_ERROR = "Could not search whole foods. Please try again.";
 
 const EmptyWholeFoodAction = ({ dispatch }: { dispatch: (action: PathAction) => void }) => (
   <Button variant="ghost" link onClick={() => dispatch({ type: "BACK" })}>
-    Back to product photo
+    {BACK_TO_OPTIONS_LABEL}
   </Button>
 );
 

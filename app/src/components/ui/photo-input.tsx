@@ -2,7 +2,37 @@
 
 import { CameraIcon } from "@phosphor-icons/react";
 import Image from "next/image";
-import { type ChangeEvent, useId, useState } from "react";
+import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
+
+import { ScanningOverlay } from "@/components/ui/scanning-overlay";
+
+interface UsePreviewUrlResult {
+  previewUrl: string | null;
+  showPreview: (photo: File) => void;
+}
+
+// Revokes through a ref, not a useEffect keyed on the URL: that cleanup also
+// fires on StrictMode's dev remount and would kill a URL still on screen.
+export const usePreviewUrl = (): UsePreviewUrlResult => {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const activeUrl = useRef<string | null>(null);
+
+  const revokeActive = () => {
+    if (activeUrl.current) {
+      URL.revokeObjectURL(activeUrl.current);
+    }
+  };
+
+  useEffect(() => revokeActive, []);
+
+  const showPreview = (photo: File) => {
+    revokeActive();
+    activeUrl.current = URL.createObjectURL(photo);
+    setPreviewUrl(activeUrl.current);
+  };
+
+  return { previewUrl, showPreview };
+};
 
 interface PhotoInputProps {
   label: string;
@@ -10,12 +40,21 @@ interface PhotoInputProps {
   // Guidance shown under the dropzone, linked via aria-describedby - used to
   // disclose the rough-estimate/third-party-service caveat before opt-in.
   hint?: string;
+  // Set only while something is reading the selected photo.
+  scanningLabel?: string;
 }
 
 const PREVIEW_SIZE_PX = 300;
 
-const PhotoPreview = ({ previewUrl }: { previewUrl: string }) => (
-  <div className="overflow-hidden rounded-surface border border-border">
+interface PhotoPreviewProps {
+  previewUrl: string;
+  scanningLabel: string | undefined;
+}
+
+// object-contain on a raised mat, not a cropped fill: a nutrition label has
+// to stay fully readable, so the letterboxing wants a mat, not empty page.
+export const PhotoPreview = ({ previewUrl, scanningLabel }: PhotoPreviewProps) => (
+  <div className="relative overflow-hidden rounded-surface border border-border bg-surface-raised">
     <Image
       src={previewUrl}
       alt="Selected preview"
@@ -24,6 +63,7 @@ const PhotoPreview = ({ previewUrl }: { previewUrl: string }) => (
       unoptimized
       className="max-h-48 w-full object-contain"
     />
+    {scanningLabel && <ScanningOverlay label={scanningLabel} />}
   </div>
 );
 
@@ -54,22 +94,22 @@ const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
 const handlePhotoChange = (
   event: ChangeEvent<HTMLInputElement>,
   onSelect: (photo: File) => void,
-  setPreviewUrl: (url: string) => void,
+  showPreview: (photo: File) => void,
 ): void => {
   const input = event.target;
   const file = input.files?.[0];
   if (!file) {
     return;
   }
-  setPreviewUrl(URL.createObjectURL(file));
+  showPreview(file);
   onSelect(file);
   // Clears the input so re-picking the same file still fires `change` -
   // otherwise a retry after declining consent or a failed estimate does nothing.
   input.value = "";
 };
 
-export const PhotoInput = ({ label, onSelect, hint }: PhotoInputProps) => {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+export const PhotoInput = ({ label, onSelect, hint, scanningLabel }: PhotoInputProps) => {
+  const { previewUrl, showPreview } = usePreviewUrl();
   const hintId = useId();
 
   return (
@@ -77,14 +117,14 @@ export const PhotoInput = ({ label, onSelect, hint }: PhotoInputProps) => {
       <Dropzone
         label={label}
         describedBy={hint ? hintId : undefined}
-        onChange={(event) => handlePhotoChange(event, onSelect, setPreviewUrl)}
+        onChange={(event) => handlePhotoChange(event, onSelect, showPreview)}
       />
       {hint && (
         <p id={hintId} className="text-xs text-text-muted">
           {hint}
         </p>
       )}
-      {previewUrl && <PhotoPreview previewUrl={previewUrl} />}
+      {previewUrl && <PhotoPreview previewUrl={previewUrl} scanningLabel={scanningLabel} />}
     </div>
   );
 };

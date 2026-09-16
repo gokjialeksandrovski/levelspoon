@@ -101,13 +101,26 @@ const useAmountPhotoGate = (onSelect: (photo: File) => void) => {
   return { promptOpen: heldPhoto !== null, resetKey, handleSelect, agree, decline };
 };
 
+const ESTIMATING_LABEL = "Estimating the amount…";
+
+interface AmountPhotoFieldProps {
+  onSelect: (photo: File) => void;
+  isEstimating: boolean;
+}
+
 // Gates the amount photo behind a one-time terms acknowledgement.
-export const AmountPhotoField = ({ onSelect }: { onSelect: (photo: File) => void }) => {
+export const AmountPhotoField = ({ onSelect, isEstimating }: AmountPhotoFieldProps) => {
   const gate = useAmountPhotoGate(onSelect);
 
   return (
     <>
-      <PhotoInput key={gate.resetKey} label="Amount photo (optional)" hint={DISCLAIMER} onSelect={gate.handleSelect} />
+      <PhotoInput
+        key={gate.resetKey}
+        label="Amount photo (optional)"
+        hint={DISCLAIMER}
+        onSelect={gate.handleSelect}
+        scanningLabel={isEstimating ? ESTIMATING_LABEL : undefined}
+      />
       <AiConsentSheet open={gate.promptOpen} onAgree={gate.agree} onDecline={gate.decline} />
     </>
   );

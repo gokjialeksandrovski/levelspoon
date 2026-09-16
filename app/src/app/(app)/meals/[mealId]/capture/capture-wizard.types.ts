@@ -18,6 +18,11 @@ export type NutritionOrigin = "label_photo" | "manual" | "open_food_facts";
 
 export type WizardStep =
   | { kind: "product-photo"; pendingBarcode: string | null }
+  /** Steps, not local modes of product-photo: only what sits on the path can
+   * be popped by "Back", and as local state these left Back exiting the
+   * wizard entirely. */
+  | { kind: "product-manual"; pendingBarcode: string | null }
+  | { kind: "product-barcode"; pendingBarcode: string | null }
   | { kind: "standard-food-search" }
   | {
       kind: "match-result";
@@ -114,9 +119,14 @@ export type WizardAction =
   | { type: "CHANGE_MATCH"; nameGuess: string; candidates: SelectedProduct[]; pendingBarcode: string | null }
   | { type: "WHOLE_FOOD_SEARCH" }
   | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct }
+  | { type: "MANUAL_NAME_ENTRY"; pendingBarcode: string | null }
+  | { type: "BARCODE_ENTRY"; pendingBarcode: string | null }
   | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> };
 
 export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo", pendingBarcode: null };
+
+/** Shared so the three screens offering this route don't each word it differently. */
+export const BACK_TO_OPTIONS_LABEL = "Choose a different way";
 
 export const toSelectedProduct = (candidate: {
   id: string;
@@ -216,6 +226,8 @@ export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardS
     case "CHANGE_MATCH": return applyChangeMatch(action);
     case "WHOLE_FOOD_SEARCH": return { kind: "standard-food-search" };
     case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [], pendingBarcode: null };
+    case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
+    case "BARCODE_ENTRY": return { kind: "product-barcode", pendingBarcode: action.pendingBarcode };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
   }
 };

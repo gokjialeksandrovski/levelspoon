@@ -16,13 +16,17 @@ import { AmountStep } from "./steps/amount-step";
 import { ConfirmStep } from "./steps/confirm-step";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
-import { ProductNameStep } from "./steps/product-name-step";
+import { BarcodeNameStep, ManualNameStep, ProductNameStep } from "./steps/product-name-step";
 import { ServingSizeStep } from "./steps/serving-size-step";
 import { StandardFoodSearchStep } from "./steps/standard-food-search-step";
 import { WizardShell } from "./wizard-shell";
 
+// The three product-* steps share a title and progress: alternate ways into
+// one stage, not progress through it.
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Product name",
+  "product-manual": "Product name",
+  "product-barcode": "Product name",
   "standard-food-search": "Whole food",
   "match-result": "Which product?",
   "nutrition-photo": "Nutrition label",
@@ -37,6 +41,8 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
 // step count.
 const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "product-photo": 0.2,
+  "product-manual": 0.2,
+  "product-barcode": 0.2,
   "standard-food-search": 0.3,
   "match-result": 0.4,
   "nutrition-photo": 0.5,
@@ -64,6 +70,16 @@ const renderProductPhotoStep = (
   step: Extract<WizardStep, { kind: "product-photo" }>,
   dispatch: (action: PathAction) => void,
 ) => <ProductNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
+
+const renderManualNameStep = (
+  step: Extract<WizardStep, { kind: "product-manual" }>,
+  dispatch: (action: PathAction) => void,
+) => <ManualNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
+
+const renderBarcodeNameStep = (
+  step: Extract<WizardStep, { kind: "product-barcode" }>,
+  dispatch: (action: PathAction) => void,
+) => <BarcodeNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
 
 const renderStandardFoodSearchStep = (dispatch: (action: PathAction) => void) => (
   <StandardFoodSearchStep dispatch={dispatch} />
@@ -158,24 +174,20 @@ interface StepViewProps {
   onDone: () => void;
 }
 
+// One case per line, like wizardReducer's switch: two-line form breaks the
+// line budget.
 const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
-    case "product-photo":
-      return renderProductPhotoStep(step, dispatch);
-    case "standard-food-search":
-      return renderStandardFoodSearchStep(dispatch);
-    case "match-result":
-      return renderMatchResultStep(step, dispatch);
-    case "nutrition-photo":
-      return renderNutritionPhotoStep(step, dispatch);
-    case "serving-size":
-      return renderServingSizeStep(step, dispatch);
-    case "confirm":
-      return renderConfirmStep(step, dispatch);
-    case "amount":
-      return renderAmountStep(step, mealId, dispatch, onSaved);
-    case "saved":
-      return renderSavedStep(dispatch, onDone);
+    case "product-photo": return renderProductPhotoStep(step, dispatch);
+    case "product-manual": return renderManualNameStep(step, dispatch);
+    case "product-barcode": return renderBarcodeNameStep(step, dispatch);
+    case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
+    case "match-result": return renderMatchResultStep(step, dispatch);
+    case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);
+    case "serving-size": return renderServingSizeStep(step, dispatch);
+    case "confirm": return renderConfirmStep(step, dispatch);
+    case "amount": return renderAmountStep(step, mealId, dispatch, onSaved);
+    case "saved": return renderSavedStep(dispatch, onDone);
   }
 };
 

@@ -6,7 +6,6 @@ import { ocrNutritionTable } from "@/features/products/actions/ocr";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";
@@ -93,13 +92,7 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
   return { error, isLoading, photo, handleSelect, handleManualEntry };
 };
 
-const LoadingSkeletons = () => (
-  <div className="flex flex-col gap-2">
-    <Skeleton className="h-10 w-full" />
-    <Skeleton className="h-10 w-full" />
-    <Skeleton className="h-10 w-full" />
-  </div>
-);
+const READING_LABEL = "Reading the nutrition table…";
 
 export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, dispatch }: NutritionPhotoStepProps) => {
   const form = useNutritionPhotoStep(nameGuess, netWeightText, pendingBarcode, dispatch);
@@ -107,8 +100,11 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Photograph the nutrition table</h2>
-      <PhotoInput label="Nutrition table photo" onSelect={form.handleSelect} />
-      {form.isLoading && <LoadingSkeletons />}
+      <PhotoInput
+        label="Nutrition table photo"
+        onSelect={form.handleSelect}
+        scanningLabel={form.isLoading ? READING_LABEL : undefined}
+      />
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {form.error && form.photo && (
         <Button variant="ghost" link onClick={form.handleManualEntry}>

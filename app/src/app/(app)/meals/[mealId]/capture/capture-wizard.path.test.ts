@@ -34,6 +34,27 @@ describe("pathReducer", () => {
     expect(pathReducer(path, { type: "BACK" })).toBe(path);
   });
 
+  // Back exits the wizard from a single-step path, so these have to land on
+  // the path or Back means "discard this capture".
+  it.each([
+    { type: "MANUAL_NAME_ENTRY", kind: "product-manual" },
+    { type: "BARCODE_ENTRY", kind: "product-barcode" },
+  ] as const)("pushes $kind so BACK returns to the entry options", ({ type, kind }) => {
+    const entered = pathReducer([INITIAL_WIZARD_STEP], { type, pendingBarcode: null });
+
+    expect(entered).toEqual([INITIAL_WIZARD_STEP, { kind, pendingBarcode: null }]);
+    expect(pathReducer(entered, { type: "BACK" })).toEqual([INITIAL_WIZARD_STEP]);
+  });
+
+  it("carries a pending barcode into manual entry", () => {
+    const step = { kind: "product-photo" as const, pendingBarcode: "0000000000000" };
+
+    expect(pathReducer([step], { type: "MANUAL_NAME_ENTRY", pendingBarcode: step.pendingBarcode })).toEqual([
+      step,
+      { kind: "product-manual", pendingBarcode: "0000000000000" },
+    ]);
+  });
+
   it("resets to the initial step on ADD_ANOTHER regardless of depth", () => {
     const path: WizardPath = [INITIAL_WIZARD_STEP, AMOUNT_STEP, { kind: "saved" }];
 
