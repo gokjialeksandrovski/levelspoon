@@ -184,3 +184,33 @@ test("a not-found-then-name-matched flow shows the link offer, and accepting it 
   const linked = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, "0000000000000"));
   expect(linked).toHaveLength(1);
 });
+
+test("accepting the amount-step link offer after another user just bound the code shows the conflict, never creates a duplicate", async ({ page }) => {
+  await seedConfidentProduct("Olympus Greek Yogurt 2% Fat");
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByRole("button", { name: "Scan barcode instead" }).click();
+  await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
+  await page.getByRole("button", { name: "Enter the name manually instead" }).click();
+  await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  // Confident name match skips straight to Amount - no confirm step at all.
+  await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
+  await expect(page.getByText("Link barcode to Olympus Greek Yogurt 2% Fat?")).toBeVisible();
+
+  // Simulates another user linking this exact code to a different product
+  // while this capture was in flight (barcode spec §7's race case).
+  await seedProductWithBarcode("0000000000000", "Conflicting Product");
+
+  await page.getByRole("button", { name: "Yes, link it" }).click();
+  await expect(page.getByText(/already linked to Conflicting Product/i)).toBeVisible();
+
+  await page.getByRole("button", { name: "Use Conflicting Product instead" }).click();
+  await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
+  await expect(page.getByText("Using Conflicting Product")).toBeVisible();
+
+  const linkedAfterConflict = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, "0000000000000"));
+  expect(linkedAfterConflict).toHaveLength(1);
+});

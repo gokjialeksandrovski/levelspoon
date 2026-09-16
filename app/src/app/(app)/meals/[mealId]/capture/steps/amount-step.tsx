@@ -308,7 +308,7 @@ const BarcodeLinkOfferPrompt = ({ productName, isLinking, onAccept, onDecline }:
     <p className="text-sm text-text">Link barcode to {productName}?</p>
     <div className="flex gap-2">
       <Button variant="ghost" pending={isLinking} onClick={onAccept}>Yes, link it</Button>
-      <Button variant="ghost" onClick={onDecline}>No thanks</Button>
+      <Button variant="ghost" disabled={isLinking} onClick={onDecline}>No thanks</Button>
     </div>
   </div>
 );

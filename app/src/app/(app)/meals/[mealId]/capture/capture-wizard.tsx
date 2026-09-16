@@ -136,6 +136,7 @@ const renderAmountStep = (
   onSaved: () => void,
 ) => (
   <AmountStep
+    key={step.product.id}
     mealId={mealId}
     product={step.product}
     alternatives={step.alternatives}

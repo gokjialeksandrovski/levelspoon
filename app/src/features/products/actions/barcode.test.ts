@@ -196,6 +196,7 @@ describe("checkBarcodeBinding", () => {
     const result = await checkBarcodeBinding(RESTRICTED_BARCODE);
 
     expect(result).toEqual({ kind: "rejected" });
+    expect(await db.select().from(productBarcodes)).toEqual([]);
   });
 
   it("throws when there is no authenticated session", async () => {
