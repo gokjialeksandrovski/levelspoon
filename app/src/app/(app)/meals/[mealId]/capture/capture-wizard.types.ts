@@ -27,6 +27,10 @@ export type WizardStep =
        * case the user rejects every candidate and lands back on the
        * nutrition-photo step. */
       netWeightText: string | null;
+      /** A barcode scanned earlier that neither source recognised - carried
+       * so choosing a candidate here still offers linking it (barcode spec
+       * §7, T4). */
+      pendingBarcode: string | null;
     }
   | { kind: "nutrition-photo"; nameGuess: string; netWeightText: string | null; pendingBarcode: string | null }
   | {
@@ -66,13 +70,23 @@ export type WizardStep =
       barcode: string | null;
       nutritionOrigin: NutritionOrigin | null;
     }
-  | { kind: "amount"; product: SelectedProduct; alternatives: SelectedProduct[] }
+  | {
+      kind: "amount";
+      product: SelectedProduct;
+      alternatives: SelectedProduct[];
+      /** Non-null only when arriving via a confident/chosen match after an
+       * earlier not_found scan - AmountStep offers linking it to `product`
+       * (barcode spec §7, T4). Null on every other arrival (whole food,
+       * freshly-created product, internal-match scan) - nothing left to
+       * offer. */
+      pendingBarcode: string | null;
+    }
   | { kind: "saved" };
 
 export type WizardAction =
   | { type: "MATCH_RESOLVED"; nameGuess: string; result: MatchResult; netWeightText: string | null; pendingBarcode: string | null }
-  | { type: "CANDIDATE_CHOSEN"; product: SelectedProduct; alternatives: SelectedProduct[] }
-  | { type: "NONE_OF_THESE"; nameGuess: string; netWeightText: string | null }
+  | { type: "CANDIDATE_CHOSEN"; product: SelectedProduct; alternatives: SelectedProduct[]; pendingBarcode: string | null }
+  | { type: "NONE_OF_THESE"; nameGuess: string; netWeightText: string | null; pendingBarcode: string | null }
   | {
       type: "SERVING_SIZE_NEEDED";
       servingSizeText: string;
@@ -97,7 +111,7 @@ export type WizardAction =
   | { type: "PRODUCT_CREATED"; product: SelectedProduct }
   | { type: "SAVED" }
   | { type: "ADD_ANOTHER" }
-  | { type: "CHANGE_MATCH"; nameGuess: string; candidates: SelectedProduct[] }
+  | { type: "CHANGE_MATCH"; nameGuess: string; candidates: SelectedProduct[]; pendingBarcode: string | null }
   | { type: "WHOLE_FOOD_SEARCH" }
   | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct }
   | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> };
@@ -126,8 +140,8 @@ const resolveMatch = (
   netWeightText: string | null,
   pendingBarcode: string | null,
 ): WizardStep => {
-  if (result.kind === "confident") return { kind: "amount", product: toSelectedProduct(result.product), alternatives: result.alternatives.map(toSelectedProduct) };
-  if (result.kind === "ambiguous") return { kind: "match-result", nameGuess, candidates: result.candidates.map(toSelectedProduct), netWeightText };
+  if (result.kind === "confident") return { kind: "amount", product: toSelectedProduct(result.product), alternatives: result.alternatives.map(toSelectedProduct), pendingBarcode };
+  if (result.kind === "ambiguous") return { kind: "match-result", nameGuess, candidates: result.candidates.map(toSelectedProduct), netWeightText, pendingBarcode };
   return { kind: "nutrition-photo", nameGuess, netWeightText, pendingBarcode };
 };
 
@@ -159,11 +173,13 @@ const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_P
 });
 
 const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
-  // From the amount step, which never carried a net weight - nothing to forward.
+  // From the amount step, which never carried a net weight - nothing to
+  // forward there. A pending barcode does carry forward (T4).
   kind: "match-result",
   nameGuess: action.nameGuess,
   candidates: action.candidates,
   netWeightText: null,
+  pendingBarcode: action.pendingBarcode,
 });
 
 type ResolvedBarcodeLookup = Extract<WizardAction, { type: "BARCODE_SCANNED" }>["result"];
@@ -177,7 +193,7 @@ const EXTERNAL_MATCH_BASIS_QUANTITY = 100;
 const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
   switch (result.kind) {
     case "internal_match":
-      return { kind: "amount", product: toSelectedProduct(result.product), alternatives: [] };
+      return { kind: "amount", product: toSelectedProduct(result.product), alternatives: [], pendingBarcode: null };
     case "external_match":
       return { kind: "confirm", parsed: result.nutritionPer100g, flags: result.flags, name: result.nameGuess, photo: undefined, learned: NOTHING_LEARNED, nutritionBasisUnit: result.nutritionBasisUnit, nutritionBasisQuantity: EXTERNAL_MATCH_BASIS_QUANTITY, pendingBarcode: null, barcode: result.barcode, nutritionOrigin: "open_food_facts" };
     case "not_found":
@@ -190,16 +206,16 @@ const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
 export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {
     case "MATCH_RESOLVED": return resolveMatch(action.nameGuess, action.result, action.netWeightText, action.pendingBarcode);
-    case "CANDIDATE_CHOSEN": return { kind: "amount", product: action.product, alternatives: action.alternatives };
-    case "NONE_OF_THESE": return { kind: "nutrition-photo", nameGuess: action.nameGuess, netWeightText: action.netWeightText, pendingBarcode: null };
+    case "CANDIDATE_CHOSEN": return { kind: "amount", product: action.product, alternatives: action.alternatives, pendingBarcode: action.pendingBarcode };
+    case "NONE_OF_THESE": return { kind: "nutrition-photo", nameGuess: action.nameGuess, netWeightText: action.netWeightText, pendingBarcode: action.pendingBarcode };
     case "SERVING_SIZE_NEEDED": return applyServingSizeNeeded(action);
     case "NUTRITION_PARSED": return applyNutritionParsed(action);
-    case "PRODUCT_CREATED": return { kind: "amount", product: action.product, alternatives: [] };
+    case "PRODUCT_CREATED": return { kind: "amount", product: action.product, alternatives: [], pendingBarcode: null };
     case "SAVED": return { kind: "saved" };
     case "ADD_ANOTHER": return { kind: "product-photo", pendingBarcode: null };
     case "CHANGE_MATCH": return applyChangeMatch(action);
     case "WHOLE_FOOD_SEARCH": return { kind: "standard-food-search" };
-    case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [] };
+    case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [], pendingBarcode: null };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
   }
 };

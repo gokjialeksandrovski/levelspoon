@@ -21,6 +21,10 @@ interface AmountStepProps {
   mealId: string;
   product: SelectedProduct;
   alternatives: SelectedProduct[];
+  /** Non-null only when arriving via a confident/chosen match after an
+   * earlier not_found scan - renders the link-this-barcode offer (barcode
+   * spec §7, T4, Task 3). */
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
   onSaved: () => void;
 }
@@ -159,6 +163,7 @@ interface AmountStepActionDeps {
   product: SelectedProduct;
   alternatives: SelectedProduct[];
   context: MeasureContext;
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
   onSaved: () => void;
   callbacks: AmountStepCallbacks;
@@ -185,7 +190,7 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
     handleSave: () =>
       resolveAndSaveAmount({ mealId: deps.mealId, productId: deps.product.id, count: state.count, unit: state.unit, context: deps.context, source: state.source }, deps.dispatch, deps.onSaved, deps.callbacks),
     changeMatch: () =>
-      deps.dispatch({ type: "CHANGE_MATCH", nameGuess: deps.product.name, candidates: [deps.product, ...deps.alternatives] }),
+      deps.dispatch({ type: "CHANGE_MATCH", nameGuess: deps.product.name, candidates: [deps.product, ...deps.alternatives], pendingBarcode: deps.pendingBarcode }),
   };
 };
 
@@ -193,8 +198,8 @@ const useAmountStepForm = (
   mealId: string,
   product: SelectedProduct,
   alternatives: SelectedProduct[],
-  dispatch: (action: WizardAction) => void,
-  onSaved: () => void,
+  pendingBarcode: string | null,
+  dispatch: (action: WizardAction) => void, onSaved: () => void,
 ): UseAmountStepFormResult => {
   const context = contextFor(product);
   const units = availableUnits(context);
@@ -205,7 +210,7 @@ const useAmountStepForm = (
   const [isBusy, setIsBusy] = useState(false);
 
   const actions = buildAmountStepActions(
-    { mealId, product, alternatives, context, dispatch, onSaved, callbacks: { setError, setIsBusy } },
+    { mealId, product, alternatives, context, pendingBarcode, dispatch, onSaved, callbacks: { setError, setIsBusy } },
     { count, unit, source, setCount, setUnit, setSource },
   );
 
@@ -234,8 +239,8 @@ const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
   </>
 );
 
-export const AmountStep = ({ mealId, product, alternatives, dispatch, onSaved }: AmountStepProps) => {
-  const form = useAmountStepForm(mealId, product, alternatives, dispatch, onSaved);
+export const AmountStep = ({ mealId, product, alternatives, pendingBarcode, dispatch, onSaved }: AmountStepProps) => {
+  const form = useAmountStepForm(mealId, product, alternatives, pendingBarcode, dispatch, onSaved);
 
   return (
     <div className="flex flex-col gap-4">

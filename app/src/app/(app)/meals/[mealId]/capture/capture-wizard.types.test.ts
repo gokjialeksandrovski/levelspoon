@@ -27,6 +27,31 @@ describe("wizardReducer", () => {
       kind: "amount",
       product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
       alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES }],
+      pendingBarcode: null,
+    });
+  });
+
+  it("carries a pending barcode from a not_found scan into the amount step on a confident match", () => {
+    const next = wizardReducer(
+      { kind: "product-photo", pendingBarcode: "0000000000000" },
+      {
+        type: "MATCH_RESOLVED",
+        nameGuess: "Olympus Greek Yogurt 2% Fat",
+        result: {
+          kind: "confident",
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
+          alternatives: [],
+        },
+        netWeightText: null,
+        pendingBarcode: "0000000000000",
+      },
+    );
+
+    expect(next).toEqual({
+      kind: "amount",
+      product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
+      alternatives: [],
+      pendingBarcode: "0000000000000",
     });
   });
 
@@ -47,6 +72,28 @@ describe("wizardReducer", () => {
       nameGuess: "Olympus Greek Yogurt Fat",
       candidates: [{ id: "p1", name: "A", ...NO_MEASURES }],
       netWeightText: "NET WT 1.86 0Z (52.7g)",
+      pendingBarcode: null,
+    });
+  });
+
+  it("carries a pending barcode from a not_found scan into the match-result step on an ambiguous match", () => {
+    const next = wizardReducer(
+      { kind: "product-photo", pendingBarcode: "0000000000000" },
+      {
+        type: "MATCH_RESOLVED",
+        nameGuess: "Olympus Greek Yogurt Fat",
+        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }] },
+        netWeightText: null,
+        pendingBarcode: "0000000000000",
+      },
+    );
+
+    expect(next).toEqual({
+      kind: "match-result",
+      nameGuess: "Olympus Greek Yogurt Fat",
+      candidates: [{ id: "p1", name: "A", ...NO_MEASURES }],
+      netWeightText: null,
+      pendingBarcode: "0000000000000",
     });
   });
 
@@ -75,18 +122,20 @@ describe("wizardReducer", () => {
     expect(next).toEqual({ kind: "product-photo", pendingBarcode: null });
   });
 
-  it("routes CANDIDATE_CHOSEN from match-result to the amount step", () => {
+  it("routes CANDIDATE_CHOSEN from match-result to the amount step, carrying a pending barcode forward", () => {
     const next = wizardReducer(
       {
         kind: "match-result",
         nameGuess: "Olympus Greek Yogurt Fat",
         candidates: [{ id: "p1", name: "A", ...NO_MEASURES }],
         netWeightText: null,
+        pendingBarcode: "1111111111116",
       },
       {
         type: "CANDIDATE_CHOSEN",
         product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
         alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES }],
+        pendingBarcode: "1111111111116",
       },
     );
 
@@ -94,21 +143,24 @@ describe("wizardReducer", () => {
       kind: "amount",
       product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
       alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES }],
+      pendingBarcode: "1111111111116",
     });
   });
 
-  it("routes NONE_OF_THESE to the nutrition-photo step, carrying the net weight forward", () => {
+  it("routes NONE_OF_THESE to the nutrition-photo step, carrying the net weight and a pending barcode forward", () => {
     const next = wizardReducer(
       {
         kind: "match-result",
         nameGuess: "Olympus Greek Yogurt Fat",
         candidates: [],
         netWeightText: "NET WT 1.86 0Z (52.7g)",
+        pendingBarcode: "0000000000000",
       },
       {
         type: "NONE_OF_THESE",
         nameGuess: "Olympus Greek Yogurt Fat",
         netWeightText: "NET WT 1.86 0Z (52.7g)",
+        pendingBarcode: "0000000000000",
       },
     );
 
@@ -116,11 +168,7 @@ describe("wizardReducer", () => {
       kind: "nutrition-photo",
       nameGuess: "Olympus Greek Yogurt Fat",
       netWeightText: "NET WT 1.86 0Z (52.7g)",
-      // match-result was never decorated with pendingBarcode (T3 scope, see
-      // capture-wizard.types.ts) - a not_found scan that lands on an ambiguous
-      // name match and gets rejected here loses the pending code. Accepted gap,
-      // closed when T4 decorates match-result for its own link-offer feature.
-      pendingBarcode: null,
+      pendingBarcode: "0000000000000",
     });
   });
 
@@ -179,25 +227,28 @@ describe("wizardReducer", () => {
       kind: "amount",
       product: { id: "p3", name: "Unknown Product", ...NO_MEASURES },
       alternatives: [],
+      pendingBarcode: null,
     });
   });
 
   it("routes SAVED to the saved step from any state", () => {
     const next = wizardReducer(
-      { kind: "amount", product: { id: "p1", name: "A", ...NO_MEASURES }, alternatives: [] },
+      { kind: "amount", product: { id: "p1", name: "A", ...NO_MEASURES }, alternatives: [], pendingBarcode: null },
       { type: "SAVED" },
     );
 
     expect(next).toEqual({ kind: "saved" });
   });
 
-  it("routes CHANGE_MATCH back to the match-result step, with no net weight available to carry", () => {
+  it("routes CHANGE_MATCH back to the match-result step, with no net weight available to carry, but a pending barcode preserved", () => {
     // Unlike MATCH_RESOLVED/NONE_OF_THESE, this path starts from the amount
     // step - which never had a front-panel net weight to begin with (a
     // SelectedProduct only ever carries id/name/its learned measures) - so
-    // there is nothing to thread forward.
+    // there is nothing to thread forward. A pending barcode, added to the
+    // amount step by this same ticket, does carry forward: switching match
+    // here must not silently drop the still-unlinked scanned code (T4).
     const next = wizardReducer(
-      { kind: "amount", product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES }, alternatives: [] },
+      { kind: "amount", product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES }, alternatives: [], pendingBarcode: "0000000000000" },
       {
         type: "CHANGE_MATCH",
         nameGuess: "Olympus Greek Yogurt 2% Fat",
@@ -205,6 +256,7 @@ describe("wizardReducer", () => {
           { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
           { id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES },
         ],
+        pendingBarcode: "0000000000000",
       },
     );
 
@@ -216,6 +268,7 @@ describe("wizardReducer", () => {
         { id: "p2", name: "Olympus Greek Yogurt 10% Fat", ...NO_MEASURES },
       ],
       netWeightText: null,
+      pendingBarcode: "0000000000000",
     });
   });
 });
@@ -236,6 +289,7 @@ describe("wizardReducer — whole food search", () => {
       kind: "amount",
       product: { id: "s1", name: "Banana", ...NO_MEASURES },
       alternatives: [],
+      pendingBarcode: null,
     });
   });
 });
@@ -330,6 +384,7 @@ describe("wizardReducer — barcode scan", () => {
       kind: "amount",
       product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES },
       alternatives: [],
+      pendingBarcode: null,
     });
   });
 

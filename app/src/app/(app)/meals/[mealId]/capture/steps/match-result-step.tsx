@@ -6,16 +6,18 @@ interface MatchResultStepProps {
   nameGuess: string;
   candidates: SelectedProduct[];
   netWeightText: string | null;
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
 interface CandidateButtonProps {
   candidate: SelectedProduct;
   candidates: SelectedProduct[];
+  pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
 }
 
-const CandidateButton = ({ candidate, candidates, dispatch }: CandidateButtonProps) => (
+const CandidateButton = ({ candidate, candidates, pendingBarcode, dispatch }: CandidateButtonProps) => (
   <li>
     <button
       type="button"
@@ -24,6 +26,7 @@ const CandidateButton = ({ candidate, candidates, dispatch }: CandidateButtonPro
           type: "CANDIDATE_CHOSEN",
           product: candidate,
           alternatives: candidates.filter((other) => other.id !== candidate.id),
+          pendingBarcode,
         })
       }
       className={`w-full py-3 text-left text-text ${FOCUS_RING}`}
@@ -33,17 +36,17 @@ const CandidateButton = ({ candidate, candidates, dispatch }: CandidateButtonPro
   </li>
 );
 
-export const MatchResultStep = ({ nameGuess, candidates, netWeightText, dispatch }: MatchResultStepProps) => (
+export const MatchResultStep = ({ nameGuess, candidates, netWeightText, pendingBarcode, dispatch }: MatchResultStepProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Which product is this?</h2>
     <ul className="divide-y divide-border">
       {candidates.map((candidate) => (
-        <CandidateButton key={candidate.id} candidate={candidate} candidates={candidates} dispatch={dispatch} />
+        <CandidateButton key={candidate.id} candidate={candidate} candidates={candidates} pendingBarcode={pendingBarcode} dispatch={dispatch} />
       ))}
     </ul>
     <button
       type="button"
-      onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess, netWeightText })}
+      onClick={() => dispatch({ type: "NONE_OF_THESE", nameGuess, netWeightText, pendingBarcode })}
       className={`${TAP_HIT_AREA_SM} text-sm text-text-muted underline`}
     >
       <span>None of these</span>

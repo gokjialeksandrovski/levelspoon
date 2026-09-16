@@ -77,6 +77,7 @@ const renderMatchResultStep = (
     nameGuess={step.nameGuess}
     candidates={step.candidates}
     netWeightText={step.netWeightText}
+    pendingBarcode={step.pendingBarcode}
     dispatch={dispatch}
   />
 );
@@ -138,6 +139,7 @@ const renderAmountStep = (
     mealId={mealId}
     product={step.product}
     alternatives={step.alternatives}
+    pendingBarcode={step.pendingBarcode}
     dispatch={dispatch}
     onSaved={onSaved}
   />
