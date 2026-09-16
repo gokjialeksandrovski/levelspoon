@@ -206,11 +206,17 @@ interface PhotoOptionRowProps {
 const PhotoRowStatus = ({ isLoading }: { isLoading: boolean }) =>
   isLoading ? (
     <span className="flex items-center gap-2 text-xs text-text-muted">
-      <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent" />
+      <span
+        aria-hidden="true"
+        className="size-3 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
+      />
       Reading the label...
     </span>
   ) : (
-    <span className="text-xs text-text-muted">Reads the product name off the label when scanning the barcode doesn&apos;t work.</span>
+    <span className="text-xs text-text-muted">
+      Reads the product name off the label. Use when scanning the barcode
+      doesn&apos;t provide info for the product.
+    </span>
   );
 
 const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
@@ -247,12 +253,16 @@ interface BarcodeAndPhotoRowsProps {
   onBarcodeEntry: () => void;
 }
 
-const BarcodeAndPhotoRows = ({ isLoading, onSelect, onBarcodeEntry }: BarcodeAndPhotoRowsProps) => (
+const BarcodeAndPhotoRows = ({
+  isLoading,
+  onSelect,
+  onBarcodeEntry,
+}: BarcodeAndPhotoRowsProps) => (
   <>
     <EntryOptionRow
       icon={BarcodeIcon}
       title="Scan the barcode"
-      description="Finds the product automatically, whether or not you've logged it before."
+      description="Finds the product automatically. Easiest, try this first."
       onClick={onBarcodeEntry}
       disabled={isLoading}
     />

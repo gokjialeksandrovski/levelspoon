@@ -26,11 +26,16 @@ interface ButtonProps extends NativeButtonProps {
   pending?: boolean;
 }
 
+// ring (box-shadow), not border: a real border adds its width to the box's
+// layout height, so a bordered variant next to a borderless one (e.g. "Add
+// cooking oil or fat" next to "Add ingredient") stands taller despite
+// identical padding. ring-inset paints the same 1px outline without adding
+// to layout size, so every variant lands on the same height by construction.
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-text text-bg hover:brightness-90",
   ghost: "bg-surface-raised text-text hover:bg-border",
-  danger: "border border-danger text-danger hover:bg-danger/10",
-  fat: "border border-accent-fat text-accent-fat hover:bg-accent-fat/10",
+  danger: "ring-1 ring-inset ring-danger text-danger hover:bg-danger/10",
+  fat: "ring-1 ring-inset ring-accent-fat text-accent-fat hover:bg-accent-fat/10",
 };
 
 const LINK_VARIANT: Record<ButtonVariant, string> = {

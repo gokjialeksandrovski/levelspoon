@@ -318,7 +318,7 @@ export const CookingFatControl = ({ mealId, onIngredientChanged }: CookingFatCon
   return (
     <>
       <Button variant="fat" onClick={control.open}>
-        <DropIcon /> Add cooking oil or fat
+        <DropIcon size={20} /> Add cooking oil or fat
       </Button>
       <CookingFatSheet
         isOpen={control.isOpen}

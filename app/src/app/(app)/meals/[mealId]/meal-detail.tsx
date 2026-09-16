@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { CarrotIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,14 +9,15 @@ import { getMealDetail } from "@/features/meals/actions/meals";
 import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/features/meals/actions/meals";
 import { AppHeader } from "@/components/layout/app-header";
 import { buttonClassName } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 import { CookingFatControl } from "./cooking-fat-control";
-import { DayTotalBar } from "./day-total-bar";
 import { DeleteMeal } from "./delete-meal";
 import { IngredientRow } from "./ingredient-row";
+import { MacroLine, SettleNumber } from "./macro-line";
 
 type MealDetailState =
   | { status: "loading" }
@@ -50,20 +52,76 @@ interface IngredientListProps {
   onIngredientChanged: () => void;
 }
 
-const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProps) => (
-  <ul className="mt-4 divide-y divide-border">
-    {ingredients.map((ingredient) => (
-      <IngredientRow key={ingredient.id} ingredient={ingredient} onChanged={onIngredientChanged} />
-    ))}
-  </ul>
-);
+// 30-50ms per-row stagger per the motion spec; 40ms sits at the mid-point.
+const ROW_STAGGER_SECONDS = 0.04;
 
-const MealTotal = ({ energyKcal }: { energyKcal: number }) => (
-  <p className="mt-4 flex items-baseline justify-between border-t border-border pt-3 text-sm text-text-muted">
-    <span>Meal total</span>
-    <span className="tabular-nums text-base font-semibold text-text">{Math.round(energyKcal)} kcal</span>
-  </p>
-);
+const listVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: ROW_STAGGER_SECONDS } },
+};
+
+// motion.ul orchestrates entrance stagger via variants; AnimatePresence
+// (mode="popLayout") plays each row's own exit animation and lets siblings'
+// `layout` reflow into the gap instead of snapping when one is removed.
+const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProps) => {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <motion.ul
+      className="divide-y divide-border"
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      variants={listVariants}
+    >
+      <AnimatePresence mode="popLayout">
+        {ingredients.map((ingredient) => (
+          <IngredientRow key={ingredient.id} ingredient={ingredient} onChanged={onIngredientChanged} />
+        ))}
+      </AnimatePresence>
+    </motion.ul>
+  );
+};
+
+// The three EU-label fields the app already computes but doesn't surface at
+// meal level (energy/fat/carb/protein cover the rest via MacroLine above).
+// Salt gets a fixed 1 decimal - most real foods sit under 1g, where
+// Math.round would read as "0g" for everything.
+const NutritionDetail = ({ total }: { total: MealDetailData["total"] }) => {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <p className="mt-1 tabular-nums text-sm text-text-muted">
+      Saturates <SettleNumber value={Math.round(total.saturatesG)} reduceMotion={reduceMotion} />g
+      {" · "}
+      Sugars <SettleNumber value={Math.round(total.sugarsG)} reduceMotion={reduceMotion} />g
+      {" · "}
+      Salt <SettleNumber value={total.saltG.toFixed(1)} reduceMotion={reduceMotion} />g
+    </p>
+  );
+};
+
+// border-t-2 (double the divide-y hairline between ingredient rows) plus
+// extra top margin marks this as a summary, not one more ingredient row.
+const MealTotal = ({ total }: { total: MealDetailData["total"] }) => {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <div className="mt-6 border-t-2 border-border pt-3">
+      <p className="flex items-baseline justify-between text-sm text-text-muted">
+        <span>Meal total</span>
+        <span className="tabular-nums text-base font-semibold text-text">
+          <SettleNumber value={Math.round(total.energyKcal)} reduceMotion={reduceMotion} /> kcal
+        </span>
+      </p>
+      <MacroLine contribution={total} size="sm" animate />
+      <div className="mt-1">
+        <Disclosure label="Saturates, sugars & salt">
+          <NutritionDetail total={total} />
+        </Disclosure>
+      </div>
+    </div>
+  );
+};
 
 // Transient: a meal briefly has zero ingredients between an add and this
 // page's refetch. discardEmptyMeal sweeps truly-abandoned ones server-side.
@@ -100,21 +158,20 @@ const mealDetailBackHref = (state: MealDetailState, today: string): string =>
 interface MealReadyBodyProps {
   meal: MealDetailData;
   mealId: string;
-  reloadCounter: number;
   onIngredientChanged: () => void;
 }
 
 interface IngredientsSectionProps {
   ingredients: MealIngredientDetail[];
-  energyKcal: number;
+  total: MealDetailData["total"];
   onIngredientChanged: () => void;
 }
 
-const IngredientsSection = ({ ingredients, energyKcal, onIngredientChanged }: IngredientsSectionProps) =>
+const IngredientsSection = ({ ingredients, total, onIngredientChanged }: IngredientsSectionProps) =>
   ingredients.length > 0 ? (
     <>
       <IngredientList ingredients={ingredients} onIngredientChanged={onIngredientChanged} />
-      <MealTotal energyKcal={energyKcal} />
+      <MealTotal total={total} />
     </>
   ) : (
     <EmptyIngredients />
@@ -133,7 +190,11 @@ const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps
       owns the full-screen /capture route now, and returning from it
       remounts this page rather than refreshing it in place.
     */}
-    <Link href={`/meals/${mealId}/capture`} className={buttonClassName("primary", "text-center")}>
+    <Link
+      href={`/meals/${mealId}/capture`}
+      className={buttonClassName("primary", "inline-flex items-center justify-center gap-2 text-center")}
+    >
+      <CarrotIcon size={20} />
       Add ingredient
     </Link>
     <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
@@ -141,14 +202,11 @@ const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: MealReadyBodyProps) => (
+const MealReadyBody = ({ meal, mealId, onIngredientChanged }: MealReadyBodyProps) => (
   <>
-    {/* Keyed on reloadCounter so any ingredient change remounts DayTotalBar
-        and re-runs its mount-only fetch (see useMealDetail above). */}
-    <DayTotalBar key={reloadCounter} />
     <IngredientsSection
       ingredients={meal.ingredients}
-      energyKcal={meal.total.energyKcal}
+      total={meal.total}
       onIngredientChanged={onIngredientChanged}
     />
     <MealActions mealId={mealId} mealDate={meal.date} onIngredientChanged={onIngredientChanged} />
@@ -158,18 +216,16 @@ const MealReadyBody = ({ meal, mealId, reloadCounter, onIngredientChanged }: Mea
 interface MealDetailBodyProps {
   state: MealDetailState;
   mealId: string;
-  reloadCounter: number;
   onIngredientChanged: () => void;
 }
 
 interface MealDetailContentProps {
   state: Exclude<MealDetailState, { status: "loading" }>;
   mealId: string;
-  reloadCounter: number;
   onIngredientChanged: () => void;
 }
 
-const MealDetailContent = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailContentProps) => {
+const MealDetailContent = ({ state, mealId, onIngredientChanged }: MealDetailContentProps) => {
   if (state.status === "error") {
     return <p className="text-sm text-danger">Couldn&apos;t load this meal. Try again.</p>;
   }
@@ -177,19 +233,12 @@ const MealDetailContent = ({ state, mealId, reloadCounter, onIngredientChanged }
     return <MealNotFound />;
   }
 
-  return (
-    <MealReadyBody
-      meal={state.meal}
-      mealId={mealId}
-      reloadCounter={reloadCounter}
-      onIngredientChanged={onIngredientChanged}
-    />
-  );
+  return <MealReadyBody meal={state.meal} mealId={mealId} onIngredientChanged={onIngredientChanged} />;
 };
 
 // Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody, so
 // a fast fetch doesn't flash "Loading…" then jump-cut to content.
-const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: MealDetailBodyProps) => {
+const MealDetailBody = ({ state, mealId, onIngredientChanged }: MealDetailBodyProps) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");
 
@@ -203,7 +252,7 @@ const MealDetailBody = ({ state, mealId, reloadCounter, onIngredientChanged }: M
       animate={{ opacity: 1 }}
       transition={contentFadeTransition(reduceMotion)}
     >
-      <MealDetailContent state={state} mealId={mealId} reloadCounter={reloadCounter} onIngredientChanged={onIngredientChanged} />
+      <MealDetailContent state={state} mealId={mealId} onIngredientChanged={onIngredientChanged} />
     </motion.div>
   );
 };
@@ -218,12 +267,7 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
     <>
       <AppHeader variant="back" title={mealDetailTitle(state)} backHref={mealDetailBackHref(state, today)} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
-        <MealDetailBody
-          state={state}
-          mealId={mealId}
-          reloadCounter={reloadCounter}
-          onIngredientChanged={bumpReload}
-        />
+        <MealDetailBody state={state} mealId={mealId} onIngredientChanged={bumpReload} />
       </main>
     </>
   );

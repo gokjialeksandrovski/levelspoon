@@ -1,11 +1,13 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/features/meals/actions/meals";
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
+import type { NutritionValues } from "@/types/nutrition";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
@@ -15,12 +17,14 @@ import { availableUnits } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
+import { MacroLine } from "./macro-line";
+
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
   onError: (message: string | null) => void;
   // router.refresh() is a no-op here (parent is a Client Component); this is
-  // what makes the ingredient list and DayTotalBar pick up the change.
+  // what makes the ingredient list pick up the change.
   onChanged?: () => void;
 }
 
@@ -143,18 +147,17 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () =
   };
 };
 
-interface IngredientHeaderProps {
-  productName: string;
-  quantitySource: "ai_estimated" | "manual";
-}
+// Normalizes an all-caps stored name for display only ("SNICKERS BAR" ->
+// "Snickers Bar") so a shouty label doesn't clash with the warm-journal tone
+// next to a naturally-cased one. Mixed-case names pass through untouched;
+// the stored string itself is never rewritten.
+const displayProductName = (name: string): string =>
+  name === name.toUpperCase() && name !== name.toLowerCase()
+    ? name.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : name;
 
-const IngredientHeader = ({ productName, quantitySource }: IngredientHeaderProps) => (
-  <div className="flex items-center justify-between gap-2">
-    <span className="truncate font-medium text-text">{productName}</span>
-    <span className="shrink-0 text-sm text-text-muted">
-      {quantitySource === "manual" ? "Manual entry" : "AI estimate"}
-    </span>
-  </div>
+const IngredientHeader = ({ productName }: { productName: string }) => (
+  <span className="block truncate font-medium text-text">{displayProductName(productName)}</span>
 );
 
 interface QuantityEditorProps {
@@ -192,7 +195,8 @@ interface QuantitySummaryProps {
   productName: string;
   quantity: number;
   quantityUnit: string;
-  energyKcal: number;
+  contribution: NutritionValues;
+  quantitySource: MealIngredientDetail["quantitySource"];
   isBusy: boolean;
   onEdit: () => void;
   onRemove: () => void;
@@ -214,26 +218,61 @@ const RowAction = ({ label, variant, disabled, onClick, children }: RowActionPro
   </Button>
 );
 
+// Only the AI-estimated case is worth flagging inline - it's the one whose
+// value might be off and worth a second look. "manual" is the default/expected
+// state for most rows, so it stays silent rather than repeating itself on
+// every ingredient (heuristic: don't badge the common case).
+const AMOUNT_SOURCE_NOTE: Record<MealIngredientDetail["quantitySource"], string | null> = {
+  manual: null,
+  ai_estimated: "AI-estimated amount",
+};
+
+interface QuantityLineProps {
+  quantity: number;
+  quantityUnit: string;
+  energyKcal: number;
+  sourceNote: string | null;
+}
+
+const QuantityLine = ({ quantity, quantityUnit, energyKcal, sourceNote }: QuantityLineProps) => (
+  <span className="tabular-nums">
+    {quantity} {quantityUnit} · <span className="font-semibold">{Math.round(energyKcal)} kcal</span>
+    {sourceNote && <span className="italic"> · {sourceNote}</span>}
+  </span>
+);
+
+interface RowActionsGroupProps {
+  productName: string;
+  isBusy: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}
+
 // gap-5, not gap-3: each RowAction's hit box reaches 4px past its text
 // (TAP_HIT_AREA_SM), so a tighter gap leaves targets under the 8px minimum.
-const QuantitySummary = ({ productName, quantity, quantityUnit, energyKcal, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
-  <div className="flex items-center justify-between text-sm text-text-muted">
-    <span className="tabular-nums">
-      {quantity} {quantityUnit} · {Math.round(energyKcal)} kcal
-    </span>
-    <div className="flex gap-5">
-      <RowAction label={`Edit ${productName} amount`} variant="ghost" onClick={onEdit}>
-        Edit
-      </RowAction>
-      <RowAction
-        label={`Remove ${productName}`}
-        variant="danger"
-        disabled={isBusy}
-        onClick={onRemove}
-      >
-        Remove
-      </RowAction>
+const RowActionsGroup = ({ productName, isBusy, onEdit, onRemove }: RowActionsGroupProps) => (
+  <div className="flex gap-5">
+    <RowAction label={`Edit ${productName} amount`} variant="ghost" onClick={onEdit}>
+      Edit
+    </RowAction>
+    <RowAction label={`Remove ${productName}`} variant="danger" disabled={isBusy} onClick={onRemove}>
+      Remove
+    </RowAction>
+  </div>
+);
+
+const QuantitySummary = ({ productName, quantity, quantityUnit, contribution, quantitySource, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+  <div className="flex flex-col gap-1">
+    <div className="flex items-center justify-between text-sm text-text-muted">
+      <QuantityLine
+        quantity={quantity}
+        quantityUnit={quantityUnit}
+        energyKcal={contribution.energyKcal}
+        sourceNote={AMOUNT_SOURCE_NOTE[quantitySource]}
+      />
+      <RowActionsGroup productName={productName} isBusy={isBusy} onEdit={onEdit} onRemove={onRemove} />
     </div>
+    <MacroLine contribution={contribution} />
   </div>
 );
 
@@ -260,10 +299,11 @@ const EditingControls = ({ ingredient, editing }: EditingControlsProps) => (
 
 const SummaryControls = ({ ingredient, editing, onRequestRemove }: QuantityControlsProps) => (
   <QuantitySummary
-    productName={ingredient.productName}
+    productName={displayProductName(ingredient.productName)}
     quantity={ingredient.quantity}
     quantityUnit={ingredient.quantityUnit}
-    energyKcal={ingredient.contribution.energyKcal}
+    contribution={ingredient.contribution}
+    quantitySource={ingredient.quantitySource}
     isBusy={editing.isBusy}
     onEdit={editing.startEditing}
     onRemove={onRequestRemove}
@@ -322,9 +362,9 @@ interface IngredientRowContentProps {
 
 const IngredientRowContent = ({ ingredient, editing, onRequestRemove, showError }: IngredientRowContentProps) => (
   <>
-    <IngredientHeader productName={ingredient.productName} quantitySource={ingredient.quantitySource} />
+    <IngredientHeader productName={ingredient.productName} />
     <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
-    <CorrectionLink productId={ingredient.productId} productName={ingredient.productName} />
+    <CorrectionLink productId={ingredient.productId} productName={displayProductName(ingredient.productName)} />
     {showError && editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}
   </>
 );
@@ -334,23 +374,60 @@ interface IngredientRowProps {
   onChanged?: () => void;
 }
 
+// P0 motion fix: exit fade + `layout` reflow so a removed row doesn't just
+// vanish, and an entrance rise that the parent's stagger (meal-detail.tsx)
+// times per row via matching "hidden"/"visible" variant keys.
+const ROW_ENTER_OFFSET_PX = 8;
+const ROW_TRANSITION_SECONDS = 0.22;
+
+const rowVariants = {
+  hidden: { opacity: 0, y: ROW_ENTER_OFFSET_PX },
+  visible: { opacity: 1, y: 0, transition: { duration: ROW_TRANSITION_SECONDS } },
+};
+
+interface IngredientRowFrameProps {
+  ingredient: MealIngredientDetail;
+  editing: UseIngredientEditingResult;
+  isConfirmOpen: boolean;
+  reduceMotion: boolean | null;
+  onRequestRemove: () => void;
+  onCloseConfirm: () => void;
+}
+
+const IngredientRowFrame = ({ ingredient, editing, isConfirmOpen, reduceMotion, onRequestRemove, onCloseConfirm }: IngredientRowFrameProps) => (
+  <motion.li
+    layout={!reduceMotion}
+    variants={rowVariants}
+    exit={reduceMotion ? undefined : { opacity: 0 }}
+    className="flex flex-col gap-2 py-4"
+  >
+    <IngredientRowContent ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} showError={!isConfirmOpen} />
+    {isConfirmOpen && (
+      <RemoveIngredientSheet
+        productName={displayProductName(ingredient.productName)}
+        isBusy={editing.isBusy}
+        error={editing.error}
+        onClose={onCloseConfirm}
+        onConfirm={editing.remove}
+      />
+    )}
+  </motion.li>
+);
+
 export const IngredientRow = ({ ingredient, onChanged }: IngredientRowProps) => {
   const editing = useIngredientEditing(ingredient, onChanged);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const closeConfirmSheet = () => { setIsConfirmOpen(false); editing.clearError(); };
 
   return (
-    <li className="flex flex-col gap-2 py-4">
-      <IngredientRowContent ingredient={ingredient} editing={editing} onRequestRemove={() => setIsConfirmOpen(true)} showError={!isConfirmOpen} />
-      {isConfirmOpen && (
-        <RemoveIngredientSheet
-          productName={ingredient.productName}
-          isBusy={editing.isBusy}
-          error={editing.error}
-          onClose={closeConfirmSheet}
-          onConfirm={editing.remove}
-        />
-      )}
-    </li>
+    <IngredientRowFrame
+      ingredient={ingredient}
+      editing={editing}
+      isConfirmOpen={isConfirmOpen}
+      reduceMotion={reduceMotion}
+      onRequestRemove={() => setIsConfirmOpen(true)}
+      onCloseConfirm={closeConfirmSheet}
+    />
   );
 };
