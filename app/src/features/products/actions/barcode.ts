@@ -114,9 +114,8 @@ export type CheckBarcodeBindingResult =
   | { kind: "already_linked_elsewhere"; product: ProductCandidate }
   | { kind: "rejected" };
 
-// Internal-only counterpart to lookupBarcode's internal-then-external check -
-// used right before a new product would be created, when Open Food Facts
-// data is moot (barcode spec §7, T4).
+// Internal-only counterpart to lookupBarcode - no external call needed,
+// the product doesn't exist yet so OFF data is moot (barcode spec §7, T4).
 export const checkBarcodeBinding = async (rawCode: string): Promise<CheckBarcodeBindingResult> => {
   await requireUserId();
   const normalized = normalizeBarcode(rawCode);
