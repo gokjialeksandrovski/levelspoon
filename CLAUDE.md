@@ -163,6 +163,20 @@ per request), never server's UTC day.
 
 ## App conventions
 
+- **Prefer framework/project components over raw HTML equivalents (CLAUDE.md
+  global Rule 16, project-specific extension).** Covers Next.js built-ins
+  (`Link` not `<a>`, `Image` not `<img>`) and this project's own
+  `components/ui/` wrappers: `Button` (`app/src/components/ui/button.tsx`,
+  `variant` primary/ghost/danger/fat for filled/outlined boxes, `link` for
+  underlined text-link actions, `pending` for busy+spinner) not raw
+  `<button>`; `Field`/`UnitAmountField` not raw `<input>`/`<select>`;
+  `Sheet` not raw `<dialog>`; `PhotoInput` not raw `<input type="file">`.
+  Raw HTML stays only for shapes no wrapper covers: icon-only controls
+  (`ICON_TAP_TARGET_CLASS` — back chevron, header icons) and full-width
+  list-row results (`CookingFatResultButton`-style) — structurally
+  different from a CTA/link, not a missing variant. Not ESLint-enforced
+  (blanket ban false-positives on those shapes) — self-review against this
+  list, same as CLAUDE.md's other judgment-only rules.
 - Feature-based directory structure (CLAUDE.md global Rule 20): `app/src/app/`
   is routing shell only. Business logic groups by domain under
   `app/src/features/<domain>/actions/` (`auth`, `meals`, `products` — includes
