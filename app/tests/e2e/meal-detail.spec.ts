@@ -134,7 +134,7 @@ test("adding a cooking fat raises the meal total by its own contribution", async
   await logOneIngredient(page);
 
   await page.getByRole("button", { name: "Add cooking oil or fat" }).click();
-  await page.getByLabel("Oil or fat name").fill("Olive oil");
+  await page.getByLabel("Food name").fill("Olive oil");
   await page.getByRole("button", { name: "Search" }).click();
   await page.getByRole("button", { name: "Olive oil" }).click();
   await expect(page.getByLabel("Unit")).toHaveValue("tbsp");

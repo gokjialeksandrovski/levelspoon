@@ -387,11 +387,13 @@ export const findStoredMeasures = async (productName: string): Promise<LearnedMe
   };
 };
 
+export type StandardFoodCategory = "whole" | "fat";
+
 export interface StandardFood {
   id: string;
   slug: string;
   name: string;
-  category: "whole" | "fat";
+  category: StandardFoodCategory;
   nutritionPer100g: NutritionValues;
   servingUnit: string | null;
   servingGrams: number | null;
@@ -403,7 +405,7 @@ type StandardFoodRow = SnakeNutritionRow & {
   id: string;
   standard_slug: string;
   name: string;
-  standard_category: "whole" | "fat";
+  standard_category: StandardFoodCategory;
   serving_unit: string | null;
   serving_grams: string | null;
   density_g_ml: string | null;
@@ -430,7 +432,7 @@ const toStandardFood = (row: StandardFoodRow): StandardFood => ({
 
 const fetchStandardFoodRows = async (
   query: string,
-  category?: "whole" | "fat",
+  category?: StandardFoodCategory,
 ): Promise<StandardFoodRow[]> => {
   const categoryFilter = category ? sql`AND standard_category = ${category}` : sql``;
   const result = await db.execute<StandardFoodRow>(sql`
@@ -451,7 +453,7 @@ const fetchStandardFoodRows = async (
 
 export const searchStandardFoods = async (
   query: string,
-  category?: "whole" | "fat",
+  category?: StandardFoodCategory,
 ): Promise<StandardFood[]> => {
   await requireUserId();
   const rows = await fetchStandardFoodRows(query, category);

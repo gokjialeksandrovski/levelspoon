@@ -38,7 +38,7 @@ describe("saveCookingFat", () => {
     await saveCookingFat(baseInput, onSaved, callbacks);
 
     expect(triggerLogSuccessHaptic).not.toHaveBeenCalled();
-    expect(callbacks.setError).toHaveBeenCalledWith("Could not add this to the meal. Please try again.");
+    expect(callbacks.setError).toHaveBeenCalledWith("Couldn't add this to the meal. Try again.");
   });
 });
 
@@ -70,7 +70,7 @@ describe("resolveAndSaveCookingFat", () => {
     );
 
     expect(saveMealIngredient).not.toHaveBeenCalled();
-    expect(callbacks.setError).toHaveBeenCalledWith('Could not work out the amount in "gummies" - try a different unit.');
+    expect(callbacks.setError).toHaveBeenCalledWith('Couldn\'t work out the amount in "gummies". Try a different unit.');
   });
 });
 

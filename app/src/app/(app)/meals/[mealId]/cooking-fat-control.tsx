@@ -1,21 +1,19 @@
 "use client";
 
 import { DropIcon } from "@phosphor-icons/react";
-import { type SubmitEvent, useState } from "react";
+import { useState } from "react";
 
 import { saveMealIngredient } from "@/features/meals/actions/meals";
-import { searchStandardFoods, type StandardFood } from "@/features/products/actions/products";
+import type { StandardFood } from "@/features/products/actions/products";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
-import { FOCUS_RING } from "@/components/ui/tap-target";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
+import { StandardFoodPicker, useStandardFoodPicker, type UseStandardFoodPickerResult } from "./standard-food-picker";
 
 // Other half of the spec §5 category split - oils, butter, ghee, spray.
 const COOKING_FAT_CATEGORY = "fat" as const;
@@ -104,106 +102,21 @@ export const resolveAndSaveCookingFat = async (
   );
 };
 
-interface CookingFatSearchCallbacks {
-  onResults: (results: StandardFood[]) => void;
-  onError: (error: string | null) => void;
-  onLoadingChange: (isLoading: boolean) => void;
-}
-
-const runCookingFatSearch = async (query: string, callbacks: CookingFatSearchCallbacks): Promise<void> => {
-  callbacks.onError(null);
-  callbacks.onLoadingChange(true);
-  try {
-    const results = await searchStandardFoods(query, COOKING_FAT_CATEGORY);
-    callbacks.onResults(results);
-  } catch {
-    callbacks.onError("Could not search cooking fats. Please try again.");
-  } finally {
-    callbacks.onLoadingChange(false);
-  }
-};
-
-interface UseCookingFatSearchResult {
-  query: string;
-  setQuery: (value: string) => void;
-  results: StandardFood[] | null;
-  isLoading: boolean;
-  error: string | null;
-  handleSearch: (event: SubmitEvent<HTMLFormElement>) => void;
-}
-
-const useCookingFatSearch = (): UseCookingFatSearchResult => {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<StandardFood[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const callbacks = { onResults: setResults, onError: setError, onLoadingChange: setIsLoading };
-
-  const handleSearch = (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void runCookingFatSearch(query, callbacks);
-  };
-
-  return { query, setQuery, results, isLoading, error, handleSearch };
-};
-
-interface CookingFatSearchFormProps {
-  query: string;
-  isLoading: boolean;
-  onChange: (value: string) => void;
-  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
-}
-
-const CookingFatSearchForm = ({ query, isLoading, onChange, onSubmit }: CookingFatSearchFormProps) => (
-  <form onSubmit={onSubmit} className="flex flex-col gap-3">
-    <Field label="Oil or fat name" name="cooking-fat-query" value={query} onChange={(event) => onChange(event.target.value)} />
-    <Button type="submit" disabled={query.trim() === ""} pending={isLoading}>
-      Search
-    </Button>
-  </form>
-);
-
-interface CookingFatResultButtonProps {
-  food: StandardFood;
-  onChoose: (food: StandardFood) => void;
-}
-
-const CookingFatResultButton = ({ food, onChoose }: CookingFatResultButtonProps) => (
-  <li>
-    <button type="button" onClick={() => onChoose(food)} className={`w-full py-3 text-left text-text ${FOCUS_RING}`}>
-      {food.name}
-    </button>
-  </li>
-);
-
-interface CookingFatResultsProps {
-  results: StandardFood[];
-  onChoose: (food: StandardFood) => void;
-}
-
-const CookingFatResults = ({ results, onChoose }: CookingFatResultsProps) =>
-  results.length === 0 ? (
-    <p className="text-sm text-text-muted">No match. Try a different name.</p>
-  ) : (
-    <ul className="divide-y divide-border">
-      {results.map((food) => (
-        <CookingFatResultButton key={food.id} food={food} onChoose={onChoose} />
-      ))}
-    </ul>
-  );
+const COOKING_FAT_SEARCH_ERROR = "Could not search cooking fats. Please try again.";
+const COOKING_FAT_EMPTY_MESSAGE = "No match. Check spelling, or try a broader term like \"olive oil\".";
 
 interface CookingFatSearchStageProps {
-  search: UseCookingFatSearchResult;
+  search: UseStandardFoodPickerResult;
   onChoose: (food: StandardFood) => void;
 }
 
 const CookingFatSearchStage = ({ search, onChoose }: CookingFatSearchStageProps) => (
-  <div className="flex flex-col gap-4">
-    <CookingFatSearchForm query={search.query} isLoading={search.isLoading} onChange={search.setQuery} onSubmit={search.handleSearch} />
-    {search.error && <InlineMessage tone="error">{search.error}</InlineMessage>}
-    {search.isLoading && <Skeleton className="h-10 w-full" />}
-    {search.results !== null && !search.isLoading && <CookingFatResults results={search.results} onChoose={onChoose} />}
-  </div>
+  <StandardFoodPicker
+    fieldName="cooking-fat-query"
+    picker={search}
+    emptyMessage={COOKING_FAT_EMPTY_MESSAGE}
+    onChoose={onChoose}
+  />
 );
 
 interface CookingFatAmountStageProps {
@@ -258,7 +171,7 @@ interface CookingFatSheetProps {
   isOpen: boolean;
   stage: CookingFatStage;
   mealId: string;
-  search: UseCookingFatSearchResult;
+  search: UseStandardFoodPickerResult;
   onChoose: (food: StandardFood) => void;
   onBack: () => void;
   onClose: () => void;
@@ -305,7 +218,7 @@ const buildCookingFatActions = (
 const useCookingFatControl = (onIngredientChanged: () => void) => {
   const [isOpen, setIsOpen] = useState(false);
   const [stage, setStage] = useState<CookingFatStage>({ kind: "search" });
-  const search = useCookingFatSearch();
+  const search = useStandardFoodPicker(COOKING_FAT_CATEGORY, COOKING_FAT_SEARCH_ERROR);
 
   return { isOpen, stage, search, ...buildCookingFatActions(setIsOpen, setStage, onIngredientChanged) };
 };
