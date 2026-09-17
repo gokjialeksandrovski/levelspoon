@@ -1,5 +1,6 @@
 "use client";
 
+import { XIcon } from "@phosphor-icons/react";
 import { motion, useDragControls, useReducedMotion, type HTMLMotionProps, type PanInfo } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LiveStatus } from "@/components/ui/live-status";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition, slideInitial, slideTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
@@ -56,6 +58,7 @@ interface DeletedMeal {
   isRestoring: boolean;
   error: string | null;
   undo: () => void;
+  dismiss: () => void;
 }
 
 // The id is copied into state and the ?deleted= param dropped from the URL at
@@ -82,20 +85,39 @@ const useDeletedMeal = (date: string, deletedMealId: string | null, onRestored: 
       .finally(() => setIsRestoring(false));
   };
 
-  return { mealId, isRestoring, error, undo };
+  // Local only: the meal stays soft-deleted and createMeal's purge clears it.
+  // Focus goes to the skip-link target, not <body>, with the unmounted button.
+  const dismiss = () => {
+    setMealId(null);
+    document.getElementById("main-content")?.focus();
+  };
+
+  return { mealId, isRestoring, error, undo, dismiss };
 };
 
 // Sits where the meal list starts, the nearest thing to the deleted row's own
-// place. No timer: it stays until the user leaves the day.
+// place. No timer, so it stays until the user leaves the day or dismisses it.
 const DeletedMealNotice = ({ deleted }: { deleted: DeletedMeal }) => {
   if (!deleted.mealId) return null;
   return (
     <div className="mt-6 flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3 border-b border-border py-3 text-sm text-text-muted">
         <span>Meal deleted</span>
-        <Button variant="primary" link autoFocus pending={deleted.isRestoring} aria-label="Undo deleting the meal" onClick={deleted.undo}>
-          Undo
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="primary" link autoFocus pending={deleted.isRestoring} aria-label="Undo deleting the meal" onClick={deleted.undo}>
+            Undo
+          </Button>
+          {/* Disabled mid-restore so a failed restore's error can't vanish with the row. -my-3 keeps the 44px box from growing the row. */}
+          <button
+            type="button"
+            onClick={deleted.dismiss}
+            disabled={deleted.isRestoring}
+            aria-label="Dismiss"
+            className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_RIGHT} -my-3 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
+          >
+            <XIcon weight="regular" />
+          </button>
+        </div>
       </div>
       {deleted.error && <InlineMessage tone="error">{deleted.error}</InlineMessage>}
     </div>

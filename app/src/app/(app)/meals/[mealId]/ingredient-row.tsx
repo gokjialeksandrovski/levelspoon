@@ -1,5 +1,6 @@
 "use client";
 
+import { XIcon } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,7 +12,7 @@ import { MacroLine } from "@/features/meals/components/macro-line";
 import type { NutritionValues } from "@/types/nutrition";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
+import { ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS, TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { availableUnits } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
@@ -375,13 +376,14 @@ interface RemovedIngredientRowProps {
   isRestoring: boolean;
   error: string | null;
   onUndo: () => void;
+  onDismiss: () => void;
 }
 
 // Holds the removed row's place for as long as the page stays open - no timer
 // to race, so Undo is there whenever the user notices the slip. autoFocus
 // catches keyboard focus that would otherwise fall to <body> with the
 // unmounted Remove button.
-export const RemovedIngredientRow = ({ productName, isRestoring, error, onUndo }: RemovedIngredientRowProps) => {
+export const RemovedIngredientRow = ({ productName, isRestoring, error, onUndo, onDismiss }: RemovedIngredientRowProps) => {
   const reduceMotion = useReducedMotion();
   const name = displayProductName(productName);
 
@@ -391,9 +393,21 @@ export const RemovedIngredientRow = ({ productName, isRestoring, error, onUndo }
         <span className="truncate">
           <span className="text-text">{name}</span> removed
         </span>
-        <Button variant="primary" link autoFocus pending={isRestoring} aria-label={`Undo removing ${name}`} onClick={onUndo}>
-          Undo
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button variant="primary" link autoFocus pending={isRestoring} aria-label={`Undo removing ${name}`} onClick={onUndo}>
+            Undo
+          </Button>
+          {/* Same as DeletedMealNotice: disabled mid-restore, -my-3 keeps the row height. */}
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={isRestoring}
+            aria-label={`Dismiss, ${name} removed`}
+            className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_RIGHT} -my-3 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
+          >
+            <XIcon weight="regular" />
+          </button>
+        </div>
       </div>
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </motion.li>

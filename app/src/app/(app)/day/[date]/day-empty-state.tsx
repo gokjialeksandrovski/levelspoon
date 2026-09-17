@@ -18,8 +18,8 @@ const PerHundredExample = () => (
 const TodayEmptyState = () => (
   <div className="mt-10 flex flex-col gap-3">
     <h2 className="font-display text-xl font-semibold text-text">A clean page for today</h2>
-    <p className="text-text-muted">
-      Every food here is kept per 100 g, straight from its label. Say how much you had and the page does the sums.
+    <p className="text-pretty text-text-muted">
+      Each food keeps the numbers from its label, usually per 100 g or 100 ml. Tell us how much you had and we&apos;ll do the sums.
     </p>
     <PerHundredExample />
   </div>

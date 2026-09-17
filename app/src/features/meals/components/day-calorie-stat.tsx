@@ -5,7 +5,7 @@ import { SettleNumber } from "@/components/ui/settle-number";
 import { Stat, type StatTone } from "@/components/ui/stat";
 
 const HERO_UNIT: Record<CalorieRemainingStatus, string> = {
-  unset: "kcal",
+  unset: "kcal consumed",
   left: "kcal left",
   over: "kcal over",
 };

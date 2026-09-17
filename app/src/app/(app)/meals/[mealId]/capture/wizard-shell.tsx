@@ -41,9 +41,10 @@ const BackButton = ({ onBack, exits }: { onBack: () => void; exits: boolean }) =
     type="button"
     onClick={onBack}
     aria-label={exits ? "Close" : "Back"}
-    className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_LEFT}`}
+    className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_LEFT} translate-y-px`}
   >
     {/* Regular, not the app-wide duotone: duotone X fills a tinted square behind the cross. */}
+    {/* translate-y-px: geometric center reads high next to baseline-anchored text - optical nudge. */}
     {exits ? <XIcon weight="regular" /> : <CaretLeftIcon />}
   </button>
 );

@@ -59,7 +59,7 @@ const fetchProductByBarcode = async (barcode: string): Promise<BarcodeMatchRow |
   const result = await db.execute<BarcodeMatchRow>(sql`
     SELECT p.id, p.name, p.brand, p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g,
            p.sugars_g, p.protein_g, p.salt_g, p.nutrition_photo_key, p.density_g_ml,
-           p.serving_unit, p.serving_grams, p.nutrition_basis_unit
+           p.serving_unit, p.serving_grams, p.nutrition_basis_unit, p.nutrition_basis_quantity
     FROM product_barcodes b
     JOIN products p ON p.id = b.product_id
     WHERE b.barcode = ${barcode}

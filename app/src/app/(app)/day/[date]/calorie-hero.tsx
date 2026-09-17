@@ -23,7 +23,7 @@ const PILL_ICON_SIZE = 14;
 // the tap target reaches 44px without the pill or its row growing. The ring
 // draws on the pill, not the invisible hit box.
 const GoalPill = ({ goal, onOpen }: GoalPillProps) => (
-  <button type="button" onClick={onOpen} className="group -my-2 py-2 focus-visible:outline-none">
+  <button type="button" onClick={onOpen} className="group -my-2 ml-auto py-2 focus-visible:outline-none">
     <span className="flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
       {goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}
       <PencilSimpleIcon size={PILL_ICON_SIZE} />
@@ -57,11 +57,15 @@ interface CalorieSecondaryRowProps {
   onOpenSheet: () => void;
 }
 
+// With no goal the headline already is the consumed total, so this line would
+// only repeat it; the pill's ml-auto keeps it right-aligned on its own.
 const CalorieSecondaryRow = ({ consumedKcal, goal, reduceMotion, onOpenSheet }: CalorieSecondaryRowProps) => (
   <div className="mt-2 flex items-center justify-between gap-2">
-    <p className="text-sm text-text-muted">
-      <SettleNumber value={Math.round(consumedKcal)} reduceMotion={reduceMotion} /> consumed
-    </p>
+    {goal !== null && (
+      <p className="text-sm text-text-muted">
+        <SettleNumber value={Math.round(consumedKcal)} reduceMotion={reduceMotion} /> consumed
+      </p>
+    )}
     <GoalPill goal={goal} onOpen={onOpenSheet} />
   </div>
 );

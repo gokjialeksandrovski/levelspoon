@@ -64,10 +64,11 @@ interface UseRemovalsResult {
   announcement: string;
   markRemoved: (ingredient: MealIngredientDetail, index: number) => void;
   undo: (ingredientId: string) => void;
+  dismiss: (ingredientId: string) => void;
 }
 
-// A removal stays listed until the page leaves; listEntries hides it again
-// once a refetch shows the ingredient back, so Undo never flickers the row.
+// A removal stays listed until the page leaves or the user dismisses it;
+// listEntries hides it again once a refetch shows the ingredient back, so Undo never flickers the row.
 const useRemovals = (onRestored: () => void): UseRemovalsResult => {
   const [removals, setRemovals] = useState<Removal[]>([]);
   const [announcement, setAnnouncement] = useState("");
@@ -90,7 +91,14 @@ const useRemovals = (onRestored: () => void): UseRemovalsResult => {
       .catch(() => patch(ingredientId, { isRestoring: false, error: "Couldn't put it back. Try again." }));
   };
 
-  return { removals, announcement, markRemoved, undo };
+  // Local only: the ingredient stays soft-deleted. Focus goes to the skip-link
+  // target, not <body>, with the unmounted button.
+  const dismiss = (ingredientId: string) => {
+    setRemovals((list) => list.filter((removal) => removal.ingredient.id !== ingredientId));
+    document.getElementById("main-content")?.focus();
+  };
+
+  return { removals, announcement, markRemoved, undo, dismiss };
 };
 
 type ListEntry = { kind: "present"; ingredient: MealIngredientDetail } | { kind: "removed"; removal: Removal };
@@ -140,6 +148,7 @@ const IngredientList = ({ entries, removals, onIngredientChanged }: IngredientLi
               isRestoring={entry.removal.isRestoring}
               error={entry.removal.error}
               onUndo={() => removals.undo(entry.removal.ingredient.id)}
+              onDismiss={() => removals.dismiss(entry.removal.ingredient.id)}
             />
           ),
         )}

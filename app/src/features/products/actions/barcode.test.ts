@@ -56,6 +56,9 @@ describe("lookupBarcode", () => {
     expect(result.kind).toBe("internal_match");
     if (result.kind === "internal_match") {
       expect(result.product.id).toBe(productId);
+      // Regression: fetchProductByBarcode once omitted nutrition_basis_quantity,
+      // producing NaN through toProductCandidate's Number(undefined).
+      expect(result.product.nutritionBasisQuantity).toBe(100);
     }
   });
 

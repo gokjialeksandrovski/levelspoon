@@ -25,7 +25,7 @@ export const Stat = ({
     {label && <p className="mb-1 text-xs text-text-muted">{label}</p>}
     <p className={`font-display text-[2.5rem] font-semibold leading-none tracking-tight ${VALUE_TONE_CLASS[tone]}`}>
       {value}
-      {unit && <span className={`ml-1 align-baseline text-sm font-medium ${UNIT_TONE_CLASS[tone]}`}>{unit}</span>}
+      {unit && <span className={`ml-1 align-baseline text-sm font-medium tracking-normal ${UNIT_TONE_CLASS[tone]}`}>{unit}</span>}
     </p>
   </div>
 );
