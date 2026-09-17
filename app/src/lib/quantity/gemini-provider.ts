@@ -55,6 +55,13 @@ class TruncatedResponseError extends Error {
   }
 }
 
+class NonNumericResponseError extends Error {
+  constructor(content: string) {
+    super(`Gemini returned a non-numeric response: ${content}`);
+    this.name = "NonNumericResponseError";
+  }
+}
+
 class QuantityEstimationError extends Error {
   constructor(cause: unknown) {
     super("Quantity estimation failed");
@@ -105,7 +112,7 @@ const parseGramsResponse = (body: GeminiResponse): number => {
   const content = choice?.message?.content ?? "";
   const grams = Number.parseFloat(content);
   if (!Number.isFinite(grams) || grams <= 0) {
-    throw new Error(`Gemini returned a non-numeric response: ${content}`);
+    throw new NonNumericResponseError(content);
   }
   return grams;
 };

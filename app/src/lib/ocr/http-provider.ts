@@ -9,6 +9,15 @@ class OcrServiceError extends Error {
   }
 }
 
+// A 200 whose payload contradicts its own `format` field - distinct from
+// OcrServiceError's transport failure, which a retry can fix and this cannot.
+class OcrResponseShapeError extends Error {
+  constructor(detail: string) {
+    super(`ocr-service returned ${detail}`);
+    this.name = "OcrResponseShapeError";
+  }
+}
+
 // ocr-service's actual wire shape (per-field, per-100g) - snake_case, matching
 // its validate.py flag naming that confirm-step.tsx's FLAG_TO_FIELD already
 // documents. This never matched NullableNutritionValues's camelCase shape at
@@ -64,12 +73,12 @@ const toPerServingValues = (raw: RawNutritionValues): NutritionValues => ({
 const toNutritionTableRead = (raw: RawNutritionTableResponse): NutritionTableRead => {
   if (raw.format === "eu") {
     if (raw.per_100g === null) {
-      throw new Error("ocr-service returned an EU reading with no per_100g block");
+      throw new OcrResponseShapeError("an EU reading with no per_100g block");
     }
     return { format: "eu", per100g: toNullableNutritionValues(raw.per_100g), flags: raw.flags };
   }
   if (raw.per_serving === null || raw.serving_size_text === null) {
-    throw new Error("ocr-service returned a US reading with no per_serving block");
+    throw new OcrResponseShapeError("a US reading with no per_serving block");
   }
   return {
     format: "us",

@@ -193,12 +193,20 @@ per request), never server's UTC day.
   functions not `function` (`func-style`), low cyclomatic complexity and
   shallow nesting not raw line count (`complexity`/`max-depth`/
   `max-nested-callbacks`, warn), no magic numbers (only `-1, 0, 1, 2`
-  exempt), named error types never bare `throw new Error` for domain
-  failure, no silently swallowed errors, `components/ui/`↔`features/` and
+  exempt), no silently swallowed errors, `components/ui/`↔`features/` and
   `lib/`↔`features/`/`app/` import-direction boundaries (Rule 20). Framework
   entry points (`page.tsx`, `layout.tsx`, `route.ts`) and tool-loaded configs
   (`drizzle.config.ts`, `vitest.config.ts`, `next.config.ts`,
   `eslint.config.mjs`) keep their default exports — compliant, not finding.
+- **Named error types are judgment-only, not linted.** A named class earns
+  its keep only where something discriminates on it — today just
+  `BarcodeAlreadyLinkedError` (`confirm-step.tsx`). Name a failure when a
+  caller or test must tell it apart from its siblings; leave a bare
+  `throw new Error` for boot-time invariants nothing can catch (missing env
+  var in `lib/s3.ts`, `lib/db/index.ts`, `lib/ocr/http-provider.ts`). A
+  blanket ESLint ban was considered and rejected 2026-09-17: it cannot see
+  which throws are domain failures, and 5 of this repo's 6 named error
+  classes already go undiscriminated.
 - Impure/heavy deps sit behind env-var-selected interface: `OCR_PROVIDER`
   and `QUANTITY_PROVIDER` pick real vs mock. `.env.example` default both to
   `mock` — real deployment must set them or every photo return canned

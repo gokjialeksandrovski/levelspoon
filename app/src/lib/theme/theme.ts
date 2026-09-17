@@ -74,4 +74,4 @@ export const getServerSystemSchemeSnapshot = (): boolean => false;
 // hand - it can't import this module, it runs before any bundle does.
 export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY,
-)});if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;}}catch(e){}})();`;
+)});if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;}}catch(e){/* localStorage blocked (private mode): keep the prefers-color-scheme default */}})();`;
