@@ -5,7 +5,8 @@ import { type ChangeEvent, useState } from "react";
 import { BarcodeIcon, CameraIcon, CarrotIcon, PencilSimpleIcon, type Icon } from "@phosphor-icons/react";
 
 import { ocrProductName } from "@/features/products/actions/ocr";
-import { matchProduct } from "@/features/products/actions/products";
+import { matchProduct, searchUserProducts } from "@/features/products/actions/products";
+import type { MatchResult } from "@/features/products/actions/products";
 import { lookupBarcode } from "@/features/products/actions/barcode";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -51,14 +52,26 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
   }
 };
 
-// No photo was taken on this path, so there is no net weight to read.
+// A typed name is a keyword, not an OCR string, so it goes through
+// searchUserProducts and its hits are handed to the reducer as "ambiguous" -
+// the pick list. A typed query never auto-accepts a product, however exact it
+// looks: the margin rule that makes auto-accept safe is matchProduct's, and it
+// scores whole strings. No photo was taken on this path, so no net weight either.
 const handleManualName = async (manualName: string, callbacks: ProductNameCallbacks): Promise<void> => {
   callbacks.onError(null);
   callbacks.onLoadingChange(true);
   try {
-    await resolveProductMatch(manualName, null, callbacks.pendingBarcode, callbacks.dispatch);
+    const candidates = await searchUserProducts(manualName);
+    const result: MatchResult = candidates.length === 0 ? { kind: "no_match" } : { kind: "ambiguous", candidates };
+    callbacks.dispatch({
+      type: "MATCH_RESOLVED",
+      nameGuess: manualName,
+      result,
+      netWeightText: null,
+      pendingBarcode: callbacks.pendingBarcode,
+    });
   } catch {
-    callbacks.onError("Could not look up this product name. Please try again.");
+    callbacks.onError("Could not search for this product name. Please try again.");
   } finally {
     callbacks.onLoadingChange(false);
   }
