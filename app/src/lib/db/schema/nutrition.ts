@@ -1,4 +1,4 @@
-import { index, numeric, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
 
@@ -77,6 +77,40 @@ export const products = pgTable(
   (table) => [
     index("products_name_trgm_idx").using("gin", table.name.op("gin_trgm_ops")),
   ],
+);
+
+// One user's correction to one product, kept off the canonical row so the
+// label-photo original survives untouched and "use the original values" is a
+// single DELETE rather than a data migration. Composite PK, not a surrogate id:
+// a user has at most one live correction per product, and the second edit
+// replaces the first (docs/DECISIONS.md, 2026-09-17).
+//
+// No name column: a rename still lands on the shared row, and only for the user
+// who created it - see renameOwnProduct.
+export const productOverrides = pgTable(
+  "product_overrides",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id),
+    energyKcal: nutritionColumn("energy_kcal"),
+    fatG: nutritionColumn("fat_g"),
+    saturatesG: nutritionColumn("saturates_g"),
+    carbohydrateG: nutritionColumn("carbohydrate_g"),
+    sugarsG: nutritionColumn("sugars_g"),
+    proteinG: nutritionColumn("protein_g"),
+    saltG: nutritionColumn("salt_g"),
+    // A photo of a label the user says has been reformulated. A claim, not
+    // proof: nobody has checked it, so it never touches products.nutrition_
+    // photo_key, which is what the correction screen compares against and what
+    // the visibility rule (spec §S2) trusts. Null on an ordinary correction.
+    nutritionPhotoKey: text("nutrition_photo_key"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.productId] })],
 );
 
 export const meals = pgTable("meals", {
