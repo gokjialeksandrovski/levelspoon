@@ -1,5 +1,7 @@
 "use client";
 
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useId, useState } from "react";
 
 import type { NutritionValues } from "@/types/nutrition";
@@ -13,6 +15,11 @@ const round = (value: number): number => Math.round(value);
 // legibility floor (spec §10) - never shrinks below text-lg.
 const SIZE_STEPS = ["text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"] as const;
 const SIZE_STEP_COUNT = SIZE_STEPS.length;
+
+const CHEVRON_ROTATE_DURATION_SECONDS = 0.26;
+const CHEVRON_OPEN_ROTATE_DEGREES = 180;
+const CHEVRON_CLOSED_ROTATE_DEGREES = 0;
+const CHEVRON_ICON_SIZE = 18;
 
 export const macroFigureSizeClass = (share: number): (typeof SIZE_STEPS)[number] => {
   const stepIndex = Math.min(SIZE_STEP_COUNT - 1, Math.floor(share * SIZE_STEP_COUNT));
@@ -72,19 +79,32 @@ interface MacroFiguresProps {
 // -my-2/py-2 grows the tap area to the 44px floor without growing the row -
 // py-2 (16px) covers the worst case, the smallest figure (text-lg, 28px
 // line-height). FOCUS_RING is the shared branded focus outline.
-const MacroFigures = ({ total, shares, expanded, detailsId, onToggle }: MacroFiguresProps) => (
-  <button
-    type="button"
-    onClick={onToggle}
-    aria-expanded={expanded}
-    aria-controls={detailsId}
-    className={`-my-2 flex items-baseline gap-4 py-2 text-left ${FOCUS_RING}`}
-  >
-    <MacroFigure label="P" grams={round(total.proteinG)} share={shares.protein} accentClass="text-accent-protein" />
-    <MacroFigure label="C" grams={round(total.carbohydrateG)} share={shares.carbs} accentClass="text-accent-carbs" />
-    <MacroFigure label="F" grams={round(total.fatG)} share={shares.fat} accentClass="text-accent-fat" />
-  </button>
-);
+const MacroFigures = ({ total, shares, expanded, detailsId, onToggle }: MacroFiguresProps) => {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-controls={detailsId}
+      aria-label="Macro breakdown"
+      className={`-my-2 -mx-1 flex items-baseline gap-4 rounded-control px-1 py-2 text-left transition-colors hover:bg-surface-raised active:bg-surface-raised ${FOCUS_RING}`}
+    >
+      <MacroFigure label="P" grams={round(total.proteinG)} share={shares.protein} accentClass="text-accent-protein" />
+      <MacroFigure label="C" grams={round(total.carbohydrateG)} share={shares.carbs} accentClass="text-accent-carbs" />
+      <MacroFigure label="F" grams={round(total.fatG)} share={shares.fat} accentClass="text-accent-fat" />
+      {/* text-text not text-muted: muted measures 2.90:1 here, below WCAG 1.4.11's 3:1 UI-graphic floor. */}
+      <motion.span
+        animate={{ rotate: expanded ? CHEVRON_OPEN_ROTATE_DEGREES : CHEVRON_CLOSED_ROTATE_DEGREES }}
+        transition={{ duration: reduceMotion ? 0 : CHEVRON_ROTATE_DURATION_SECONDS }}
+        className="inline-flex self-center text-text"
+      >
+        <CaretDownIcon size={CHEVRON_ICON_SIZE} weight="bold" />
+      </motion.span>
+    </button>
+  );
+};
 
 // No meals: collapse entirely rather than render a zero-width bar (spec §4.2).
 export const DayMacros = ({ total }: { total: NutritionValues }) => {
