@@ -16,15 +16,17 @@ interface GoalPillProps {
   onOpen: () => void;
 }
 
-// Sized to the pill's text-xs line; the 22px provider default would outgrow the pill.
-const PILL_ICON_SIZE = 14;
+// Sized to the pill's text-sm line; the 22px provider default would outgrow the pill.
+const PILL_ICON_SIZE = 16;
 
-// The pill is 28px tall; the transparent button around it adds -my-2/py-2 so
-// the tap target reaches 44px without the pill or its row growing. The ring
-// draws on the pill, not the invisible hit box.
+// The pill is 32px tall; the transparent button around it adds -my-2/py-2 so
+// the tap target reaches 48px without the pill or its row growing. Padding is
+// px-2.5, not px-3: at 360px the widest pair ("4,000 kcal left" beside
+// "Goal: 4,000", MAX_CALORIE_GOAL) needs every pixel to stay on one line. The
+// ring draws on the pill, not the invisible hit box.
 const GoalPill = ({ goal, onOpen }: GoalPillProps) => (
-  <button type="button" onClick={onOpen} className="group -my-2 ml-auto py-2 focus-visible:outline-none">
-    <span className="flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
+  <button type="button" onClick={onOpen} className="group -my-2 shrink-0 py-2 focus-visible:outline-none">
+    <span className="flex items-center gap-1 rounded-full bg-surface-raised px-2.5 py-1.5 text-sm font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
       {goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}
       <PencilSimpleIcon size={PILL_ICON_SIZE} />
     </span>
@@ -50,24 +52,22 @@ const CalorieBar = ({ share, isOver, reduceMotion }: CalorieBarProps) => (
   </div>
 );
 
-interface CalorieSecondaryRowProps {
+interface CalorieGoalProgressProps {
   consumedKcal: number;
-  goal: number | null;
+  goal: number;
+  isOver: boolean;
   reduceMotion: boolean | null;
-  onOpenSheet: () => void;
 }
 
-// With no goal the headline already is the consumed total, so this line would
-// only repeat it; the pill's ml-auto keeps it right-aligned on its own.
-const CalorieSecondaryRow = ({ consumedKcal, goal, reduceMotion, onOpenSheet }: CalorieSecondaryRowProps) => (
-  <div className="mt-2 flex items-center justify-between gap-2">
-    {goal !== null && (
-      <p className="text-sm text-text-muted">
-        <SettleNumber value={Math.round(consumedKcal)} reduceMotion={reduceMotion} /> consumed
-      </p>
-    )}
-    <GoalPill goal={goal} onOpen={onOpenSheet} />
-  </div>
+// Only rendered with a goal: without one the headline already is the consumed
+// total, so this line would only repeat it.
+const CalorieGoalProgress = ({ consumedKcal, goal, isOver, reduceMotion }: CalorieGoalProgressProps) => (
+  <>
+    <p className="mt-2 text-sm text-text-muted">
+      <SettleNumber value={Math.round(consumedKcal)} reduceMotion={reduceMotion} /> consumed
+    </p>
+    <CalorieBar share={Math.min(1, consumedKcal / goal)} isOver={isOver} reduceMotion={reduceMotion} />
+  </>
 );
 
 interface GoalSheetState {
@@ -105,13 +105,17 @@ export const CalorieHero = ({ consumedKcal, initialGoal }: CalorieHeroProps) => 
   const { goal, sheetOpen, openToken, openSheet, closeSheet, setGoal } = useGoalSheetState(initialGoal);
   const reduceMotion = useReducedMotion();
   const remaining = calorieRemaining(goal, consumedKcal);
-  const share = goal === null ? 0 : Math.min(1, consumedKcal / goal);
 
   return (
     <div>
-      <DayCalorieStat consumedKcal={consumedKcal} remaining={remaining} reduceMotion={reduceMotion} />
-      <CalorieSecondaryRow consumedKcal={consumedKcal} goal={goal} reduceMotion={reduceMotion} onOpenSheet={openSheet} />
-      {goal !== null && <CalorieBar share={share} isOver={remaining.status === "over"} reduceMotion={reduceMotion} />}
+      {/* Pill sits beside the number in every state, so setting a goal only adds lines below and nothing moves sideways. */}
+      <div className="flex items-center justify-between gap-2">
+        <DayCalorieStat consumedKcal={consumedKcal} remaining={remaining} reduceMotion={reduceMotion} />
+        <GoalPill goal={goal} onOpen={openSheet} />
+      </div>
+      {goal !== null && (
+        <CalorieGoalProgress consumedKcal={consumedKcal} goal={goal} isOver={remaining.status === "over"} reduceMotion={reduceMotion} />
+      )}
       <GoalSheet key={openToken} open={sheetOpen} initialGoal={goal} onClose={closeSheet} onSaved={setGoal} />
     </div>
   );
