@@ -183,6 +183,11 @@ interface PhotoOptionRowProps {
 
 const PHOTO_ROW_DESCRIPTION = "Reads the name off the packaging. Best when there's no barcode.";
 
+// One line above the list rather than a clause bolted onto each of the four:
+// the fact is the same for all of them, and repeating it four times is how a
+// list of options stops being scannable.
+const ALREADY_ADDED_HINT = "Added this before? Any of these finds it — no label photo needed.";
+
 const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
   <label className={OPTION_ROW_LABEL}>
     <CameraIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
@@ -288,7 +293,10 @@ const PhotoEntryBody = ({ isLoading, previewUrl, onSelect, onManualEntry, onBarc
 
 const PhotoNameEntry = ({ error, ...body }: PhotoNameEntryProps) => (
   <div className="flex flex-col gap-4">
-    <h2 className="text-lg font-semibold">Add a product</h2>
+    <div className="flex flex-col gap-1">
+      <h2 className="text-lg font-semibold">Add a product</h2>
+      <p className="text-sm text-text-muted">{ALREADY_ADDED_HINT}</p>
+    </div>
     <PhotoEntryBody {...body} />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
   </div>
