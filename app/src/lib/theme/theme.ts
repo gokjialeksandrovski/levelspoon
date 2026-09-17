@@ -4,7 +4,6 @@
 export type Theme = "system" | "light" | "dark";
 
 const THEME_STORAGE_KEY = "per100:theme";
-const THEME_ORDER: readonly Theme[] = ["system", "light", "dark"];
 
 const isTheme = (value: string | null): value is Theme =>
   value === "system" || value === "light" || value === "dark";
@@ -51,9 +50,6 @@ export const setTheme = (theme: Theme): void => {
   applyTheme(theme);
   listeners.forEach((onChange) => onChange());
 };
-
-export const nextTheme = (current: Theme): Theme =>
-  THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
 
 const DARK_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 

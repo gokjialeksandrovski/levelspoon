@@ -8,7 +8,6 @@ import {
   getServerThemeSnapshot,
   getSystemSchemeSnapshot,
   getThemeSnapshot,
-  nextTheme,
   setTheme,
   subscribeToSystemScheme,
   subscribeToTheme,
@@ -28,8 +27,8 @@ export const ThemeToggle = () => {
   return (
     <button
       type="button"
-      onClick={() => setTheme(nextTheme(mode))}
-      aria-label={`Theme: ${mode}. Tap to change.`}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      aria-label={`Theme: ${isDark ? "dark" : "light"}. Tap to change.`}
       className={ICON_TAP_TARGET_CLASS}
     >
       <Icon />
