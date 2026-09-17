@@ -14,6 +14,7 @@ interface FieldProps {
   helperText?: string;
   autoComplete?: string;
   autoFocus?: boolean;
+  disabled?: boolean;
   // In-field trailing control (password reveal, unit picker). Overlaid on the
   // input rather than placed beside it so the box stays one visual control.
   trailing?: React.ReactNode;
@@ -69,6 +70,7 @@ const FieldMessage = ({ name, helperText, error, flagged }: FieldMessageProps) =
 export const Field = ({
   label, name, type = "text", defaultValue, value, onChange, onBlur,
   required = false, minLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
+  disabled = false,
   trailing,
 }: FieldProps) => (
   <div className="flex flex-col gap-2">
@@ -89,11 +91,12 @@ export const Field = ({
         value={value}
         onChange={onChange}
         onBlur={onBlur}
+        disabled={disabled}
         required={required}
         minLength={minLength}
         aria-invalid={flagged || Boolean(error)}
         aria-describedby={describedById(name, helperText, error)}
-        className={`${fieldInputClassName(flagged, error)} ${trailing ? "pr-14" : ""}`}
+        className={`${fieldInputClassName(flagged, error)} disabled:cursor-not-allowed disabled:opacity-50 ${trailing ? "pr-14" : ""}`}
       />
       {/* pr-1 keeps the 44px control's own ring clear of the input's border. */}
       {trailing && <div className="absolute inset-y-0 right-0 flex items-center pr-1">{trailing}</div>}

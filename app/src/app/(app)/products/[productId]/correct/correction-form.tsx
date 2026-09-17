@@ -6,13 +6,16 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { validateNutrition } from "@/features/products/actions/ocr";
-import { updateProduct } from "@/features/products/actions/products";
+import { clearNutritionOverride, renameOwnProduct, saveNutritionOverride } from "@/features/products/actions/products";
 import type { ProductForCorrection } from "@/features/products/actions/products";
 import { AppHeader } from "@/components/layout/app-header";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { LabelPhotoStrip } from "@/components/ui/label-photo-strip";
 import { LiveStatus } from "@/components/ui/live-status";
+import { PhotoInput } from "@/components/ui/photo-input";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
 import {
@@ -29,9 +32,13 @@ import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
 interface CorrectionFormProps {
   product: ProductForCorrection;
+  /** Signed by the page; null for a barcode-sourced product, which never had
+   * a label photo taken. */
+  labelPhotoUrl: string | null;
 }
 
 const FLAGGED_ERROR = "This value looks off - please double-check it";
+const CANNOT_RENAME_HINT = "Only the person who added this product can rename it.";
 
 const toNullableNutritionValues = (values: ProductForCorrection["nutritionPer100g"]): NullableNutritionValues => values;
 
@@ -94,10 +101,8 @@ interface CorrectionPreviewProps {
   changes: NutritionFieldChange[];
 }
 
-// Reads back what Save would actually write, before it writes it: this edit
-// lands on every other user's copy of the product, so a mistyped digit is
-// worth one more look. Struck-through old value, not a colour, carries the
-// before/after distinction.
+// Reads back what Save would actually write, before it writes it. Struck-
+// through old value, not a colour, carries the before/after distinction.
 const CorrectionPreview = ({ nameChange, changes }: CorrectionPreviewProps) => {
   if (!nameChange && changes.length === 0) {
     return null;
@@ -136,15 +141,20 @@ const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProp
   </>
 );
 
-// The same dual-tap used when an ingredient is logged - a save landing is a
-// save landing, and this one is the highest-stakes write in the app.
+// Name and figures are two different writes now: a correction is private to
+// this user, a rename still lands on the shared row and only its author may
+// make one. Rename first - if it is refused, nothing has been written yet.
 const applyCorrection = async (
   product: ProductForCorrection,
   name: string,
   values: FieldValues,
+  newLabelPhoto: File | null,
   onSaved: () => void,
 ): Promise<void> => {
-  await updateProduct(product.id, { name, nutritionPer100g: toNutritionValues(values) });
+  if (product.canRename && name.trim() !== product.name) {
+    await renameOwnProduct(product.id, name.trim());
+  }
+  await saveNutritionOverride(product.id, toNutritionValues(values), newLabelPhoto ?? undefined);
   triggerLogSuccessHaptic();
   onSaved();
 };
@@ -156,7 +166,13 @@ interface CorrectionSaveCallbacks {
   setIsSaved: (isSaved: boolean) => void;
 }
 
-export const saveCorrection = async (product: ProductForCorrection, name: string, values: FieldValues, callbacks: CorrectionSaveCallbacks): Promise<void> => {
+export const saveCorrection = async (
+  product: ProductForCorrection,
+  name: string,
+  values: FieldValues,
+  newLabelPhoto: File | null,
+  callbacks: CorrectionSaveCallbacks,
+): Promise<void> => {
   callbacks.setIsSaving(true);
   callbacks.setSaveError(null);
   try {
@@ -167,11 +183,30 @@ export const saveCorrection = async (product: ProductForCorrection, name: string
       focusFirstFlagged(freshFlags);
       return;
     }
-    await applyCorrection(product, name, values, () => callbacks.setIsSaved(true));
+    await applyCorrection(product, name, values, newLabelPhoto, () => callbacks.setIsSaved(true));
   } catch {
     callbacks.setSaveError("Could not save this correction. Please try again.");
   } finally {
     callbacks.setIsSaving(false);
+  }
+};
+
+interface RevertCallbacks {
+  setIsReverting: (isReverting: boolean) => void;
+  setSaveError: (error: string | null) => void;
+  onReverted: () => void;
+}
+
+export const revertCorrection = async (productId: string, callbacks: RevertCallbacks): Promise<void> => {
+  callbacks.setIsReverting(true);
+  callbacks.setSaveError(null);
+  try {
+    await clearNutritionOverride(productId);
+    callbacks.onReverted();
+  } catch {
+    callbacks.setSaveError("Could not restore the original values. Please try again.");
+  } finally {
+    callbacks.setIsReverting(false);
   }
 };
 
@@ -180,9 +215,9 @@ export const saveCorrection = async (product: ProductForCorrection, name: string
 // this holds the confirmation, it does not hold the write.
 const CONFIRMATION_HOLD_MS = 900;
 
-// The screen used to vanish the instant updateProduct resolved, so the one
-// write that changes every other user's copy of a product was the one with no
-// feedback at all. React owns the timer so an early manual back cancels it.
+// The screen used to vanish the instant the save resolved, leaving the write
+// with no feedback at all. React owns the timer so an early manual back
+// cancels it.
 const useConfirmedExit = (isSaved: boolean, router: ReturnType<typeof useRouter>): void => {
   useEffect(() => {
     if (!isSaved) return;
@@ -203,14 +238,18 @@ interface UseCorrectionFormResult {
   saveError: string | null;
   isSaving: boolean;
   isSaved: boolean;
+  isReverting: boolean;
+  newLabelPhoto: File | null;
   flaggedFields: Set<keyof FieldValues>;
   canSave: boolean;
   nameChange: { from: string; to: string } | null;
   changes: NutritionFieldChange[];
   setName: (value: string) => void;
   setFieldValue: (field: keyof FieldValues, value: string) => void;
+  setNewLabelPhoto: (photo: File) => void;
   revalidateNow: () => void;
   handleSave: () => Promise<void>;
+  handleRevert: () => Promise<void>;
 }
 
 const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResult => {
@@ -223,6 +262,8 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
+  const [newLabelPhoto, setNewLabelPhoto] = useState<File | null>(null);
   useConfirmedExit(isSaved, router);
 
   const revalidate = useCallback((currentValues: FieldValues) => {
@@ -235,36 +276,66 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   const canSave = flaggedFields.size === 0 || validateError;
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const revalidateNow = () => revalidate(values);
-  const handleSave = () => saveCorrection(product, name, values, { setIsSaving, setSaveError, setFlags, setIsSaved });
+  const handleSave = () => saveCorrection(product, name, values, newLabelPhoto, { setIsSaving, setSaveError, setFlags, setIsSaved });
+  const handleRevert = () =>
+    revertCorrection(product.id, { setIsReverting, setSaveError, onReverted: () => router.refresh() });
 
   const nameChange = name.trim() === product.name ? null : { from: product.name, to: name.trim() };
 
   return {
-    name, values, validateError, saveError, isSaving, isSaved, flaggedFields, canSave,
-    nameChange, changes: changedNutritionFields(original, values),
-    setName, setFieldValue, revalidateNow, handleSave,
+    name, values, validateError, saveError, isSaving, isSaved, isReverting, newLabelPhoto,
+    flaggedFields, canSave, nameChange, changes: changedNutritionFields(original, values),
+    setName, setFieldValue, setNewLabelPhoto, revalidateNow, handleSave, handleRevert,
   };
 };
 
-interface CorrectionFormBodyProps {
-  product: ProductForCorrection;
-  form: UseCorrectionFormResult;
-}
-
-// Products live in one table shared by every user, so a correction is not a
-// private edit - saying so here is the only warning before it lands.
-const SharedProductNotice = () => (
-  <InlineMessage tone="warning">
-    This product is shared. Your correction replaces it for everyone who logs it, including in meals already saved.
+// Answers the question the old warning raised: this used to overwrite the
+// product for everyone, including in meals already saved. It no longer can.
+const PrivateCorrectionNotice = () => (
+  <InlineMessage tone="info">
+    This correction is yours alone. The shared product keeps the values read off its label.
   </InlineMessage>
 );
 
-const SAVED_MESSAGE = "Saved. This is what everyone sees now.";
+const SAVED_MESSAGE = "Saved. Only you see these values.";
 
-// Answers SharedProductNotice in its own words: the "everyone" that was the
-// warning before the save is the reassurance after it. Deliberately not the
-// matcha log-success pulse - that colour is reserved for logging a meal, and
-// a shared-cache correction wants steadiness, not a celebration.
+interface RevertControlProps {
+  onRevert: () => void;
+  isReverting: boolean;
+}
+
+// The way back to the label-photo figures, which the override never destroyed -
+// reverting is one DELETE, not a re-entry of seven numbers.
+const RevertControl = ({ onRevert, isReverting }: RevertControlProps) => (
+  <Button variant="ghost" link pending={isReverting} onClick={onRevert}>
+    Use the original values
+  </Button>
+);
+
+const LABEL_CHANGED_LABEL = "I think this product's label has changed";
+// Says what the photo is for and what it is not: it does not overwrite the
+// original, and it does not gate the save.
+const LABEL_CHANGED_HINT = "Optional. Photograph the new label and we'll check it against the original. Your figures save either way.";
+const LABEL_CHANGED_ATTACHED = "New label photo attached. Choosing another replaces it.";
+
+interface LabelChangedDisclosureProps {
+  hasOverridePhoto: boolean;
+  selectedName: string | null;
+  onSelect: (photo: File) => void;
+}
+
+const LabelChangedDisclosure = ({ hasOverridePhoto, selectedName, onSelect }: LabelChangedDisclosureProps) => (
+  <Disclosure label={LABEL_CHANGED_LABEL}>
+    <div className="flex flex-col gap-2 pt-2">
+      <PhotoInput label="New label photo" hint={LABEL_CHANGED_HINT} onSelect={onSelect} />
+      {selectedName && <InlineMessage tone="info">{selectedName}</InlineMessage>}
+      {!selectedName && hasOverridePhoto && <InlineMessage tone="info">{LABEL_CHANGED_ATTACHED}</InlineMessage>}
+    </div>
+  </Disclosure>
+);
+
+// Deliberately not the matcha log-success pulse - that colour is reserved for
+// logging a meal, and a correction wants steadiness, not a celebration.
 const CorrectionSaved = () => {
   const reduceMotion = useReducedMotion();
 
@@ -282,16 +353,35 @@ const CorrectionSaved = () => {
   );
 };
 
-const CorrectionFormBody = ({ product, form }: CorrectionFormBodyProps) => (
+interface CorrectionFormBodyProps {
+  product: ProductForCorrection;
+  labelPhotoUrl: string | null;
+  form: UseCorrectionFormResult;
+}
+
+const CorrectionFormBody = ({ product, labelPhotoUrl, form }: CorrectionFormBodyProps) => (
   <div className="flex flex-col gap-4">
+    {labelPhotoUrl && <LabelPhotoStrip url={labelPhotoUrl} />}
     <h2 className="text-lg font-semibold">Correct nutrition (per {product.nutritionBasisQuantity} {product.nutritionBasisUnit})</h2>
-    <SharedProductNotice />
-    <Field label="Product name" name="name" value={form.name} onChange={(event) => form.setName(event.target.value)} />
+    <PrivateCorrectionNotice />
+    <Field
+      label="Product name"
+      name="name"
+      value={form.name}
+      disabled={!product.canRename}
+      helperText={product.canRename ? undefined : CANNOT_RENAME_HINT}
+      onChange={(event) => form.setName(event.target.value)}
+    />
     <NutritionFields
       values={form.values}
       flaggedFields={form.flaggedFields}
       onFieldChange={form.setFieldValue}
       onFieldBlur={form.revalidateNow}
+    />
+    <LabelChangedDisclosure
+      hasOverridePhoto={product.hasOverridePhoto}
+      selectedName={form.newLabelPhoto?.name ?? null}
+      onSelect={form.setNewLabelPhoto}
     />
     <CorrectionPreview nameChange={form.nameChange} changes={form.changes} />
     <CorrectionFeedback saveError={form.saveError} validateError={form.validateError} />
@@ -301,14 +391,17 @@ const CorrectionFormBody = ({ product, form }: CorrectionFormBodyProps) => (
     {form.isSaved ? (
       <CorrectionSaved />
     ) : (
-      <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
-        Save correction
-      </Button>
+      <>
+        <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
+          Save correction
+        </Button>
+        {product.hasOverride && <RevertControl onRevert={form.handleRevert} isReverting={form.isReverting} />}
+      </>
     )}
   </div>
 );
 
-export const CorrectionForm = ({ product }: CorrectionFormProps) => {
+export const CorrectionForm = ({ product, labelPhotoUrl }: CorrectionFormProps) => {
   const router = useRouter();
   const form = useCorrectionForm(product);
 
@@ -316,7 +409,7 @@ export const CorrectionForm = ({ product }: CorrectionFormProps) => {
     <>
       <AppHeader variant="back" title="Correct product" onBack={() => router.back()} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
-        <CorrectionFormBody product={product} form={form} />
+        <CorrectionFormBody product={product} labelPhotoUrl={labelPhotoUrl} form={form} />
       </main>
     </>
   );

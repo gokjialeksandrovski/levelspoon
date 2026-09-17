@@ -1,15 +1,17 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
-import { products, productBarcodes, users } from "@/lib/db/schema";
+import { products, productBarcodes, productOverrides, users } from "@/lib/db/schema";
 import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
+import { fetchPhotoDebt } from "@/lib/db/photo-debt";
+import { getPhotoUrl } from "@/lib/s3";
 
-import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, searchUserProducts, topTwoScores, updateProduct } from "./products";
+import { clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
 import type { CandidateRow } from "./products";
 import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
 
@@ -90,7 +92,7 @@ const seedStandardRow = async (row: {
 };
 
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE products, product_overrides, meal_ingredients, meals CASCADE`);
   mockAuth.mockReset();
 });
 
@@ -507,63 +509,6 @@ describe("createProduct", () => {
   });
 });
 
-describe("updateProduct", () => {
-  it("updates nutrition values and stamps the corrector from the session", async () => {
-    const userId = await seedUser();
-    const correctorId = await seedUser();
-    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
-    const [existing] = await db.select().from(products);
-    mockAuth.mockResolvedValue({ user: { id: correctorId } });
-
-    await updateProduct(existing.id, {
-      nutritionPer100g: {
-        energyKcal: 75,
-        fatG: 2.5,
-        saturatesG: 1.2,
-        carbohydrateG: 4.0,
-        sugarsG: 4.0,
-        proteinG: 9.0,
-        saltG: 0.18,
-      },
-    });
-
-    const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
-    expect(Number(updated.energyKcal)).toBe(75);
-    expect(updated.updatedByUserId).toBe(correctorId);
-    expect(updated.updatedAt).not.toBeNull();
-  });
-
-  it("updates the name when provided", async () => {
-    const userId = await seedUser();
-    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
-    const [existing] = await db.select().from(products);
-    mockAuth.mockResolvedValue({ user: { id: userId } });
-
-    await updateProduct(existing.id, {
-      name: "Olympus Greek Yogurt 0% Fat",
-      nutritionPer100g: {
-        energyKcal: 75, fatG: 2.5, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
-      },
-    });
-
-    const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
-    expect(updated.name).toBe("Olympus Greek Yogurt 0% Fat");
-  });
-
-  it("refuses to update a standard-source product", async () => {
-    const standardId = await seedStandardRow({ slug: "zzq-standard-fixture", name: "Zzq Standard Fixture" });
-    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
-
-    await expect(
-      updateProduct(standardId, {
-        nutritionPer100g: {
-          energyKcal: 75, fatG: 2.5, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
-        },
-      }),
-    ).rejects.toThrow(ProductNotEditableError);
-  });
-});
-
 describe("getProductForCorrection", () => {
   it("returns the product's current values", async () => {
     const userId = await seedUser();
@@ -877,5 +822,186 @@ describe("topTwoScores", () => {
     mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
 
     expect(await topTwoScores([row(0.9)])).toEqual({ top1: 0.9, top2: 0 });
+  });
+});
+
+const CORRECTED = {
+  energyKcal: 99, fatG: 3, saturatesG: 1.5, carbohydrateG: 5,
+  sugarsG: 5, proteinG: 10, saltG: 0.2,
+};
+const CORRECTED_AGAIN = { ...CORRECTED, energyKcal: 101 };
+
+const seedOne = async (name: string): Promise<{ userId: string; productId: string }> => {
+  const userId = await seedUser();
+  const productId = await seedProduct(userId, name);
+  mockAuth.mockResolvedValue({ user: { id: userId } });
+  return { userId, productId };
+};
+
+describe("nutrition overrides", () => {
+  it("leaves the canonical row untouched when an override is saved", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+
+    await saveNutritionOverride(productId, CORRECTED);
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(Number(row.energyKcal)).toBe(70);
+  });
+
+  it("keeps exactly one override row per user and product", async () => {
+    const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+
+    await saveNutritionOverride(productId, CORRECTED);
+    await saveNutritionOverride(productId, CORRECTED_AGAIN);
+
+    const rows = await db.select().from(productOverrides).where(eq(productOverrides.userId, userId));
+    expect(rows.length).toBe(1);
+    expect(Number(rows[0].energyKcal)).toBe(101);
+  });
+
+  it("serves the override to its own user through getProductForCorrection", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED);
+
+    const product = await getProductForCorrection(productId);
+
+    expect(product?.nutritionPer100g.energyKcal).toBe(99);
+    expect(product?.originalNutritionPer100g.energyKcal).toBe(70);
+    expect(product?.hasOverride).toBe(true);
+  });
+
+  it("does not leak one user's override to another user", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED);
+
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+
+    const product = await getProductForCorrection(productId);
+    expect(product?.nutritionPer100g.energyKcal).toBe(70);
+    expect(product?.hasOverride).toBe(false);
+  });
+
+  it("restores the original figures when the override is cleared", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED);
+
+    await clearNutritionOverride(productId);
+
+    const product = await getProductForCorrection(productId);
+    expect(product?.nutritionPer100g.energyKcal).toBe(70);
+    expect(product?.hasOverride).toBe(false);
+  });
+
+  it("is a no-op, not a failure, when clearing with no override present", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+
+    await expect(clearNutritionOverride(productId)).resolves.toBeUndefined();
+  });
+
+  it("refuses an override on a standard row", async () => {
+    const userId = await seedUser();
+    const standardId = await seedStandardRow({ slug: "banana", name: "Banana" });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await expect(saveNutritionOverride(standardId, CORRECTED)).rejects.toThrow(ProductNotEditableError);
+  });
+
+  it("renames a row the user created", async () => {
+    const { productId } = await seedOne("Olymus Greek Yogurt 2% Fat");
+
+    await renameOwnProduct(productId, "Olympus Greek Yogurt 2% Fat");
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.name).toBe("Olympus Greek Yogurt 2% Fat");
+  });
+
+  it("refuses to rename a row another user created", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+
+    await expect(renameOwnProduct(productId, "Anything")).rejects.toThrow(ProductNotEditableError);
+  });
+});
+
+describe("replacement label photos", () => {
+  const newLabelPhoto = () => new Blob(["fake-jpeg-bytes"], { type: "image/jpeg" });
+
+  const overrideOf = async (userId: string, productId: string) => {
+    const [row] = await db
+      .select()
+      .from(productOverrides)
+      .where(and(eq(productOverrides.userId, userId), eq(productOverrides.productId, productId)));
+    return row;
+  };
+
+  it("attaches the photo to the override and leaves the canonical proof alone", async () => {
+    const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+
+    const override = await overrideOf(userId, productId);
+    const [product] = await db.select().from(products).where(eq(products.id, productId));
+    expect(override.nutritionPhotoKey).toMatch(/^product-claims\//);
+    expect(product.nutritionPhotoKey).toBe("test/placeholder.jpg");
+  });
+
+  it("keeps the attached photo when the figures are re-saved without one", async () => {
+    const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+    const first = await overrideOf(userId, productId);
+
+    await saveNutritionOverride(productId, CORRECTED_AGAIN);
+
+    const second = await overrideOf(userId, productId);
+    expect(second.nutritionPhotoKey).toBe(first.nutritionPhotoKey);
+    expect(Number(second.energyKcal)).toBe(101);
+  });
+
+  it("keeps only the latest photo, and deletes the one it replaced", async () => {
+    const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+    const first = await overrideOf(userId, productId);
+
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+
+    const second = await overrideOf(userId, productId);
+    expect(second.nutritionPhotoKey).not.toBe(first.nutritionPhotoKey);
+    const staleResponse = await fetch(await getPhotoUrl(first.nutritionPhotoKey!));
+    expect(staleResponse.ok).toBe(false);
+  });
+
+  it("deletes the photo when the correction is reverted", async () => {
+    const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+    const saved = await overrideOf(userId, productId);
+
+    await clearNutritionOverride(productId);
+
+    const staleResponse = await fetch(await getPhotoUrl(saved.nutritionPhotoKey!));
+    expect(staleResponse.ok).toBe(false);
+  });
+
+  it("reports one entry per product however many users claimed it", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+    await saveNutritionOverride(productId, CORRECTED_AGAIN, newLabelPhoto());
+
+    const debt = await fetchPhotoDebt();
+
+    expect(debt.length).toBe(1);
+    expect(debt[0].productId).toBe(productId);
+    expect(debt[0].claimCount).toBe(2);
+  });
+
+  it("leaves a plain correction out of the report", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+
+    await saveNutritionOverride(productId, CORRECTED);
+
+    expect(await fetchPhotoDebt()).toEqual([]);
   });
 });

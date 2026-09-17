@@ -4,14 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // test env. saveCorrection never touches it.
 vi.mock("@/components/layout/app-header", () => ({ AppHeader: () => null }));
 vi.mock("@/features/products/actions/ocr", () => ({ validateNutrition: vi.fn() }));
-vi.mock("@/features/products/actions/products", () => ({ updateProduct: vi.fn() }));
+vi.mock("@/features/products/actions/products", () => ({
+  saveNutritionOverride: vi.fn(),
+  clearNutritionOverride: vi.fn(),
+  renameOwnProduct: vi.fn(),
+}));
 vi.mock("@/lib/haptics/log-success", () => ({ triggerLogSuccessHaptic: vi.fn() }));
 
 import { validateNutrition } from "@/features/products/actions/ocr";
-import { updateProduct } from "@/features/products/actions/products";
+import { clearNutritionOverride, renameOwnProduct, saveNutritionOverride } from "@/features/products/actions/products";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 
-import { saveCorrection } from "./correction-form";
+import { revertCorrection, saveCorrection } from "./correction-form";
 
 // focusFirstFlagged reaches for the flagged input; nothing is mounted here.
 vi.stubGlobal("document", { getElementById: () => null });
@@ -28,8 +32,13 @@ const PRODUCT = {
   id: "product-1",
   name: "Oat biscuits",
   nutritionPer100g: NUTRITION,
+  originalNutritionPer100g: NUTRITION,
+  hasOverride: false,
+  hasOverridePhoto: false,
+  canRename: true,
   nutritionBasisUnit: "g",
   nutritionBasisQuantity: 100,
+  nutritionPhotoKey: "products/oat-biscuits.jpg",
 };
 
 const VALUES = {
@@ -43,12 +52,12 @@ const makeCallbacks = () => ({
 describe("saveCorrection", () => {
   it("marks the correction saved so the confirmation can hold before navigating", async () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
-    vi.mocked(updateProduct).mockResolvedValue(undefined);
+    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
     const callbacks = makeCallbacks();
 
-    await saveCorrection(PRODUCT, "Oat biscuits", VALUES, callbacks);
+    await saveCorrection(PRODUCT, "Oat biscuits", VALUES, null, callbacks);
 
-    expect(updateProduct).toHaveBeenCalledTimes(1);
+    expect(saveNutritionOverride).toHaveBeenCalledTimes(1);
     expect(triggerLogSuccessHaptic).toHaveBeenCalledTimes(1);
     expect(callbacks.setIsSaved).toHaveBeenCalledWith(true);
   });
@@ -57,9 +66,9 @@ describe("saveCorrection", () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: ["energy_kcal"] });
     const callbacks = makeCallbacks();
 
-    await saveCorrection(PRODUCT, "Oat biscuits", VALUES, callbacks);
+    await saveCorrection(PRODUCT, "Oat biscuits", VALUES, null, callbacks);
 
-    expect(updateProduct).not.toHaveBeenCalled();
+    expect(saveNutritionOverride).not.toHaveBeenCalled();
     expect(triggerLogSuccessHaptic).not.toHaveBeenCalled();
     expect(callbacks.setIsSaved).not.toHaveBeenCalled();
     expect(callbacks.setSaveError).toHaveBeenCalledWith("Please fix the flagged values before saving.");
@@ -67,13 +76,70 @@ describe("saveCorrection", () => {
 
   it("never confirms a save the server rejected", async () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
-    vi.mocked(updateProduct).mockRejectedValue(new Error("db down"));
+    vi.mocked(saveNutritionOverride).mockRejectedValue(new Error("db down"));
     const callbacks = makeCallbacks();
 
-    await saveCorrection(PRODUCT, "Oat biscuits", VALUES, callbacks);
+    await saveCorrection(PRODUCT, "Oat biscuits", VALUES, null, callbacks);
 
     expect(triggerLogSuccessHaptic).not.toHaveBeenCalled();
     expect(callbacks.setIsSaved).not.toHaveBeenCalled();
     expect(callbacks.setSaveError).toHaveBeenCalledWith("Could not save this correction. Please try again.");
+  });
+
+  it("renames before writing the override, and only when the user may rename", async () => {
+    vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
+    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+    vi.mocked(renameOwnProduct).mockResolvedValue(undefined);
+
+    await saveCorrection({ ...PRODUCT, canRename: false }, "New Name", VALUES, null, makeCallbacks());
+
+    expect(renameOwnProduct).not.toHaveBeenCalled();
+    expect(saveNutritionOverride).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves the figures with no photo when none was chosen", async () => {
+    vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
+    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+
+    await saveCorrection(PRODUCT, PRODUCT.name, VALUES, null, makeCallbacks());
+
+    expect(saveNutritionOverride).toHaveBeenCalledWith(PRODUCT.id, expect.anything(), undefined);
+  });
+
+  it("forwards a chosen replacement photo", async () => {
+    vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
+    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+    const photo = new File(["bytes"], "label.jpg", { type: "image/jpeg" });
+
+    await saveCorrection(PRODUCT, PRODUCT.name, VALUES, photo, makeCallbacks());
+
+    expect(saveNutritionOverride).toHaveBeenCalledWith(PRODUCT.id, expect.anything(), photo);
+  });
+});
+
+const makeRevertCallbacks = () => ({
+  setIsReverting: vi.fn(), setSaveError: vi.fn(), onReverted: vi.fn(),
+});
+
+describe("revertCorrection", () => {
+  it("re-reads the screen once the override is gone", async () => {
+    vi.mocked(clearNutritionOverride).mockResolvedValue(undefined);
+    const callbacks = makeRevertCallbacks();
+
+    await revertCorrection(PRODUCT.id, callbacks);
+
+    expect(clearNutritionOverride).toHaveBeenCalledWith(PRODUCT.id);
+    expect(callbacks.onReverted).toHaveBeenCalledTimes(1);
+    expect(callbacks.setIsReverting).toHaveBeenLastCalledWith(false);
+  });
+
+  it("never claims a revert the server rejected", async () => {
+    vi.mocked(clearNutritionOverride).mockRejectedValue(new Error("db down"));
+    const callbacks = makeRevertCallbacks();
+
+    await revertCorrection(PRODUCT.id, callbacks);
+
+    expect(callbacks.onReverted).not.toHaveBeenCalled();
+    expect(callbacks.setSaveError).toHaveBeenCalledWith("Could not restore the original values. Please try again.");
   });
 });

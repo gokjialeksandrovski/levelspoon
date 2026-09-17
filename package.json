@@ -15,6 +15,7 @@
     "db:drop": "npm --prefix app run db:drop",
     "db:migrate": "npm --prefix app run db:migrate",
     "db:seed": "npm --prefix app run db:seed",
+    "report:photo-debt": "npm --prefix app run report:photo-debt",
     "db:reset": "npm run db:drop && npm run db:migrate && npm run db:seed",
     "test": "npm --prefix app run test",
     "test:e2e": "npm --prefix app run test:e2e",

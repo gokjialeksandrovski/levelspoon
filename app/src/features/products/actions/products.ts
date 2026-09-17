@@ -8,9 +8,10 @@ import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
-import { products, productBarcodes, productSource } from "@/lib/db/schema";
+import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
+import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
-import { uploadPhoto } from "@/lib/s3";
+import { deletePhoto, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
 import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
@@ -146,12 +147,12 @@ const visibleToUser = (userId: string) => sql`
 
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g,
-           p.sugars_g, p.protein_g, p.salt_g, p.nutrition_photo_key,
-           p.density_g_ml, p.serving_unit, p.serving_grams,
+    SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
+           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
            similarity(p.name, ${ocrText}) AS score
     FROM products p
+    ${overrideJoinSql("p", "o", userId)}
     WHERE p.source = ${USER_SOURCE}
       AND ${visibleToUser(userId)}
     ORDER BY score DESC
@@ -205,12 +206,12 @@ export const searchUserProducts = async (query: string): Promise<ProductCandidat
 
   const tokenFilters = tokens.map((token) => sql`AND p.name ILIKE ${`%${token}%`}`);
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g,
-           p.sugars_g, p.protein_g, p.salt_g, p.nutrition_photo_key,
-           p.density_g_ml, p.serving_unit, p.serving_grams,
+    SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
+           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
            similarity(p.name, ${query}) AS score
     FROM products p
+    ${overrideJoinSql("p", "o", userId)}
     WHERE p.source = ${USER_SOURCE}
       AND ${visibleToUser(userId)}
     ${sql.join(tokenFilters, sql` `)}
@@ -237,16 +238,21 @@ export interface CreateProductInput {
   nutritionOrigin?: "label_photo" | "manual" | "open_food_facts";
 }
 
-const uploadProductPhoto = async (photo: Blob): Promise<string> => {
+const PROOF_PHOTO_PREFIX = "products";
+// Kept apart from proof photos so a reviewer working the report can tell, from
+// the key alone, which object is the unverified claim.
+const CLAIM_PHOTO_PREFIX = "product-claims";
+
+const uploadProductPhoto = async (photo: Blob, prefix: string): Promise<string> => {
   const extension = photo.type === "image/png" ? "png" : "jpg";
-  const photoKey = `products/${randomUUID()}.${extension}`;
+  const photoKey = `${prefix}/${randomUUID()}.${extension}`;
   const buffer = Buffer.from(await photo.arrayBuffer());
   await uploadPhoto(photoKey, buffer, photo.type);
   return photoKey;
 };
 
-// Shared with updateProduct's photo branch and getProductForCorrection's
-// reverse mapping, so the per100g<->numeric-column conversion is one place.
+// Shared by createProduct and saveNutritionOverride, so the per100g<->numeric-
+// column conversion is one place.
 const toNutritionColumns = (values: NutritionValues) => ({
   energyKcal: String(values.energyKcal),
   fatG: String(values.fatG),
@@ -327,7 +333,7 @@ export const createProduct = async (
   const userId = await requireUserId();
   // Before the upload: a rejected barcode must not leave an orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
-  const photoKey = input.photo ? await uploadProductPhoto(input.photo) : null;
+  const photoKey = input.photo ? await uploadProductPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -343,37 +349,102 @@ export const createProduct = async (
   });
 };
 
-export interface UpdateProductInput {
-  name?: string;
-  nutritionPer100g: NutritionValues;
-}
-
 const assertUpdated = (updated: { id: string }[], productId: string): void => {
   if (updated.length === 0) {
     throw new ProductNotEditableError(productId);
   }
 };
 
-// The nutrition photo is proof captured once at creation (createProduct) and
-// never replaced afterward - updateProduct only ever touches values/name.
-export const updateProduct = async (
+const assertUserProduct = async (productId: string): Promise<void> => {
+  const [product] = await db.select({ source: products.source }).from(products).where(eq(products.id, productId));
+  if (!product || product.source === STANDARD_SOURCE) {
+    throw new ProductNotEditableError(productId);
+  }
+};
+
+const fetchOverridePhotoKey = async (userId: string, productId: string): Promise<string | null> => {
+  const [row] = await db
+    .select({ nutritionPhotoKey: productOverrides.nutritionPhotoKey })
+    .from(productOverrides)
+    .where(and(eq(productOverrides.userId, userId), eq(productOverrides.productId, productId)));
+  return row?.nutritionPhotoKey ?? null;
+};
+
+/**
+ * One user's correction to one product, written to product_overrides rather
+ * than onto the shared row.
+ *
+ * Before this, a correction rewrote the canonical figures for every user and,
+ * because meal_ingredients stores no nutrition snapshot, retroactively rewrote
+ * every past meal that referenced the product. The upsert's ON CONFLICT is what
+ * keeps exactly one live correction per (user, product): a second edit replaces
+ * the first rather than accumulating rows nothing reads.
+ *
+ * The photo is optional and independent of the figures. Omitting it leaves any
+ * photo already attached in place - "I corrected a typo" must not silently
+ * withdraw "the label changed" - while supplying one replaces the previous
+ * claim and deletes the object it replaced.
+ */
+export const saveNutritionOverride = async (
   productId: string,
-  updates: UpdateProductInput,
+  nutritionPer100g: NutritionValues,
+  photo?: Blob,
 ): Promise<void> => {
   const userId = await requireUserId();
+  await assertUserProduct(productId);
 
-  // A standard row (curated, no owner) must never be silently overwritten via
-  // a guessed id (spec §2). Scoping WHERE to source='user' and failing loudly
-  // on a zero-row update catches both a standard-row id and a nonexistent one.
+  const supersededPhotoKey = photo ? await fetchOverridePhotoKey(userId, productId) : null;
+  // Uploaded before the write so a storage failure leaves no row claiming a
+  // key that does not exist - the same ordering createProduct uses.
+  const photoColumn = photo ? { nutritionPhotoKey: await uploadProductPhoto(photo, CLAIM_PHOTO_PREFIX) } : {};
+  const columns = toNutritionColumns(nutritionPer100g);
+
+  await db
+    .insert(productOverrides)
+    .values({ userId, productId, ...columns, ...photoColumn })
+    .onConflictDoUpdate({
+      target: [productOverrides.userId, productOverrides.productId],
+      set: { ...columns, ...photoColumn, updatedAt: new Date() },
+    });
+
+  if (supersededPhotoKey) {
+    await deletePhoto(supersededPhotoKey);
+  }
+};
+
+/** "Use the original values" - drops this user's correction, leaving the
+ * canonical label-photo row as what they see again. A no-op when there is
+ * nothing to clear: the button is idempotent by design, and a double tap is
+ * not an error worth surfacing.
+ *
+ * A withdrawn claim leaves nothing to review, so its photo goes with the row -
+ * otherwise reverting is how the bucket fills with objects nothing references. */
+export const clearNutritionOverride = async (productId: string): Promise<void> => {
+  const userId = await requireUserId();
+  const [removed] = await db
+    .delete(productOverrides)
+    .where(and(eq(productOverrides.userId, userId), eq(productOverrides.productId, productId)))
+    .returning({ nutritionPhotoKey: productOverrides.nutritionPhotoKey });
+
+  if (removed?.nutritionPhotoKey) {
+    await deletePhoto(removed.nutritionPhotoKey);
+  }
+};
+
+/** A name still lives on the shared row, so only its author may change it -
+ * an OCR typo is the author's to fix, not everyone's to overwrite. */
+export const renameOwnProduct = async (productId: string, name: string): Promise<void> => {
+  const userId = await requireUserId();
   const updated = await db
     .update(products)
-    .set({
-      ...(updates.name !== undefined ? { name: updates.name } : {}),
-      ...toNutritionColumns(updates.nutritionPer100g),
-      updatedByUserId: userId,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(products.id, productId), eq(products.source, USER_SOURCE)))
+    .set({ name, updatedByUserId: userId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(products.id, productId),
+        eq(products.source, USER_SOURCE),
+        eq(products.createdByUserId, userId),
+      ),
+    )
     .returning({ id: products.id });
 
   assertUpdated(updated, productId);
@@ -382,28 +453,65 @@ export const updateProduct = async (
 export interface ProductForCorrection {
   id: string;
   name: string;
+  /** What this user sees today - their own correction if they have one. */
   nutritionPer100g: NutritionValues;
+  /** The canonical label-photo figures, so the screen can offer a revert. */
+  originalNutritionPer100g: NutritionValues;
+  hasOverride: boolean;
+  /** Whether this user already offered a photo of a changed label. Drives the
+   * disclosure's copy - the photo itself is not shown back (spec §Not building). */
+  hasOverridePhoto: boolean;
+  /** A name lives on the shared row, so only its author may change it. */
+  canRename: boolean;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
+  /** The stored proof key. The page resolves it to a signed URL; this action
+   * stays free of S3 so it can be unit-tested against Postgres alone. */
+  nutritionPhotoKey: string | null;
 }
 
-// nutritionPhotoKey stays in the DB as proof, taken at creation - the
-// correction screen never resolves or shows it.
+type OverrideNutritionRow = SnakeNutritionRow & { nutrition_photo_key: string | null };
+
+const fetchOverrideRow = async (userId: string, productId: string): Promise<OverrideNutritionRow | null> => {
+  const [row] = await db
+    .select({
+      energy_kcal: productOverrides.energyKcal,
+      fat_g: productOverrides.fatG,
+      saturates_g: productOverrides.saturatesG,
+      carbohydrate_g: productOverrides.carbohydrateG,
+      sugars_g: productOverrides.sugarsG,
+      protein_g: productOverrides.proteinG,
+      salt_g: productOverrides.saltG,
+      nutrition_photo_key: productOverrides.nutritionPhotoKey,
+    })
+    .from(productOverrides)
+    .where(and(eq(productOverrides.userId, userId), eq(productOverrides.productId, productId)));
+  return row ?? null;
+};
+
+// A standard row is curated, not user-owned: no label photo, no correction
+// path. (spec §6)
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
-  await requireUserId();
+  const userId = await requireUserId();
   const [product] = await db.select().from(products).where(eq(products.id, productId));
-  // A standard row has no label photo and no correction path — it is
-  // curated, not user-owned. (spec §6)
   if (!product || product.source === STANDARD_SOURCE) {
     return null;
   }
 
+  const override = await fetchOverrideRow(userId, productId);
+  const original = fromNutritionColumns(product);
+
   return {
     id: product.id,
     name: product.name,
-    nutritionPer100g: fromNutritionColumns(product),
+    nutritionPer100g: override ? nutritionFromSnakeRow(override) : original,
+    originalNutritionPer100g: original,
+    hasOverride: override !== null,
+    hasOverridePhoto: override?.nutrition_photo_key != null,
+    canRename: product.createdByUserId === userId,
     nutritionBasisUnit: product.nutritionBasisUnit,
     nutritionBasisQuantity: Number(product.nutritionBasisQuantity),
+    nutritionPhotoKey: product.nutritionPhotoKey,
   };
 };
 

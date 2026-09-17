@@ -5,6 +5,7 @@ const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { setCalorieGoal } from "@/features/goals/actions/goals";
+import { saveNutritionOverride } from "@/features/products/actions/products";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
@@ -59,7 +60,7 @@ const seedProduct = async (
 };
 
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE products, product_overrides, meal_ingredients, meals, "user" CASCADE`);
   mockAuth.mockReset();
 });
 
@@ -329,6 +330,28 @@ describe("getDayLog", () => {
     expect(log.meals).toEqual([
       { id: mealId, ingredientNames: ["Test Product"], total: log.dayTotal },
     ]);
+  });
+
+  it("reads the logging user's nutrition override, and only theirs", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveNutritionOverride(productId, {
+      energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+    });
+
+    const corrected = await getDayLog(todayLocalDateString("UTC"), "UTC");
+    expect(corrected.dayTotal.energyKcal).toBeCloseTo(280, 5);
+
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+    const { mealId: otherMealId } = await createMeal();
+    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+
+    const canonical = await getDayLog(todayLocalDateString("UTC"), "UTC");
+    expect(canonical.dayTotal.energyKcal).toBeCloseTo(140, 5);
   });
 
   it("excludes a meal that has no ingredients", async () => {

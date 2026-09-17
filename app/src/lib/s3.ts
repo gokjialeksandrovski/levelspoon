@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 type RequiredEnvVar = "S3_ENDPOINT" | "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY" | "S3_BUCKET";
@@ -40,3 +40,10 @@ export const getPhotoUrl = async (key: string): Promise<string> =>
   getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
     expiresIn: PHOTO_URL_EXPIRY_SECONDS,
   });
+
+// A claim photo that has been superseded or reverted has no row pointing at it
+// and no way back into the app - left in the bucket it is an object nobody can
+// name. Only ever called with a key read out of the row being replaced.
+export const deletePhoto = async (key: string): Promise<void> => {
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+};

@@ -8,6 +8,7 @@ import type { BarcodeLookupProvider } from "@/lib/barcode/lookup-provider";
 import { MockBarcodeLookupProvider } from "@/lib/barcode/mock-lookup-provider";
 import { OpenFoodFactsProvider } from "@/lib/barcode/open-food-facts-provider";
 import { db } from "@/lib/db";
+import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { productBarcodes } from "@/lib/db/schema";
 import type { NutritionValues } from "@/types/nutrition";
 
@@ -55,13 +56,14 @@ const isUniqueViolation = (error: unknown): boolean => {
 
 type BarcodeMatchRow = Omit<CandidateRow, "score">;
 
-const fetchProductByBarcode = async (barcode: string): Promise<BarcodeMatchRow | null> => {
+const fetchProductByBarcode = async (userId: string, barcode: string): Promise<BarcodeMatchRow | null> => {
   const result = await db.execute<BarcodeMatchRow>(sql`
-    SELECT p.id, p.name, p.brand, p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g,
-           p.sugars_g, p.protein_g, p.salt_g, p.nutrition_photo_key, p.density_g_ml,
-           p.serving_unit, p.serving_grams, p.nutrition_basis_unit, p.nutrition_basis_quantity
+    SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
+           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
+           p.nutrition_basis_unit, p.nutrition_basis_quantity
     FROM product_barcodes b
     JOIN products p ON p.id = b.product_id
+    ${overrideJoinSql("p", "o", userId)}
     WHERE b.barcode = ${barcode}
   `);
   return result.rows[0] ?? null;
@@ -71,14 +73,14 @@ const getLookupProvider = (): BarcodeLookupProvider =>
   process.env.BARCODE_LOOKUP_PROVIDER === "mock" ? new MockBarcodeLookupProvider() : new OpenFoodFactsProvider();
 
 export const lookupBarcode = async (rawCode: string): Promise<LookupBarcodeResult> => {
-  await requireUserId();
+  const userId = await requireUserId();
   const normalized = normalizeBarcode(rawCode);
   if (normalized.kind !== "ok") {
     return { kind: "rejected" };
   }
   const { barcode } = normalized;
 
-  const internalRow = await fetchProductByBarcode(barcode);
+  const internalRow = await fetchProductByBarcode(userId, barcode);
   if (internalRow) {
     return { kind: "internal_match", product: await toProductCandidate(internalRow) };
   }
@@ -101,7 +103,7 @@ export const linkBarcode = async (rawCode: string, productId: string): Promise<L
     if (!isUniqueViolation(error)) {
       throw error;
     }
-    const existing = await fetchProductByBarcode(barcode);
+    const existing = await fetchProductByBarcode(userId, barcode);
     if (!existing) {
       throw error;
     }
@@ -117,12 +119,12 @@ export type CheckBarcodeBindingResult =
 // Internal-only counterpart to lookupBarcode - no external call needed,
 // the product doesn't exist yet so OFF data is moot (barcode spec §7, T4).
 export const checkBarcodeBinding = async (rawCode: string): Promise<CheckBarcodeBindingResult> => {
-  await requireUserId();
+  const userId = await requireUserId();
   const normalized = normalizeBarcode(rawCode);
   if (normalized.kind !== "ok") {
     return { kind: "rejected" };
   }
-  const row = await fetchProductByBarcode(normalized.barcode);
+  const row = await fetchProductByBarcode(userId, normalized.barcode);
   if (!row) {
     return { kind: "available", barcode: normalized.barcode };
   }

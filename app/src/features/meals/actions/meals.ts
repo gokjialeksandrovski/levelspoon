@@ -5,7 +5,8 @@ import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
-import { mealIngredients, meals, products } from "@/lib/db/schema";
+import { effectiveNutritionSelection } from "@/lib/db/effective-nutrition";
+import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
@@ -158,32 +159,29 @@ interface DayMealIngredientRow {
   product: ProductNutritionRow;
 }
 
-const DAY_MEAL_INGREDIENT_SELECTION = {
+const dayMealIngredientSelection = () => ({
   mealId: meals.id,
   mealCreatedAt: meals.createdAt,
   productName: products.name,
   quantity: mealIngredients.quantity,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
-  product: {
-    energyKcal: products.energyKcal,
-    fatG: products.fatG,
-    saturatesG: products.saturatesG,
-    carbohydrateG: products.carbohydrateG,
-    sugarsG: products.sugarsG,
-    proteinG: products.proteinG,
-    saltG: products.saltG,
-  },
-};
+  product: effectiveNutritionSelection(),
+});
 
 const fetchDayMealIngredientRows = async (
   userId: string,
   bounds: DayBounds,
 ): Promise<DayMealIngredientRow[]> =>
   db
-    .select(DAY_MEAL_INGREDIENT_SELECTION)
+    .select(dayMealIngredientSelection())
     .from(mealIngredients)
     .innerJoin(meals, eq(mealIngredients.mealId, meals.id))
     .innerJoin(products, eq(mealIngredients.productId, products.id))
+    // The day total is this user's day, so it reads this user's corrections.
+    .leftJoin(
+      productOverrides,
+      and(eq(productOverrides.productId, products.id), eq(productOverrides.userId, userId)),
+    )
     .where(
       and(
         eq(meals.userId, userId),
@@ -291,7 +289,10 @@ interface MealIngredientRow {
   measures: ProductMeasureColumns;
 }
 
-const MEAL_INGREDIENT_SELECTION = {
+// Only the nutrition figures are overridden: measures and the nutrition basis
+// still come from the canonical row, because a correction changes the figures,
+// not what they are stated per.
+const mealIngredientSelection = () => ({
   id: mealIngredients.id,
   productId: mealIngredients.productId,
   productName: products.name,
@@ -299,28 +300,24 @@ const MEAL_INGREDIENT_SELECTION = {
   quantityUnit: mealIngredients.quantityUnit,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
   quantitySource: mealIngredients.quantitySource,
-  product: {
-    energyKcal: products.energyKcal,
-    fatG: products.fatG,
-    saturatesG: products.saturatesG,
-    carbohydrateG: products.carbohydrateG,
-    sugarsG: products.sugarsG,
-    proteinG: products.proteinG,
-    saltG: products.saltG,
-  },
+  product: effectiveNutritionSelection(),
   measures: {
     densityGMl: products.densityGMl,
     servingUnit: products.servingUnit,
     servingGrams: products.servingGrams,
     nutritionBasisUnit: products.nutritionBasisUnit,
   },
-};
+});
 
-const fetchMealIngredientRows = async (mealId: string): Promise<MealIngredientRow[]> =>
+const fetchMealIngredientRows = async (userId: string, mealId: string): Promise<MealIngredientRow[]> =>
   db
-    .select(MEAL_INGREDIENT_SELECTION)
+    .select(mealIngredientSelection())
     .from(mealIngredients)
     .innerJoin(products, eq(mealIngredients.productId, products.id))
+    .leftJoin(
+      productOverrides,
+      and(eq(productOverrides.productId, products.id), eq(productOverrides.userId, userId)),
+    )
     .where(and(eq(mealIngredients.mealId, mealId), isNull(mealIngredients.deletedAt)))
     .orderBy(mealIngredients.createdAt);
 
@@ -391,7 +388,7 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
     return null;
   }
 
-  const rows = await fetchMealIngredientRows(mealId);
+  const rows = await fetchMealIngredientRows(userId, mealId);
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
   const localDate = localDateStringOf(meal.createdAt, timezone);
