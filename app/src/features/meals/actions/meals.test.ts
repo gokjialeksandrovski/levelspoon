@@ -655,6 +655,28 @@ describe("getDayHistory", () => {
     expect(page.calorieGoal).toBeNull();
   });
 
+  it("totals a corrected product the way its author sees it, and nobody else's", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveNutritionOverride(productId, {
+      energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+    });
+
+    const corrected = await getDayHistory("UTC");
+    expect(corrected.entries[0].totalKcal).toBeCloseTo(280, 5);
+
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+    const { mealId: otherMealId } = await createMeal();
+    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+
+    const canonical = await getDayHistory("UTC");
+    expect(canonical.entries[0].totalKcal).toBeCloseTo(140, 5);
+  });
+
   it("carries the user's calorie goal so rows can be compared against it", async () => {
     const userId = await seedUser();
     const productId = await seedProduct(userId);

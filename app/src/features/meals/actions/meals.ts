@@ -5,7 +5,7 @@ import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
-import { effectiveNutritionSelection } from "@/lib/db/effective-nutrition";
+import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
@@ -480,6 +480,10 @@ const ISO_DATE_LENGTH = 10; // "YYYY-MM-DD".length
 const toLocalDateString = (value: string | Date): string =>
   value instanceof Date ? value.toISOString().slice(0, ISO_DATE_LENGTH) : value;
 
+// Energy alone, coalesced inline: the day list shows one figure per day, and a
+// single-column helper in effective-nutrition.ts would exist for this one call.
+// The basis quantity stays canonical - a correction changes the figures, not
+// what they are stated per.
 const fetchDayHistoryRows = async (
   userId: string,
   timezone: string,
@@ -487,10 +491,11 @@ const fetchDayHistoryRows = async (
 ): Promise<DayHistoryRow[]> => {
   const result = await db.execute<DayHistoryRow>(sql`
     SELECT date_trunc('day', mi.created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone})::date AS local_date,
-           SUM(p.energy_kcal * (mi.quantity / p.nutrition_basis_quantity)) AS total_kcal
+           SUM(coalesce(o.energy_kcal, p.energy_kcal) * (mi.quantity / p.nutrition_basis_quantity)) AS total_kcal
     FROM meal_ingredients mi
     JOIN meals m ON m.id = mi.meal_id
     JOIN products p ON p.id = mi.product_id
+    ${overrideJoinSql("p", "o", userId)}
     WHERE m.user_id = ${userId}
       AND m.deleted_at IS NULL
       AND mi.deleted_at IS NULL

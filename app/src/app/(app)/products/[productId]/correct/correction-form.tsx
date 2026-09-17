@@ -368,7 +368,7 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form }: CorrectionFormBody
       label="Product name"
       name="name"
       value={form.name}
-      disabled={!product.canRename}
+      readOnly={!product.canRename}
       helperText={product.canRename ? undefined : CANNOT_RENAME_HINT}
       onChange={(event) => form.setName(event.target.value)}
     />
