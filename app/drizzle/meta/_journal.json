@@ -57,6 +57,13 @@
       "when": 1789485549074,
       "tag": "0007_add-product-barcodes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789602085816,
+      "tag": "0008_add-daily-calorie-goal",
+      "breakpoints": true
     }
   ]
 }

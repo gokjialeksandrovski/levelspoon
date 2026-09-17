@@ -8,11 +8,11 @@ import type { DayLog } from "@/features/meals/actions/meals";
 import { AppHeader } from "@/components/layout/app-header";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Stat } from "@/components/ui/stat";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition, slideInitial, slideTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
+import { CalorieHero } from "./calorie-hero";
 import { DayActionBar } from "./day-action-bar";
 import { DayEmptyState } from "./day-empty-state";
 import { DayMacros } from "./day-macros";
@@ -54,7 +54,7 @@ const DayViewSkeleton = () => <Skeleton className="h-11 w-32" />;
 
 const DayViewReady = ({ log, isToday }: { log: DayLog; isToday: boolean }) => (
   <>
-    <Stat value={Math.round(log.dayTotal.energyKcal).toLocaleString()} unit="kcal" />
+    <CalorieHero consumedKcal={log.dayTotal.energyKcal} initialGoal={log.calorieGoal} />
     <DayMacros total={log.dayTotal} />
     {log.meals.length === 0 ? <DayEmptyState isToday={isToday} /> : <MealList meals={log.meals} />}
   </>

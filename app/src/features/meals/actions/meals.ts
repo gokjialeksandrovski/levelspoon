@@ -9,6 +9,8 @@ import { mealIngredients, meals, products } from "@/lib/db/schema";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
+import { fetchCalorieGoal } from "@/features/goals/actions/goals";
+import { calorieRemaining, type CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import type { NutritionValues } from "@/types/nutrition";
 
 export interface SaveMealIngredientInput {
@@ -105,6 +107,8 @@ export interface DayMealSummary {
 export interface DayLog {
   meals: DayMealSummary[];
   dayTotal: NutritionValues;
+  calorieGoal: number | null;
+  calorieRemaining: CalorieRemaining;
 }
 
 interface ProductNutritionRow {
@@ -205,10 +209,13 @@ const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
 export const getDayLog = async (date: string, timezone: string): Promise<DayLog> => {
   const userId = await requireUserId();
   const bounds = dayBoundsInTimezone(date, timezone);
-  const rows = await fetchDayMealIngredientRows(userId, bounds);
+  const [rows, calorieGoal] = await Promise.all([
+    fetchDayMealIngredientRows(userId, bounds),
+    fetchCalorieGoal(userId),
+  ]);
   const dayMeals = toDayMealSummaries(rows);
   const dayTotal = dayMeals.reduce((total, meal) => addNutrition(total, meal.total), ZERO_NUTRITION);
-  return { meals: dayMeals, dayTotal };
+  return { meals: dayMeals, dayTotal, calorieGoal, calorieRemaining: calorieRemaining(calorieGoal, dayTotal.energyKcal) };
 };
 
 export interface MealIngredientDetail {
@@ -231,6 +238,9 @@ export interface MealDetail {
   date: string; // YYYY-MM-DD, the meal's own local day - not necessarily today's
   ingredients: MealIngredientDetail[];
   total: NutritionValues;
+  // Goal minus the FULL local day's total (all meals, not just this one) -
+  // same number the home hero shows for that day.
+  dayCalorieRemaining: CalorieRemaining;
 }
 
 interface ProductMeasureColumns {
@@ -326,6 +336,21 @@ const mealNumberInLocalDay = async (
   return count;
 };
 
+// Same day-wide figure the home hero shows for that date - goal minus every
+// meal's kcal that day, not just this one.
+const fetchDayCalorieRemaining = async (
+  userId: string,
+  localDate: string,
+  timezone: string,
+): Promise<CalorieRemaining> => {
+  const [dayRows, calorieGoal] = await Promise.all([
+    fetchDayMealIngredientRows(userId, dayBoundsInTimezone(localDate, timezone)),
+    fetchCalorieGoal(userId),
+  ]);
+  const dayTotalKcal = toDayMealSummaries(dayRows).reduce((sum, summary) => sum + summary.total.energyKcal, 0);
+  return calorieRemaining(calorieGoal, dayTotalKcal);
+};
+
 export const getMealDetail = async (mealId: string, timezone: string): Promise<MealDetail | null> => {
   const userId = await requireUserId();
   const [meal] = await db
@@ -340,8 +365,11 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
   const localDate = localDateStringOf(meal.createdAt, timezone);
-  const mealNumber = await mealNumberInLocalDay(userId, meal.id, localDate, timezone);
-  return { id: meal.id, mealNumber, date: localDate, ingredients, total };
+  const [mealNumber, dayCalorieRemaining] = await Promise.all([
+    mealNumberInLocalDay(userId, meal.id, localDate, timezone),
+    fetchDayCalorieRemaining(userId, localDate, timezone),
+  ]);
+  return { id: meal.id, mealNumber, date: localDate, ingredients, total, dayCalorieRemaining };
 };
 
 export const removeMealIngredient = async (mealIngredientId: string): Promise<void> => {

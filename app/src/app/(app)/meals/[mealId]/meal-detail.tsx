@@ -7,9 +7,11 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getMealDetail } from "@/features/meals/actions/meals";
 import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/features/meals/actions/meals";
+import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import { AppHeader } from "@/components/layout/app-header";
 import { buttonClassName } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { SettleNumber } from "@/components/ui/settle-number";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
@@ -17,7 +19,7 @@ import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 import { CookingFatControl } from "./cooking-fat-control";
 import { DeleteMeal } from "./delete-meal";
 import { IngredientRow } from "./ingredient-row";
-import { MacroLine, SettleNumber } from "./macro-line";
+import { MacroLine } from "./macro-line";
 
 type MealDetailState =
   | { status: "loading" }
@@ -100,9 +102,23 @@ const NutritionDetail = ({ total }: { total: MealDetailData["total"] }) => {
   );
 };
 
+// Same day-wide number the home hero shows - omitted entirely when no goal
+// is set, so a meal in an unset-goal day doesn't imply a target that isn't there.
+const DayRemainingBracket = ({ remaining }: { remaining: CalorieRemaining }) => {
+  if (remaining.status === "unset") {
+    return null;
+  }
+  const label = remaining.status === "over" ? "over" : "left";
+  return (
+    <span className={`ml-1 font-normal ${remaining.status === "over" ? "text-danger" : "text-text-muted"}`}>
+      ({remaining.kcal.toLocaleString()} kcal {label})
+    </span>
+  );
+};
+
 // border-t-2 (double the divide-y hairline between ingredient rows) plus
 // extra top margin marks this as a summary, not one more ingredient row.
-const MealTotal = ({ total }: { total: MealDetailData["total"] }) => {
+const MealTotal = ({ total, dayCalorieRemaining }: { total: MealDetailData["total"]; dayCalorieRemaining: CalorieRemaining }) => {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -111,6 +127,7 @@ const MealTotal = ({ total }: { total: MealDetailData["total"] }) => {
         <span>Meal total</span>
         <span className="tabular-nums text-base font-semibold text-text">
           <SettleNumber value={Math.round(total.energyKcal)} reduceMotion={reduceMotion} /> kcal
+          <DayRemainingBracket remaining={dayCalorieRemaining} />
         </span>
       </p>
       <MacroLine contribution={total} size="sm" animate />
@@ -164,14 +181,15 @@ interface MealReadyBodyProps {
 interface IngredientsSectionProps {
   ingredients: MealIngredientDetail[];
   total: MealDetailData["total"];
+  dayCalorieRemaining: CalorieRemaining;
   onIngredientChanged: () => void;
 }
 
-const IngredientsSection = ({ ingredients, total, onIngredientChanged }: IngredientsSectionProps) =>
+const IngredientsSection = ({ ingredients, total, dayCalorieRemaining, onIngredientChanged }: IngredientsSectionProps) =>
   ingredients.length > 0 ? (
     <>
       <IngredientList ingredients={ingredients} onIngredientChanged={onIngredientChanged} />
-      <MealTotal total={total} />
+      <MealTotal total={total} dayCalorieRemaining={dayCalorieRemaining} />
     </>
   ) : (
     <EmptyIngredients />
@@ -207,6 +225,7 @@ const MealReadyBody = ({ meal, mealId, onIngredientChanged }: MealReadyBodyProps
     <IngredientsSection
       ingredients={meal.ingredients}
       total={meal.total}
+      dayCalorieRemaining={meal.dayCalorieRemaining}
       onIngredientChanged={onIngredientChanged}
     />
     <MealActions mealId={mealId} mealDate={meal.date} onIngredientChanged={onIngredientChanged} />

@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "daily_calorie_goal" integer;
