@@ -86,31 +86,6 @@ interface StartLiveScanCallbacks {
   onFound: (code: string) => void;
 }
 
-// Standalone, not nested in the effect, so the effect itself stays under the
-// line budget - same split as nutrition-photo-step's handler functions.
-// Writes the result onto handleRef instead of returning it, so the caller
-// doesn't need a `.then()` of its own just to stash it.
-const runCameraAcquisition = async (
-  video: HTMLVideoElement,
-  handleRef: { current: LiveScanHandle | null },
-  isCancelled: () => boolean,
-  detector: BarcodeDetectorApi,
-  callbacks: StartLiveScanCallbacks,
-): Promise<void> => {
-  const stream = await requestCameraStream(() => callbacks.onStage("permission-denied"));
-  if (!stream || isCancelled()) {
-    stream?.getTracks().forEach((track) => track.stop());
-    return;
-  }
-  // Stashed before video.play() (which can itself reject) so a failure past
-  // this point still has a handle to stop the already-acquired stream by.
-  handleRef.current = { stream, intervalId: null };
-  video.srcObject = stream;
-  await video.play();
-  callbacks.onStage("scanning");
-  handleRef.current = { stream, intervalId: pollForBarcode(video, detector, callbacks.onFound) };
-};
-
 // Any rejection in this chain stops whatever stream was acquired and reports
 // a real "error" stage, instead of an unhandled rejection or a stuck stage.
 const startLiveScan = async (
@@ -126,7 +101,18 @@ const startLiveScan = async (
     if (isCancelled()) {
       return;
     }
-    await runCameraAcquisition(video, handleRef, isCancelled, detector, callbacks);
+    const stream = await requestCameraStream(() => callbacks.onStage("permission-denied"));
+    if (!stream || isCancelled()) {
+      stream?.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    // Stashed before video.play() (which can itself reject) so a failure past
+    // this point still has a handle to stop the already-acquired stream by.
+    handleRef.current = { stream, intervalId: null };
+    video.srcObject = stream;
+    await video.play();
+    callbacks.onStage("scanning");
+    handleRef.current = { stream, intervalId: pollForBarcode(video, detector, callbacks.onFound) };
   } catch {
     stopLiveScan(handleRef.current);
     handleRef.current = null;

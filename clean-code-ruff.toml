@@ -40,10 +40,15 @@ select = [
   "F821",   # undefined name
 
   # ---------- ADVISORY (mirrors ESLint 'warn') ----------
-  # Rule 6: functions under 20 lines.
-  "PLR0915", # too many statements
-  # Rule 2: no long if-else chains; use guard clauses.
+  # Rule 6: cyclomatic complexity, not raw statement count (replaces
+  # PLR0915 "too many statements" — length alone isn't the target; a long
+  # flat function beats a short deeply-nested one). Ruff's nesting-depth
+  # equivalent to ESLint's max-depth (PLR1702, too-many-nested-blocks) is
+  # preview-only — not enabled here, since that would flip on Ruff's whole
+  # preview rule set project-wide for one advisory rule. Nesting is caught
+  # indirectly by the guard-clause rules below instead.
   "C901",    # too complex
+  # Rule 2: no long if-else chains; use guard clauses.
   "PLR0912", # too many branches
   "RET505",  # superfluous else after return  <- guard-clause style
   "RET506",  # superfluous else after raise
@@ -73,9 +78,7 @@ select = [
 max-complexity = 10
 
 [lint.pylint]
-# Rule 6: "under 20 lines per function" — statements is the closest
-# mechanical proxy Ruff offers, and is stricter than line count in practice.
-max-statements = 20
+# Rule 6: complexity thresholds, not a statement or line count.
 max-branches = 8
 max-args = 5
 

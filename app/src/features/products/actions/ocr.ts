@@ -144,8 +144,10 @@ export const fromResolvedServing = async (
   return scaledRead(perServing, grams, learned);
 };
 
-// Split from fromUsLabel for the line budget; exported and auth-checked for
-// the same reason as fromResolvedServing.
+// Kept separate from fromUsLabel so this branch's own prefill-guess logic
+// has direct test coverage (ocr.test.ts) instead of only being reachable
+// through the full US-label flow; exported and auth-checked for the same
+// reason as fromResolvedServing.
 export const needsServingSizeRead = async (
   read: Extract<NutritionTableRead, { format: "us" }>,
   netWeightText: string | null,

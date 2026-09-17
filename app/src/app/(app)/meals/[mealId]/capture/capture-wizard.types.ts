@@ -155,8 +155,8 @@ const resolveMatch = (
   return { kind: "nutrition-photo", nameGuess, netWeightText, pendingBarcode };
 };
 
-// Extracted from wizardReducer's switch (below) only to keep that function
-// under the line budget - covered by the reducer's own tests, not exported.
+// Extracted from wizardReducer's switch (below) so that switch keeps its
+// one-case-per-line shape - covered by the reducer's own tests, not exported.
 const applyServingSizeNeeded = (action: Extract<WizardAction, { type: "SERVING_SIZE_NEEDED" }>): WizardStep => ({
   kind: "serving-size",
   servingSizeText: action.servingSizeText,
@@ -211,8 +211,9 @@ const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
   }
 };
 
-// One case per line, not this repo's usual two-line style - cases in
-// two-line form put this switch over the line budget.
+// One case per line, not this repo's usual two-line style - keeps the state
+// transition table scannable at a glance (kept even after the line-count
+// rule was dropped).
 export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {
     case "MATCH_RESOLVED": return resolveMatch(action.nameGuess, action.result, action.netWeightText, action.pendingBarcode);

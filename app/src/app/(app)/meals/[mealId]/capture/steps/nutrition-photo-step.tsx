@@ -40,33 +40,6 @@ const ALL_NULL_NUTRITION = {
 const MANUAL_ENTRY_BASIS_UNIT = "g";
 const MANUAL_ENTRY_BASIS_QUANTITY = 100;
 
-interface OcrNutritionCallbacks {
-  onPhotoSelected: (photo: File) => void;
-  onError: (error: string | null) => void;
-  onLoadingChange: (isLoading: boolean) => void;
-  dispatch: (action: WizardAction) => void;
-}
-
-// Standalone, not nested in a hook, so both this and useNutritionPhotoStep
-// stay under the line budget - ESLint flags a nested closure's size too.
-const handleNutritionPhoto = async (selected: File, nameGuess: string, netWeightText: string | null, pendingBarcode: string | null, callbacks: OcrNutritionCallbacks): Promise<void> => {
-  callbacks.onPhotoSelected(selected);
-  callbacks.onError(null);
-  callbacks.onLoadingChange(true);
-  try {
-    const read = await ocrNutritionTable(selected, nameGuess, netWeightText);
-    if (read.kind === "needs-serving-size") {
-      callbacks.dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName, pendingBarcode });
-      return;
-    }
-    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
-  } catch {
-    callbacks.onError("Could not read the nutrition table from this photo.");
-  } finally {
-    callbacks.onLoadingChange(false);
-  }
-};
-
 interface UseNutritionPhotoStepResult {
   error: string | null;
   isLoading: boolean;
@@ -80,8 +53,23 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
   const [isLoading, setIsLoading] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
 
-  const callbacks: OcrNutritionCallbacks = { onPhotoSelected: setPhoto, onError: setError, onLoadingChange: setIsLoading, dispatch };
-  const handleSelect = (selected: File) => handleNutritionPhoto(selected, nameGuess, netWeightText, pendingBarcode, callbacks);
+  const handleSelect = async (selected: File): Promise<void> => {
+    setPhoto(selected);
+    setError(null);
+    setIsLoading(true);
+    try {
+      const read = await ocrNutritionTable(selected, nameGuess, netWeightText);
+      if (read.kind === "needs-serving-size") {
+        dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName, pendingBarcode });
+        return;
+      }
+      dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
+    } catch {
+      setError("Could not read the nutrition table from this photo.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleManualEntry = () => {
     if (!photo) {
       return;

@@ -47,31 +47,6 @@ const unresolvedAnswerError = (unitName: string | null): string =>
 // "50.00g".
 const formatPrefill = (grams: number): string => `${Number(grams.toFixed(PREFILL_DECIMALS))}g`;
 
-interface ServingSizeCallbacks {
-  onError: (error: string | null) => void;
-  onResolvingChange: (isResolving: boolean) => void;
-  dispatch: (action: WizardAction) => void;
-}
-
-// Standalone, not nested in the hook, so both this and useServingSizeStep
-// stay under the line budget.
-const submitServingSizeAnswer = async (answer: string, servingSizeText: string, perServing: NutritionValues, name: string, photo: Blob, pendingBarcode: string | null, callbacks: ServingSizeCallbacks): Promise<void> => {
-  callbacks.onError(null);
-  callbacks.onResolvingChange(true);
-  try {
-    const read = await resolveServingSize(answer, servingSizeText, perServing, name);
-    if (read.kind === "needs-serving-size") {
-      callbacks.onError(unresolvedAnswerError(read.unitName));
-      return;
-    }
-    callbacks.dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name, photo, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
-  } catch {
-    callbacks.onError(SAVE_ERROR);
-  } finally {
-    callbacks.onResolvingChange(false);
-  }
-};
-
 interface UseServingSizeStepResult {
   answer: string;
   error: string | null;
@@ -93,8 +68,22 @@ const useServingSizeStep = (
   const [error, setError] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
 
-  const callbacks: ServingSizeCallbacks = { onError: setError, onResolvingChange: setIsResolving, dispatch };
-  const handleSubmit = () => submitServingSizeAnswer(answer, servingSizeText, perServing, name, photo, pendingBarcode, callbacks);
+  const handleSubmit = async (): Promise<void> => {
+    setError(null);
+    setIsResolving(true);
+    try {
+      const read = await resolveServingSize(answer, servingSizeText, perServing, name);
+      if (read.kind === "needs-serving-size") {
+        setError(unresolvedAnswerError(read.unitName));
+        return;
+      }
+      dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name, photo, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
+    } catch {
+      setError(SAVE_ERROR);
+    } finally {
+      setIsResolving(false);
+    }
+  };
 
   return { answer, error, isResolving, setAnswer, handleSubmit };
 };

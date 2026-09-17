@@ -14,24 +14,27 @@
  *
  * Severity policy: 'error' for violations that are unambiguous and
  * genuinely risky (empty catch, stray default exports, deprecated-API
- * usage), plus max-lines-per-function — left at 'warn' long enough that
- * violations accumulated silently across projects uncorrected (found
- * 2026-09-15), so it's graduated to 'error' too. Everything else more
- * stylistic/subjective (magic numbers, func-style) stays 'warn' so
- * first-time adoption on an existing codebase doesn't hard-block on day
- * one. The Stop hook only blocks on 'error'-level findings (ESLint's own
- * exit-code behavior), so this severity split IS the enforcement policy,
- * not just cosmetics.
+ * usage). Everything else more stylistic/subjective (magic numbers,
+ * func-style, complexity/nesting) stays 'warn' so first-time adoption on an
+ * existing codebase doesn't hard-block on day one. The Stop hook only
+ * blocks on 'error'-level findings (ESLint's own exit-code behavior), so
+ * this severity split IS the enforcement policy, not just cosmetics.
+ *
+ * Rule 6 was previously enforced via max-lines-per-function (raw line
+ * count, 'error'). Replaced 2026-09-17: cyclomatic complexity and nesting
+ * depth predict how hard a function is to read far better than line count
+ * — a long flat function beats a short deeply-nested one — and both stay
+ * 'warn' (soft) rather than a hard error, so a function doesn't need an
+ * artificial split just to clear a line-count cutoff.
  */
 
 // Base rules: core ESLint only, safe for any JS or TS project.
 export const cleanCodeBaseRules = {
   rules: {
-    // Rule 6: functions under 20 lines.
-    'max-lines-per-function': [
-      'error',
-      { max: 20, skipBlankLines: true, skipComments: true, IIFEs: true },
-    ],
+    // Rule 6: cyclomatic complexity and nesting depth, not raw line count.
+    complexity: ['warn', 10],
+    'max-depth': ['warn', 4],
+    'max-nested-callbacks': ['warn', 3],
 
     // Rule 14: arrow functions only, no `function` keyword.
     'func-style': ['warn', 'expression', { allowArrowFunctions: true }],

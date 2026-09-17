@@ -190,8 +190,9 @@ per request), never server's UTC day.
   Cross-domain shared types (e.g. `NutritionValues`) live in `app/src/types/`.
 - Clean Code rules **mechanically enforced** by `app/eslint.config.mjs`
   (vendored `app/clean-code-rules.mjs`): named exports only (error), arrow
-  functions not `function` (`func-style`), functions under ~20 lines
-  (`max-lines-per-function`, warn), no magic numbers (only `-1, 0, 1, 2`
+  functions not `function` (`func-style`), low cyclomatic complexity and
+  shallow nesting not raw line count (`complexity`/`max-depth`/
+  `max-nested-callbacks`, warn), no magic numbers (only `-1, 0, 1, 2`
   exempt), named error types never bare `throw new Error` for domain
   failure, no silently swallowed errors, `components/ui/`↔`features/` and
   `lib/`↔`features/`/`app/` import-direction boundaries (Rule 20). Framework

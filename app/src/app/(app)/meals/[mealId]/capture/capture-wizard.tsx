@@ -174,8 +174,10 @@ interface StepViewProps {
   onDone: () => void;
 }
 
-// One case per line, like wizardReducer's switch: two-line form breaks the
-// line budget.
+// One case per line, like wizardReducer's switch - delegating each case's
+// JSX to a named render* function keeps the switch scannable as a state
+// map, not a line-count workaround (kept even after the line-count rule
+// was dropped).
 const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, dispatch);
@@ -286,49 +288,17 @@ const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   };
 };
 
-interface CaptureWizardShellProps {
-  step: WizardStep;
-  mealId: string;
-  dispatch: (action: PathAction) => void;
-  handleBack: () => void;
-  onSaved: () => void;
-  onDone: () => void;
-  reduceMotion: boolean | null;
-}
-
-// Extracted so CaptureWizard's own body stays under the line budget - the
-// wizard chrome and its animated step content, as one unit.
-const CaptureWizardShell = ({
-  step,
-  mealId,
-  dispatch,
-  handleBack,
-  onSaved,
-  onDone,
-  reduceMotion,
-}: CaptureWizardShellProps) => (
-  <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack}>
-    <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
-      <StepView step={step} mealId={mealId} dispatch={dispatch} onSaved={onSaved} onDone={onDone} />
-    </AnimatedStep>
-  </WizardShell>
-);
-
 export const CaptureWizard = ({ mealId }: { mealId: string }) => {
   const reduceMotion = useReducedMotion();
   const { step, dispatch, handleBack, markSaved, finish, savedCount } = useCaptureWizard(mealId);
 
   return (
     <>
-      <CaptureWizardShell
-        step={step}
-        mealId={mealId}
-        dispatch={dispatch}
-        handleBack={handleBack}
-        onSaved={markSaved}
-        onDone={finish}
-        reduceMotion={reduceMotion}
-      />
+      <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack}>
+        <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
+          <StepView step={step} mealId={mealId} dispatch={dispatch} onSaved={markSaved} onDone={finish} />
+        </AnimatedStep>
+      </WizardShell>
       {savedCount > 0 && <LogSuccessPulse trigger={savedCount} />}
     </>
   );

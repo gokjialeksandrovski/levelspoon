@@ -16,14 +16,6 @@ const AccountEmail = ({ email }: { email: string | null | undefined }) => (
   <p className="mb-4 text-sm text-text-muted">{email ?? "..."}</p>
 );
 
-// Split out of AccountMenu purely for the line budget once the 44px hit
-// target grew this past a single-line button.
-const AccountTrigger = ({ open, onOpen }: { open: boolean; onOpen: () => void }) => (
-  <button type="button" onClick={onOpen} aria-label="Account" aria-expanded={open} className={ICON_TAP_TARGET_CLASS}>
-    <UserCircleIcon />
-  </button>
-);
-
 export const AccountMenu = () => {
   const [open, setOpen] = useState(false);
   const { data: session } = useSession();
@@ -31,7 +23,9 @@ export const AccountMenu = () => {
 
   return (
     <>
-      <AccountTrigger open={open} onOpen={() => setOpen(true)} />
+      <button type="button" onClick={() => setOpen(true)} aria-label="Account" aria-expanded={open} className={ICON_TAP_TARGET_CLASS}>
+        <UserCircleIcon />
+      </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Account">
         <AccountEmail email={email} />
         <form action={signOutAction}>
