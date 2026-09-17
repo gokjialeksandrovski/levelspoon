@@ -24,8 +24,10 @@ export const TEXT_LINK_SM = `${TAP_HIT_AREA_SM} text-sm text-text-muted underlin
 
 // Real padding (not the negative-margin trick above) for icon-only header
 // controls, which have room to spare - avoids adjacent hit-areas overlapping.
-// size-11 lands on the 44px floor (11 * 4px).
-export const ICON_TAP_TARGET_CLASS = `flex size-11 items-center justify-center ${FOCUS_RING}`;
+// size-11 lands on the 44px floor (11 * 4px). hover:bg makes the full 44px
+// box visibly respond so the tap target reads as a real button, not empty
+// space around a small glyph.
+export const ICON_TAP_TARGET_CLASS = `flex size-11 items-center justify-center rounded-(--radius-control) transition-colors hover:bg-surface-raised ${FOCUS_RING}`;
 
 // An icon centred in its 44px box floats 11px ((44-22)/2) inside it, so a
 // header row's edge icons sit inset from the px-4 content column. Pulls the

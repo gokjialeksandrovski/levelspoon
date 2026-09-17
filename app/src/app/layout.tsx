@@ -4,6 +4,7 @@ import { Bricolage_Grotesque, Karla } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "./providers";
+import { THEME_INIT_SCRIPT } from "@/lib/theme/theme";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -32,7 +33,14 @@ export const viewport: Viewport = {
 };
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
-  <html lang="en" className={`${bricolage.variable} ${karla.variable}`}>
+  // suppressHydrationWarning: the init script below sets data-theme before
+  // React hydrates, which the server-rendered markup can't know about.
+  <html lang="en" className={`${bricolage.variable} ${karla.variable}`} suppressHydrationWarning>
+    <head>
+      {/* Blocking (not async/defer) - must run before first paint to avoid a
+          flash of the wrong theme when the user has an explicit override. */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+    </head>
     <body className="min-h-dvh bg-bg font-sans text-text antialiased">
       <Providers>{children}</Providers>
     </body>

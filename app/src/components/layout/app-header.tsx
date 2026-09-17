@@ -6,6 +6,7 @@ import { CaretLeftIcon, CaretRightIcon, CalendarBlankIcon } from "@phosphor-icon
 import { formatDayLabel } from "@/lib/date/format";
 import { addCalendarDays } from "@/lib/date/day-bounds";
 import { AccountMenu } from "@/features/auth/components/account-menu";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   ICON_ROW_EDGE_PULL_LEFT,
   ICON_ROW_EDGE_PULL_RIGHT,
@@ -19,25 +20,37 @@ type AppHeaderProps =
 
 const HEADER_CLASS = "flex h-16 items-center justify-between border-b border-border px-4";
 
+const DayNav = ({ date }: { date: string }) => (
+  <div className={`flex items-center gap-1 ${ICON_ROW_EDGE_PULL_LEFT}`}>
+    <Link href={`/day/${addCalendarDays(date, -1)}`} aria-label="Previous day" className={ICON_TAP_TARGET_CLASS}>
+      <CaretLeftIcon />
+    </Link>
+    <h1 className="text-sm font-medium">{formatDayLabel(date)}</h1>
+    <Link href={`/day/${addCalendarDays(date, 1)}`} aria-label="Next day" className={ICON_TAP_TARGET_CLASS}>
+      <CaretRightIcon />
+    </Link>
+  </div>
+);
+
+// -space-x-2: the icons' own 44px tap targets already pad them well apart
+// from their glyphs; this pulls the boxes closer so the row reads as one
+// tight cluster instead of three separate stops.
+const HeaderActions = () => (
+  <div className={`flex items-center -space-x-2 ${ICON_ROW_EDGE_PULL_RIGHT}`}>
+    <Link href="/history" aria-label="History" className={ICON_TAP_TARGET_CLASS}>
+      <CalendarBlankIcon />
+    </Link>
+    <ThemeToggle />
+    <AccountMenu />
+  </div>
+);
+
 // Day label is the h1, matching BackHeader's screens-title convention.
 // Edge-pull classes align the outer icons with the body content column.
 const DayHeader = ({ date }: { date: string }) => (
   <header className={HEADER_CLASS}>
-    <div className={`flex items-center gap-1 ${ICON_ROW_EDGE_PULL_LEFT}`}>
-      <Link href={`/day/${addCalendarDays(date, -1)}`} aria-label="Previous day" className={ICON_TAP_TARGET_CLASS}>
-        <CaretLeftIcon />
-      </Link>
-      <h1 className="text-sm font-medium">{formatDayLabel(date)}</h1>
-      <Link href={`/day/${addCalendarDays(date, 1)}`} aria-label="Next day" className={ICON_TAP_TARGET_CLASS}>
-        <CaretRightIcon />
-      </Link>
-    </div>
-    <div className={`flex items-center ${ICON_ROW_EDGE_PULL_RIGHT}`}>
-      <Link href="/history" aria-label="History" className={ICON_TAP_TARGET_CLASS}>
-        <CalendarBlankIcon />
-      </Link>
-      <AccountMenu />
-    </div>
+    <DayNav date={date} />
+    <HeaderActions />
   </header>
 );
 

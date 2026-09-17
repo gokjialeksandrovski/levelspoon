@@ -35,8 +35,12 @@
   color-scheme: light dark;
 }
 
+/* Light values live in both blocks below: the media query drives the
+   no-override (system) case, the attribute selector drives an explicit
+   user pick from the theme toggle - `:not([data-theme="dark"])` stops the
+   media query from fighting an explicit dark pick on a light-system device. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --raw-bg: #fdfbf7;
     /* Not #fff - pure white never appears in nature, and impeccable's own
        color rules ban it outright. Tinted a hair warmer than white (255/254/252)
@@ -65,6 +69,30 @@
       transparent
     );
   }
+}
+
+:root[data-theme="light"] {
+  --raw-bg: #fdfbf7;
+  --raw-surface: #fffefc;
+  --raw-surface-raised: #f5f2ea;
+  --raw-border: #e8e2d4;
+  --raw-text: #23201a;
+  --raw-text-muted: #6b6459;
+
+  --raw-accent-protein: #cb4735;
+  --raw-accent-carbs: #ab6200;
+  --raw-accent-fat: #8b4a62;
+  --raw-accent-success: #537f4c;
+
+  --raw-danger: #b93b30;
+  --raw-flag: #a1631c;
+
+  --gradient-scan-sweep: linear-gradient(
+    to bottom,
+    transparent,
+    oklch(0.99 0.012 85 / 0.62),
+    transparent
+  );
 }
 
 /* Layer 2: map semantic Tailwind theme tokens to the raw variables above.
