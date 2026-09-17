@@ -15,6 +15,7 @@ import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { FOCUS_RING } from "@/components/ui/tap-target";
 import {
+  changedNutritionFields,
   FIELD_LABELS,
   flaggedFieldSet,
   focusFirstFlagged,
@@ -301,6 +302,33 @@ interface ConfirmFormState {
   revalidate: (values: FieldValues) => void;
 }
 
+const MANUAL_ORIGIN: NutritionOrigin = "manual";
+const DEFAULT_ORIGIN: NutritionOrigin = "label_photo";
+
+/**
+ * How the figures being saved actually came to be, not how the step was entered.
+ *
+ * The `'manual'` enum member existed from the first migration and nothing ever
+ * wrote it, so a hand-typed value was stored as if OCR had read it, and a
+ * retyped Open Food Facts figure still claimed OFF as its source. Comparing
+ * what is being saved against what was parsed answers it for every path at once
+ * - including the OCR-failure fallback, which arrives with nothing parsed.
+ *
+ * `'manual'` describes the numbers, not the proof: the label photo is still
+ * attached and still what a later audit checks against.
+ */
+export const resolveNutritionOrigin = (
+  parsed: NullableNutritionValues,
+  saved: FieldValues,
+  declared: NutritionOrigin | null,
+): NutritionOrigin => {
+  const changed = changedNutritionFields(toFieldValues(parsed), saved);
+  if (changed.length > 0) {
+    return MANUAL_ORIGIN;
+  }
+  return declared ?? DEFAULT_ORIGIN;
+};
+
 const buildSaveInput = (props: ConfirmStepProps, state: ConfirmFormState, barcodeToAttach: string | null): SaveConfirmInput => ({
   nameValue: state.nameValue,
   values: state.values,
@@ -309,7 +337,7 @@ const buildSaveInput = (props: ConfirmStepProps, state: ConfirmFormState, barcod
   nutritionBasisUnit: props.nutritionBasisUnit,
   nutritionBasisQuantity: props.nutritionBasisQuantity,
   barcode: barcodeToAttach,
-  nutritionOrigin: props.nutritionOrigin,
+  nutritionOrigin: resolveNutritionOrigin(props.parsed, state.values, props.nutritionOrigin),
 });
 
 const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormState, barcodeToAttach: string | null) => {
