@@ -70,11 +70,10 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
       setIsLoading(false);
     }
   };
+  // No photo is a valid answer, not a failure: the product is saved and
+  // logged like any other, it is just private to this user (spec §S2).
   const handleManualEntry = () => {
-    if (!photo) {
-      return;
-    }
-    dispatch({ type: "NUTRITION_PARSED", parsed: ALL_NULL_NUTRITION, flags: ALL_NUTRITION_FLAGS, name: nameGuess, photo, learned: NOTHING_LEARNED, nutritionBasisUnit: MANUAL_ENTRY_BASIS_UNIT, nutritionBasisQuantity: MANUAL_ENTRY_BASIS_QUANTITY, pendingBarcode });
+    dispatch({ type: "NUTRITION_PARSED", parsed: ALL_NULL_NUTRITION, flags: ALL_NUTRITION_FLAGS, name: nameGuess, photo: photo ?? undefined, learned: NOTHING_LEARNED, nutritionBasisUnit: MANUAL_ENTRY_BASIS_UNIT, nutritionBasisQuantity: MANUAL_ENTRY_BASIS_QUANTITY, pendingBarcode });
   };
 
   return { error, isLoading, photo, handleSelect, handleManualEntry };
@@ -85,6 +84,9 @@ const READING_LABEL = "Reading the nutrition table…";
 // Values are only read against a per-100g (or per-100ml) column; a photo
 // cropped below that heading fails however sharp the figures are.
 const FRAMING_HINT = "Fit the whole table in the photo, including the \"per 100g\" heading at the top.";
+
+// Said here, where the choice is made, rather than after the save.
+const MANUAL_ENTRY_HINT = "Without a label photo, this product stays yours - nobody else's search will find it.";
 
 export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, dispatch }: NutritionPhotoStepProps) => {
   const form = useNutritionPhotoStep(nameGuess, netWeightText, pendingBarcode, dispatch);
@@ -99,11 +101,12 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
         scanningLabel={form.isLoading ? READING_LABEL : undefined}
       />
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-      {form.error && form.photo && (
+      <div className="flex flex-col gap-1">
         <Button variant="ghost" link onClick={form.handleManualEntry}>
-          Enter the values manually instead
+          {form.photo ? "Enter the values manually instead" : "Enter the values manually"}
         </Button>
-      )}
+        {!form.photo && <InlineMessage tone="info">{MANUAL_ENTRY_HINT}</InlineMessage>}
+      </div>
     </div>
   );
 };

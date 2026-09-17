@@ -114,7 +114,7 @@ export type WizardAction =
       parsed: NullableNutritionValues;
       flags: string[];
       name: string;
-      photo: Blob;
+      photo?: Blob;
       learned: LearnedMeasures;
       nutritionBasisUnit: string;
       nutritionBasisQuantity: number;

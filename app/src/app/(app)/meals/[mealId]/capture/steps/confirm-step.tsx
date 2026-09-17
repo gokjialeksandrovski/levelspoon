@@ -544,10 +544,19 @@ const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: Barc
   );
 };
 
+// Restated at the save, not only at the manual-entry link: the barcode control
+// sits on this screen, so scanning one here is what turns the claim false.
+const PrivateProductNotice = () => (
+  <InlineMessage tone="info">
+    No label photo or barcode, so this product stays yours — nobody else&apos;s search will find it.
+  </InlineMessage>
+);
+
 export const ConfirmStep = (props: ConfirmStepProps) => {
   const attachment = useBarcodeAttachment(props);
   const form = useConfirmStepForm(props, attachment.barcodeToAttach);
   const photoUrl = useLabelPhotoUrl(props.photo);
+  const isPrivate = !props.photo && props.barcode === null && attachment.barcodeToAttach === null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -557,6 +566,7 @@ export const ConfirmStep = (props: ConfirmStepProps) => {
       <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />
       {props.barcode === null && <BarcodeAttachmentControl pendingBarcode={props.pendingBarcode} attachment={attachment} dispatch={props.dispatch} />}
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+      {isPrivate && <PrivateProductNotice />}
       <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
         Save product
       </Button>
