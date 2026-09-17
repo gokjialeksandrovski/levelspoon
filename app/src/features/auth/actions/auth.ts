@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/password";
 
-import { EmailAlreadyInUseError } from "./auth.errors";
+import { MIN_PASSWORD_LENGTH } from "./auth.utils";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -35,9 +35,20 @@ export interface RegisterUserInput {
   name: string;
 }
 
+// The two ways sign-up fails that the form has to explain travel back as
+// values, not thrown errors: a server action's thrown error reaches the
+// browser as an opaque digest in production, so its message can't be shown.
+export type RegisterUserResult =
+  | { status: "created"; userId: string }
+  | { status: "email_taken" }
+  | { status: "password_too_short" };
+
 export const registerUser = async (
   input: RegisterUserInput,
-): Promise<{ userId: string }> => {
+): Promise<RegisterUserResult> => {
+  if (input.password.length < MIN_PASSWORD_LENGTH) {
+    return { status: "password_too_short" };
+  }
   const passwordHash = await hashPassword(input.password);
 
   try {
@@ -45,10 +56,10 @@ export const registerUser = async (
       .insert(users)
       .values({ email: input.email, name: input.name, passwordHash })
       .returning({ id: users.id });
-    return { userId: row.id };
+    return { status: "created", userId: row.id };
   } catch (error) {
     if (isUniqueViolation(error)) {
-      throw new EmailAlreadyInUseError();
+      return { status: "email_taken" };
     }
     throw error;
   }

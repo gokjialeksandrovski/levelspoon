@@ -1,12 +1,14 @@
 "use client";
 
+import { CheckCircleIcon } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
-import { discardEmptyMeal } from "@/features/meals/actions/meals";
+import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
+import { discardEmptyMeal, getDayLog } from "@/features/meals/actions/meals";
+import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import { Button } from "@/components/ui/button";
-import { LogSuccessPulse } from "@/components/ui/log-success-pulse";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
 
@@ -52,14 +54,88 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   saved: 1,
 };
 
-const SavedStep = ({ dispatch, onDone }: { dispatch: (action: PathAction) => void; onDone: () => void }) => (
-  <div className="flex flex-col items-center gap-4 py-8 text-center">
-    <p className="text-text">Ingredient saved.</p>
+interface DaySnapshot {
+  consumedKcal: number;
+  remaining: CalorieRemaining;
+  // The savedCount this fetch answered, so the step can tell a fresh total
+  // from the one fetched before the save landed.
+  savedCount: number;
+}
+
+interface SavedMoment {
+  snapshots: DaySnapshot[];
+  savedCount: number;
+}
+
+// Ingredients count toward the day they are logged on, which is always today.
+// Fetched on open and after every save; the last two are kept so the step can
+// settle from the old total to the new one.
+const useTodaySnapshots = (today: string, savedCount: number): DaySnapshot[] => {
+  const [snapshots, setSnapshots] = useState<DaySnapshot[]>([]);
+
+  useEffect(() => {
+    getDayLog(today, Intl.DateTimeFormat().resolvedOptions().timeZone)
+      .then((log) =>
+        setSnapshots((list) => [...list.slice(-1), { consumedKcal: log.dayTotal.energyKcal, remaining: log.calorieRemaining, savedCount }]),
+      )
+      // Harmless: the step still says "Ingredient saved." without the total.
+      .catch((error) => console.error("Loading today's total failed", error));
+  }, [today, savedCount]);
+
+  return snapshots;
+};
+
+const SAVE_PULSE_SCALE = 1.04;
+const SAVE_PULSE_SECONDS = 0.36;
+
+// The log-success pulse, on the number the save changed rather than a
+// full-screen flash. Reduced motion skips it; the settle and haptic remain.
+const TodayTotal = ({ moment }: { moment: SavedMoment }) => {
+  const reduceMotion = useReducedMotion();
+  const current = moment.snapshots.at(-1);
+  // useTodaySnapshots keeps at most two, so a second one is always the newer.
+  const previous = moment.snapshots.length > 1 ? moment.snapshots[0] : undefined;
+  if (!current) return null;
+  const isSettled = current.savedCount === moment.savedCount;
+  const addedKcal = isSettled && previous ? Math.round(current.consumedKcal - previous.consumedKcal) : null;
+
+  return (
+    <div>
+      <p className="mb-1 text-xs text-text-muted">Today</p>
+      <motion.div
+        className="origin-left"
+        animate={isSettled && !reduceMotion ? { scale: [1, SAVE_PULSE_SCALE, 1] } : undefined}
+        transition={{ duration: SAVE_PULSE_SECONDS }}
+      >
+        <DayCalorieStat consumedKcal={current.consumedKcal} remaining={current.remaining} reduceMotion={reduceMotion} />
+      </motion.div>
+      <p aria-live="polite" className="mt-2 min-h-5 tabular-nums text-sm text-text-muted">
+        {addedKcal !== null && `+${addedKcal.toLocaleString()} kcal from this ingredient`}
+      </p>
+    </div>
+  );
+};
+
+interface SavedStepProps {
+  moment: SavedMoment;
+  dispatch: (action: PathAction) => void;
+  onDone: () => void;
+}
+
+// Resolves the save on the day's own headline figure, the number the user
+// logged this for, instead of a bare "saved" and a trip to another screen.
+const SavedStep = ({ moment, dispatch, onDone }: SavedStepProps) => (
+  <div className="flex flex-col gap-6 py-6">
+    <p className="flex items-center gap-2 text-text">
+      <CheckCircleIcon weight="fill" className="text-accent-success" />
+      Ingredient saved.
+    </p>
+    <TodayTotal moment={moment} />
     <div className="flex gap-2">
-      <Button variant="primary" onClick={() => dispatch({ type: "ADD_ANOTHER" })}>
+      <Button variant="primary" className="flex-1" onClick={() => dispatch({ type: "ADD_ANOTHER" })}>
         Add another
       </Button>
-      <Button variant="ghost" onClick={onDone}>
+      <Button variant="ghost" className="flex-1" onClick={onDone}>
         Done
       </Button>
     </div>
@@ -162,13 +238,14 @@ const renderAmountStep = (
   />
 );
 
-const renderSavedStep = (dispatch: (action: PathAction) => void, onDone: () => void) => (
-  <SavedStep dispatch={dispatch} onDone={onDone} />
+const renderSavedStep = (moment: SavedMoment, dispatch: (action: PathAction) => void, onDone: () => void) => (
+  <SavedStep moment={moment} dispatch={dispatch} onDone={onDone} />
 );
 
 interface StepViewProps {
   step: WizardStep;
   mealId: string;
+  moment: SavedMoment;
   dispatch: (action: PathAction) => void;
   onSaved: () => void;
   onDone: () => void;
@@ -178,7 +255,7 @@ interface StepViewProps {
 // JSX to a named render* function keeps the switch scannable as a state
 // map, not a line-count workaround (kept even after the line-count rule
 // was dropped).
-const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) => {
+const StepView = ({ step, mealId, moment, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
@@ -189,7 +266,7 @@ const StepView = ({ step, mealId, dispatch, onSaved, onDone }: StepViewProps) =>
     case "serving-size": return renderServingSizeStep(step, dispatch);
     case "confirm": return renderConfirmStep(step, dispatch);
     case "amount": return renderAmountStep(step, mealId, dispatch, onSaved);
-    case "saved": return renderSavedStep(dispatch, onDone);
+    case "saved": return renderSavedStep(moment, dispatch, onDone);
   }
 };
 
@@ -260,9 +337,10 @@ interface UseCaptureWizardResult {
   step: WizardStep;
   dispatch: (action: PathAction) => void;
   handleBack: () => void;
+  backExits: boolean;
   markSaved: () => void;
   finish: () => void;
-  savedCount: number;
+  moment: SavedMoment;
 }
 
 // Bundles path/save-count state and exit strategy so CaptureWizard's body
@@ -273,6 +351,7 @@ const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   const step = path[path.length - 1];
   const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const exit = useWizardExit(mealId, savedCount, today);
+  const snapshots = useTodaySnapshots(today, savedCount);
 
   return {
     step,
@@ -280,26 +359,24 @@ const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
     // Back pops a captured step while there is one; from the first step it
     // is the way out of the wizard entirely.
     handleBack: () => (path.length > 1 ? dispatch({ type: "BACK" }) : void exit()),
+    backExits: path.length === 1,
     // AmountStep already dispatches SAVED itself - this only records that
     // the meal is no longer empty, so exit() keeps it.
     markSaved: () => setSavedCount((count) => count + 1),
     finish: () => void exit(),
-    savedCount,
+    moment: { snapshots, savedCount },
   };
 };
 
 export const CaptureWizard = ({ mealId }: { mealId: string }) => {
   const reduceMotion = useReducedMotion();
-  const { step, dispatch, handleBack, markSaved, finish, savedCount } = useCaptureWizard(mealId);
+  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId);
 
   return (
-    <>
-      <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack}>
-        <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
-          <StepView step={step} mealId={mealId} dispatch={dispatch} onSaved={markSaved} onDone={finish} />
-        </AnimatedStep>
-      </WizardShell>
-      {savedCount > 0 && <LogSuccessPulse trigger={savedCount} />}
-    </>
+    <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack} exits={backExits}>
+      <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
+        <StepView step={step} mealId={mealId} moment={moment} dispatch={dispatch} onSaved={markSaved} onDone={finish} />
+      </AnimatedStep>
+    </WizardShell>
   );
 };

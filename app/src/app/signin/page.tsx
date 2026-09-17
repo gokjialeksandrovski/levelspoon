@@ -8,6 +8,8 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { PasswordField } from "@/components/ui/password-field";
+import { Wordmark } from "@/components/ui/wordmark";
 
 const submitSignIn = async (
   formData: FormData,
@@ -35,10 +37,10 @@ interface SignInCardProps {
 // "current-password", not "new-password", since this is the sign-in form.
 const SignInCard = ({ error, pending, onSubmit }: SignInCardProps) => (
   <div className="flex flex-col gap-4 rounded-surface border border-border bg-surface p-6">
-    <h1 className="text-xl font-semibold text-text">Sign in</h1>
+    <h1 className="font-display text-xl font-semibold text-text">Sign in</h1>
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <Field label="Email" name="email" type="email" autoComplete="email" required />
-      <Field label="Password" name="password" type="password" autoComplete="current-password" required />
+      <PasswordField label="Password" name="password" autoComplete="current-password" required />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <Button type="submit" pending={pending}>
         Sign in
@@ -46,10 +48,6 @@ const SignInCard = ({ error, pending, onSubmit }: SignInCardProps) => (
     </form>
   </div>
 );
-
-// Brand mark, not UI chrome - spec §2.3 reserves Bricolage Grotesque for
-// display headings; this is the one place that's pure wordmark.
-const Wordmark = () => <p className="text-center font-display text-lg font-semibold text-text">Per100</p>;
 
 const SignInPage = () => {
   const router = useRouter();
@@ -60,7 +58,11 @@ const SignInPage = () => {
     event.preventDefault();
     setError(null);
     setPending(true);
-    void submitSignIn(new FormData(event.currentTarget), router, setError).finally(() => setPending(false));
+    // Without the catch a dropped connection rejects silently: the button
+    // stops spinning and nothing on screen says why.
+    void submitSignIn(new FormData(event.currentTarget), router, setError)
+      .catch(() => setError("Could not reach the server. Check your connection and try again."))
+      .finally(() => setPending(false));
   };
 
   return (

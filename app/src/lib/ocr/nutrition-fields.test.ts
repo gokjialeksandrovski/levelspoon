@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { flaggedFieldSet, toFieldValues, toNutritionValues } from "./nutrition-fields";
+import { changedNutritionFields, FIELD_LABELS, flaggedFieldSet, NUTRITION_FIELD_GROUPS, toFieldValues, toNutritionValues } from "./nutrition-fields";
+import type { FieldValues } from "./nutrition-fields";
 
 describe("toFieldValues", () => {
   it("stringifies numbers and renders null as an empty string", () => {
@@ -46,6 +47,46 @@ describe("toNutritionValues", () => {
     });
     expect(result.energyKcal).toBe(70);
     expect(result.fatG).toBe(2.0);
+  });
+});
+
+describe("NUTRITION_FIELD_GROUPS", () => {
+  it("covers every field exactly once, so no field can be dropped from a form", () => {
+    const grouped = NUTRITION_FIELD_GROUPS.flat();
+    expect([...grouped].sort()).toEqual(Object.keys(FIELD_LABELS).sort());
+  });
+
+  it("keeps each EU label sub-figure with the total it belongs to", () => {
+    expect(NUTRITION_FIELD_GROUPS).toEqual([
+      ["energyKcal"],
+      ["fatG", "saturatesG"],
+      ["carbohydrateG", "sugarsG"],
+      ["proteinG", "saltG"],
+    ]);
+  });
+});
+
+const LABEL_VALUES: FieldValues = {
+  energyKcal: "70", fatG: "2", saturatesG: "1.2", carbohydrateG: "4", sugarsG: "4", proteinG: "9", saltG: "0.18",
+};
+
+describe("changedNutritionFields", () => {
+  it("reports nothing when every value is untouched", () => {
+    expect(changedNutritionFields(LABEL_VALUES, { ...LABEL_VALUES })).toEqual([]);
+  });
+
+  it("reports each edited field with its label and both figures, in label order", () => {
+    const edited = { ...LABEL_VALUES, saltG: "0.2", fatG: "3" };
+    expect(changedNutritionFields(LABEL_VALUES, edited)).toEqual([
+      { field: "fatG", label: "Fat (g)", from: "2", to: "3" },
+      { field: "saltG", label: "Salt (g)", from: "0.18", to: "0.2" },
+    ]);
+  });
+
+  it("ignores a value retyped in a different form but equal in number", () => {
+    // "2" -> "2.0" is not a correction, and showing it as one would teach the
+    // user to distrust the preview.
+    expect(changedNutritionFields(LABEL_VALUES, { ...LABEL_VALUES, fatG: "2.0" })).toEqual([]);
   });
 });
 

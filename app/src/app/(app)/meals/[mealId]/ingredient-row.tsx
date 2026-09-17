@@ -7,17 +7,16 @@ import { useState } from "react";
 
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/features/meals/actions/meals";
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
+import { MacroLine } from "@/features/meals/components/macro-line";
 import type { NutritionValues } from "@/types/nutrition";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { Sheet } from "@/components/ui/sheet";
 import { TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { availableUnits } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
-
-import { MacroLine } from "./macro-line";
+import { rowEnterVariants } from "@/lib/motion/step-transition";
 
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
@@ -26,13 +25,17 @@ interface MutationCallbacks {
   // router.refresh() is a no-op here (parent is a Client Component); this is
   // what makes the ingredient list pick up the change.
   onChanged?: () => void;
+  onRemoved?: () => void;
 }
 
-// Confirmation lives in the caller's Sheet - this only performs the mutation.
+// No confirm step: removal is a soft delete, and the caller leaves an Undo in
+// the row's place (RemovedIngredientRow).
 const removeIngredient = async (mealIngredientId: string, callbacks: MutationCallbacks): Promise<void> => {
   callbacks.onBusyChange(true);
+  callbacks.onError(null);
   try {
     await removeMealIngredient(mealIngredientId);
+    callbacks.onRemoved?.();
     callbacks.router.refresh();
     callbacks.onChanged?.();
   } catch {
@@ -126,7 +129,7 @@ const buildQuantityActions = (
   clearError: () => setError(null),
 });
 
-const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void): UseIngredientEditingResult => {
+const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void, onRemoved?: () => void): UseIngredientEditingResult => {
   const router = useRouter();
   const context = contextFor(ingredient);
   const [isEditing, setIsEditing] = useState(false);
@@ -134,7 +137,7 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () =
   const [unit, setUnit] = useState(ingredient.quantityUnit);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged };
+  const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged, onRemoved };
 
   return {
     isEditing,
@@ -326,108 +329,73 @@ const CorrectionLink = ({ productId, productName }: { productId: string; product
       aria-label={`Correct values for ${productName}`}
       className={`${TAP_HIT_AREA_XS} block text-xs text-text-muted underline`}
     >
-      <span>Values look wrong?</span>
+      <span>Correct these values</span>
     </Link>
   </div>
-);
-
-interface RemoveIngredientSheetProps {
-  productName: string;
-  isBusy: boolean;
-  error: string | null;
-  onClose: () => void;
-  onConfirm: () => void;
-}
-
-// Mounted only while open - rendering unconditionally would duplicate the
-// product name in the DOM, throwing off any query that counts occurrences.
-const RemoveIngredientSheet = ({ productName, isBusy, error, onClose, onConfirm }: RemoveIngredientSheetProps) => (
-  <Sheet open onClose={onClose} title={`Remove ${productName}?`}>
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-text-muted">This takes it off the meal. This can&apos;t be undone.</p>
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button variant="danger" pending={isBusy} onClick={onConfirm}>
-        Remove
-      </Button>
-    </div>
-  </Sheet>
 );
 
 interface IngredientRowContentProps {
   ingredient: MealIngredientDetail;
   editing: UseIngredientEditingResult;
   onRequestRemove: () => void;
-  showError: boolean;
 }
 
-const IngredientRowContent = ({ ingredient, editing, onRequestRemove, showError }: IngredientRowContentProps) => (
+const IngredientRowContent = ({ ingredient, editing, onRequestRemove }: IngredientRowContentProps) => (
   <>
     <IngredientHeader productName={ingredient.productName} />
     <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
     <CorrectionLink productId={ingredient.productId} productName={displayProductName(ingredient.productName)} />
-    {showError && editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}
+    {editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}
   </>
 );
 
 interface IngredientRowProps {
   ingredient: MealIngredientDetail;
   onChanged?: () => void;
+  onRemoved: () => void;
 }
 
-// P0 motion fix: exit fade + `layout` reflow so a removed row doesn't just
-// vanish, and an entrance rise that the parent's stagger (meal-detail.tsx)
-// times per row via matching "hidden"/"visible" variant keys.
-const ROW_ENTER_OFFSET_PX = 8;
-const ROW_TRANSITION_SECONDS = 0.22;
+// Exit fade + `layout` reflow so a removed row doesn't just vanish; the
+// entrance rise is timed by the parent's stagger (meal-detail.tsx).
+const rowExit = (reduceMotion: boolean | null) => (reduceMotion ? undefined : { opacity: 0 });
 
-const rowVariants = {
-  hidden: { opacity: 0, y: ROW_ENTER_OFFSET_PX },
-  visible: { opacity: 1, y: 0, transition: { duration: ROW_TRANSITION_SECONDS } },
-};
-
-interface IngredientRowFrameProps {
-  ingredient: MealIngredientDetail;
-  editing: UseIngredientEditingResult;
-  isConfirmOpen: boolean;
-  reduceMotion: boolean | null;
-  onRequestRemove: () => void;
-  onCloseConfirm: () => void;
-}
-
-const IngredientRowFrame = ({ ingredient, editing, isConfirmOpen, reduceMotion, onRequestRemove, onCloseConfirm }: IngredientRowFrameProps) => (
-  <motion.li
-    layout={!reduceMotion}
-    variants={rowVariants}
-    exit={reduceMotion ? undefined : { opacity: 0 }}
-    className="flex flex-col gap-2 py-4"
-  >
-    <IngredientRowContent ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} showError={!isConfirmOpen} />
-    {isConfirmOpen && (
-      <RemoveIngredientSheet
-        productName={displayProductName(ingredient.productName)}
-        isBusy={editing.isBusy}
-        error={editing.error}
-        onClose={onCloseConfirm}
-        onConfirm={editing.remove}
-      />
-    )}
-  </motion.li>
-);
-
-export const IngredientRow = ({ ingredient, onChanged }: IngredientRowProps) => {
-  const editing = useIngredientEditing(ingredient, onChanged);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+export const IngredientRow = ({ ingredient, onChanged, onRemoved }: IngredientRowProps) => {
+  const editing = useIngredientEditing(ingredient, onChanged, onRemoved);
   const reduceMotion = useReducedMotion();
-  const closeConfirmSheet = () => { setIsConfirmOpen(false); editing.clearError(); };
 
   return (
-    <IngredientRowFrame
-      ingredient={ingredient}
-      editing={editing}
-      isConfirmOpen={isConfirmOpen}
-      reduceMotion={reduceMotion}
-      onRequestRemove={() => setIsConfirmOpen(true)}
-      onCloseConfirm={closeConfirmSheet}
-    />
+    <motion.li layout={!reduceMotion} variants={rowEnterVariants} exit={rowExit(reduceMotion)} className="flex flex-col gap-2 py-4">
+      <IngredientRowContent ingredient={ingredient} editing={editing} onRequestRemove={editing.remove} />
+    </motion.li>
+  );
+};
+
+interface RemovedIngredientRowProps {
+  productName: string;
+  isRestoring: boolean;
+  error: string | null;
+  onUndo: () => void;
+}
+
+// Holds the removed row's place for as long as the page stays open - no timer
+// to race, so Undo is there whenever the user notices the slip. autoFocus
+// catches keyboard focus that would otherwise fall to <body> with the
+// unmounted Remove button.
+export const RemovedIngredientRow = ({ productName, isRestoring, error, onUndo }: RemovedIngredientRowProps) => {
+  const reduceMotion = useReducedMotion();
+  const name = displayProductName(productName);
+
+  return (
+    <motion.li layout={!reduceMotion} variants={rowEnterVariants} initial="hidden" animate="visible" exit={rowExit(reduceMotion)} className="flex flex-col gap-2 py-4">
+      <div className="flex items-center justify-between gap-3 text-sm text-text-muted">
+        <span className="truncate">
+          <span className="text-text">{name}</span> removed
+        </span>
+        <Button variant="primary" link autoFocus pending={isRestoring} aria-label={`Undo removing ${name}`} onClick={onUndo}>
+          Undo
+        </Button>
+      </div>
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
+    </motion.li>
   );
 };

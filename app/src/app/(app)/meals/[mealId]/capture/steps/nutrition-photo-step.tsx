@@ -65,7 +65,7 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
       }
       dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
     } catch {
-      setError("Could not read the nutrition table from this photo.");
+      setError("Could not read the nutrition table from this photo. Retake it with the whole table and its \"per 100g\" heading in frame.");
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +82,10 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
 
 const READING_LABEL = "Reading the nutrition table…";
 
+// Values are only read against a per-100g (or per-100ml) column; a photo
+// cropped below that heading fails however sharp the figures are.
+const FRAMING_HINT = "Fit the whole table in the photo, including the \"per 100g\" heading at the top.";
+
 export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, dispatch }: NutritionPhotoStepProps) => {
   const form = useNutritionPhotoStep(nameGuess, netWeightText, pendingBarcode, dispatch);
 
@@ -90,6 +94,7 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
       <h2 className="text-lg font-semibold">Photograph the nutrition table</h2>
       <PhotoInput
         label="Nutrition table photo"
+        hint={FRAMING_HINT}
         onSelect={form.handleSelect}
         scanningLabel={form.isLoading ? READING_LABEL : undefined}
       />

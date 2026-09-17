@@ -13,6 +13,8 @@ import { InlineMessage } from "@/components/ui/inline-message";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FOCUS_RING } from "@/components/ui/tap-target";
 
+import { ProductSummary } from "./nutrition-summary";
+
 interface StandardFoodSearchCallbacks {
   onResults: (results: StandardFood[]) => void;
   onError: (error: string | null) => void;
@@ -91,7 +93,13 @@ interface StandardFoodResultButtonProps {
 const StandardFoodResultButton = ({ food, onChoose }: StandardFoodResultButtonProps) => (
   <li>
     <button type="button" onClick={() => onChoose(food)} className={`w-full py-3 text-left text-text ${FOCUS_RING}`}>
-      {food.name}
+      <ProductSummary
+        name={food.name}
+        brand={null}
+        nutritionPerBasis={food.nutritionPer100g}
+        basisQuantity={food.nutritionBasisQuantity}
+        basisUnit={food.nutritionBasisUnit}
+      />
     </button>
   </li>
 );

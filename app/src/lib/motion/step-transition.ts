@@ -38,3 +38,21 @@ export const contentFadeInitial = (reduceMotion: boolean | null): { opacity: num
 
 export const contentFadeTransition = (reduceMotion: boolean | null): Transition =>
   reduceMotion ? { duration: 0 } : { duration: CONTENT_FADE_DURATION_SECONDS };
+
+// List entrance shared by the meal-detail ingredient list and the day's meal
+// list: the parent staggers, each row rises. Both keep the "hidden"/"visible"
+// keys so the parent's orchestration reaches the rows.
+// 30-50ms per-row stagger per the motion spec; 40ms sits at the mid-point.
+const ROW_STAGGER_SECONDS = 0.04;
+const ROW_ENTER_OFFSET_PX = 8;
+const ROW_TRANSITION_SECONDS = 0.22;
+
+export const listStaggerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: ROW_STAGGER_SECONDS } },
+};
+
+export const rowEnterVariants = {
+  hidden: { opacity: 0, y: ROW_ENTER_OFFSET_PX },
+  visible: { opacity: 1, y: 0, transition: { duration: ROW_TRANSITION_SECONDS } },
+};

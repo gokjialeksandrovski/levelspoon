@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { linkBarcode } from "@/features/products/actions/barcode";
 import { saveMealIngredient } from "@/features/meals/actions/meals";
+import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
 import type { ProductCandidate } from "@/features/products/actions/products";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
+import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -42,7 +44,7 @@ const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: Amoun
     <h2 className="text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
       <Button variant="ghost" link onClick={onChangeMatch}>
-        Change?
+        Pick another
       </Button>
     )}
   </div>
@@ -155,6 +157,7 @@ interface UseAmountStepFormResult {
   count: string;
   unit: string;
   units: string[];
+  preview: ContributionPreview;
   error: string | null;
   isBusy: boolean;
   isEstimating: boolean;
@@ -217,7 +220,17 @@ const useAmountStepForm = (mealId: string, product: SelectedProduct, alternative
     { count, unit, source, setCount, setUnit, setSource },
   );
 
-  return { count, unit, units, error, isBusy, isEstimating, ...actions };
+  // Derived, not state: the same resolve-then-scale the save path runs, so the
+  // figure on screen and the row that gets written can never disagree.
+  const preview = previewContribution({
+    count,
+    unit,
+    context,
+    nutritionPerBasis: product.nutritionPerBasis,
+    basisQuantity: product.nutritionBasisQuantity,
+  });
+
+  return { count, unit, units, preview, error, isBusy, isEstimating, ...actions };
 };
 
 interface AmountStepFieldsProps {
@@ -235,6 +248,7 @@ const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
       onCountChange={form.setCount}
       onUnitChange={form.setUnit}
     />
+    <AmountPreview preview={form.preview} />
     {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
     {/* Spinning Save during an estimate would claim a save is in flight. */}
     <Button disabled={form.count.trim() === "" || form.isEstimating} pending={form.isBusy && !form.isEstimating} onClick={form.handleSave}>

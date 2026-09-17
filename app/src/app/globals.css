@@ -116,6 +116,11 @@
   --color-danger: var(--raw-danger);
   --color-flag: var(--raw-flag);
 
+  /* A literal, not a --raw-* reference: ::backdrop only inherits custom
+     properties in recent engines. Espresso-tinted rather than pure black;
+     one value serves both themes because it dims whatever sits beneath. */
+  --color-scrim: oklch(0.2 0.012 60 / 0.55);
+
   /* Generously rounded rectangles, not circular-arc "squircles" - see spec
      §2.4 for why that word is deliberately not used here. */
   --radius-control: 16px;
@@ -141,6 +146,55 @@
 
 html {
   font-variant-numeric: tabular-nums;
+}
+
+/* appearance-none removes WebKit's native range thumb outright, and
+   accent-color paints native controls only - so with both applied the handle
+   is invisible on iOS Safari and Chrome. 24px clears the 3:1 non-text
+   contrast floor (WCAG 1.4.11) as a drag target. The surface-coloured rim
+   keeps the circle readable where it overlaps the filled part of the track. */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  block-size: 24px;
+  inline-size: 24px;
+  border: 2px solid var(--raw-surface);
+  border-radius: 9999px;
+  background: var(--raw-text);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box;
+  block-size: 24px;
+  inline-size: 24px;
+  border: 2px solid var(--raw-surface);
+  border-radius: 9999px;
+  background: var(--raw-text);
+  cursor: pointer;
+}
+
+/* prefers-contrast: more pulls the two low-contrast tokens (muted text,
+   hairline borders) toward --raw-text; accents stay put so their semantic
+   hues remain distinguishable. Same three-selector shape as the themes. */
+@media (prefers-contrast: more) {
+  :root {
+    --raw-text-muted: #c9c2b6;
+    --raw-border: #776f64;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --raw-text-muted: #45403a;
+      --raw-border: #8f8778;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --raw-text-muted: #45403a;
+    --raw-border: #8f8778;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

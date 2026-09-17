@@ -4,7 +4,18 @@ import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import { wizardReducer } from "./capture-wizard.types";
 
-const NO_MEASURES = { densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
+// Spread into both ProductCandidate inputs and the SelectedProduct outputs
+// they map to, so it carries the union of what the two shapes need. Nutrition
+// is opaque here - these tests assert routing, not arithmetic.
+const NO_MEASURES = {
+  brand: null,
+  densityGMl: null,
+  servingUnit: null,
+  servingGrams: null,
+  nutritionBasisUnit: "g",
+  nutritionBasisQuantity: 100,
+  nutritionPerBasis: {} as never,
+};
 
 describe("wizardReducer", () => {
   it("routes a confident match straight to the amount step with alternatives carried over", () => {
@@ -15,8 +26,8 @@ describe("wizardReducer", () => {
         nameGuess: "Olympus Greek Yogurt 2 Fat",
         result: {
           kind: "confident",
-          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
-          alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }],
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
+          alternatives: [{ id: "p2", name: "Olympus Greek Yogurt 10% Fat", nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }],
         },
         netWeightText: null,
         pendingBarcode: null,
@@ -39,7 +50,7 @@ describe("wizardReducer", () => {
         nameGuess: "Olympus Greek Yogurt 2% Fat",
         result: {
           kind: "confident",
-          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
           alternatives: [],
         },
         netWeightText: null,
@@ -61,7 +72,7 @@ describe("wizardReducer", () => {
       {
         type: "MATCH_RESOLVED",
         nameGuess: "Olympus Greek Yogurt Fat",
-        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }] },
+        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }] },
         netWeightText: "NET WT 1.86 0Z (52.7g)",
         pendingBarcode: null,
       },
@@ -82,7 +93,7 @@ describe("wizardReducer", () => {
       {
         type: "MATCH_RESOLVED",
         nameGuess: "Olympus Greek Yogurt Fat",
-        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }] },
+        result: { kind: "ambiguous", candidates: [{ id: "p1", name: "A", nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES }] },
         netWeightText: null,
         pendingBarcode: "0000000000000",
       },
@@ -375,7 +386,7 @@ describe("wizardReducer — barcode scan", () => {
         type: "BARCODE_SCANNED",
         result: {
           kind: "internal_match",
-          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", brand: null, nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
+          product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", nutritionPer100g: {} as never, nutritionPhotoKey: null, ...NO_MEASURES },
         },
       },
     );

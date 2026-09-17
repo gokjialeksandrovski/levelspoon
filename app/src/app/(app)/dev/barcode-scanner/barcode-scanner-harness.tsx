@@ -12,7 +12,7 @@ export const BarcodeScannerHarness = () => {
 
   return (
     <main id="main-content" tabIndex={-1} className="flex flex-col gap-4 p-4">
-      <h1 className="text-lg font-semibold">Barcode scanner (test harness)</h1>
+      <h1 className="text-xl font-semibold">Barcode scanner (test harness)</h1>
       {detected ? <p data-testid="detected-barcode">{detected}</p> : <BarcodeScanner onDetect={setDetected} />}
     </main>
   );

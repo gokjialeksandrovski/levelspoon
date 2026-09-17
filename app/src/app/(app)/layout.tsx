@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { IconProvider } from "@/components/ui/icon-provider";
-
 // First Tab stop, off-screen until focused, so a keyboard user can skip the
 // header's controls straight to content. Each screen's <main> carries the
 // matching id="main-content" and tabIndex={-1}.
@@ -19,12 +17,10 @@ const SkipToContentLink = () => (
 // `clip` (not `hidden`) leaves vertical scroll and the sticky action bar
 // alone - it doesn't create a scroll container.
 const AppLayout = ({ children }: { children: ReactNode }) => (
-  <IconProvider>
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip">
-      <SkipToContentLink />
-      {children}
-    </div>
-  </IconProvider>
+  <div className="mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip">
+    <SkipToContentLink />
+    {children}
+  </div>
 );
 
 export default AppLayout;

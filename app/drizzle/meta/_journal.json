@@ -64,6 +64,13 @@
       "when": 1789602085816,
       "tag": "0008_add-daily-calorie-goal",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789647930570,
+      "tag": "0009_add-soft-delete",
+      "breakpoints": true
     }
   ]
 }

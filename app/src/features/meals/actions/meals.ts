@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
@@ -59,8 +59,26 @@ export const saveMealIngredient = async (
   return { mealIngredientId: row.id };
 };
 
+// Long past any undo a user could still reach, so a purge never races a tap.
+const SOFT_DELETE_RETENTION = sql`interval '1 day'`;
+
+// Ingredients go first: a purged meal's rows would otherwise block its delete.
+const purgeSoftDeleted = async (userId: string): Promise<void> => {
+  await db.execute(sql`
+    DELETE FROM meal_ingredients mi
+    USING meals m
+    WHERE mi.meal_id = m.id
+      AND m.user_id = ${userId}
+      AND (mi.deleted_at < now() - ${SOFT_DELETE_RETENTION} OR m.deleted_at < now() - ${SOFT_DELETE_RETENTION})
+  `);
+  await db.execute(sql`
+    DELETE FROM meals WHERE user_id = ${userId} AND deleted_at < now() - ${SOFT_DELETE_RETENTION}
+  `);
+};
+
 const sweepEmptyMeals = async (userId: string): Promise<void> => {
   try {
+    await purgeSoftDeleted(userId);
     await db.execute(sql`
       DELETE FROM meals m
       WHERE m.user_id = ${userId}
@@ -133,6 +151,7 @@ const productRowToNutritionValues = (product: ProductNutritionRow): NutritionVal
 
 interface DayMealIngredientRow {
   mealId: string;
+  mealCreatedAt: Date;
   productName: string;
   quantity: string;
   nutritionBasisQuantity: string;
@@ -141,6 +160,7 @@ interface DayMealIngredientRow {
 
 const DAY_MEAL_INGREDIENT_SELECTION = {
   mealId: meals.id,
+  mealCreatedAt: meals.createdAt,
   productName: products.name,
   quantity: mealIngredients.quantity,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
@@ -167,6 +187,8 @@ const fetchDayMealIngredientRows = async (
     .where(
       and(
         eq(meals.userId, userId),
+        isNull(meals.deletedAt),
+        isNull(mealIngredients.deletedAt),
         gte(mealIngredients.createdAt, bounds.start),
         lt(mealIngredients.createdAt, bounds.end),
       ),
@@ -187,7 +209,14 @@ const mergeRowIntoSummaries = (
 ): DayMealSummary[] => {
   const existing = summaries.find((summary) => summary.id === row.mealId);
   if (!existing) {
-    return [...summaries, { id: row.mealId, total: contribution, ingredientNames: [row.productName] }];
+    return [
+      ...summaries,
+      {
+        id: row.mealId,
+        total: contribution,
+        ingredientNames: [row.productName],
+      },
+    ];
   }
   return summaries.map((summary) =>
     summary.id === row.mealId
@@ -292,7 +321,7 @@ const fetchMealIngredientRows = async (mealId: string): Promise<MealIngredientRo
     .select(MEAL_INGREDIENT_SELECTION)
     .from(mealIngredients)
     .innerJoin(products, eq(mealIngredients.productId, products.id))
-    .where(eq(mealIngredients.mealId, mealId))
+    .where(and(eq(mealIngredients.mealId, mealId), isNull(mealIngredients.deletedAt)))
     .orderBy(mealIngredients.createdAt);
 
 const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail => ({
@@ -329,6 +358,7 @@ const mealNumberInLocalDay = async (
     .where(
       and(
         eq(meals.userId, userId),
+        isNull(meals.deletedAt),
         gte(meals.createdAt, start),
         sql`${meals.createdAt} <= (select target.created_at from meals target where target.id = ${mealId})`,
       ),
@@ -356,7 +386,7 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
   const [meal] = await db
     .select({ id: meals.id, createdAt: meals.createdAt })
     .from(meals)
-    .where(and(eq(meals.id, mealId), eq(meals.userId, userId)));
+    .where(and(eq(meals.id, mealId), eq(meals.userId, userId), isNull(meals.deletedAt)));
   if (!meal) {
     return null;
   }
@@ -369,23 +399,39 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
     mealNumberInLocalDay(userId, meal.id, localDate, timezone),
     fetchDayCalorieRemaining(userId, localDate, timezone),
   ]);
-  return { id: meal.id, mealNumber, date: localDate, ingredients, total, dayCalorieRemaining };
+  return {
+    id: meal.id,
+    mealNumber,
+    date: localDate,
+    ingredients,
+    total,
+    dayCalorieRemaining,
+  };
 };
 
-export const removeMealIngredient = async (mealIngredientId: string): Promise<void> => {
+// Removal and deletion are soft so the UI can offer undo instead of a
+// "this can't be undone" confirm. purgeSoftDeleted hard-deletes them later.
+const setMealIngredientDeletedAt = async (mealIngredientId: string, deletedAt: SQL | null): Promise<void> => {
   const userId = await requireUserId();
   await assertMealIngredientOwnership(mealIngredientId, userId);
-  await db.delete(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
+  await db.update(mealIngredients).set({ deletedAt }).where(eq(mealIngredients.id, mealIngredientId));
 };
 
-export const deleteMeal = async (mealId: string): Promise<void> => {
+const setMealDeletedAt = async (mealId: string, deletedAt: SQL | null): Promise<void> => {
   const userId = await requireUserId();
   await assertMealOwnership(mealId, userId);
-  await db.transaction(async (tx) => {
-    await tx.delete(mealIngredients).where(eq(mealIngredients.mealId, mealId));
-    await tx.delete(meals).where(eq(meals.id, mealId));
-  });
+  await db.update(meals).set({ deletedAt }).where(eq(meals.id, mealId));
 };
+
+export const removeMealIngredient = async (mealIngredientId: string): Promise<void> =>
+  setMealIngredientDeletedAt(mealIngredientId, sql`now()`);
+
+export const restoreMealIngredient = async (mealIngredientId: string): Promise<void> =>
+  setMealIngredientDeletedAt(mealIngredientId, null);
+
+export const deleteMeal = async (mealId: string): Promise<void> => setMealDeletedAt(mealId, sql`now()`);
+
+export const restoreMeal = async (mealId: string): Promise<void> => setMealDeletedAt(mealId, null);
 
 export const discardEmptyMeal = async (mealId: string): Promise<void> => {
   const userId = await requireUserId();
@@ -418,6 +464,9 @@ export interface DayHistoryEntry {
 export interface DayHistoryPage {
   entries: DayHistoryEntry[];
   nextOffset: number | null;
+  // The goal as it stands today, not as it stood on each listed day - the app
+  // keeps one goal per user with no history behind it.
+  calorieGoal: number | null;
 }
 
 // `type` (not `interface`) so it structurally satisfies db.execute's
@@ -446,6 +495,8 @@ const fetchDayHistoryRows = async (
     JOIN meals m ON m.id = mi.meal_id
     JOIN products p ON p.id = mi.product_id
     WHERE m.user_id = ${userId}
+      AND m.deleted_at IS NULL
+      AND mi.deleted_at IS NULL
     GROUP BY local_date
     ORDER BY local_date DESC
     LIMIT ${HISTORY_PAGE_SIZE} OFFSET ${offset}
@@ -455,7 +506,10 @@ const fetchDayHistoryRows = async (
 
 export const getDayHistory = async (timezone: string, offset: number = 0): Promise<DayHistoryPage> => {
   const userId = await requireUserId();
-  const rows = await fetchDayHistoryRows(userId, timezone, offset);
+  const [rows, calorieGoal] = await Promise.all([
+    fetchDayHistoryRows(userId, timezone, offset),
+    fetchCalorieGoal(userId),
+  ]);
   const entries = rows.map((row) => ({
     date: toLocalDateString(row.local_date),
     totalKcal: Number(row.total_kcal),
@@ -464,5 +518,6 @@ export const getDayHistory = async (timezone: string, offset: number = 0): Promi
   return {
     entries,
     nextOffset: entries.length === HISTORY_PAGE_SIZE ? offset + HISTORY_PAGE_SIZE : null,
+    calorieGoal,
   };
 };

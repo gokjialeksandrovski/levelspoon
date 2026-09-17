@@ -5,7 +5,18 @@ import { INITIAL_WIZARD_STEP } from "./capture-wizard.types";
 
 const AMOUNT_STEP = {
   kind: "amount" as const,
-  product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" },
+  product: {
+    id: "p1",
+    name: "Olympus Greek Yogurt 2% Fat",
+    brand: null,
+    densityGMl: null,
+    servingUnit: null,
+    servingGrams: null,
+    nutritionBasisUnit: "g",
+    nutritionBasisQuantity: 100,
+    // Opaque: these tests assert path push/pop, not arithmetic.
+    nutritionPerBasis: {} as never,
+  },
   alternatives: [],
   pendingBarcode: null,
 };

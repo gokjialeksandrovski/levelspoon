@@ -478,24 +478,6 @@ describe("updateProduct", () => {
     expect(updated.name).toBe("Olympus Greek Yogurt 0% Fat");
   });
 
-  it("replaces the photo when provided", async () => {
-    const userId = await seedUser();
-    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
-    const [existing] = await db.select().from(products);
-    mockAuth.mockResolvedValue({ user: { id: userId } });
-
-    await updateProduct(existing.id, {
-      nutritionPer100g: {
-        energyKcal: 75, fatG: 2.5, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
-      },
-      photo: new Blob([Buffer.from("new-photo-bytes")], { type: "image/jpeg" }),
-    });
-
-    const [updated] = await db.select().from(products).where(eq(products.id, existing.id));
-    expect(updated.nutritionPhotoKey).toMatch(/^products\/.+/);
-    expect(updated.nutritionPhotoKey).not.toBe(existing.nutritionPhotoKey);
-  });
-
   it("refuses to update a standard-source product", async () => {
     const standardId = await seedStandardRow({ slug: "zzq-standard-fixture", name: "Zzq Standard Fixture" });
     mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
@@ -511,7 +493,7 @@ describe("updateProduct", () => {
 });
 
 describe("getProductForCorrection", () => {
-  it("returns the product's current values and a photo URL", async () => {
+  it("returns the product's current values", async () => {
     const userId = await seedUser();
     await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
     const [existing] = await db.select().from(products);
@@ -521,7 +503,6 @@ describe("getProductForCorrection", () => {
 
     expect(result?.name).toBe("Olympus Greek Yogurt 2% Fat");
     expect(result?.nutritionPer100g.energyKcal).toBe(70);
-    expect(result?.photoUrl).toEqual(expect.stringContaining("http"));
   });
 
   it("surfaces the nutrition basis for a per-unit product", async () => {
@@ -722,6 +703,7 @@ describe("topTwoScores", () => {
     serving_unit: null,
     serving_grams: null,
     nutrition_basis_unit: "g",
+    nutrition_basis_quantity: "100",
     score,
   });
 

@@ -26,15 +26,15 @@ const meal = (ingredientNames: string[]): DayMealSummary => ({
 
 describe("mealHeading", () => {
   it("uses the ingredient's own name as the heading, with no subtitle, when there's exactly one", () => {
-    expect(mealHeading(meal(["Olympus Greek Yogurt 2% Fat"]), 1)).toEqual({
+    expect(mealHeading(meal(["Olympus Greek Yogurt 2% Fat"]), 0)).toEqual({
       heading: "Olympus Greek Yogurt 2% Fat",
       subtitle: null,
     });
   });
 
-  it("falls back to an ordinal heading with a summarised subtitle once there's more than one ingredient", () => {
-    expect(mealHeading(meal(["Chicken", "Rice"]), 0)).toEqual({
-      heading: "Meal 1",
+  it("falls back to a 1-based \"Meal N\" with a summarised subtitle once there's more than one ingredient", () => {
+    expect(mealHeading(meal(["Chicken", "Rice"]), 1)).toEqual({
+      heading: "Meal 2",
       subtitle: "Chicken, Rice",
     });
   });

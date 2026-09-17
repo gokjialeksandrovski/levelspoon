@@ -86,6 +86,8 @@ export const meals = pgTable("meals", {
     .references(() => users.id),
   name: text("name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Soft delete, so "Delete meal" can offer undo; purged by createMeal's sweep.
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const mealIngredients = pgTable("meal_ingredients", {
@@ -103,4 +105,6 @@ export const mealIngredients = pgTable("meal_ingredients", {
   quantityUnit: text("quantity_unit").notNull().default("g"),
   quantitySource: quantitySourceEnum("quantity_source").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Soft delete, same undo reason as meals.deletedAt.
+  deletedAt: timestamp("deleted_at"),
 });

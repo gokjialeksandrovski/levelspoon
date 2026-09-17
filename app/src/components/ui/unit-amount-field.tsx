@@ -30,6 +30,7 @@ const CountInput = ({
   <input
     id={name}
     name={name}
+    aria-describedby={`${name}-unit`}
     type="number"
     inputMode="decimal"
     autoFocus={autoFocus}
@@ -51,6 +52,14 @@ const SelectChevron = () => (
     aria-hidden
     className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
   />
+);
+
+// One unit is nothing to choose: a one-option dropdown reads as broken, so
+// the unit is printed beside the figure instead.
+const FixedUnit = ({ unit }: { unit: string }) => (
+  <span aria-hidden="true" className="self-center px-1 text-sm text-text-muted">
+    {unit}
+  </span>
 );
 
 const UnitSelect = ({ unit, units, onUnitChange }: UnitSelectProps) => (
@@ -84,9 +93,17 @@ export const UnitAmountField = ({
     <label htmlFor={name} className="text-xs font-medium text-text-muted">
       Amount
     </label>
+    {/* The unit lives in a separate control, so the figure carries it as its description. */}
+    <span id={`${name}-unit`} className="sr-only">
+      in {unit}
+    </span>
     <div className="flex gap-2">
       <CountInput {...{ name, count, autoFocus, onCountChange }} />
-      <UnitSelect unit={unit} units={units} onUnitChange={onUnitChange} />
+      {units.length > 1 ? (
+        <UnitSelect unit={unit} units={units} onUnitChange={onUnitChange} />
+      ) : (
+        <FixedUnit unit={unit} />
+      )}
     </div>
   </div>
 );

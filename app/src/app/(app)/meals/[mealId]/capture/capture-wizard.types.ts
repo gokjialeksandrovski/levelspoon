@@ -8,10 +8,17 @@ import type { NutritionValues } from "@/types/nutrition";
 export interface SelectedProduct {
   id: string;
   name: string;
+  brand: string | null;
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
   nutritionBasisUnit: string;
+  nutritionBasisQuantity: number;
+  /** ProductCandidate calls this `nutritionPer100g`, which is only true of a
+   * per-100g product - here it is named for what it actually is, the figures
+   * stated per `nutritionBasisQuantity` of `nutritionBasisUnit`. Carried so
+   * the amount step can price a typed amount without a round trip. */
+  nutritionPerBasis: NutritionValues;
 }
 
 export type NutritionOrigin = "label_photo" | "manual" | "open_food_facts";
@@ -128,20 +135,28 @@ export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo", pendingB
 /** Shared so the three screens offering this route don't each word it differently. */
 export const BACK_TO_OPTIONS_LABEL = "Choose a different way";
 
+// `brand` is optional in the parameter because StandardFood has no brand
+// column - a whole food is nobody's product.
 export const toSelectedProduct = (candidate: {
   id: string;
   name: string;
+  brand?: string | null;
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
   nutritionBasisUnit: string;
+  nutritionBasisQuantity: number;
+  nutritionPer100g: NutritionValues;
 }): SelectedProduct => ({
   id: candidate.id,
   name: candidate.name,
+  brand: candidate.brand ?? null,
   densityGMl: candidate.densityGMl,
   servingUnit: candidate.servingUnit,
   servingGrams: candidate.servingGrams,
   nutritionBasisUnit: candidate.nutritionBasisUnit,
+  nutritionBasisQuantity: candidate.nutritionBasisQuantity,
+  nutritionPerBasis: candidate.nutritionPer100g,
 });
 
 const resolveMatch = (

@@ -64,6 +64,18 @@ test("prev/next navigation steps by one calendar day", async ({ page }) => {
   await page.waitForURL(`**/day/${addCalendarDays(today, -1)}`);
   await page.getByRole("link", { name: "Next day" }).click();
   await page.waitForURL(`**/day/${today}`);
+  await expect(page.getByRole("link", { name: "Next day" })).toHaveCount(0);
+});
+
+test("the date label on a past day returns to today, and a future day redirects there", async ({ page }) => {
+  await signUp(page);
+  const today = localToday();
+  await page.goto(`/day/${addCalendarDays(today, -3)}`);
+  await page.getByRole("link", { name: /go to today/ }).click();
+  await page.waitForURL(`**/day/${today}`);
+
+  await page.goto(`/day/${addCalendarDays(today, 1)}`);
+  await page.waitForURL(`**/day/${today}`);
 });
 
 test("the entry point shows today and is absent on a past day", async ({ page }) => {
@@ -74,6 +86,8 @@ test("the entry point shows today and is absent on a past day", async ({ page })
   await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
   await expect(page.getByText(/no meals logged/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "New meal" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Back to today" }).click();
+  await page.waitForURL(`**/day/${localToday()}`);
 });
 
 test("home redirects to today", async ({ page }) => {

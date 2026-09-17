@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
+import { setCalorieGoal } from "@/features/goals/actions/goals";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
@@ -18,6 +19,8 @@ import {
   getMealDetail,
   saveMealIngredient,
   removeMealIngredient,
+  restoreMeal,
+  restoreMealIngredient,
   updateMealIngredientQuantity,
 } from "./meals";
 import { NotAuthorizedError } from "./meals.errors";
@@ -323,7 +326,9 @@ describe("getDayLog", () => {
     const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
 
     expect(log.dayTotal.energyKcal).toBeCloseTo(140, 5);
-    expect(log.meals).toEqual([{ id: mealId, ingredientNames: ["Test Product"], total: log.dayTotal }]);
+    expect(log.meals).toEqual([
+      { id: mealId, ingredientNames: ["Test Product"], total: log.dayTotal },
+    ]);
   });
 
   it("excludes a meal that has no ingredients", async () => {
@@ -428,7 +433,7 @@ describe("getDayLog", () => {
 });
 
 describe("removeMealIngredient", () => {
-  it("deletes the ingredient when the authenticated user owns the meal", async () => {
+  it("takes the ingredient off the meal and the day, and restoreMealIngredient puts it back", async () => {
     const userId = await seedUser();
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
@@ -436,11 +441,32 @@ describe("removeMealIngredient", () => {
     const { mealIngredientId } = await saveMealIngredient({
       mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
     });
+    const today = todayLocalDateString("UTC");
 
     await removeMealIngredient(mealIngredientId);
 
-    const rows = await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
-    expect(rows).toEqual([]);
+    expect((await getMealDetail(mealId, "UTC"))?.ingredients).toEqual([]);
+    expect((await getDayLog(today, "UTC")).dayTotal.energyKcal).toBe(0);
+    expect((await getDayHistory("UTC")).entries).toEqual([]);
+
+    await restoreMealIngredient(mealIngredientId);
+
+    expect((await getMealDetail(mealId, "UTC"))?.ingredients.map((ingredient) => ingredient.id)).toEqual([mealIngredientId]);
+  });
+
+  it("hard-deletes a removal older than the undo retention on the next createMeal sweep", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+    });
+    await db.update(mealIngredients).set({ deletedAt: sql`now() - interval '2 days'` }).where(eq(mealIngredients.id, mealIngredientId));
+
+    await createMeal();
+
+    expect(await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId))).toEqual([]);
   });
 
   it("throws NotAuthorizedError when a different user owns the meal", async () => {
@@ -491,17 +517,48 @@ describe("updateMealIngredientQuantity", () => {
 });
 
 describe("deleteMeal", () => {
-  it("removes the meal and its ingredients when the caller owns it", async () => {
+  it("hides the meal from its detail, day and history, and restoreMeal brings it back", async () => {
     const userId = await seedUser();
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    const today = todayLocalDateString("UTC");
 
     await deleteMeal(mealId);
 
+    expect(await getMealDetail(mealId, "UTC")).toBeNull();
+    expect((await getDayLog(today, "UTC")).meals).toEqual([]);
+    expect((await getDayHistory("UTC")).entries).toEqual([]);
+
+    await restoreMeal(mealId);
+
+    expect((await getDayLog(today, "UTC")).meals.map((meal) => meal.id)).toEqual([mealId]);
+  });
+
+  it("hard-deletes a deleted meal and its ingredients once past the undo retention", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await db.update(meals).set({ deletedAt: sql`now() - interval '2 days'` }).where(eq(meals.id, mealId));
+
+    await createMeal();
+
     expect(await db.select().from(meals).where(eq(meals.id, mealId))).toEqual([]);
     expect(await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, mealId))).toEqual([]);
+  });
+
+  it("throws NotAuthorizedError when a different user restores the meal", async () => {
+    const ownerId = await seedUser();
+    const intruderId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: ownerId } });
+    const { mealId } = await createMeal();
+    await deleteMeal(mealId);
+
+    mockAuth.mockResolvedValue({ user: { id: intruderId } });
+    await expect(restoreMeal(mealId)).rejects.toThrow(NotAuthorizedError);
   });
 
   it("throws NotAuthorizedError when a different user owns the meal", async () => {
@@ -572,6 +629,20 @@ describe("getDayHistory", () => {
     expect(page.entries[0].totalKcal).toBeCloseTo(70, 5); // today, most recent first
     expect(page.entries[1].totalKcal).toBeCloseTo(140, 5); // yesterday
     expect(page.nextOffset).toBeNull();
+    expect(page.calorieGoal).toBeNull();
+  });
+
+  it("carries the user's calorie goal so rows can be compared against it", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await setCalorieGoal(2400);
+
+    const page = await getDayHistory("UTC");
+
+    expect(page.calorieGoal).toBe(2400);
   });
 
   it("groups a late-evening UTC entry into the correct local day", async () => {

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { CaretLeftIcon, CaretRightIcon, CalendarBlankIcon } from "@phosphor-icons/react";
+import { CaretLeftIcon, CalendarBlankIcon } from "@phosphor-icons/react";
 
 import { formatDayLabel } from "@/lib/date/format";
-import { addCalendarDays } from "@/lib/date/day-bounds";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { AccountMenu } from "@/features/auth/components/account-menu";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
+  FOCUS_RING,
   ICON_ROW_EDGE_PULL_LEFT,
   ICON_ROW_EDGE_PULL_RIGHT,
   ICON_TAP_TARGET_CLASS,
@@ -20,17 +21,19 @@ type AppHeaderProps =
 
 const HEADER_CLASS = "flex h-16 items-center justify-between border-b border-border px-4";
 
-const DayNav = ({ date }: { date: string }) => (
-  <div className={`flex items-center gap-1 ${ICON_ROW_EDGE_PULL_LEFT}`}>
-    <Link href={`/day/${addCalendarDays(date, -1)}`} aria-label="Previous day" className={ICON_TAP_TARGET_CLASS}>
-      <CaretLeftIcon />
+const browserToday = (): string => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+// Away from today the label is the way back. The visible text leads the accessible name (WCAG 2.5.3).
+const DayLabel = ({ date }: { date: string }) => {
+  const label = formatDayLabel(date);
+  if (date >= browserToday()) return label;
+  return (
+    <Link href={`/day/${browserToday()}`} className={`flex min-h-11 items-center underline decoration-border decoration-2 underline-offset-4 ${FOCUS_RING}`}>
+      {label}
+      <span className="sr-only">(go to today)</span>
     </Link>
-    <h1 className="text-sm font-medium">{formatDayLabel(date)}</h1>
-    <Link href={`/day/${addCalendarDays(date, 1)}`} aria-label="Next day" className={ICON_TAP_TARGET_CLASS}>
-      <CaretRightIcon />
-    </Link>
-  </div>
-);
+  );
+};
 
 // -space-x-2: the icons' own 44px tap targets already pad them well apart
 // from their glyphs; this pulls the boxes closer so the row reads as one
@@ -45,11 +48,13 @@ const HeaderActions = () => (
   </div>
 );
 
-// Day label is the h1, matching BackHeader's screens-title convention.
-// Edge-pull classes align the outer icons with the body content column.
+// Day label is the h1, matching BackHeader's screens-title convention. The
+// prev/next arrows live in the day view's bottom bar, within thumb reach.
 const DayHeader = ({ date }: { date: string }) => (
   <header className={HEADER_CLASS}>
-    <DayNav date={date} />
+    <h1 className="whitespace-nowrap font-display text-xl font-semibold">
+      <DayLabel date={date} />
+    </h1>
     <HeaderActions />
   </header>
 );
@@ -72,7 +77,7 @@ const BackControl = (props: BackHeaderProps) =>
 const BackHeader = (props: BackHeaderProps) => (
   <header className={HEADER_CLASS}>
     <BackControl {...props} />
-    <h1 className="text-sm font-medium">{props.title}</h1>
+    <h1 className="font-display text-xl font-semibold">{props.title}</h1>
     {/* Balances BackControl's effective width (44px box, pulled 11px into the
         margin) so the centered title stays centered. */}
     <span className={`w-11 ${ICON_ROW_EDGE_PULL_RIGHT}`} aria-hidden="true" />

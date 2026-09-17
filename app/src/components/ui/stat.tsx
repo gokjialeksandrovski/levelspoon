@@ -16,7 +16,7 @@ export const Stat = ({
   label,
   tone = "default",
 }: {
-  value: string;
+  value: React.ReactNode;
   unit?: string;
   label?: string;
   tone?: StatTone;

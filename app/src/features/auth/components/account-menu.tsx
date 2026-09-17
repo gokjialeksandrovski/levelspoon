@@ -6,15 +6,16 @@ import { UserCircleIcon } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 import { signOutAction } from "./account-menu.actions";
 
 // `session` starts undefined while next-auth resolves the client session
-// (Auth.js types `user.email` as nullable), so this reads "..." briefly.
-const AccountEmail = ({ email }: { email: string | null | undefined }) => (
-  <p className="mb-4 text-sm text-text-muted">{email ?? "..."}</p>
-);
+// (Auth.js types `user.email` as nullable); a line-height skeleton holds the
+// row so the sign-out button doesn't jump when the address lands.
+const AccountEmail = ({ email }: { email: string | null | undefined }) =>
+  email ? <p className="mb-4 text-sm text-text-muted">{email}</p> : <Skeleton className="mb-4 h-5 w-48" />;
 
 export const AccountMenu = () => {
   const [open, setOpen] = useState(false);

@@ -81,7 +81,7 @@ test("abandoning a new meal on step 1 leaves no stray meal", async ({ page }) =>
   await signUp(page);
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/capture$/);
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Close" }).click();
   await page.waitForURL(`**/day/${localToday()}`);
   await expect(page.getByRole("link", { name: /Meal 1/ })).toHaveCount(0);
 });
@@ -147,11 +147,12 @@ test("per-unit product (household measure, no printed grams): capture, log, and 
 
   // The amount step offers only the product's own basis unit - no grams
   // fallback exists to convert an unknown density to (spec §6).
-  const unitSelect = page.getByLabel("Unit");
-  await expect(unitSelect).toHaveValue("tbsp");
-  await expect(unitSelect.locator("option")).toHaveCount(1);
+  // A single unit is printed, not offered as a one-option dropdown.
+  await expect(page.getByLabel("Unit")).toHaveCount(0);
+  const amountInput = page.getByLabel("Amount", { exact: true });
+  await expect(amountInput).toHaveAccessibleDescription("in tbsp");
 
-  await page.getByLabel("Amount", { exact: true }).fill("2");
+  await amountInput.fill("2");
   await page.getByRole("button", { name: "Save ingredient" }).click();
   await expect(page.getByText("Ingredient saved.")).toBeVisible();
   await page.getByRole("button", { name: /done/i }).click();

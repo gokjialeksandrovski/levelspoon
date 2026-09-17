@@ -28,13 +28,15 @@ export const MacroLine = ({ contribution, size = "xs", animate = false }: MacroL
   const carbs = Math.round(contribution.carbohydrateG);
   const fat = Math.round(contribution.fatG);
 
+  // A span, not a p: candidate rows nest this inside a <button>, whose content
+  // model is phrasing content only. `block` keeps the line break it had as a p.
   return (
-    <p className={`tabular-nums text-text-muted ${TEXT_SIZE_CLASS[size]}`}>
+    <span className={`block tabular-nums text-text-muted ${TEXT_SIZE_CLASS[size]}`}>
       <span className="text-accent-protein">P {animate ? <SettleNumber value={protein} reduceMotion={reduceMotion} /> : protein}g</span>
       {" · "}
       <span className="text-accent-carbs">C {animate ? <SettleNumber value={carbs} reduceMotion={reduceMotion} /> : carbs}g</span>
       {" · "}
       <span className="text-accent-fat">F {animate ? <SettleNumber value={fat} reduceMotion={reduceMotion} /> : fat}g</span>
-    </p>
+    </span>
   );
 };

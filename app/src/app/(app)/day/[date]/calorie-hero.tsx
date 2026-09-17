@@ -1,44 +1,33 @@
 "use client";
 
+import { PencilSimpleIcon } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 
-import { calorieRemaining, type CalorieRemaining, type CalorieRemainingStatus } from "@/features/goals/actions/goals.utils";
+import { calorieRemaining } from "@/features/goals/actions/goals.utils";
+import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import { SettleNumber } from "@/components/ui/settle-number";
-import { Stat, type StatTone } from "@/components/ui/stat";
-import { FOCUS_RING } from "@/components/ui/tap-target";
 import { slideTransition } from "@/lib/motion/step-transition";
 
 import { GoalSheet } from "./goal-sheet";
-
-const HERO_UNIT: Record<CalorieRemainingStatus, string> = {
-  unset: "kcal",
-  left: "kcal left",
-  over: "kcal over",
-};
-
-const HERO_TONE: Record<CalorieRemainingStatus, StatTone> = {
-  unset: "default",
-  left: "default",
-  over: "danger",
-};
-
-const heroValue = (remaining: CalorieRemaining, consumedKcal: number): number =>
-  remaining.status === "unset" ? Math.round(consumedKcal) : remaining.kcal;
 
 interface GoalPillProps {
   goal: number | null;
   onOpen: () => void;
 }
 
+// Sized to the pill's text-xs line; the 22px provider default would outgrow the pill.
+const PILL_ICON_SIZE = 14;
+
+// The pill is 28px tall; the transparent button around it adds -my-2/py-2 so
+// the tap target reaches 44px without the pill or its row growing. The ring
+// draws on the pill, not the invisible hit box.
 const GoalPill = ({ goal, onOpen }: GoalPillProps) => (
-  <button
-    type="button"
-    onClick={onOpen}
-    className={`flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-border ${FOCUS_RING}`}
-  >
-    {goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}
-    <span aria-hidden="true">✏️</span>
+  <button type="button" onClick={onOpen} className="group -my-2 py-2 focus-visible:outline-none">
+    <span className="flex items-center gap-1 rounded-full bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
+      {goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}
+      <PencilSimpleIcon size={PILL_ICON_SIZE} />
+    </span>
   </button>
 );
 
@@ -116,11 +105,7 @@ export const CalorieHero = ({ consumedKcal, initialGoal }: CalorieHeroProps) => 
 
   return (
     <div>
-      <Stat
-        value={heroValue(remaining, consumedKcal).toLocaleString()}
-        unit={HERO_UNIT[remaining.status]}
-        tone={HERO_TONE[remaining.status]}
-      />
+      <DayCalorieStat consumedKcal={consumedKcal} remaining={remaining} reduceMotion={reduceMotion} />
       <CalorieSecondaryRow consumedKcal={consumedKcal} goal={goal} reduceMotion={reduceMotion} onOpenSheet={openSheet} />
       {goal !== null && <CalorieBar share={share} isOver={remaining.status === "over"} reduceMotion={reduceMotion} />}
       <GoalSheet key={openToken} open={sheetOpen} initialGoal={goal} onClose={closeSheet} onSaved={setGoal} />

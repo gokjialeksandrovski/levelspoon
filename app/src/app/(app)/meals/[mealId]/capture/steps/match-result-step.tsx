@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { FOCUS_RING } from "@/components/ui/tap-target";
 
+import { ProductSummary } from "../../nutrition-summary";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
 interface MatchResultStepProps {
@@ -32,7 +33,13 @@ const CandidateButton = ({ candidate, candidates, pendingBarcode, dispatch }: Ca
       }
       className={`w-full py-3 text-left text-text ${FOCUS_RING}`}
     >
-      {candidate.name}
+      <ProductSummary
+        name={candidate.name}
+        brand={candidate.brand}
+        nutritionPerBasis={candidate.nutritionPerBasis}
+        basisQuantity={candidate.nutritionBasisQuantity}
+        basisUnit={candidate.nutritionBasisUnit}
+      />
     </button>
   </li>
 );

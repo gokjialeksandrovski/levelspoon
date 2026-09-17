@@ -4,6 +4,7 @@ import { DropIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { saveMealIngredient } from "@/features/meals/actions/meals";
+import { previewContribution } from "@/features/meals/actions/meals.utils";
 import type { StandardFood } from "@/features/products/actions/products";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -13,6 +14,7 @@ import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
+import { AmountPreview } from "./nutrition-summary";
 import { StandardFoodPicker, useStandardFoodPicker, type UseStandardFoodPickerResult } from "./standard-food-picker";
 
 // Other half of the spec §5 category split - oils, butter, ghee, spray.
@@ -135,14 +137,21 @@ const useCookingFatAmount = (mealId: string, food: StandardFood, onSaved: () => 
   const callbacks = { setError, setIsBusy };
   const handleSave = () =>
     resolveAndSaveCookingFat({ mealId, productId: food.id, count, unit, context }, onSaved, callbacks);
+  const preview = previewContribution({
+    count,
+    unit,
+    context,
+    nutritionPerBasis: food.nutritionPer100g,
+    basisQuantity: food.nutritionBasisQuantity,
+  });
 
-  return { count, unit, units: availableUnits(context), error, isBusy, setCount, setUnit, handleSave };
+  return { count, unit, units: availableUnits(context), preview, error, isBusy, setCount, setUnit, handleSave };
 };
 
 // Keyed by food.id in CookingFatSheet so a different result remounts this
 // with fresh state, no reset effect needed.
 const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmountStageProps) => {
-  const { count, unit, units, error, isBusy, setCount, setUnit, handleSave } = useCookingFatAmount(
+  const { count, unit, units, preview, error, isBusy, setCount, setUnit, handleSave } = useCookingFatAmount(
     mealId,
     food,
     onSaved,
@@ -154,6 +163,7 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
         Search again
       </Button>
       <UnitAmountField name="cooking-fat-amount" count={count} unit={unit} units={units} autoFocus onCountChange={setCount} onUnitChange={setUnit} />
+      <AmountPreview preview={preview} />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <Button disabled={count.trim() === ""} pending={isBusy} onClick={handleSave}>
         Add to meal

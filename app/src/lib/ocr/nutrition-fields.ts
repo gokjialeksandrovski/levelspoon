@@ -12,6 +12,17 @@ export const FIELD_LABELS: Record<keyof NullableNutritionValues, string> = {
   saltG: "Salt (g)",
 };
 
+// The packaging's own blocks, in its own order: an EU label prints saturates
+// indented under fat and sugars under carbohydrate, so the form reads in the
+// same shape as the label the user is holding. No legends - the field labels
+// already name every figure, and spacing carries the grouping.
+export const NUTRITION_FIELD_GROUPS: (keyof NullableNutritionValues)[][] = [
+  ["energyKcal"],
+  ["fatG", "saturatesG"],
+  ["carbohydrateG", "sugarsG"],
+  ["proteinG", "saltG"],
+];
+
 // Matches ocr-service's validate.py flag naming (snake_case field names),
 // confirmed directly against its source during planning.
 export const FLAG_TO_FIELD: Record<string, keyof NullableNutritionValues> = {
@@ -50,6 +61,21 @@ export const toNutritionValues = (values: FieldValues): NutritionValues => ({
   proteinG: Number(values.proteinG),
   saltG: Number(values.saltG),
 });
+
+export interface NutritionFieldChange {
+  field: keyof NullableNutritionValues;
+  label: string;
+  from: string;
+  to: string;
+}
+
+// What a correction would actually change, for the preview above Save.
+// Compared as numbers, not strings: "2" -> "2.0" is the same figure typed
+// differently, and listing it as a change would make the preview untrustworthy.
+export const changedNutritionFields = (original: FieldValues, current: FieldValues): NutritionFieldChange[] =>
+  (Object.keys(FIELD_LABELS) as (keyof NullableNutritionValues)[])
+    .filter((field) => Number(original[field]) !== Number(current[field]))
+    .map((field) => ({ field, label: FIELD_LABELS[field], from: original[field], to: current[field] }));
 
 export const flaggedFieldSet = (flags: string[]): Set<keyof NullableNutritionValues> =>
   new Set(

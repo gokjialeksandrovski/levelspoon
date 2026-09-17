@@ -74,10 +74,13 @@ interface DropzoneProps {
 }
 
 // The label wraps the (visually hidden) file input, so the label text is
-// the input's accessible name; the camera glyph is decorative.
+// the input's accessible name; the camera glyph is decorative. A raised tile
+// that presses like a Button, not the stock dashed upload box.
 const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
-  <label className="relative flex min-h-36 flex-col items-center justify-center gap-2 rounded-surface border-2 border-dashed border-border bg-surface px-4 py-6 text-center transition-colors active:bg-surface-raised focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
-    <CameraIcon size={32} className="text-text-muted" aria-hidden="true" />
+  <label className="relative flex min-h-20 items-center gap-4 rounded-surface bg-surface-raised p-4 text-left transition-transform duration-100 hover:bg-border active:scale-[0.98] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
+    <span className="grid size-12 shrink-0 place-items-center rounded-full bg-bg text-text">
+      <CameraIcon size={24} aria-hidden="true" />
+    </span>
     <span className="text-sm font-medium text-text">{label}</span>
     <input
       type="file"
@@ -114,15 +117,19 @@ export const PhotoInput = ({ label, onSelect, hint, scanningLabel }: PhotoInputP
 
   return (
     <div className="flex flex-col gap-2">
-      <Dropzone
-        label={label}
-        describedBy={hint ? hintId : undefined}
-        onChange={(event) => handlePhotoChange(event, onSelect, showPreview)}
-      />
-      {hint && (
-        <p id={hintId} className="text-xs text-text-muted">
-          {hint}
-        </p>
+      {!scanningLabel && (
+        <>
+          <Dropzone
+            label={label}
+            describedBy={hint ? hintId : undefined}
+            onChange={(event) => handlePhotoChange(event, onSelect, showPreview)}
+          />
+          {hint && (
+            <p id={hintId} className="text-xs text-text-muted">
+              {hint}
+            </p>
+          )}
+        </>
       )}
       {previewUrl && <PhotoPreview previewUrl={previewUrl} scanningLabel={scanningLabel} />}
     </div>

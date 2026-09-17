@@ -5,21 +5,23 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { getMealDetail } from "@/features/meals/actions/meals";
+import { getMealDetail, restoreMealIngredient } from "@/features/meals/actions/meals";
 import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/features/meals/actions/meals";
 import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
+import { MacroLine } from "@/features/meals/components/macro-line";
 import { AppHeader } from "@/components/layout/app-header";
 import { buttonClassName } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { LiveStatus } from "@/components/ui/live-status";
 import { SettleNumber } from "@/components/ui/settle-number";
+import { Skeleton } from "@/components/ui/skeleton";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
-import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
+import { contentFadeInitial, contentFadeTransition, listStaggerVariants } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 import { CookingFatControl } from "./cooking-fat-control";
 import { DeleteMeal } from "./delete-meal";
-import { IngredientRow } from "./ingredient-row";
-import { MacroLine } from "./macro-line";
+import { IngredientRow, RemovedIngredientRow } from "./ingredient-row";
 
 type MealDetailState =
   | { status: "loading" }
@@ -49,23 +51,70 @@ const useMealDetail = (mealId: string, reloadCounter: number): MealDetailState =
   return state;
 };
 
-interface IngredientListProps {
-  ingredients: MealIngredientDetail[];
-  onIngredientChanged: () => void;
+interface Removal {
+  ingredient: MealIngredientDetail;
+  // Position in the displayed list when removed, so Undo sits where the row was.
+  index: number;
+  isRestoring: boolean;
+  error: string | null;
 }
 
-// 30-50ms per-row stagger per the motion spec; 40ms sits at the mid-point.
-const ROW_STAGGER_SECONDS = 0.04;
+interface UseRemovalsResult {
+  removals: Removal[];
+  announcement: string;
+  markRemoved: (ingredient: MealIngredientDetail, index: number) => void;
+  undo: (ingredientId: string) => void;
+}
 
-const listVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: ROW_STAGGER_SECONDS } },
+// A removal stays listed until the page leaves; listEntries hides it again
+// once a refetch shows the ingredient back, so Undo never flickers the row.
+const useRemovals = (onRestored: () => void): UseRemovalsResult => {
+  const [removals, setRemovals] = useState<Removal[]>([]);
+  const [announcement, setAnnouncement] = useState("");
+  const patch = (ingredientId: string, change: Partial<Removal>) =>
+    setRemovals((list) => list.map((removal) => (removal.ingredient.id === ingredientId ? { ...removal, ...change } : removal)));
+
+  const markRemoved = (ingredient: MealIngredientDetail, index: number) => {
+    setRemovals((list) => [...list.filter((removal) => removal.ingredient.id !== ingredient.id), { ingredient, index, isRestoring: false, error: null }]);
+    setAnnouncement(`${ingredient.productName} removed. Undo is in its place.`);
+  };
+
+  const undo = (ingredientId: string) => {
+    patch(ingredientId, { isRestoring: true, error: null });
+    restoreMealIngredient(ingredientId)
+      .then(() => {
+        patch(ingredientId, { isRestoring: false });
+        setAnnouncement("Ingredient put back.");
+        onRestored();
+      })
+      .catch(() => patch(ingredientId, { isRestoring: false, error: "Couldn't put it back. Try again." }));
+  };
+
+  return { removals, announcement, markRemoved, undo };
 };
+
+type ListEntry = { kind: "present"; ingredient: MealIngredientDetail } | { kind: "removed"; removal: Removal };
+
+const listEntries = (ingredients: MealIngredientDetail[], removals: Removal[]): ListEntry[] => {
+  const presentIds = new Set(ingredients.map((ingredient) => ingredient.id));
+  return removals
+    .filter((removal) => !presentIds.has(removal.ingredient.id))
+    .reduce<ListEntry[]>(
+      (entries, removal) => [...entries.slice(0, removal.index), { kind: "removed", removal }, ...entries.slice(removal.index)],
+      ingredients.map((ingredient) => ({ kind: "present", ingredient })),
+    );
+};
+
+interface IngredientListProps {
+  entries: ListEntry[];
+  removals: UseRemovalsResult;
+  onIngredientChanged: () => void;
+}
 
 // motion.ul orchestrates entrance stagger via variants; AnimatePresence
 // (mode="popLayout") plays each row's own exit animation and lets siblings'
 // `layout` reflow into the gap instead of snapping when one is removed.
-const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProps) => {
+const IngredientList = ({ entries, removals, onIngredientChanged }: IngredientListProps) => {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -73,12 +122,27 @@ const IngredientList = ({ ingredients, onIngredientChanged }: IngredientListProp
       className="divide-y divide-border"
       initial={reduceMotion ? false : "hidden"}
       animate="visible"
-      variants={listVariants}
+      variants={listStaggerVariants}
     >
       <AnimatePresence mode="popLayout">
-        {ingredients.map((ingredient) => (
-          <IngredientRow key={ingredient.id} ingredient={ingredient} onChanged={onIngredientChanged} />
-        ))}
+        {entries.map((entry, index) =>
+          entry.kind === "present" ? (
+            <IngredientRow
+              key={entry.ingredient.id}
+              ingredient={entry.ingredient}
+              onChanged={onIngredientChanged}
+              onRemoved={() => removals.markRemoved(entry.ingredient, index)}
+            />
+          ) : (
+            <RemovedIngredientRow
+              key={`removed-${entry.removal.ingredient.id}`}
+              productName={entry.removal.ingredient.productName}
+              isRestoring={entry.removal.isRestoring}
+              error={entry.removal.error}
+              onUndo={() => removals.undo(entry.removal.ingredient.id)}
+            />
+          ),
+        )}
       </AnimatePresence>
     </motion.ul>
   );
@@ -140,8 +204,8 @@ const MealTotal = ({ total, dayCalorieRemaining }: { total: MealDetailData["tota
   );
 };
 
-// Transient: a meal briefly has zero ingredients between an add and this
-// page's refetch. discardEmptyMeal sweeps truly-abandoned ones server-side.
+// Reached when every ingredient was removed and the page reloaded, or briefly
+// between an add and this page's refetch.
 const EmptyIngredients = () => <p className="mt-4 text-sm text-text-muted">No ingredients yet.</p>;
 
 // notFound() (next/navigation) only works in a Server Component - this is a
@@ -175,25 +239,24 @@ const mealDetailBackHref = (state: MealDetailState, today: string): string =>
 interface MealReadyBodyProps {
   meal: MealDetailData;
   mealId: string;
+  removals: UseRemovalsResult;
   onIngredientChanged: () => void;
 }
 
-interface IngredientsSectionProps {
-  ingredients: MealIngredientDetail[];
-  total: MealDetailData["total"];
-  dayCalorieRemaining: CalorieRemaining;
-  onIngredientChanged: () => void;
-}
+type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId">;
 
-const IngredientsSection = ({ ingredients, total, dayCalorieRemaining, onIngredientChanged }: IngredientsSectionProps) =>
-  ingredients.length > 0 ? (
+const IngredientsSection = ({ meal, removals, onIngredientChanged }: IngredientsSectionProps) => {
+  const entries = listEntries(meal.ingredients, removals.removals);
+  if (entries.length === 0) {
+    return <EmptyIngredients />;
+  }
+  return (
     <>
-      <IngredientList ingredients={ingredients} onIngredientChanged={onIngredientChanged} />
-      <MealTotal total={total} dayCalorieRemaining={dayCalorieRemaining} />
+      <IngredientList entries={entries} removals={removals} onIngredientChanged={onIngredientChanged} />
+      {meal.ingredients.length > 0 && <MealTotal total={meal.total} dayCalorieRemaining={meal.dayCalorieRemaining} />}
     </>
-  ) : (
-    <EmptyIngredients />
   );
+};
 
 interface MealActionsProps {
   mealId: string;
@@ -201,50 +264,70 @@ interface MealActionsProps {
   onIngredientChanged: () => void;
 }
 
+// Two adding actions sit together; deleting the meal is a different kind of
+// act and gets a gap wide enough that a thumb reaching for "Add" never finds
+// it by accident.
 const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps) => (
-  <div className="mt-6 flex flex-col gap-3">
-    {/*
-      A plain navigation link, not an inline reveal: the capture wizard
-      owns the full-screen /capture route now, and returning from it
-      remounts this page rather than refreshing it in place.
-    */}
-    <Link
-      href={`/meals/${mealId}/capture`}
-      className={buttonClassName("primary", "inline-flex items-center justify-center gap-2 text-center")}
-    >
-      <CarrotIcon size={20} />
-      Add ingredient
-    </Link>
-    <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
+  <div className="mt-8 flex flex-col gap-10">
+    <div className="flex flex-col gap-3">
+      {/*
+        A plain navigation link, not an inline reveal: the capture wizard
+        owns the full-screen /capture route now, and returning from it
+        remounts this page rather than refreshing it in place.
+      */}
+      <Link
+        href={`/meals/${mealId}/capture`}
+        className={buttonClassName("primary", "inline-flex items-center justify-center gap-2 text-center")}
+      >
+        <CarrotIcon size={20} />
+        Add ingredient
+      </Link>
+      <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
+    </div>
     <DeleteMeal mealId={mealId} mealDate={mealDate} />
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, onIngredientChanged }: MealReadyBodyProps) => (
+const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged }: MealReadyBodyProps) => (
   <>
-    <IngredientsSection
-      ingredients={meal.ingredients}
-      total={meal.total}
-      dayCalorieRemaining={meal.dayCalorieRemaining}
-      onIngredientChanged={onIngredientChanged}
-    />
+    <IngredientsSection meal={meal} removals={removals} onIngredientChanged={onIngredientChanged} />
     <MealActions mealId={mealId} mealDate={meal.date} onIngredientChanged={onIngredientChanged} />
   </>
+);
+
+const SKELETON_ROW_COUNT = 3;
+
+// Mirrors an IngredientRow (name over amount line) and the meal total, the
+// same shape-matched placeholder DayView and History use.
+const MealDetailSkeleton = () => (
+  <div>
+    <div className="divide-y divide-border">
+      {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+        <div key={`meal-skeleton-${index}`} className="flex flex-col gap-2 py-3">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      ))}
+    </div>
+    <div className="mt-6 flex items-baseline justify-between border-t-2 border-border pt-3">
+      <Skeleton className="h-4 w-20" />
+      <Skeleton className="h-4 w-16" />
+    </div>
+  </div>
 );
 
 interface MealDetailBodyProps {
   state: MealDetailState;
   mealId: string;
+  removals: UseRemovalsResult;
   onIngredientChanged: () => void;
 }
 
-interface MealDetailContentProps {
+interface MealDetailContentProps extends Omit<MealDetailBodyProps, "state"> {
   state: Exclude<MealDetailState, { status: "loading" }>;
-  mealId: string;
-  onIngredientChanged: () => void;
 }
 
-const MealDetailContent = ({ state, mealId, onIngredientChanged }: MealDetailContentProps) => {
+const MealDetailContent = ({ state, mealId, removals, onIngredientChanged }: MealDetailContentProps) => {
   if (state.status === "error") {
     return <p className="text-sm text-danger">Couldn&apos;t load this meal. Try again.</p>;
   }
@@ -252,17 +335,17 @@ const MealDetailContent = ({ state, mealId, onIngredientChanged }: MealDetailCon
     return <MealNotFound />;
   }
 
-  return <MealReadyBody meal={state.meal} mealId={mealId} onIngredientChanged={onIngredientChanged} />;
+  return <MealReadyBody meal={state.meal} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} />;
 };
 
 // Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody, so
-// a fast fetch doesn't flash "Loading…" then jump-cut to content.
-const MealDetailBody = ({ state, mealId, onIngredientChanged }: MealDetailBodyProps) => {
+// a fast fetch doesn't flash a placeholder then jump-cut to content.
+const MealDetailBody = ({ state, mealId, removals, onIngredientChanged }: MealDetailBodyProps) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");
 
   if (state.status === "loading") {
-    return showSkeleton ? <p className="text-sm text-text-muted">Loading…</p> : null;
+    return showSkeleton ? <MealDetailSkeleton /> : null;
   }
 
   return (
@@ -271,7 +354,7 @@ const MealDetailBody = ({ state, mealId, onIngredientChanged }: MealDetailBodyPr
       animate={{ opacity: 1 }}
       transition={contentFadeTransition(reduceMotion)}
     >
-      <MealDetailContent state={state} mealId={mealId} onIngredientChanged={onIngredientChanged} />
+      <MealDetailContent state={state} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} />
     </motion.div>
   );
 };
@@ -280,13 +363,17 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
   const [reloadCounter, setReloadCounter] = useState(0);
   const bumpReload = () => setReloadCounter((count) => count + 1);
   const state = useMealDetail(mealId, reloadCounter);
+  const removals = useRemovals(bumpReload);
   const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
   return (
     <>
       <AppHeader variant="back" title={mealDetailTitle(state)} backHref={mealDetailBackHref(state, today)} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
-        <MealDetailBody state={state} mealId={mealId} onIngredientChanged={bumpReload} />
+        {/* Also covers the in-place refetch after an ingredient edit, which
+            rewrites the whole body with no navigation to announce it. */}
+        <LiveStatus message={removals.announcement || (state.status === "ready" ? "Meal loaded" : "")} />
+        <MealDetailBody state={state} mealId={mealId} removals={removals} onIngredientChanged={bumpReload} />
       </main>
     </>
   );

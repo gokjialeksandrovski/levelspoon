@@ -40,20 +40,22 @@ const MacroFigure = ({ label, grams, share, accentClass }: MacroFigureProps) => 
   </span>
 );
 
-const PERCENT_SCALE = 100;
-const segmentWidth = (share: number): string => `${share * PERCENT_SCALE}%`;
 
 // Always full-width, a composition not a fill toward a target - no target
 // concept in this app (spec §9).
 //
-// No minimum-segment-width floor: a tiny share renders as a thin sliver
-// rather than padded up. Spec §10 leaves this open; revisit only if real
-// data makes a sliver look broken.
+// flex-grow by share, with a 4px floor on any non-zero share: a 1g macro in
+// a big meal stays a visible sliver instead of rounding to nothing, and flex
+// takes the floor out of the other segments so the rule still sums to full.
+const RuleSegment = ({ share, accentClass }: { share: number; accentClass: string }) => (
+  <div className={`basis-0 ${share > 0 ? "min-w-1" : ""} ${accentClass}`} style={{ flexGrow: share }} />
+);
+
 const SegmentedRule = ({ shares }: { shares: MacroShares }) => (
   <div className="mt-2 flex h-1 w-full overflow-hidden rounded-full" role="presentation">
-    <div className="bg-accent-protein" style={{ width: segmentWidth(shares.protein) }} />
-    <div className="bg-accent-carbs" style={{ width: segmentWidth(shares.carbs) }} />
-    <div className="bg-accent-fat" style={{ width: segmentWidth(shares.fat) }} />
+    <RuleSegment share={shares.protein} accentClass="bg-accent-protein" />
+    <RuleSegment share={shares.carbs} accentClass="bg-accent-carbs" />
+    <RuleSegment share={shares.fat} accentClass="bg-accent-fat" />
   </div>
 );
 

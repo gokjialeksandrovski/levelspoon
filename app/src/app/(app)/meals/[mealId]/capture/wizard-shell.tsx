@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretLeftIcon } from "@phosphor-icons/react";
+import { CaretLeftIcon, XIcon } from "@phosphor-icons/react";
 
 import { ICON_ROW_EDGE_PULL_LEFT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
@@ -8,6 +8,7 @@ interface WizardShellProps {
   title: string;
   progress: number; // 0..1, approximate
   onBack: () => void;
+  exits: boolean;
   children: React.ReactNode;
 }
 
@@ -25,33 +26,37 @@ const ProgressRail = ({ progress }: { progress: number }) => (
     aria-valuemax={PERCENT}
     aria-valuenow={Math.round(progress * PERCENT)}
   >
+    {/* scaleX, not width: a width transition re-runs layout every frame. */}
     <div
-      className="h-full bg-text transition-[width] duration-(--duration-step)"
-      style={{ width: `${progress * PERCENT}%` }}
+      className="size-full origin-left bg-text transition-transform duration-(--duration-step) ease-out-quart"
+      style={{ transform: `scaleX(${progress})` }}
     />
   </div>
 );
 
-const BackButton = ({ onBack }: { onBack: () => void }) => (
+// On the first step the same control leaves the wizard, so it says so: a
+// close glyph and name, not a chevron that promises one step back.
+const BackButton = ({ onBack, exits }: { onBack: () => void; exits: boolean }) => (
   <button
     type="button"
     onClick={onBack}
-    aria-label="Back"
+    aria-label={exits ? "Close" : "Back"}
     className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_LEFT}`}
   >
-    <CaretLeftIcon />
+    {/* Regular, not the app-wide duotone: duotone X fills a tinted square behind the cross. */}
+    {exits ? <XIcon weight="regular" /> : <CaretLeftIcon />}
   </button>
 );
 
 // Not AppHeader's "back" variant: this back control pops a step rather than
 // navigating. Row and rail sit together in <header> so the progressbar is
 // inside a landmark, not orphaned between header and main.
-export const WizardShell = ({ title, progress, onBack, children }: WizardShellProps) => (
+export const WizardShell = ({ title, progress, onBack, exits, children }: WizardShellProps) => (
   <div className="flex min-h-dvh flex-col">
     <header>
       <div className="flex h-16 items-center gap-1 border-b border-border px-4">
-        <BackButton onBack={onBack} />
-        <h1 className="text-sm font-medium">{title}</h1>
+        <BackButton onBack={onBack} exits={exits} />
+        <h1 className="font-display text-xl font-semibold">{title}</h1>
       </div>
       <ProgressRail progress={progress} />
     </header>

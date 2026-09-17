@@ -28,6 +28,16 @@ describe("resolveQuantity — grams basis", () => {
   it("is unresolved for a non-positive mass", () => {
     expect(resolveQuantity("0", "g", GRAMS_BASIS)).toEqual({ kind: "unresolved" });
   });
+
+  // parseMeasure's regex carries no sign, so "-50 g" would otherwise read as
+  // 50 g and silently save a negative typed amount as a positive one.
+  it("is unresolved for a negative count", () => {
+    expect(resolveQuantity("-50", "g", GRAMS_BASIS)).toEqual({ kind: "unresolved" });
+  });
+
+  it("is unresolved for a count that is not a number", () => {
+    expect(resolveQuantity("abc", "g", GRAMS_BASIS)).toEqual({ kind: "unresolved" });
+  });
 });
 
 describe("resolveQuantity — non-grams basis", () => {

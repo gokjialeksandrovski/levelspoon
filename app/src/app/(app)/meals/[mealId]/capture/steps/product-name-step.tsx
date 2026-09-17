@@ -64,7 +64,7 @@ const handleManualName = async (manualName: string, callbacks: ProductNameCallba
   }
 };
 
-const REJECTED_BARCODE_ERROR = "This code isn't a product barcode.";
+const REJECTED_BARCODE_ERROR = "That's not a product barcode. Photograph the product name instead, or type it in.";
 const BARCODE_LOOKUP_ERROR = "Could not look up this barcode. Please try again.";
 
 // rejected stays on this step on purpose: the live-scan effect only runs once
@@ -168,8 +168,7 @@ interface PhotoOptionRowProps {
   onSelect: (photo: File) => void;
 }
 
-const PHOTO_ROW_DESCRIPTION =
-  "Reads the product name off the label. Use when scanning the barcode doesn't provide info for the product.";
+const PHOTO_ROW_DESCRIPTION = "Reads the name off the packaging. Best when there's no barcode.";
 
 const PhotoOptionRow = ({ isLoading, onSelect }: PhotoOptionRowProps) => (
   <label className={OPTION_ROW_LABEL}>
@@ -234,14 +233,14 @@ const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: Manua
     <EntryOptionRow
       icon={PencilSimpleIcon}
       title="Type a packaged product's name"
-      description="For a packaged product when the photo or barcode scan doesn't work."
+      description="When the scan and the photo both come up empty."
       onClick={onManualEntry}
       disabled={isLoading}
     />
     <EntryOptionRow
       icon={CarrotIcon}
       title="Whole food, no packaging"
-      description="For loose fruit, vegetables, eggs, and other unpackaged food."
+      description="Loose fruit, vegetables, eggs - anything with no label."
       onClick={onWholeFood}
       disabled={isLoading}
     />

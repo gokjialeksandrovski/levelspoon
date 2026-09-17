@@ -52,6 +52,21 @@ describe("contrastRatio", () => {
     expect(contrastRatio("#6E9B66", ESPRESSO)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio("#B16C84", ESPRESSO)).toBeGreaterThanOrEqual(4.5);
   });
+
+  // prefers-contrast: more overrides in globals.css. Muted text must clear
+  // AAA (7:1) and borders the 3:1 non-text floor on every surface they sit on.
+  it("confirms the prefers-contrast: more tokens against every surface", () => {
+    const darkSurfaces = ["#1A1816", "#201D1A", "#262320"];
+    const lightSurfaces = ["#FDFBF7", "#FFFEFC", "#F5F2EA"];
+    for (const surface of darkSurfaces) {
+      expect(contrastRatio("#C9C2B6", surface)).toBeGreaterThanOrEqual(7);
+      expect(contrastRatio("#776F64", surface)).toBeGreaterThanOrEqual(3);
+    }
+    for (const surface of lightSurfaces) {
+      expect(contrastRatio("#45403A", surface)).toBeGreaterThanOrEqual(7);
+      expect(contrastRatio("#8F8778", surface)).toBeGreaterThanOrEqual(3);
+    }
+  });
 });
 
 describe("oklabDistance", () => {

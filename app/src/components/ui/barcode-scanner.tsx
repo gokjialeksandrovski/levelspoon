@@ -225,8 +225,14 @@ interface LiveScanVideoProps {
 // The overlay needs a positioned wrapper, and `hidden` has to sit on that
 // wrapper or it still claims a flex gap once the camera is unavailable.
 const LiveScanVideo = ({ videoRef, hidden, scanningLabel }: LiveScanVideoProps) => (
-  <div className={hidden ? "hidden" : "relative"}>
-    <video ref={videoRef} muted autoPlay playsInline className="w-full rounded-surface border border-border" />
+  <div
+    className={
+      hidden
+        ? "hidden"
+        : "relative overflow-hidden rounded-surface border border-border bg-surface-raised"
+    }
+  >
+    <video ref={videoRef} muted autoPlay playsInline className="max-h-48 w-full object-contain" />
     {scanningLabel && <ScanningOverlay label={scanningLabel} />}
   </div>
 );

@@ -50,25 +50,31 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();
 });
 
-test("removing an ingredient via the confirm sheet takes it off the meal", async ({ page }) => {
+test("removing an ingredient leaves Undo in its place, and Undo puts it back", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
   await logOneIngredient(page);
 
   await page.getByRole("button", { name: "Remove" }).click();
-  await page.getByRole("button", { name: /remove/i }).nth(1).click(); // sheet confirm
-  await expect(page.getByText("Olympus Greek Yogurt 2% Fat")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Remove/ })).toHaveCount(0);
+  await expect(page.getByText("Meal total")).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Undo removing/ }).click();
+  await expect(page.getByRole("button", { name: /Remove/ })).toBeVisible();
+  await expect(page.getByText("Meal total")).toBeVisible();
 });
 
-test("deleting the meal returns to the day view", async ({ page }) => {
+test("deleting the meal returns to the day view, which offers Undo", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
   await logOneIngredient(page);
 
   await page.getByRole("button", { name: "Delete meal" }).click();
-  await page.getByRole("button", { name: /delete/i }).nth(1).click(); // sheet confirm
-  await page.waitForURL(/\/day\//);
-  await expect(page.getByRole("link", { name: /Meal 1/ })).toHaveCount(0);
+  await page.waitForURL(/\/day\/\d{4}-\d{2}-\d{2}$/);
+  await expect(page.getByText("Olympus Greek Yogurt 2% Fat")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Undo deleting the meal" }).click();
+  await expect(page.getByText("Olympus Greek Yogurt 2% Fat")).toBeVisible();
 });
 
 // Fixed (not Date.now()-relative) so the seeded meal's local day never

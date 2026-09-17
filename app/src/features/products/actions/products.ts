@@ -9,7 +9,7 @@ import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { products, productBarcodes, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
-import { getPhotoUrl, uploadPhoto } from "@/lib/s3";
+import { uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
 import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
@@ -38,6 +38,10 @@ export interface ProductCandidate {
   servingUnit: string | null;
   servingGrams: number | null;
   nutritionBasisUnit: string;
+  /** What the nutrition figures above are stated per - 100 for a per-100g
+   * product, 1 for a per-unit one. Needed client-side to scale a typed
+   * amount into a live contribution preview. */
+  nutritionBasisQuantity: number;
 }
 
 export type MatchResult =
@@ -61,6 +65,7 @@ export type CandidateRow = {
   serving_unit: string | null;
   serving_grams: string | null;
   nutrition_basis_unit: string;
+  nutrition_basis_quantity: string;
   score: number;
 };
 
@@ -96,6 +101,7 @@ export const toProductCandidate = async (row: Omit<CandidateRow, "score">): Prom
     servingUnit: row.serving_unit,
     servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
     nutritionBasisUnit: row.nutrition_basis_unit,
+    nutritionBasisQuantity: Number(row.nutrition_basis_quantity),
   };
 };
 
@@ -118,7 +124,7 @@ const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
     SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
            sugars_g, protein_g, salt_g, nutrition_photo_key,
            density_g_ml, serving_unit, serving_grams,
-           nutrition_basis_unit,
+           nutrition_basis_unit, nutrition_basis_quantity,
            similarity(name, ${ocrText}) AS score
     FROM products
     WHERE source = ${USER_SOURCE}
@@ -277,7 +283,6 @@ export const createProduct = async (
 export interface UpdateProductInput {
   name?: string;
   nutritionPer100g: NutritionValues;
-  photo?: Blob;
 }
 
 const assertUpdated = (updated: { id: string }[], productId: string): void => {
@@ -286,15 +291,13 @@ const assertUpdated = (updated: { id: string }[], productId: string): void => {
   }
 };
 
+// The nutrition photo is proof captured once at creation (createProduct) and
+// never replaced afterward - updateProduct only ever touches values/name.
 export const updateProduct = async (
   productId: string,
   updates: UpdateProductInput,
 ): Promise<void> => {
   const userId = await requireUserId();
-  // Replacing a photo leaves the old R2/MinIO object as an orphan (never
-  // deleted) - an accepted simplification, consistent with the master
-  // spec's existing risk-acceptance style (spec §4.2).
-  const photoKey = updates.photo ? await uploadProductPhoto(updates.photo) : undefined;
 
   // A standard row (curated, no owner) must never be silently overwritten via
   // a guessed id (spec §2). Scoping WHERE to source='user' and failing loudly
@@ -304,7 +307,6 @@ export const updateProduct = async (
     .set({
       ...(updates.name !== undefined ? { name: updates.name } : {}),
       ...toNutritionColumns(updates.nutritionPer100g),
-      ...(photoKey ? { nutritionPhotoKey: photoKey } : {}),
       updatedByUserId: userId,
       updatedAt: new Date(),
     })
@@ -318,28 +320,25 @@ export interface ProductForCorrection {
   id: string;
   name: string;
   nutritionPer100g: NutritionValues;
-  photoUrl: string | null; // null only when getPhotoUrl itself failed - degrade, don't block
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
 }
 
+// nutritionPhotoKey stays in the DB as proof, taken at creation - the
+// correction screen never resolves or shows it.
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
   await requireUserId();
   const [product] = await db.select().from(products).where(eq(products.id, productId));
-  // A standard row has no label photo and no "Values look wrong?" path — it is
+  // A standard row has no label photo and no correction path — it is
   // curated, not user-owned. (spec §6)
   if (!product || product.source === STANDARD_SOURCE) {
     return null;
   }
 
-  const photoUrl = product.nutritionPhotoKey
-    ? await getPhotoUrl(product.nutritionPhotoKey).catch(() => null)
-    : null;
   return {
     id: product.id,
     name: product.name,
     nutritionPer100g: fromNutritionColumns(product),
-    photoUrl,
     nutritionBasisUnit: product.nutritionBasisUnit,
     nutritionBasisQuantity: Number(product.nutritionBasisQuantity),
   };
@@ -399,6 +398,7 @@ export interface StandardFood {
   servingGrams: number | null;
   densityGMl: number | null;
   nutritionBasisUnit: string;
+  nutritionBasisQuantity: number;
 }
 
 type StandardFoodRow = SnakeNutritionRow & {
@@ -410,6 +410,7 @@ type StandardFoodRow = SnakeNutritionRow & {
   serving_grams: string | null;
   density_g_ml: string | null;
   nutrition_basis_unit: string;
+  nutrition_basis_quantity: string;
   score: number;
 };
 
@@ -428,6 +429,7 @@ const toStandardFood = (row: StandardFoodRow): StandardFood => ({
   servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
   densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
   nutritionBasisUnit: row.nutrition_basis_unit,
+  nutritionBasisQuantity: Number(row.nutrition_basis_quantity),
 });
 
 const fetchStandardFoodRows = async (
@@ -438,7 +440,8 @@ const fetchStandardFoodRows = async (
   const result = await db.execute<StandardFoodRow>(sql`
     SELECT id, standard_slug, name, standard_category,
            energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g,
-           serving_unit, serving_grams, density_g_ml, nutrition_basis_unit, score
+           serving_unit, serving_grams, density_g_ml, nutrition_basis_unit,
+           nutrition_basis_quantity, score
     FROM (
       SELECT *, similarity(lower(name), lower(${query})) AS score
       FROM products

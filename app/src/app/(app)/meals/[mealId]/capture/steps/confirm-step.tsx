@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckIcon } from "@phosphor-icons/react";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { checkBarcodeBinding } from "@/features/products/actions/barcode";
@@ -11,10 +13,12 @@ import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { FOCUS_RING } from "@/components/ui/tap-target";
 import {
   FIELD_LABELS,
   flaggedFieldSet,
   focusFirstFlagged,
+  NUTRITION_FIELD_GROUPS,
   toFieldValues,
   toNutritionValues,
 } from "@/lib/ocr/nutrition-fields";
@@ -23,7 +27,7 @@ import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
 import { toSelectedProduct } from "../capture-wizard.types";
-import type { NutritionOrigin, WizardAction } from "../capture-wizard.types";
+import type { NutritionOrigin, SelectedProduct, WizardAction } from "../capture-wizard.types";
 
 interface ConfirmStepProps {
   name: string;
@@ -47,7 +51,9 @@ const UNREADABLE_FIELD_ERROR = "Could not read this value - please enter it";
 // saturates > fat) - "Could not read" would be false here.
 const INCONSISTENT_FIELD_ERROR = "This value looks off - please double-check it";
 const SAVE_BLOCKED_ERROR = "Please fix the flagged values before saving.";
-const REJECTED_BARCODE_ERROR = "This code isn't a product barcode.";
+// Different next step from the same rejection on the product-name step: here
+// the product is already in hand, so the way out is the striped code or none.
+const REJECTED_BARCODE_ERROR = "That's not a product barcode. Try the striped code on the packaging, or save without one.";
 const BARCODE_CHECK_ERROR = "Could not check this barcode. Please try again.";
 const SAVE_ERROR = "Could not save this product. Please try again.";
 // A second user's scan/OFF-save of the same not-yet-in-per100 barcode won
@@ -174,13 +180,18 @@ const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResu
   };
 };
 
-const toProductCreatedPayload = (productId: string, input: SaveConfirmInput) => ({
+// The values the user just confirmed are the product's nutrition, so the
+// amount step's preview needs no refetch of the row that was just written.
+const toProductCreatedPayload = (productId: string, input: SaveConfirmInput): SelectedProduct => ({
   id: productId,
   name: input.nameValue,
+  brand: null,
   densityGMl: input.learned.densityGMl,
   servingUnit: input.learned.servingUnit,
   servingGrams: input.learned.servingGrams,
   nutritionBasisUnit: input.nutritionBasisUnit,
+  nutritionBasisQuantity: input.nutritionBasisQuantity,
+  nutritionPerBasis: toNutritionValues(input.values),
 });
 
 const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void): Promise<void> => {
@@ -204,22 +215,28 @@ interface NutritionFieldsProps {
   onFieldBlur: () => void;
 }
 
+// gap-8 between blocks against gap-3 within: seven identical boxes in one
+// even stack give the eye nowhere to rest while it checks them off a label.
 const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: NutritionFieldsProps) => (
-  <>
-    {(Object.keys(FIELD_LABELS) as (keyof FieldValues)[]).map((field) => (
-      <Field
-        key={field}
-        label={FIELD_LABELS[field]}
-        name={field}
-        type="number"
-        value={values[field]}
-        onChange={(event) => onFieldChange(field, event.target.value)}
-        onBlur={onFieldBlur}
-        flagged={flaggedFields.has(field)}
-        error={errorFor(field, flaggedFields, values)}
-      />
+  <div className="flex flex-col gap-8">
+    {NUTRITION_FIELD_GROUPS.map((group) => (
+      <div key={group[0]} className="flex flex-col gap-3">
+        {group.map((field) => (
+          <Field
+            key={field}
+            label={FIELD_LABELS[field]}
+            name={field}
+            type="number"
+            value={values[field]}
+            onChange={(event) => onFieldChange(field, event.target.value)}
+            onBlur={onFieldBlur}
+            flagged={flaggedFields.has(field)}
+            error={errorFor(field, flaggedFields, values)}
+          />
+        ))}
+      </div>
     ))}
-  </>
+  </div>
 );
 
 interface SaveConfirmInput {
@@ -340,6 +357,89 @@ const ProductNameField = ({ value, onChange }: ProductNameFieldProps) => (
   <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
 );
 
+// A data URL, not an object URL. usePreviewUrl gets away with an object URL
+// because it creates one in an event handler, well after effects settle; one
+// created for a prop is revoked by StrictMode's dev double-effect before the
+// expanded <Image> can fetch it again. A data URL has nothing to revoke.
+//
+// setUrl runs in the reader's callback, never in the effect body, which this
+// repo's lint rejects. Null whenever no label photo was taken - the barcode
+// path reaches this step straight from Open Food Facts.
+const useLabelPhotoUrl = (blob: Blob | undefined): string | null => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!blob) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setUrl(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(blob);
+    return () => reader.abort();
+  }, [blob]);
+
+  return url;
+};
+
+// Same treatment PhotoPreview uses for an object URL: intrinsic size is
+// unknowable here, and the bytes are already local so there is nothing to
+// optimise.
+const LABEL_PHOTO_SIZE_PX = 300;
+const LABEL_PHOTO_EXPANDED_HEIGHT = "max-h-72";
+
+// Collapsed, this is a thumbnail and a label, not a squashed photo: a
+// nutrition label is portrait, so any strip-height rendering of it is either
+// a crop that misses the table or a postage stamp in an empty bar. The
+// thumbnail says which photo, the text says what tapping does.
+const CollapsedLabelPhoto = ({ url }: { url: string }) => (
+  <span className="flex items-center gap-3">
+    <Image
+      src={url}
+      alt=""
+      width={LABEL_PHOTO_SIZE_PX}
+      height={LABEL_PHOTO_SIZE_PX}
+      unoptimized
+      className="size-10 shrink-0 rounded-control object-cover"
+    />
+    <span className="text-sm text-text-muted">Label photo — tap to check against it</span>
+  </span>
+);
+
+const ExpandedLabelPhoto = ({ url }: { url: string }) => (
+  <Image
+    src={url}
+    alt="The nutrition label these values were read from"
+    width={LABEL_PHOTO_SIZE_PX}
+    height={LABEL_PHOTO_SIZE_PX}
+    unoptimized
+    className={`w-full rounded-control object-contain ${LABEL_PHOTO_EXPANDED_HEIGHT}`}
+  />
+);
+
+// The screen asks the user to check seven numbers against the label, so the
+// label stays reachable while they scroll the fields.
+//
+// Sticky only while collapsed - pinning the expanded photo would hold ~40% of
+// a phone screen for the whole scroll.
+//
+// No size transition: the only honest way to animate this is a height change,
+// which the project's motion rules rule out.
+const LabelPhotoStrip = ({ url }: { url: string }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded((open) => !open)}
+      aria-expanded={expanded}
+      aria-label={expanded ? "Collapse label photo" : "Expand label photo"}
+      className={`z-10 -mx-4 block w-[calc(100%+2rem)] border-b border-border bg-surface-raised px-4 py-2 text-left ${expanded ? "" : "sticky top-0"} ${FOCUS_RING}`}
+    >
+      {expanded ? <ExpandedLabelPhoto url={url} /> : <CollapsedLabelPhoto url={url} />}
+    </button>
+  );
+};
+
 interface BarcodeAttachmentControlProps {
   pendingBarcode: string | null;
   attachment: UseBarcodeAttachmentResult;
@@ -363,13 +463,25 @@ const ConflictNotice = ({ conflict, dispatch }: ConflictNoticeProps) => (
   </div>
 );
 
+// min-h-11 puts the whole label row on the 44px floor. The native box is
+// hidden with appearance-none but stays the real input (keyboard, screen
+// reader, form state); the check glyph is drawn over it off peer-checked.
 const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
-  <label className="flex items-center gap-2 text-sm text-text">
-    <input
-      type="checkbox"
-      checked={attachment.checked}
-      onChange={(event) => attachment.toggleChecked(event.target.checked)}
-    />
+  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
+    <span className="relative grid size-6 shrink-0 place-items-center">
+      <input
+        type="checkbox"
+        checked={attachment.checked}
+        onChange={(event) => attachment.toggleChecked(event.target.checked)}
+        className="peer size-6 cursor-pointer appearance-none rounded-md border-2 border-text-muted transition-colors checked:border-text checked:bg-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+      />
+      <CheckIcon
+        size={16}
+        weight="bold"
+        aria-hidden="true"
+        className="pointer-events-none absolute text-bg opacity-0 transition-opacity peer-checked:opacity-100"
+      />
+    </span>
     Use the barcode you just scanned for this product
   </label>
 );
@@ -399,7 +511,7 @@ const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: Barc
   }
   return (
     <Button variant="ghost" link onClick={attachment.startScan}>
-      Help the app — scan this product&apos;s barcode
+      Scan the barcode to find this product instantly next time
     </Button>
   );
 };
@@ -407,9 +519,11 @@ const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: Barc
 export const ConfirmStep = (props: ConfirmStepProps) => {
   const attachment = useBarcodeAttachment(props);
   const form = useConfirmStepForm(props, attachment.barcodeToAttach);
+  const photoUrl = useLabelPhotoUrl(props.photo);
 
   return (
     <div className="flex flex-col gap-4">
+      {photoUrl && <LabelPhotoStrip url={photoUrl} />}
       <h2 className="text-lg font-semibold">Confirm nutrition (per {props.nutritionBasisQuantity} {props.nutritionBasisUnit})</h2>
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />

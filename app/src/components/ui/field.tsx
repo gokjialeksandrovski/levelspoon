@@ -7,12 +7,16 @@ interface FieldProps {
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur?: () => void;
   required?: boolean;
+  minLength?: number;
   error?: string;
   flagged?: boolean;
   inputMode?: "numeric" | "decimal" | "text";
   helperText?: string;
   autoComplete?: string;
   autoFocus?: boolean;
+  // In-field trailing control (password reveal, unit picker). Overlaid on the
+  // input rather than placed beside it so the box stays one visual control.
+  trailing?: React.ReactNode;
 }
 
 // py-3 matches Button's 4pt-scale correction so a Field and adjacent Button
@@ -64,30 +68,36 @@ const FieldMessage = ({ name, helperText, error, flagged }: FieldMessageProps) =
 
 export const Field = ({
   label, name, type = "text", defaultValue, value, onChange, onBlur,
-  required = false, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
+  required = false, minLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
+  trailing,
 }: FieldProps) => (
   <div className="flex flex-col gap-2">
     <label htmlFor={name} className="text-xs font-medium text-text-muted">
       {label}
     </label>
-    <input
-      id={name}
-      name={name}
-      type={type}
-      inputMode={inputMode}
-      autoComplete={autoComplete}
-      // True only when a caller mounts this in direct response to a user action
-      // (e.g. ingredient row's inline Edit) - never a page-load focus steal.
-      autoFocus={autoFocus}
-      defaultValue={defaultValue}
-      value={value}
-      onChange={onChange}
-      onBlur={onBlur}
-      required={required}
-      aria-invalid={flagged || Boolean(error)}
-      aria-describedby={describedById(name, helperText, error)}
-      className={fieldInputClassName(flagged, error)}
-    />
+    <div className="relative flex flex-col">
+      <input
+        id={name}
+        name={name}
+        type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        // True only when a caller mounts this in direct response to a user action
+        // (e.g. ingredient row's inline Edit) - never a page-load focus steal.
+        autoFocus={autoFocus}
+        defaultValue={defaultValue}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        required={required}
+        minLength={minLength}
+        aria-invalid={flagged || Boolean(error)}
+        aria-describedby={describedById(name, helperText, error)}
+        className={`${fieldInputClassName(flagged, error)} ${trailing ? "pr-14" : ""}`}
+      />
+      {/* pr-1 keeps the 44px control's own ring clear of the input's border. */}
+      {trailing && <div className="absolute inset-y-0 right-0 flex items-center pr-1">{trailing}</div>}
+    </div>
     <FieldMessage name={name} helperText={helperText} error={error} flagged={flagged} />
   </div>
 );
