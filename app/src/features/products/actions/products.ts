@@ -124,15 +124,36 @@ export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number
   return { top1: Number(rows[0].score), top2: rows.length > 1 ? Number(rows[1].score) : 0 };
 };
 
-const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
+/**
+ * Who may be offered this product.
+ *
+ * The products table is a cross-user cache, so a row another user is offered
+ * has to be checkable by someone other than whoever typed it: a stored label
+ * photo, or a barcode that resolves to one. A row with neither is real and
+ * logged like any other - it is just nobody else's business.
+ *
+ * Derived, not stored: linkBarcode attaches a barcode to an already-created
+ * product, so a persisted flag would need keeping in step there too. This way
+ * the row is promoted the moment the barcode lands.
+ *
+ * Expects the products table aliased as `p`.
+ */
+const visibleToUser = (userId: string) => sql`
+  (p.nutrition_photo_key IS NOT NULL
+   OR p.created_by_user_id = ${userId}
+   OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.product_id = p.id))
+`;
+
+const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
-    SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
-           sugars_g, protein_g, salt_g, nutrition_photo_key,
-           density_g_ml, serving_unit, serving_grams,
-           nutrition_basis_unit, nutrition_basis_quantity,
-           similarity(name, ${ocrText}) AS score
-    FROM products
-    WHERE source = ${USER_SOURCE}
+    SELECT p.id, p.name, p.brand, p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g,
+           p.sugars_g, p.protein_g, p.salt_g, p.nutrition_photo_key,
+           p.density_g_ml, p.serving_unit, p.serving_grams,
+           p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           similarity(p.name, ${ocrText}) AS score
+    FROM products p
+    WHERE p.source = ${USER_SOURCE}
+      AND ${visibleToUser(userId)}
     ORDER BY score DESC
     LIMIT ${CANDIDATE_LIMIT}
   `);
@@ -140,8 +161,8 @@ const fetchCandidateRows = async (ocrText: string): Promise<CandidateRow[]> => {
 };
 
 export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
-  await requireUserId();
-  const rows = await fetchCandidateRows(ocrText);
+  const userId = await requireUserId();
+  const rows = await fetchCandidateRows(ocrText, userId);
 
   if (rows.length === 0) {
     return { kind: "no_match" };
@@ -176,21 +197,22 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
  * and a typed search is for packaged products.
  */
 export const searchUserProducts = async (query: string): Promise<ProductCandidate[]> => {
-  await requireUserId();
+  const userId = await requireUserId();
   const tokens = toLikeTokens(query);
   if (tokens.length === 0) {
     return [];
   }
 
-  const tokenFilters = tokens.map((token) => sql`AND name ILIKE ${`%${token}%`}`);
+  const tokenFilters = tokens.map((token) => sql`AND p.name ILIKE ${`%${token}%`}`);
   const result = await db.execute<CandidateRow>(sql`
-    SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
-           sugars_g, protein_g, salt_g, nutrition_photo_key,
-           density_g_ml, serving_unit, serving_grams,
-           nutrition_basis_unit, nutrition_basis_quantity,
-           similarity(name, ${query}) AS score
-    FROM products
-    WHERE source = ${USER_SOURCE}
+    SELECT p.id, p.name, p.brand, p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g,
+           p.sugars_g, p.protein_g, p.salt_g, p.nutrition_photo_key,
+           p.density_g_ml, p.serving_unit, p.serving_grams,
+           p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           similarity(p.name, ${query}) AS score
+    FROM products p
+    WHERE p.source = ${USER_SOURCE}
+      AND ${visibleToUser(userId)}
     ${sql.join(tokenFilters, sql` `)}
     ORDER BY score DESC, name ASC
     LIMIT ${TYPED_SEARCH_LIMIT}
@@ -405,15 +427,16 @@ const toNumberOrNull = (value: string | null): number | null =>
  * to NOTHING_LEARNED and the caller asks the user instead of guessing.
  */
 export const findStoredMeasures = async (productName: string): Promise<LearnedMeasures> => {
-  await requireUserId();
+  const userId = await requireUserId();
   // source = user only: a standard row (USDA "Egg", "Banana") sharing a name
   // must never lend its learned serving weight to an OCR'd label (spec §10, §6).
   const result = await db.execute<StoredMeasuresRow>(sql`
-    SELECT density_g_ml, serving_unit, serving_grams
-    FROM products
-    WHERE lower(trim(name)) = lower(trim(${productName}))
-      AND source = ${USER_SOURCE}
-    ORDER BY id
+    SELECT p.density_g_ml, p.serving_unit, p.serving_grams
+    FROM products p
+    WHERE lower(trim(p.name)) = lower(trim(${productName}))
+      AND p.source = ${USER_SOURCE}
+      AND ${visibleToUser(userId)}
+    ORDER BY p.id
     LIMIT 1
   `);
   const [row] = result.rows;

@@ -24,26 +24,36 @@ const seedUser = async (): Promise<string> => {
 const seedProduct = async (
   userId: string,
   name: string,
-  overrides: { servingUnit?: string | null; servingGrams?: number | null; densityGMl?: string | null } = {},
-) => {
-  await db.insert(products).values({
-    name,
-    energyKcal: "70",
-    fatG: "2.0",
-    saturatesG: "1.2",
-    carbohydrateG: "4.0",
-    sugarsG: "4.0",
-    proteinG: "9.0",
-    saltG: "0.18",
-    nutritionPhotoKey: "test/placeholder.jpg",
-    createdByUserId: userId,
-    servingUnit: overrides.servingUnit ?? null,
-    servingGrams:
-      overrides.servingGrams === undefined || overrides.servingGrams === null
-        ? null
-        : String(overrides.servingGrams),
-    densityGMl: overrides.densityGMl ?? null,
-  });
+  overrides: {
+    servingUnit?: string | null;
+    servingGrams?: number | null;
+    densityGMl?: string | null;
+    nutritionPhotoKey?: string | null;
+  } = {},
+): Promise<string> => {
+  const [row] = await db
+    .insert(products)
+    .values({
+      name,
+      energyKcal: "70",
+      fatG: "2.0",
+      saturatesG: "1.2",
+      carbohydrateG: "4.0",
+      sugarsG: "4.0",
+      proteinG: "9.0",
+      saltG: "0.18",
+      nutritionPhotoKey:
+        overrides.nutritionPhotoKey === undefined ? "test/placeholder.jpg" : overrides.nutritionPhotoKey,
+      createdByUserId: userId,
+      servingUnit: overrides.servingUnit ?? null,
+      servingGrams:
+        overrides.servingGrams === undefined || overrides.servingGrams === null
+          ? null
+          : String(overrides.servingGrams),
+      densityGMl: overrides.densityGMl ?? null,
+    })
+    .returning({ id: products.id });
+  return row.id;
 };
 
 const seedStandardRow = async (row: {
@@ -745,6 +755,94 @@ describe("findStoredMeasures", () => {
       servingUnit: "bar",
       servingGrams: 99,
     });
+  });
+});
+
+describe("private products", () => {
+  const PHOTOLESS = { nutritionPhotoKey: null };
+
+  it("keeps another user's photo-less product out of the match candidates", async () => {
+    const author = await seedUser();
+    const other = await seedUser();
+    await seedProduct(author, "Bella Farm Yoghurt", PHOTOLESS);
+    mockAuth.mockResolvedValue({ user: { id: other } });
+
+    const result = await matchProduct("Bella Farm Yoghurt");
+
+    expect(result).toEqual({ kind: "no_match" });
+  });
+
+  it("offers the author their own photo-less product", async () => {
+    const author = await seedUser();
+    await seedProduct(author, "Bella Farm Yoghurt", PHOTOLESS);
+    mockAuth.mockResolvedValue({ user: { id: author } });
+
+    const result = await matchProduct("Bella Farm Yoghurt");
+
+    expect(result.kind).toBe("confident");
+  });
+
+  it("shares a photo-less product once a barcode is linked to it", async () => {
+    const author = await seedUser();
+    const other = await seedUser();
+    const productId = await seedProduct(author, "Bella Farm Yoghurt", PHOTOLESS);
+    await db.insert(productBarcodes).values({
+      barcode: "4006381333931",
+      productId,
+      createdByUserId: author,
+    });
+    mockAuth.mockResolvedValue({ user: { id: other } });
+
+    const result = await matchProduct("Bella Farm Yoghurt");
+
+    expect(result.kind).toBe("confident");
+  });
+
+  it("keeps another user's photo-less product out of typed search", async () => {
+    const author = await seedUser();
+    const other = await seedUser();
+    await seedProduct(author, "Bella Farm Yoghurt", PHOTOLESS);
+    mockAuth.mockResolvedValue({ user: { id: other } });
+
+    const hits = await searchUserProducts("bella");
+
+    expect(hits).toEqual([]);
+  });
+
+  it("finds the author's own photo-less product in typed search", async () => {
+    const author = await seedUser();
+    await seedProduct(author, "Bella Farm Yoghurt", PHOTOLESS);
+    mockAuth.mockResolvedValue({ user: { id: author } });
+
+    const hits = await searchUserProducts("bella");
+
+    expect(hits.map((hit) => hit.name)).toEqual(["Bella Farm Yoghurt"]);
+  });
+
+  it("does not lend a private product's learned measures to another user", async () => {
+    const author = await seedUser();
+    const other = await seedUser();
+    await seedProduct(author, "Protein Bar", { ...PHOTOLESS, servingUnit: "bar", servingGrams: 60 });
+    mockAuth.mockResolvedValue({ user: { id: other } });
+
+    const learned = await findStoredMeasures("Protein Bar");
+
+    expect(learned.servingGrams).toBeNull();
+  });
+
+  it("saves a product with neither a photo nor a barcode", async () => {
+    const author = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: author } });
+
+    const { productId } = await createProduct({
+      name: "Six Eggs From The Market",
+      nutritionPer100g: {
+        energyKcal: 70, fatG: 2, saturatesG: 1.2, carbohydrateG: 4,
+        sugarsG: 4, proteinG: 9, saltG: 0.18,
+      },
+    });
+
+    expect(productId).toBeTruthy();
   });
 });
 
