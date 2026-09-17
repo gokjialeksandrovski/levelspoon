@@ -9,7 +9,7 @@ import { products, productBarcodes, users } from "@/lib/db/schema";
 import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
-import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, topTwoScores, updateProduct } from "./products";
+import { createProduct, findStoredMeasures, getProductForCorrection, matchProduct, searchStandardFoods, searchUserProducts, topTwoScores, updateProduct } from "./products";
 import type { CandidateRow } from "./products";
 import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
 
@@ -262,6 +262,68 @@ describe("searchStandardFoods", () => {
     mockAuth.mockResolvedValue(null);
 
     await expect(searchStandardFoods("banana")).rejects.toThrow();
+  });
+});
+
+describe("searchUserProducts", () => {
+  it("finds a product from a single keyword in the middle of its name", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const results = await searchUserProducts("yogh");
+
+    expect(results.map((row) => row.name)).toEqual(["Bella Farm YOGHURT 2,8% m.m 1kr/kg"]);
+  });
+
+  it("matches a leading keyword case-insensitively", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect((await searchUserProducts("BELLA")).length).toBe(1);
+  });
+
+  it("requires every token to appear, so a wrong second word excludes the row", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect(await searchUserProducts("bella cheese")).toEqual([]);
+    expect((await searchUserProducts("bella yoghurt")).length).toBe(1);
+  });
+
+  it("never returns standard rows - a typed search is for packaged products", async () => {
+    const userId = await seedUser();
+    await seedStandardRow({ slug: "banana", name: "Banana" });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect(await searchUserProducts("banana")).toEqual([]);
+  });
+
+  it("treats a typed % as a literal, not a wildcard", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    await seedProduct(userId, "Plain Skyr");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect((await searchUserProducts("2%")).map((row) => row.name)).toEqual([
+      "Olympus Greek Yogurt 2% Fat",
+    ]);
+  });
+
+  it("returns nothing for a blank query rather than every product", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect(await searchUserProducts("   ")).toEqual([]);
+  });
+
+  it("requires a signed-in user", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    await expect(searchUserProducts("bella")).rejects.toThrow();
   });
 });
 

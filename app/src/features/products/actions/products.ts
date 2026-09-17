@@ -7,6 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
+import { toLikeTokens } from "@/lib/db/like-tokens";
 import { products, productBarcodes, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import { uploadPhoto } from "@/lib/s3";
@@ -21,6 +22,10 @@ const CONFIDENT_SIMILARITY_THRESHOLD = 0.65;
 const CONFIDENT_MARGIN = 0.15;
 const AMBIGUOUS_SIMILARITY_THRESHOLD = 0.35;
 const CANDIDATE_LIMIT = 5;
+// A pick list, not the shared-cache write path, so the margin rule (§1) does
+// not apply here - the user picks the row, nothing auto-accepts. Same limit
+// as searchStandardFoods so both pick lists fill one phone screen.
+const TYPED_SEARCH_LIMIT = 8;
 
 // productSource.enumValues is the tuple ["user", "standard"].
 const STANDARD_SOURCE = productSource.enumValues[1];
@@ -155,6 +160,42 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
     return { kind: "ambiguous", candidates: await Promise.all(rows.filter(isRelevantScore).map(toProductCandidate)) };
   }
   return { kind: "no_match" };
+};
+
+/**
+ * Typed-name search over the user-contributed products.
+ *
+ * Every token must appear somewhere in the name (ILIKE), ranked by whole-string
+ * trigram similarity so the closest name still sorts first. Deliberately NOT
+ * matchProduct: that one scores the whole OCR string and owns the confident/
+ * ambiguous margin that guards the shared cache. Typing "bella" scores ~0.1
+ * against "Bella Farm YOGHURT 2,8% m.m 1kr/kg", below the 0.35 floor - correct
+ * for an OCR string, useless for a keyword.
+ *
+ * source = 'user' only: standard rows have their own picker (searchStandardFoods)
+ * and a typed search is for packaged products.
+ */
+export const searchUserProducts = async (query: string): Promise<ProductCandidate[]> => {
+  await requireUserId();
+  const tokens = toLikeTokens(query);
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const tokenFilters = tokens.map((token) => sql`AND name ILIKE ${`%${token}%`}`);
+  const result = await db.execute<CandidateRow>(sql`
+    SELECT id, name, brand, energy_kcal, fat_g, saturates_g, carbohydrate_g,
+           sugars_g, protein_g, salt_g, nutrition_photo_key,
+           density_g_ml, serving_unit, serving_grams,
+           nutrition_basis_unit, nutrition_basis_quantity,
+           similarity(name, ${query}) AS score
+    FROM products
+    WHERE source = ${USER_SOURCE}
+    ${sql.join(tokenFilters, sql` `)}
+    ORDER BY score DESC, name ASC
+    LIMIT ${TYPED_SEARCH_LIMIT}
+  `);
+  return Promise.all(result.rows.map(toProductCandidate));
 };
 
 export interface CreateProductInput {
