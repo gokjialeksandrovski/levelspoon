@@ -12,15 +12,13 @@ export const FOCUS_RING =
 // Ring drawn on the child <span>, not the 44px hit box: the hit box may
 // overlap neighbours invisibly, but a ring on it would collide with the
 // row above. Every TAP_HIT_AREA_* consumer wraps its label in a <span>.
+// Direct child, not descendant: a nested span (an icon's motion wrapper)
+// would otherwise draw a second ring around itself.
 const TEXT_LINK_RING =
-  "focus-visible:outline-none [&:focus-visible_span]:outline [&:focus-visible_span]:outline-2 [&:focus-visible_span]:outline-offset-2 [&:focus-visible_span]:outline-text [&:focus-visible_span]:rounded-xs";
+  "focus-visible:outline-none [&:focus-visible>span]:outline [&:focus-visible>span]:outline-2 [&:focus-visible>span]:outline-offset-2 [&:focus-visible>span]:outline-text [&:focus-visible>span]:rounded-xs";
 
 export const TAP_HIT_AREA_SM = `-my-3 -mx-1 px-1 py-3 ${TEXT_LINK_RING}`;
 export const TAP_HIT_AREA_XS = `-my-3.5 -mx-1 px-1 py-3.5 ${TEXT_LINK_RING}`;
-
-// Recurring secondary affordance: muted underlined text button with the SM
-// hit-area applied. Wrap the label in a <span> for the focus ring.
-export const TEXT_LINK_SM = `${TAP_HIT_AREA_SM} text-sm text-text-muted underline`;
 
 // Real padding (not the negative-margin trick above) for icon-only header
 // controls, which have room to spare - avoids adjacent hit-areas overlapping.

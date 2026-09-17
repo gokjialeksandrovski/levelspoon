@@ -4,7 +4,7 @@ import { CaretDownIcon } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 import { useId, useState } from "react";
 
-import { TEXT_LINK_SM } from "./tap-target";
+import { Button } from "./button";
 
 interface DisclosureProps {
   label: string;
@@ -29,7 +29,7 @@ interface DisclosureTriggerProps {
 }
 
 const DisclosureTrigger = ({ label, isOpen, contentId, reduceMotion, onToggle }: DisclosureTriggerProps) => (
-  <button type="button" aria-expanded={isOpen} aria-controls={contentId} onClick={onToggle} className={TEXT_LINK_SM}>
+  <Button variant="ghost" link aria-expanded={isOpen} aria-controls={contentId} onClick={onToggle}>
     <span className="inline-flex items-center gap-1">
       {label}
       <motion.span
@@ -40,7 +40,7 @@ const DisclosureTrigger = ({ label, isOpen, contentId, reduceMotion, onToggle }:
         <CaretDownIcon size={CHEVRON_ICON_SIZE} />
       </motion.span>
     </span>
-  </button>
+  </Button>
 );
 
 // grid-template-rows (0fr -> 1fr), not height directly, per the app's motion
