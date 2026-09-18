@@ -4,8 +4,8 @@
  * In code rather than the database for the same reason `densities.ts` gives:
  * these change with releases, not with users, and a pure table is what keeps
  * portion resolution testable without Postgres. A user who disagrees with a
- * figure overrides it per-product (playbook 04) - the table is the default,
- * not the last word.
+ * figure overrides it per-product (`portion_overrides`) - the table is the
+ * default, not the last word.
  *
  * Every figure below is the EDIBLE portion. Shell, rind, and packaging never
  * count: the per-100g nutrition these multiply is stated for edible food.

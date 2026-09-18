@@ -1,24 +1,28 @@
 # Per100
 
-Nutrition/meal-logging app. `docs/superpowers/archive/` hold design specs
-and implementation plans for shipped milestones (M0-M3, app redesign &
-quick-log) — old record, not current status; checklists inside never edited back after implementation, so ignore checkbox state.
+Nutrition/meal-logging app. Working rules live in `CLAUDE.md`; why the app is
+shaped this way, and what was tried and dropped, in `docs/DECISIONS.md`.
+`docs/superpowers/plans/` hold one playbook per shipped feature — a record of
+how something was built, not current status.
 
-## Current milestone: direct Gemini quantity estimation
+## Current state
 
-Before M4 — see
-`docs/superpowers/specs/2026-09-03-direct-gemini-quantity-estimation-design.md`.
-This replace self-hosted OmniRoute gateway approach
-(`2026-08-31-omniroute-quantity-provider-design.md`, kept as old record
-only — gateway and container gone now).
-M4 (provision cloud) start again once this land.
+M0-M3, app redesign & quick-log, the Warm Tactile re-theme, the deterministic
+nutrition pipeline and the direct-Gemini switch all shipped. So did typed
+product search, per-user nutrition overrides, and the portion stack: quick
+amount chips ("1 slice · 28 g"), per-user portion weights, and recent amounts
+that offer back however a product was last logged.
 
-### Known gap: no capture path for unpackaged/solid food
+Next: playbook 06 (cup measure), then M4 — provision cloud. Neither started.
 
-Product database come all from OCR'd packaging text
-(`matchProduct`/`createProduct`). Food with no label — loose egg, potato,
-piece of fruit — got nothing for OCR read and no product row
-to match, so no way to log it now. Flagged during 2026-08-31 design pass; need own design pass before M4 start.
+### Known gap: no *photo* path for unpackaged food
+
+A loose egg, potato or apple is loggable by name today — 212 curated standard
+foods, each with tappable portions. What is missing is reading an unpackaged
+food from a photo: the product database's photo path is still OCR'd packaging
+text (`matchProduct`/`createProduct`), so a food with no label cannot be
+captured by camera, and one outside the curated 212 cannot be captured at all.
+Own design pass before M4.
 
 ### Setup
 
@@ -49,11 +53,15 @@ running container.
 | `npm run db:seed` | Seed test user and 2%/10% variant pair |
 | `npm run db:reset` | Drop, migrate, seed — clean slate for repeatable run |
 | `npm run test` | Tier-2 tests against real local Postgres (go into `app/`) |
+| `npm run test:e2e` | Playwright, mocked providers — only Postgres needed |
+| `npm run test:e2e:real` | Playwright against the real OCR stack |
+| `npm run report:photo-debt` | Derived JSON: products with a reformulation claim |
+| `cd app && npm run check:portion-classes` | Portion-class gate over the 212 curated foods |
 
 `npm run lint` at repo root only run Ruff (Python) — it do **not** lint
 Next.js app. Run `cd app && npm run lint` separate to check app's
-own ESLint + Clean Code rules; this Milestone Exit Criterion for M2a and
-easy to miss otherwise.
+own ESLint + Clean Code rules; this a milestone exit criterion and easy to
+miss otherwise.
 
 Docker Desktop must run. It installed per-user here, so `docker`
 sit on **User** PATH at `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin`.

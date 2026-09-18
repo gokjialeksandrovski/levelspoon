@@ -7,8 +7,8 @@ import type { PortionClass } from "./portions";
  * product OCR'd from a label states nothing, so its romanized name is read
  * for a token that names a shape. The second route is a guess, and it is
  * only safe because of what sits around it: a wrong guess costs one tap to
- * correct (playbook 04), and no match at all falls back to whatever the
- * label itself taught.
+ * correct in the portion editor, and no match at all falls back to whatever
+ * the label itself taught.
  */
 
 const CLASS_BY_SLUG: Readonly<Record<string, PortionClass>> = {

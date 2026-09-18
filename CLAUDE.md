@@ -19,7 +19,12 @@ Monorepo.
 - `ocr-service/` — FastAPI + PaddleOCR (Python). Warm, always-on.
 - `fixtures/` — committed test corpus (photos, OCR boxes, golden values).
 - `scripts/` — dev/verification scripts. `venv-run.mjs` runs Python via `.venv`.
-- `docs/` — `DECISIONS.md` only. Old plans/specs deleted 2026-09-10; recover from git history.
+- `docs/` — `DECISIONS.md`, plus `superpowers/`: `plans/` (one playbook per
+  shipped feature, checkboxes ticked and Proof output pasted), `specs/`, and
+  `toolbox/INDEX.md`. Pre-2026-09-10 plans/specs deleted; recover from git
+  history. **`toolbox/INDEX.md` RULEs bind** — each names the one file a kind
+  of change belongs in. Read it before adding a portion figure, a chip source,
+  or a per-user override.
 
 Data: Postgres (local via `docker-compose.dev.yml`, host port **15432** — remapped, dodge native PG18 conflict). Drizzle ORM. Auth.js v5, Credentials provider, **JWT sessions**. Photo storage: one S3-compatible client — MinIO locally, R2 in prod, `S3_ENDPOINT` only difference, no branching in app code.
 
@@ -39,6 +44,8 @@ Run from repo root.
 | `npm run test:ocr` | tier-1 OCR unit tests, no Docker |
 | `npm run verify:ocr` | tier-4 gate: real photos through the real service |
 | `npm run lint` | Ruff (Python) only |
+| `npm run report:photo-debt` | derived JSON, one entry per product with a reformulation claim |
+| `cd app && npm run check:portion-classes` | portion-class gate — 212 curated foods, must exit 0 |
 
 `npm run lint` at root do **not** lint app. Run `cd app && npm run lint`
 separate for ESLint + Clean Code — easy miss, this a milestone exit
@@ -165,9 +172,56 @@ validate. `reading.py` shared result shape for both branches.
 ## Household measure → grams
 
 Pure library at `app/src/lib/measures/`, plus learned gram value stored on
-product row. **Not** AI or gateway lookup. One count unit per product.
-Per-product learned density — no user-editable density table, no cross-product
-inference.
+product row. **Not** AI or gateway lookup. Per-product learned density — no
+user-editable density table, no cross-product inference.
+
+One *learned* count unit per product: `learnFromServing` records a single
+`serving_unit`/`serving_grams` pair, because that is all a label ever teaches.
+Portions are a second layer above it — see below.
+
+## Portions, chips and recent amounts
+
+A portion is an amount nobody printed on a label: a slice of bread, an EU egg
+grade, a cup of cooked rice. Curated, not learned, and layered like this:
+
+- `portions.ts` — gram figures by portion class. **Every new figure goes here,
+  never inline at a call site, never in the database.** Each carries a comment
+  naming its source, and is edible weight (no shell, no packaging).
+- `portion-class.ts` — which class a product is, by `standard_slug` or by
+  romanized name. Cup classes are slug-only. Two name matches means no match.
+- `resolve-portions.ts` — **the only place portion precedence is decided**.
+  Most specific wins: the user's override beats what this product's label
+  taught, which beats the class default. Slug beats name for picking the
+  class, and a product whose nutrition basis is not `g` gets no portions at
+  all. A consumer gets a finished `Portion[]` and never re-merges.
+- `portion_overrides` — per-user grams for one label of one product. **Never
+  write a portion weight to `products`.** Read it as a correlated
+  `jsonb_object_agg` subquery, never a `LEFT JOIN`: one row per label, and a
+  join multiplies search results.
+- `meal_ingredients.entry_count` / `entry_unit` — what the user actually said,
+  beside the resolved `quantity`/`quantity_unit`. Nullable, no backfill.
+  **Nutrition maths reads `quantity` only**; these two are for display
+  (`quantityText`) and for recents. Every write path that saves or edits an
+  amount fills them.
+- `recentAmounts` (`features/meals/actions/meals.ts`) — the two most recent
+  distinct units for a product, newest first, soft-deleted rows excluded.
+  `RECENT_AMOUNT_LIMIT` decides how many. Never re-resolve the weight; it
+  comes off the stored `quantity`.
+
+Two UI rules fall out of this, both easy to break:
+
+- **One chip row, never two.** A new chip source adds a builder to
+  `amount-chips.utils.ts` and merges into the same list (`mergeChips`, recents
+  first). Every chip prints its gram weight. Both amount screens — the capture
+  step and the cooking-fat sheet — render the same `AmountChips`.
+- **A value gets one control.** `unitsForSelect` drops any unit already
+  offered as a chip from the unit select, keeping only the unit in play so the
+  select can always show its own value.
+
+Re-run `cd app && npm run check:portion-classes` after touching `PortionClass`,
+`CLASS_BY_SLUG`, `NAME_TOKENS_BY_CLASS`, `EXCLUDED_TOKENS_BY_CLASS` or
+`fixtures/standard-foods.json`. It must exit 0 — a conflict is a portion chip
+about to appear on a food nobody measures that way.
 
 ## Time
 
@@ -212,14 +266,15 @@ per request), never server's UTC day.
   (`drizzle.config.ts`, `vitest.config.ts`, `next.config.ts`,
   `eslint.config.mjs`) keep their default exports — compliant, not finding.
 - **Named error types are judgment-only, not linted.** A named class earns
-  its keep only where something discriminates on it — today just
-  `BarcodeAlreadyLinkedError` (`confirm-step.tsx`). Name a failure when a
-  caller or test must tell it apart from its siblings; leave a bare
+  its keep only where something discriminates on it. Production code still
+  discriminates exactly one — `BarcodeAlreadyLinkedError` (`confirm-step.tsx`);
+  tests discriminate six more, which is also a reason to name one. Of 16
+  classes in `app/src`, nine go undiscriminated anywhere. Name a failure when
+  a caller or test must tell it apart from its siblings; leave a bare
   `throw new Error` for boot-time invariants nothing can catch (missing env
   var in `lib/s3.ts`, `lib/db/index.ts`, `lib/ocr/http-provider.ts`). A
   blanket ESLint ban was considered and rejected 2026-09-17: it cannot see
-  which throws are domain failures, and 5 of this repo's 6 named error
-  classes already go undiscriminated.
+  which throws are domain failures.
 - Impure/heavy deps sit behind env-var-selected interface: `OCR_PROVIDER`
   and `QUANTITY_PROVIDER` pick real vs mock. `.env.example` default both to
   `mock` — real deployment must set them or every photo return canned
@@ -229,6 +284,14 @@ per request), never server's UTC day.
 - `StepView` (`capture-wizard.tsx`) use a `switch`, never `Record` lookup —
   TypeScript narrow discriminated union per `switch` case, not through
   object lookup without unsafe cast.
+- `StepView` and `wizardReducer` carry the repo's only two
+  `eslint-disable-next-line complexity` directives: an exhaustive switch over a
+  discriminated union scores one per case, and splitting the table to clear the
+  threshold hides the state map. Every case needing real work already delegates
+  to a named `render*`/`apply*` function. Don't add a third disable without
+  that argument. The directive must be the **last** line before the code —
+  a justification comment after it disables nothing and reports
+  "Unused eslint-disable directive".
 - `app/AGENTS.md` regenerated by `next dev` — this Next.js differ from
   training data; read `app/node_modules/next/dist/docs/` before using
   Next.js API. Commit block with your work rather than fight it.
@@ -242,6 +305,15 @@ per request), never server's UTC day.
   4 real photos through real OCR · 5 real stack. Tiers 4–5 not in CI
   (133 MB model, ~10 s per photo) — run locally before deploy.
 - Real photos and golden per-100g values committed in `fixtures/`.
+- Some client-side specs fail when run **alone** with
+  `npx vitest run <one file>` — `Cannot find module 'next/server' imported
+  from next-auth/lib/env.js`, an ESM resolution artifact, not a broken test.
+  `amount-step.test.ts` is one. Run the suite, or a directory, instead of
+  chasing it.
+- `app/playwright.config.ts` has an explicit `testMatch` allowlist. **A new
+  spec file must be added to it**, or it collects as "No tests found" and the
+  suite still passes. `workers: 1` / `fullyParallel: false` because every spec
+  truncates the same Postgres tables.
 
 ## Design system — "Warm Tactile Minimal"
 
@@ -260,15 +332,30 @@ per request), never server's UTC day.
 
 ## Current state
 
-M0–M3, app redesign + quick-log, Warm Tactile re-theme,
-deterministic nutrition pipeline, and direct-Gemini switch (OmniRoute
-removed) all shipped. **M4 — provision cloud — next, not started.**
-Nothing in flight.
+M0–M3, app redesign + quick-log, Warm Tactile re-theme, deterministic
+nutrition pipeline, and direct-Gemini switch (OmniRoute removed) all shipped.
 
-### Known gap: no capture path for unpackaged/solid food
+Since then, shipped as playbooks under `docs/superpowers/plans/`: typed product
+search + truthful provenance + per-user nutrition overrides (2026-09-17), then
+the portion stack (2026-09-18, playbooks 01–05) — portion engine, class
+resolution, the quick-amount chip row, per-user portion gram overrides, and
+recent amounts with the entry echo on `meal_ingredients`. Cooking fats got the
+same chip row 2026-09-19.
 
-Product DB sourced entirely from OCR'd packaging text. Loose egg,
-potato, or piece of fruit has no label to read and no product row to match —
-no way to log it today. Gemini vision call's unique value is
-exactly this loose-food case, and it is **unmeasured** (no `fixtures/photos/`
-entry show unpackaged food). To be designed as own pass before M4.
+In flight: playbook 06 (`2026-09-18-06-cup-measure.md`) — offer `cup` wherever
+a density is genuinely known. Not started; two tasks, no Docker, no schema
+change. **M4 — provision cloud — after that, not started.**
+
+### Known gap: no *photo* path for unpackaged food
+
+Narrower than it was. A loose egg, potato or apple is loggable today: the
+"Whole food, no packaging" step searches 212 curated standard rows
+(`fixtures/standard-foods.json`), and the portion stack gives them tappable
+amounts — an egg by grade, rice by the cup. Typing the name is the whole cost.
+
+What is still missing is reading an unpackaged food from a photo. The product
+DB's photo path is still OCR'd packaging text only, so a food with no label
+cannot be captured by camera, and a food outside the curated 212 cannot be
+captured at all. Gemini vision's unique value is exactly this case and it is
+still **unmeasured** — no `fixtures/photos/` entry shows unpackaged food. Own
+design pass before M4.

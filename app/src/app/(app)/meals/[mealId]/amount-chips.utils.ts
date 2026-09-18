@@ -34,8 +34,8 @@ export const mergeChips = (
 // One decimal, trailing zero dropped. A logged tablespoon of oil weighs
 // 13.8 g and its kcal comes off that figure - printing "14 g" beside a kcal
 // number derived from 13.8 shows two amounts that do not agree. A chip stays
-// rounded (playbook 03): a chip is a reference average not yet logged, where
-// a tenth of a gram is noise.
+// rounded: it offers a reference average nobody has logged yet, where a tenth
+// of a gram is noise.
 const GRAMS_DISPLAY_DECIMALS = 1;
 
 export const formatGrams = (grams: number): string =>

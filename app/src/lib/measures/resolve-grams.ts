@@ -17,8 +17,8 @@ export interface MeasureContext {
   servingGrams: number | null;
   nutritionBasisUnit: string;
   /** Household portions offered for this product, already resolved to the
-   * figures this user should see (playbook 02 assembles them). Empty for a
-   * product with none - never optional, so a new call site cannot forget it. */
+   * figures this user should see (`resolve-portions.ts`). Empty for a product
+   * with none - never optional, so a new call site cannot forget it. */
   portions: readonly Portion[];
 }
 

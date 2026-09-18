@@ -12,7 +12,7 @@ export interface PortionSource {
   servingUnit: string | null;
   servingGrams: number | null;
   nutritionBasisUnit: string;
-  /** This user's gram figures keyed by portion label. Empty until playbook 04. */
+  /** This user's gram figures keyed by portion label, from `portion_overrides`. */
   overrides: Readonly<Record<string, number>>;
 }
 
