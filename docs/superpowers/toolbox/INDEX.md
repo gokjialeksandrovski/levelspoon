@@ -92,3 +92,11 @@ the unit currently in play so the select can always show its own value.
 RULE: a value gets one control. Anything that adds a chip must stay out of
 the select, and anything added to the select must not also be a chip.
 Added by: 2026-09-18-03-portion-chip-row.md
+
+### portion_overrides + portions.ts actions
+`app/src/lib/db/schema/nutrition.ts`, `app/src/features/products/actions/portions.ts`
+Per-user gram figure for one named portion of one product.
+RULE: never write a portion weight to `products`. A per-label override is a
+correlated `jsonb_object_agg` subquery, never a LEFT JOIN - this table is one
+row per label and a join multiplies search results.
+Added by: 2026-09-18-04-portion-grams-override.md
