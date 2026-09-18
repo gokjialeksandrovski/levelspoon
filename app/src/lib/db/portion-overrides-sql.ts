@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 
 import { assertSafeAlias } from "./effective-nutrition";
+import { products } from "./schema";
 
 /**
  * This user's own portion weights for one product row, as a JSON object of
@@ -22,3 +23,17 @@ export const portionOverridesJson = (productAlias: string, userId: string): SQL 
     ) AS portion_overrides
   `;
 };
+
+/**
+ * The same subquery as a typed Drizzle selection, for meals.ts - two shapes
+ * for the two call-site shapes, mirroring effectiveNutrition{Selection,Sql}.
+ */
+export const portionOverridesSelection = (userId: string) =>
+  sql<Record<string, string>>`
+    COALESCE(
+      (SELECT jsonb_object_agg(po.portion_label, po.grams)
+         FROM portion_overrides po
+        WHERE po.product_id = ${products.id} AND po.user_id = ${userId}),
+      '{}'::jsonb
+    )
+  `;

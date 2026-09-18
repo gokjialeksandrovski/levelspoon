@@ -19,5 +19,10 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   if (action.type === "SAVED") {
     return [wizardReducer(path[path.length - 1], action)];
   }
+  // The same step with new portion figures, not a step forward - appending
+  // would leave Back pointing at the weights the user just replaced.
+  if (action.type === "PORTIONS_UPDATED") {
+    return [...path.slice(0, -1), wizardReducer(path[path.length - 1], action)];
+  }
   return [...path, wizardReducer(path[path.length - 1], action)];
 };

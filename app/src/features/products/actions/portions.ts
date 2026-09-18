@@ -4,7 +4,9 @@ import { and, eq } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
-import { portionOverrides } from "@/lib/db/schema";
+import { portionOverrides, products } from "@/lib/db/schema";
+import type { Portion } from "@/lib/measures/portions";
+import { resolvePortions } from "@/lib/measures/resolve-portions";
 
 /**
  * This user's own weight for one named portion of one product.
@@ -44,4 +46,41 @@ export const clearPortionGrams = async (productId: string, portionLabel: string)
         eq(portionOverrides.portionLabel, portionLabel),
       ),
     );
+};
+
+/**
+ * This user's portions for one product, re-read after an edit.
+ *
+ * The capture wizard holds the chosen product in reducer state, which no
+ * server re-render reaches, so the client asks for the merged figures back
+ * rather than guessing them - a revert restores weights only the server knows.
+ */
+export const getPortions = async (productId: string): Promise<readonly Portion[]> => {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select({
+      nameSearch: products.nameSearch,
+      standardSlug: products.standardSlug,
+      servingUnit: products.servingUnit,
+      servingGrams: products.servingGrams,
+      nutritionBasisUnit: products.nutritionBasisUnit,
+    })
+    .from(products)
+    .where(eq(products.id, productId));
+  if (!row) {
+    throw new Error(`No product with id ${productId}`);
+  }
+  const overrideRows = await db
+    .select({ label: portionOverrides.portionLabel, grams: portionOverrides.grams })
+    .from(portionOverrides)
+    .where(and(eq(portionOverrides.userId, userId), eq(portionOverrides.productId, productId)));
+
+  return resolvePortions({
+    standardSlug: row.standardSlug,
+    nameSearch: row.nameSearch,
+    servingUnit: row.servingUnit,
+    servingGrams: row.servingGrams === null ? null : Number(row.servingGrams),
+    nutritionBasisUnit: row.nutritionBasisUnit,
+    overrides: Object.fromEntries(overrideRows.map((override) => [override.label, Number(override.grams)])),
+  });
 };

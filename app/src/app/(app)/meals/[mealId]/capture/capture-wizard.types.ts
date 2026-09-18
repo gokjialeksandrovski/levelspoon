@@ -130,7 +130,8 @@ export type WizardAction =
   | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct }
   | { type: "MANUAL_NAME_ENTRY"; pendingBarcode: string | null }
   | { type: "BARCODE_ENTRY"; pendingBarcode: string | null }
-  | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> };
+  | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> }
+  | { type: "PORTIONS_UPDATED"; portions: readonly Portion[] };
 
 export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo", pendingBarcode: null };
 
@@ -230,10 +231,16 @@ const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
   }
 };
 
+// The chosen product lives here, not in a server render, so an edited portion
+// weight has to come back through the reducer. Same step, new figures - never
+// a new step (see pathReducer).
+const applyPortionsUpdated = (state: WizardStep, portions: readonly Portion[]): WizardStep =>
+  state.kind === "amount" ? { ...state, product: { ...state.product, portions } } : state;
+
 // One case per line, not this repo's usual two-line style - keeps the state
 // transition table scannable at a glance (kept even after the line-count
 // rule was dropped).
-export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardStep => {
+export const wizardReducer = (state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {
     case "MATCH_RESOLVED": return resolveMatch(action.nameGuess, action.result, action.netWeightText, action.pendingBarcode);
     case "CANDIDATE_CHOSEN": return { kind: "amount", product: action.product, alternatives: action.alternatives, pendingBarcode: action.pendingBarcode };
@@ -249,5 +256,6 @@ export const wizardReducer = (_state: WizardStep, action: WizardAction): WizardS
     case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
     case "BARCODE_ENTRY": return { kind: "product-barcode", pendingBarcode: action.pendingBarcode };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
+    case "PORTIONS_UPDATED": return applyPortionsUpdated(state, action.portions);
   }
 };

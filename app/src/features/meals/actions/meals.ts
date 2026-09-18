@@ -5,6 +5,7 @@ import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
+import { portionOverridesSelection } from "@/lib/db/portion-overrides-sql";
 import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
 import type { Portion } from "@/lib/measures/portions";
@@ -293,13 +294,13 @@ interface MealIngredientRow {
   nutritionBasisQuantity: string;
   quantitySource: "ai_estimated" | "manual";
   product: ProductNutritionRow;
-  measures: ProductMeasureColumns;
+  measures: ProductMeasureColumns & { portionOverrides: Record<string, string> };
 }
 
 // Only the nutrition figures are overridden: measures and the nutrition basis
 // still come from the canonical row, because a correction changes the figures,
 // not what they are stated per.
-const mealIngredientSelection = () => ({
+const mealIngredientSelection = (userId: string) => ({
   id: mealIngredients.id,
   productId: mealIngredients.productId,
   productName: products.name,
@@ -315,12 +316,13 @@ const mealIngredientSelection = () => ({
     servingUnit: products.servingUnit,
     servingGrams: products.servingGrams,
     nutritionBasisUnit: products.nutritionBasisUnit,
+    portionOverrides: portionOverridesSelection(userId),
   },
 });
 
 const fetchMealIngredientRows = async (userId: string, mealId: string): Promise<MealIngredientRow[]> =>
   db
-    .select(mealIngredientSelection())
+    .select(mealIngredientSelection(userId))
     .from(mealIngredients)
     .innerJoin(products, eq(mealIngredients.productId, products.id))
     .leftJoin(
@@ -346,15 +348,19 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   servingUnit: row.measures.servingUnit,
   servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
   nutritionBasisUnit: row.measures.nutritionBasisUnit,
-  // Empty until playbook 04 joins portion_overrides; the merge itself already
-  // lives in resolvePortions.
+  // The user's own portion weights apply here too: the edit control on this
+  // row re-resolves a new amount, so showing it the standard slice while the
+  // capture step shows their own would be the same bread in two weights. The
+  // quantity already saved is untouched - it is stored in grams.
   portions: resolvePortions({
     standardSlug: row.measures.standardSlug,
     nameSearch: row.measures.nameSearch,
     servingUnit: row.measures.servingUnit,
     servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
     nutritionBasisUnit: row.measures.nutritionBasisUnit,
-    overrides: {},
+    overrides: Object.fromEntries(
+      Object.entries(row.measures.portionOverrides).map(([label, grams]) => [label, Number(grams)]),
+    ),
   }),
 });
 

@@ -6,6 +6,7 @@ import { linkBarcode } from "@/features/products/actions/barcode";
 import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
 import type { ProductCandidate } from "@/features/products/actions/products";
+import { getPortions } from "@/features/products/actions/portions";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -17,6 +18,7 @@ import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
 import { AmountChips } from "../../amount-chips";
+import { PortionEditor } from "../../portion-editor";
 import { portionChips, type AmountChip } from "../../amount-chips.utils";
 import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
@@ -169,6 +171,7 @@ interface UseAmountStepFormResult {
   setCount: (value: string) => void;
   setUnit: (value: string) => void;
   pickChip: (count: string, unit: string) => void;
+  refreshProduct: () => Promise<void>;
   handlePhoto: (photo: File) => Promise<void>;
   handleSave: () => Promise<void>;
   changeMatch: () => void;
@@ -210,6 +213,8 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
     setCount: setCountManually,
     setUnit: setUnitManually,
     pickChip,
+    refreshProduct: async () =>
+      deps.dispatch({ type: "PORTIONS_UPDATED", portions: await getPortions(deps.product.id) }),
     handlePhoto: (photo: File) => estimateAmount(photo, setCountFromPhoto, deps.callbacks, deps.setIsEstimating),
     handleSave: () =>
       resolveAndSaveAmount({ mealId: deps.mealId, productId: deps.product.id, count: state.count, unit: state.unit, context: deps.context, source: state.source }, deps.dispatch, deps.onSaved, deps.callbacks),
@@ -251,6 +256,10 @@ interface AmountStepFieldsProps {
   form: UseAmountStepFormResult;
 }
 
+interface AmountStepBodyProps extends AmountStepFieldsProps {
+  product: SelectedProduct;
+}
+
 // Portion labels are chips, so they leave the select - one value with two
 // controls is a state question nobody should have to answer. The unit in play
 // stays listed: a select that cannot show its own value renders blank, and
@@ -269,10 +278,13 @@ const AmountField = ({ form }: AmountStepFieldsProps) => (
   />
 );
 
-const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
+const AmountStepFields = ({ form, product }: AmountStepBodyProps) => (
   <>
     {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} isEstimating={form.isEstimating} />}
     <AmountChips chips={form.chips} count={form.count} unit={form.unit} onPick={form.pickChip} />
+    {form.chips.length > 0 && (
+      <PortionEditor productId={product.id} portions={product.portions} onSaved={form.refreshProduct} />
+    )}
     {/* A product with no chips keeps the plain field: hiding the only way to
         enter an amount behind a toggle would be a step backwards. */}
     {form.chips.length === 0 ? (
@@ -409,7 +421,7 @@ export const AmountStep = ({ mealId, product, alternatives, pendingBarcode, disp
       {pendingBarcode && (
         <BarcodeLinkOffer pendingBarcode={pendingBarcode} productId={product.id} productName={product.name} dispatch={dispatch} />
       )}
-      <AmountStepFields form={form} />
+      <AmountStepFields form={form} product={product} />
     </div>
   );
 };
