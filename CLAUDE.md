@@ -342,9 +342,10 @@ resolution, the quick-amount chip row, per-user portion gram overrides, and
 recent amounts with the entry echo on `meal_ingredients`. Cooking fats got the
 same chip row 2026-09-19.
 
-In flight: playbook 06 (`2026-09-18-06-cup-measure.md`) — offer `cup` wherever
-a density is genuinely known. Not started; two tasks, no Docker, no schema
-change. **M4 — provision cloud — after that, not started.**
+Playbook 06 (`2026-09-18-06-cup-measure.md`) shipped 2026-09-19: `cup` is
+offered wherever a density is genuinely known. Every playbook under
+`docs/superpowers/plans/` is now done. **M4 — provision cloud — next, not
+started.**
 
 ### Known gap: no *photo* path for unpackaged food
 
