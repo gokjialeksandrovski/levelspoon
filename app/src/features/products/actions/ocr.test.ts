@@ -416,7 +416,7 @@ describe("needsServingSizeRead", () => {
     servingGrams: null,
     servingsPerContainer: 2,
   };
-  const context: MeasureContext = { productName: "Snickers", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
+  const context: MeasureContext = { productName: "Snickers", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g", portions: [] };
 
   it("prefills grams from the net weight divided by servings per container", async () => {
     const result = await needsServingSizeRead(usRead, "NET WT 12 OZ (340g)", context, "bar");

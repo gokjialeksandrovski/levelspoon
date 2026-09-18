@@ -42,7 +42,7 @@ describe("saveCookingFat", () => {
   });
 });
 
-const OIL_CONTEXT = { productName: "Olive oil", densityGMl: 0.92, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
+const OIL_CONTEXT = { productName: "Olive oil", densityGMl: 0.92, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g", portions: [] };
 
 describe("resolveAndSaveCookingFat", () => {
   it("resolves a volume unit through density and saves the computed grams", async () => {
@@ -80,12 +80,12 @@ describe("initialCookingUnit", () => {
   });
 
   it("falls back to the product's serving unit when nothing is measured by volume", () => {
-    const context = { productName: "Egg", densityGMl: null, servingUnit: "large", servingGrams: 50, nutritionBasisUnit: "g" };
+    const context = { productName: "Egg", densityGMl: null, servingUnit: "large", servingGrams: 50, nutritionBasisUnit: "g", portions: [] };
     expect(initialCookingUnit(context)).toBe("large");
   });
 
   it("falls back to grams when nothing is learned at all", () => {
-    const context = { productName: "Salt", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
+    const context = { productName: "Salt", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g", portions: [] };
     expect(initialCookingUnit(context)).toBe("g");
   });
 });

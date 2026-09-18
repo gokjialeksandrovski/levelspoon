@@ -8,6 +8,7 @@ const EMPTY_CONTEXT: MeasureContext = {
   servingUnit: null,
   servingGrams: null,
   nutritionBasisUnit: "g",
+  portions: [],
 };
 
 const contextFor = (overrides: Partial<MeasureContext>): MeasureContext => ({

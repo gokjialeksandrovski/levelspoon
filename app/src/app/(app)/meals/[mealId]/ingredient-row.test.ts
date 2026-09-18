@@ -10,7 +10,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const GRAMS_CONTEXT = { productName: "Test", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
+const GRAMS_CONTEXT = { productName: "Test", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g", portions: [] };
 
 describe("resolveAndSaveQuantity", () => {
   it("resolves a mass unit and saves the computed grams", async () => {

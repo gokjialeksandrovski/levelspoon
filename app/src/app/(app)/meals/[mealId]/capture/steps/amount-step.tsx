@@ -151,6 +151,8 @@ const contextFor = (product: SelectedProduct): MeasureContext => ({
   servingUnit: product.servingUnit,
   servingGrams: product.servingGrams,
   nutritionBasisUnit: product.nutritionBasisUnit,
+  // Filled by playbook 02, which resolves a product's portion class server-side.
+  portions: [],
 });
 
 interface UseAmountStepFormResult {

@@ -9,6 +9,7 @@ const EMPTY_CONTEXT: MeasureContext = {
   servingUnit: null,
   servingGrams: null,
   nutritionBasisUnit: "g",
+  portions: [],
 };
 
 const contextFor = (overrides: Partial<MeasureContext>): MeasureContext => ({
@@ -83,5 +84,40 @@ describe("defaultUnit", () => {
     // No change needed in defaultUnit itself (spec §6) - this locks in why.
     const context = contextFor({ nutritionBasisUnit: "tbsp", servingUnit: "tbsp" });
     expect(defaultUnit(context)).toBe("tbsp");
+  });
+});
+
+describe("availableUnits — portions", () => {
+  it("lists portion labels ahead of grams", () => {
+    const context = contextFor({
+      portions: [
+        { label: "slice", grams: 28 },
+        { label: "slice, large", grams: 38 },
+      ],
+    });
+    expect(availableUnits(context)).toEqual(["slice", "slice, large", "g"]);
+  });
+
+  it("does not repeat a label the product's own serving unit already names", () => {
+    const context = contextFor({
+      servingUnit: "slice",
+      servingGrams: 32,
+      portions: [{ label: "slice", grams: 28 }],
+    });
+    expect(availableUnits(context)).toEqual(["slice", "g"]);
+  });
+
+  it("ignores portions on a non-grams basis", () => {
+    const context = contextFor({
+      nutritionBasisUnit: "tbsp",
+      servingUnit: "tbsp",
+      portions: [{ label: "slice", grams: 28 }],
+    });
+    expect(availableUnits(context)).toEqual(["tbsp"]);
+  });
+
+  it("starts the field on the first portion when one exists", () => {
+    const context = contextFor({ portions: [{ label: "medium", grams: 50 }] });
+    expect(defaultUnit(context)).toBe("medium");
   });
 });

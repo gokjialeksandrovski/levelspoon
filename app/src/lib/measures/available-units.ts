@@ -7,7 +7,12 @@ const hasKnownDensity = (context: MeasureContext): boolean =>
   context.densityGMl !== null || seededDensity(context.productName) !== null;
 
 const gramsBasisUnits = (context: MeasureContext): string[] => {
-  const candidates = [context.servingUnit, "g", ...(hasKnownDensity(context) ? DENSITY_UNITS : [])];
+  const candidates = [
+    ...context.portions.map((portion) => portion.label),
+    context.servingUnit,
+    "g",
+    ...(hasKnownDensity(context) ? DENSITY_UNITS : []),
+  ];
   return [...new Set(candidates.filter((unit): unit is string => unit !== null))];
 };
 
@@ -21,8 +26,9 @@ export const availableUnits = (context: MeasureContext): string[] =>
   context.nutritionBasisUnit === "g" ? gramsBasisUnits(context) : [context.nutritionBasisUnit];
 
 /**
- * Which unit the amount field should start on. No basis-aware branch needed
- * here: a per-unit product's servingUnit is always set to the same value as
- * its basis (spec §5), so this already lands on the right unit.
+ * Which unit the amount field should start on. A portion, when the product
+ * has one - that is the tap this whole feature exists to make cheap. Then
+ * the product's own serving unit, which for a per-unit product is always its
+ * basis (spec §5), so this still lands on the right unit there.
  */
-export const defaultUnit = (context: MeasureContext): string => context.servingUnit ?? "g";
+export const defaultUnit = (context: MeasureContext): string => availableUnits(context)[0] ?? "g";

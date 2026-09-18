@@ -45,7 +45,7 @@ describe("saveAmount", () => {
   });
 });
 
-const EMPTY_CONTEXT = { productName: "Test", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g" };
+const EMPTY_CONTEXT = { productName: "Test", densityGMl: null, servingUnit: null, servingGrams: null, nutritionBasisUnit: "g", portions: [] };
 
 describe("resolveAndSaveAmount", () => {
   it("resolves a mass unit and saves the computed grams", async () => {

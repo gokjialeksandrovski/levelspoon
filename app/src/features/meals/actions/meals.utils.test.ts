@@ -23,6 +23,7 @@ const GRAMS_CONTEXT: MeasureContext = {
   servingUnit: null,
   servingGrams: null,
   nutritionBasisUnit: "g",
+  portions: [],
 };
 
 // A per-unit product: nutrition is stated per 1 tbsp, not per 100 g.
@@ -32,6 +33,7 @@ const PER_TBSP_CONTEXT: MeasureContext = {
   servingUnit: null,
   servingGrams: null,
   nutritionBasisUnit: "tbsp",
+  portions: [],
 };
 
 describe("previewContribution — grams basis", () => {

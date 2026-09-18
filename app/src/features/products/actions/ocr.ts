@@ -115,6 +115,8 @@ const isPerUnitFallback = (
 const contextFor = async (productName: string): Promise<MeasureContext> => ({
   productName,
   nutritionBasisUnit: GRAM_BASIS_UNIT,
+  // OCR resolves printed label text, never a tapped portion.
+  portions: [],
   ...(await findStoredMeasures(productName)),
 });
 
