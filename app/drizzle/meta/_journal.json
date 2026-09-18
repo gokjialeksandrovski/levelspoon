@@ -85,6 +85,13 @@
       "when": 1789719045244,
       "tag": "0011_add-name-search",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789762113227,
+      "tag": "0012_lucky_gladiator",
+      "breakpoints": true
     }
   ]
 }

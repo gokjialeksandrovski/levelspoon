@@ -118,6 +118,38 @@ export const productOverrides = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.productId] })],
 );
 
+// One user's gram figure for one named portion of one product: "a slice of
+// THIS bread is 32 g". Kept off the product row for the same reason
+// product_overrides is - the shared cross-user row stays what the label and
+// the curated table say, and reverting is one DELETE rather than a data
+// migration.
+//
+// Composite PK including the label: a product can have several portions
+// ("slice", "slice, large"), and a second edit of the same one replaces the
+// first. No surrogate id - there is nothing to reference a row by.
+//
+// Past meals are unaffected by design: meal_ingredients stores grams already
+// resolved, so an edit moves future entries only.
+export const portionOverrides = pgTable(
+  "portion_overrides",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id),
+    /** Matches Portion.label in app/src/lib/measures/portions.ts exactly. */
+    portionLabel: text("portion_label").notNull(),
+    grams: numeric("grams", {
+      precision: NUTRITION_COLUMN_PRECISION,
+      scale: NUTRITION_COLUMN_SCALE,
+    }).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.productId, table.portionLabel] })],
+);
+
 export const meals = pgTable("meals", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
