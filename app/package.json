@@ -12,6 +12,7 @@
     "db:drop": "tsx --env-file=.env.local scripts/drop.ts",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "report:photo-debt": "tsx --env-file=.env.local scripts/photo-debt.ts",
+    "check:portion-classes": "tsx scripts/check-portion-classes.ts",
     "fixtures:barcodes": "tsx scripts/generate-barcode-fixtures.ts",
     "test": "vitest run",
     "test:e2e": "playwright test -c playwright.config.ts",
