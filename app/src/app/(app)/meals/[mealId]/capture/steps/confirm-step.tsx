@@ -26,7 +26,6 @@ import type { FieldValues } from "@/lib/ocr/nutrition-fields";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
-import type { Portion } from "@/lib/measures/portions";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { NutritionOrigin, SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -184,7 +183,7 @@ const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResu
 // The values the user just confirmed are the product's nutrition, so the
 // amount step's preview needs no refetch of the row that was just written.
 const toProductCreatedPayload = (
-  created: { productId: string; portions: readonly Portion[] },
+  created: { productId: string; portions: SelectedProduct["portions"] },
   input: SaveConfirmInput,
 ): SelectedProduct => ({
   id: created.productId,
