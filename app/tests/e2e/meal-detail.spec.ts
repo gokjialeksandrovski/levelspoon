@@ -147,6 +147,8 @@ test("adding a cooking fat raises the meal total by its own contribution", async
   await page.getByLabel("Amount", { exact: true }).fill("1");
   await page.getByRole("button", { name: "Add to meal" }).click();
 
-  await expect(page.getByText(/13\.8 ?g.*122 kcal/)).toBeVisible();
+  // Row now echoes the entry: "1 tbsp" with the resolved 13.8 g rounded behind
+  // it. The kcal still comes off the unrounded 13.8 g.
+  await expect(page.getByText(/1 tbsp .*14 g.*122 kcal/)).toBeVisible();
   await expect(page.getByText(/Meal total.*262 kcal/)).toBeVisible();
 });

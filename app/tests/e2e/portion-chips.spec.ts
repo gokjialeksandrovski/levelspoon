@@ -83,3 +83,43 @@ test("reverts to the standard weight", async ({ page }) => {
   await page.getByRole("button", { name: "Use the standard sizes" }).click();
   await expect(page.getByRole("button", { name: "1 slice · 28 g" })).toBeVisible();
 });
+
+test("offers the last amount back as a chip, and names it on the meal row", async ({ page }) => {
+  await seedStandardFood("Bread, white");
+  await signUp(page);
+
+  await pickWholeFood(page, "bread", "Bread, white");
+  await page.getByRole("button", { name: "1 slice · 28 g" }).click();
+  await page.getByRole("button", { name: "Save ingredient" }).click();
+  await expect(page.getByText("Ingredient saved.")).toBeVisible();
+  await page.getByRole("button", { name: /done/i }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+
+  // The row says what was entered, not only what it resolved to.
+  await expect(page.getByText("1 slice · 28 g")).toBeVisible();
+
+  // "New meal" lives on the home screen, not on a meal's own detail page.
+  await page.goto("/");
+  await pickWholeFood(page, "bread", "Bread, white");
+
+  // One chip, not two: the recent replaces the portion chip for that unit.
+  await expect(page.getByRole("button", { name: "1 slice · 28 g" })).toHaveCount(1);
+});
+
+test("shows a typed gram amount as a recent chip", async ({ page }) => {
+  await seedStandardFood("Chicken breast, raw");
+  await signUp(page);
+
+  await pickWholeFood(page, "chicken", "Chicken breast, raw");
+  await page.getByLabel("Amount", { exact: true }).fill("175");
+  await page.getByRole("button", { name: "Save ingredient" }).click();
+  await expect(page.getByText("Ingredient saved.")).toBeVisible();
+  await page.getByRole("button", { name: /add another/i }).click();
+
+  await page.getByRole("button", { name: "Whole food, no packaging" }).click();
+  await page.getByLabel("Food name").fill("chicken");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Chicken breast, raw" }).click();
+
+  await expect(page.getByRole("button", { name: "175 g" })).toBeVisible();
+});
