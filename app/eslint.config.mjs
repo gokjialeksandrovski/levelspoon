@@ -66,6 +66,17 @@ const eslintConfig = [
     },
   },
   {
+    // The vendored rules file states its own thresholds (complexity 10,
+    // max-depth 4, max-nested-callbacks 3) as literals, which its own
+    // no-magic-numbers rule then flags. It stays a verbatim copy of the
+    // canonical Clean Code rules so it can be re-copied when those change -
+    // naming the constants here would be undone by the next copy.
+    files: ["clean-code-rules.mjs"],
+    rules: {
+      "@typescript-eslint/no-magic-numbers": "off",
+    },
+  },
+  {
     // Test-file carve-out for no-magic-numbers: in an assertion the literal
     // IS the meaning. `expect(grams).toBe(184)` says exactly what it checks;
     // hoisting 184 to EXPECTED_GRAMS adds a hop and hides the value the test

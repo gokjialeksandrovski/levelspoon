@@ -114,21 +114,27 @@ const assertServing = (slug: string, row: Record<string, unknown>): void => {
   }
 };
 
-export const assertValidStandardFood = (value: unknown): StandardFoodFixture => {
-  const row = (value ?? {}) as Record<string, unknown>;
-  const slug = typeof row.slug === "string" ? row.slug : "(missing slug)";
-  if (!slug || slug === "(missing slug)") {
-    throw new StandardFoodRowError(slug, "slug must be a non-empty string");
-  }
+const assertNameAndCategory = (slug: string, row: Record<string, unknown>): void => {
   if (typeof row.name !== "string" || row.name.trim() === "") {
     throw new StandardFoodRowError(slug, "name must be a non-empty string");
   }
   if (row.category !== "whole" && row.category !== "fat") {
     throw new StandardFoodRowError(slug, 'category must be "whole" or "fat"');
   }
+  // A fat row's whole purpose is converting spoons to grams, which is
+  // impossible without a density.
   if (row.category === "fat" && (!isFiniteNumber(row.densityGMl) || (row.densityGMl as number) <= 0)) {
     throw new StandardFoodRowError(slug, "a fat row must carry a positive densityGMl");
   }
+};
+
+export const assertValidStandardFood = (value: unknown): StandardFoodFixture => {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const slug = typeof row.slug === "string" ? row.slug : "(missing slug)";
+  if (!slug || slug === "(missing slug)") {
+    throw new StandardFoodRowError(slug, "slug must be a non-empty string");
+  }
+  assertNameAndCategory(slug, row);
   assertPer100g(slug, row.per100g);
   assertServing(slug, row);
   return value as StandardFoodFixture;

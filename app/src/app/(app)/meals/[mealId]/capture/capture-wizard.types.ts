@@ -240,6 +240,10 @@ const applyPortionsUpdated = (state: WizardStep, portions: readonly Portion[]): 
 // One case per line, not this repo's usual two-line style - keeps the state
 // transition table scannable at a glance (kept even after the line-count
 // rule was dropped).
+// One branch per action, same reason as StepView: the switch IS the state
+// transition table, and every case needing real work already delegates to a
+// named apply* function.
+// eslint-disable-next-line complexity
 export const wizardReducer = (state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {
     case "MATCH_RESOLVED": return resolveMatch(action.nameGuess, action.result, action.netWeightText, action.pendingBarcode);

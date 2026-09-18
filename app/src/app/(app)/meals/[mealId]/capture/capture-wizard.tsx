@@ -255,6 +255,11 @@ interface StepViewProps {
 // JSX to a named render* function keeps the switch scannable as a state
 // map, not a line-count workaround (kept even after the line-count rule
 // was dropped).
+// One branch per wizard step. CLAUDE.md requires a switch here: TypeScript
+// narrows the discriminated union per case, which a Record lookup cannot do
+// without an unsafe cast. Splitting the table in half to score under 10 would
+// hide the state map, not simplify it.
+// eslint-disable-next-line complexity
 const StepView = ({ step, mealId, moment, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, dispatch);
