@@ -1,5 +1,6 @@
 import { seededDensity } from "./densities";
 import { parseMeasure, type Measure } from "./parse-measure";
+import type { Portion } from "./portions";
 import { MASS_UNITS_TO_GRAMS, VOLUME_UNITS_TO_ML } from "./units";
 
 /**
@@ -15,6 +16,10 @@ export interface MeasureContext {
   servingUnit: string | null;
   servingGrams: number | null;
   nutritionBasisUnit: string;
+  /** Household portions offered for this product, already resolved to the
+   * figures this user should see (playbook 02 assembles them). Empty for a
+   * product with none - never optional, so a new call site cannot forget it. */
+  portions: readonly Portion[];
 }
 
 export type Resolution =

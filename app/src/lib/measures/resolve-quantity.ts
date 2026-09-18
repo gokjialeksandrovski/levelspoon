@@ -17,6 +17,19 @@ const isDirectBasisUnit = (unit: string, context: MeasureContext): boolean =>
 // noise to skip, but in a typed count it is an amount the user did not mean.
 const isNegativeCount = (count: string): boolean => count.trimStart().startsWith("-");
 
+// Portions resolve here rather than in resolveGrams because parseMeasure's
+// unit branch is a single bare word and cannot hold "slice, large". A tapped
+// portion needs no parsing at all: the label is matched whole.
+//
+// Grams basis only - a per-tbsp product has no gram figure for a portion to
+// scale into.
+const portionGrams = (unit: string, context: MeasureContext): number | null => {
+  if (context.nutritionBasisUnit !== "g") {
+    return null;
+  }
+  return context.portions.find((portion) => portion.label === unit)?.grams ?? null;
+};
+
 /**
  * Turns a typed count + selected unit into what saveMealIngredient stores:
  * either the count itself (a per-unit product's own basis unit) or grams
@@ -29,6 +42,12 @@ export const resolveQuantity = (count: string, unit: string, context: MeasureCon
   if (isDirectBasisUnit(unit, context)) {
     const quantity = Number(count);
     return quantity > 0 ? { kind: "resolved", quantity, quantityUnit: unit } : { kind: "unresolved" };
+  }
+
+  const grams = portionGrams(unit, context);
+  if (grams !== null) {
+    const total = Number(count) * grams;
+    return total > 0 ? { kind: "resolved", quantity: total, quantityUnit: "g" } : { kind: "unresolved" };
   }
 
   const resolution = resolveGrams(`${count} ${unit}`, context);

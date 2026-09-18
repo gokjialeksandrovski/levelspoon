@@ -9,6 +9,7 @@ const GRAMS_BASIS: MeasureContext = {
   servingUnit: null,
   servingGrams: null,
   nutritionBasisUnit: "g",
+  portions: [],
 };
 
 describe("resolveQuantity — grams basis", () => {
@@ -47,6 +48,7 @@ describe("resolveQuantity — non-grams basis", () => {
     servingUnit: "tbsp",
     servingGrams: null,
     nutritionBasisUnit: "tbsp",
+    portions: [],
   };
 
   it("saves the count directly in the basis unit, skipping resolveGrams entirely", () => {
@@ -65,5 +67,69 @@ describe("resolveQuantity — non-grams basis", () => {
     // depend on that - "g" always means "resolve as a mass", never a
     // literal count of the product's basis unit.
     expect(resolveQuantity("5", "g", TBSP_BASIS)).toEqual({ kind: "resolved", quantity: 5, quantityUnit: "g" });
+  });
+});
+
+describe("resolveQuantity — portions", () => {
+  const breadContext: MeasureContext = {
+    productName: "Bread, white",
+    densityGMl: null,
+    servingUnit: null,
+    servingGrams: null,
+    nutritionBasisUnit: "g",
+    portions: [
+      { label: "slice", grams: 28 },
+      { label: "slice, large", grams: 38 },
+    ],
+  };
+
+  it("multiplies a tapped portion by its count", () => {
+    expect(resolveQuantity("2", "slice", breadContext)).toEqual({
+      kind: "resolved",
+      quantity: 56,
+      quantityUnit: "g",
+    });
+  });
+
+  it("matches a multi-word portion label that parseMeasure could not", () => {
+    expect(resolveQuantity("1", "slice, large", breadContext)).toEqual({
+      kind: "resolved",
+      quantity: 38,
+      quantityUnit: "g",
+    });
+  });
+
+  it("accepts a fractional count", () => {
+    expect(resolveQuantity("0.5", "slice", breadContext)).toEqual({
+      kind: "resolved",
+      quantity: 14,
+      quantityUnit: "g",
+    });
+  });
+
+  it("leaves a label this product does not carry unresolved", () => {
+    expect(resolveQuantity("1", "wedge", breadContext)).toEqual({ kind: "unresolved" });
+  });
+
+  it("rejects a zero or negative count", () => {
+    expect(resolveQuantity("0", "slice", breadContext)).toEqual({ kind: "unresolved" });
+    expect(resolveQuantity("-1", "slice", breadContext)).toEqual({ kind: "unresolved" });
+  });
+
+  it("ignores portions on a per-unit product, whose basis is not grams", () => {
+    const perUnit: MeasureContext = {
+      ...breadContext,
+      nutritionBasisUnit: "tbsp",
+      servingUnit: "tbsp",
+    };
+    expect(resolveQuantity("1", "slice", perUnit)).toEqual({ kind: "unresolved" });
+  });
+
+  it("still resolves grams when portions are present", () => {
+    expect(resolveQuantity("100", "g", breadContext)).toEqual({
+      kind: "resolved",
+      quantity: 100,
+      quantityUnit: "g",
+    });
   });
 });
