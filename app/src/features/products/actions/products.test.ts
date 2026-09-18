@@ -907,6 +907,23 @@ describe("nutrition overrides", () => {
     await expect(saveNutritionOverride(standardId, CORRECTED)).rejects.toThrow(ProductNotEditableError);
   });
 
+  it("refuses an override on another user's photo-less, barcode-less product", async () => {
+    const authorId = await seedUser();
+    const productId = await seedProduct(authorId, "Homemade Soup", { nutritionPhotoKey: null });
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+
+    await expect(saveNutritionOverride(productId, CORRECTED)).rejects.toThrow(ProductNotEditableError);
+  });
+
+  it("still lets the author correct their own photo-less, barcode-less product", async () => {
+    const authorId = await seedUser();
+    const productId = await seedProduct(authorId, "Homemade Soup", { nutritionPhotoKey: null });
+    mockAuth.mockResolvedValue({ user: { id: authorId } });
+
+    await expect(saveNutritionOverride(productId, CORRECTED)).resolves.toBeUndefined();
+  });
+
   it("renames a row the user created", async () => {
     const { productId } = await seedOne("Olymus Greek Yogurt 2% Fat");
 

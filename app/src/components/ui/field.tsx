@@ -14,7 +14,6 @@ interface FieldProps {
   helperText?: string;
   autoComplete?: string;
   autoFocus?: boolean;
-  disabled?: boolean;
   /** Keeps the value focusable and announced while refusing edits - the
    * state a field earns when its helperText explains why it cannot change. */
   readOnly?: boolean;
@@ -91,7 +90,6 @@ const FieldMessage = ({ name, helperText, error, flagged }: FieldMessageProps) =
 export const Field = ({
   label, name, type = "text", defaultValue, value, onChange, onBlur,
   required = false, minLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
-  disabled = false,
   readOnly = false,
   trailing,
 }: FieldProps) => (
@@ -113,13 +111,12 @@ export const Field = ({
         value={value}
         onChange={onChange}
         onBlur={onBlur}
-        disabled={disabled}
         readOnly={readOnly}
         required={required}
         minLength={minLength}
         aria-invalid={flagged || Boolean(error)}
         aria-describedby={describedById(name, helperText, error)}
-        className={`${fieldInputClassName(flagged, error, readOnly)} disabled:cursor-not-allowed disabled:opacity-50 ${trailing ? "pr-14" : ""}`}
+        className={`${fieldInputClassName(flagged, error, readOnly)} ${trailing ? "pr-14" : ""}`}
       />
       {/* pr-1 keeps the 44px control's own ring clear of the input's border. */}
       {trailing && <div className="absolute inset-y-0 right-0 flex items-center pr-1">{trailing}</div>}

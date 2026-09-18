@@ -355,9 +355,19 @@ const assertUpdated = (updated: { id: string }[], productId: string): void => {
   }
 };
 
-const assertUserProduct = async (productId: string): Promise<void> => {
-  const [product] = await db.select({ source: products.source }).from(products).where(eq(products.id, productId));
-  if (!product || product.source === STANDARD_SOURCE) {
+// Gates the override write path on the same rule the reads use, so a
+// private product's UUID can't be used to write a claim photo into the
+// photo-debt queue nobody but its author can see the product to review.
+// Raw SQL, not Drizzle, so visibleToUser's `p`-aliased fragment can inline
+// directly rather than needing a second, duplicated predicate.
+const assertUserProduct = async (userId: string, productId: string): Promise<void> => {
+  const result = await db.execute<{ id: string }>(sql`
+    SELECT p.id FROM products p
+    WHERE p.id = ${productId}
+      AND p.source = ${USER_SOURCE}
+      AND ${visibleToUser(userId)}
+  `);
+  if (result.rows.length === 0) {
     throw new ProductNotEditableError(productId);
   }
 };
@@ -391,7 +401,7 @@ export const saveNutritionOverride = async (
   photo?: Blob,
 ): Promise<void> => {
   const userId = await requireUserId();
-  await assertUserProduct(productId);
+  await assertUserProduct(userId, productId);
 
   const supersededPhotoKey = photo ? await fetchOverridePhotoKey(userId, productId) : null;
   // Uploaded before the write so a storage failure leaves no row claiming a
