@@ -18,6 +18,7 @@ import {
   getDayHistory,
   getDayLog,
   getMealDetail,
+  recentAmounts,
   saveMealIngredient,
   removeMealIngredient,
   restoreMeal,
@@ -826,5 +827,65 @@ describe("entry echo columns", () => {
       .where(eq(mealIngredients.id, mealIngredientId));
     expect(row.entryCount).toBe("2.00");
     expect(row.entryUnit).toBe("slice");
+  });
+});
+
+describe("recentAmounts", () => {
+  let mealId: string;
+  let productId: string;
+
+  const log = (entryCount: number, entryUnit: string, quantity: number) =>
+    saveMealIngredient({
+      mealId, productId, quantity, quantityUnit: "g",
+      quantitySource: "manual", entryCount, entryUnit,
+    });
+
+  beforeEach(async () => {
+    const userId = await seedUser();
+    productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    ({ mealId } = await createMeal());
+  });
+
+  it("returns nothing for a product never logged", async () => {
+    expect(await recentAmounts(productId)).toEqual([]);
+  });
+
+  it("keeps one chip per unit, carrying the most recent count", async () => {
+    await log(1, "slice", 28);
+    await log(2, "slice", 56);
+    expect(await recentAmounts(productId)).toEqual([{ count: 2, unit: "slice", grams: 56 }]);
+  });
+
+  it("returns the two most recent distinct units, newest first", async () => {
+    await log(50, "g", 50);
+    await log(100, "g", 100);
+    await log(1, "slice", 28);
+    expect(await recentAmounts(productId)).toEqual([
+      { count: 1, unit: "slice", grams: 28 },
+      { count: 100, unit: "g", grams: 100 },
+    ]);
+  });
+
+  it("keeps only two even when three units were used", async () => {
+    await log(100, "g", 100);
+    await log(1, "cup", 240);
+    await log(1, "slice", 28);
+    const recents = await recentAmounts(productId);
+    expect(recents).toHaveLength(2);
+    expect(recents.map((recent) => recent.unit)).toEqual(["slice", "cup"]);
+  });
+
+  it("ignores a removed ingredient", async () => {
+    const { mealIngredientId } = await log(1, "slice", 28);
+    await removeMealIngredient(mealIngredientId);
+    expect(await recentAmounts(productId)).toEqual([]);
+  });
+
+  it("does not leak another user's history", async () => {
+    await log(1, "slice", 28);
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+    expect(await recentAmounts(productId)).toEqual([]);
   });
 });

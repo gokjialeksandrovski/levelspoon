@@ -490,6 +490,58 @@ export const updateMealIngredientQuantity = async (
     .where(eq(mealIngredients.id, mealIngredientId));
 };
 
+// Two chips fit a phone row beside the portion chips without wrapping.
+const RECENT_AMOUNT_LIMIT = 2;
+
+export interface RecentAmount {
+  count: number;
+  unit: string;
+  grams: number;
+}
+
+type RecentAmountRow = { entry_count: string; entry_unit: string; quantity: string };
+
+/**
+ * How this user last logged this product, one entry per unit.
+ *
+ * DISTINCT ON collapses repeats of the same unit to its newest row, so
+ * logging "1 slice" then "2 slice" leaves one chip reading 2. The outer
+ * ORDER BY then puts the most recently used unit first - the inner one has
+ * to sort by entry_unit for DISTINCT ON to work at all, which is not the
+ * order anybody wants to read.
+ *
+ * `grams` comes straight off `quantity`, which is already the resolved
+ * weight - nothing is re-resolved here, so a chip can never disagree with
+ * the row it came from.
+ */
+export const recentAmounts = async (productId: string): Promise<RecentAmount[]> => {
+  const userId = await requireUserId();
+  const result = await db.execute<RecentAmountRow>(sql`
+    SELECT latest.entry_count, latest.entry_unit, latest.quantity
+    FROM (
+      SELECT DISTINCT ON (mi.entry_unit)
+             mi.entry_count, mi.entry_unit, mi.quantity, mi.created_at
+        FROM meal_ingredients mi
+        JOIN meals m ON m.id = mi.meal_id
+       WHERE m.user_id = ${userId}
+         AND mi.product_id = ${productId}
+         AND mi.deleted_at IS NULL
+         AND m.deleted_at IS NULL
+         AND mi.entry_unit IS NOT NULL
+         AND mi.entry_count IS NOT NULL
+       ORDER BY mi.entry_unit, mi.created_at DESC
+    ) latest
+    ORDER BY latest.created_at DESC
+    LIMIT ${RECENT_AMOUNT_LIMIT}
+  `);
+
+  return result.rows.map((row) => ({
+    count: Number(row.entry_count),
+    unit: row.entry_unit,
+    grams: Number(row.quantity),
+  }));
+};
+
 export interface DayHistoryEntry {
   date: string; // YYYY-MM-DD, local to the requested timezone
   totalKcal: number;
