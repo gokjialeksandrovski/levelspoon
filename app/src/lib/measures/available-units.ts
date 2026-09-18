@@ -1,7 +1,10 @@
 import { seededDensity } from "./densities";
 import type { MeasureContext } from "./resolve-grams";
 
-const DENSITY_UNITS = ["tbsp", "tsp", "ml"] as const;
+// Cup last: it is the largest and rarest of the four, and a label prints
+// tbsp or ml far more often. Cup is in VOLUME_UNITS_TO_ML and has always
+// been convertible - it was only ever missing from the picker.
+const DENSITY_UNITS = ["tbsp", "tsp", "ml", "cup"] as const;
 
 const hasKnownDensity = (context: MeasureContext): boolean =>
   context.densityGMl !== null || seededDensity(context.productName) !== null;

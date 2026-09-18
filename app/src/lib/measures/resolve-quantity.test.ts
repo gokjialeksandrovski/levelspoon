@@ -133,3 +133,21 @@ describe("resolveQuantity — portions", () => {
     });
   });
 });
+
+describe("resolveQuantity — cup", () => {
+  it("converts a cup through the product's density", () => {
+    const context: MeasureContext = {
+      ...GRAMS_BASIS,
+      productName: "Olive oil",
+      densityGMl: 0.92,
+    };
+    // 240 mL (the FDA labeling cup) x 0.92 g/mL
+    const resolution = resolveQuantity("1", "cup", context);
+    expect(resolution).toMatchObject({ kind: "resolved", quantityUnit: "g" });
+    expect(resolution).toHaveProperty("quantity", expect.closeTo(220.8));
+  });
+
+  it("leaves a cup unresolved when no density is known", () => {
+    expect(resolveQuantity("1", "cup", GRAMS_BASIS)).toEqual({ kind: "unresolved" });
+  });
+});

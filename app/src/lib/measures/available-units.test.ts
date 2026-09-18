@@ -27,17 +27,17 @@ describe("availableUnits — grams basis", () => {
     expect(availableUnits(context)).toEqual(["bar", "g"]);
   });
 
-  it("adds tbsp/tsp/ml when a stored density is present", () => {
+  it("adds tbsp/tsp/ml/cup when a stored density is present", () => {
     const context = contextFor({ densityGMl: 1.2333, productName: "Honey" });
-    expect(availableUnits(context)).toEqual(["g", "tbsp", "tsp", "ml"]);
+    expect(availableUnits(context)).toEqual(["g", "tbsp", "tsp", "ml", "cup"]);
   });
 
-  it("adds tbsp/tsp/ml when only the seeded density table resolves the name", () => {
+  it("adds tbsp/tsp/ml/cup when only the seeded density table resolves the name", () => {
     const context = contextFor({ productName: "Olive Oil" });
-    expect(availableUnits(context)).toEqual(["g", "tbsp", "tsp", "ml"]);
+    expect(availableUnits(context)).toEqual(["g", "tbsp", "tsp", "ml", "cup"]);
   });
 
-  it("does not add tbsp/tsp/ml when the name is ambiguous in the seeded table", () => {
+  it("does not add tbsp/tsp/ml/cup when the name is ambiguous in the seeded table", () => {
     // "Butter Milk" matches two unrelated seeded keys - seededDensity itself
     // returns null for this (densities.ts's own documented case).
     const context = contextFor({ productName: "Butter Milk" });
@@ -46,7 +46,7 @@ describe("availableUnits — grams basis", () => {
 
   it("combines a serving unit and a density without duplicates", () => {
     const context = contextFor({ servingUnit: "bottle", servingGrams: 500, densityGMl: 0.92 });
-    expect(availableUnits(context)).toEqual(["bottle", "g", "tbsp", "tsp", "ml"]);
+    expect(availableUnits(context)).toEqual(["bottle", "g", "tbsp", "tsp", "ml", "cup"]);
   });
 });
 
