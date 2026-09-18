@@ -48,6 +48,8 @@ export interface SaveCookingFatInput {
   productId: string;
   quantity: number;
   quantityUnit: string;
+  entryCount: number;
+  entryUnit: string;
 }
 
 const commitCookingFat = async (input: SaveCookingFatInput, onSaved: () => void): Promise<void> => {
@@ -56,6 +58,8 @@ const commitCookingFat = async (input: SaveCookingFatInput, onSaved: () => void)
     productId: input.productId,
     quantity: input.quantity,
     quantityUnit: input.quantityUnit,
+    entryCount: input.entryCount,
+    entryUnit: input.entryUnit,
     quantitySource: "manual",
   });
   triggerLogSuccessHaptic();
@@ -99,7 +103,8 @@ export const resolveAndSaveCookingFat = async (
     return;
   }
   await saveCookingFat(
-    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit },
+    // "1 tbsp" stays "1 tbsp" on the meal row, not the grams it resolved to.
+    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit, entryCount: Number(input.count), entryUnit: input.unit },
     onSaved,
     callbacks,
   );

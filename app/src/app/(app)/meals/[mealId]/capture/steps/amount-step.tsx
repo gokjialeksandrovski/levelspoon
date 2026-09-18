@@ -85,6 +85,8 @@ interface SaveAmountInput {
   productId: string;
   quantity: number;
   quantityUnit: string;
+  entryCount: number;
+  entryUnit: string;
   source: "ai_estimated" | "manual";
 }
 
@@ -98,6 +100,8 @@ const commitAmountSave = async (
     productId: input.productId,
     quantity: input.quantity,
     quantityUnit: input.quantityUnit,
+    entryCount: input.entryCount,
+    entryUnit: input.entryUnit,
     quantitySource: input.source,
   });
   triggerLogSuccessHaptic();
@@ -143,7 +147,9 @@ export const resolveAndSaveAmount = async (
     return;
   }
   await saveAmount(
-    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit, source: input.source },
+    // The echo is what the user typed, never the resolution: a "1 slice" entry
+    // that resolves to 28 g has to keep saying "1 slice".
+    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit, entryCount: Number(input.count), entryUnit: input.unit, source: input.source },
     dispatch,
     onSaved,
     callbacks,

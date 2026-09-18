@@ -174,6 +174,16 @@ export const mealIngredients = pgTable("meal_ingredients", {
   // saveMealIngredient/updateMealIngredientQuantity call sites, not a DB
   // constraint (per-unit-nutrition-basis-design spec §9).
   quantityUnit: text("quantity_unit").notNull().default("g"),
+  // What the user actually said, beside what it resolved to. "1 slice" and
+  // "28 g" are the same row: `quantity` is what every nutrition read scales
+  // from, these two are what the screen shows back and what "recent amounts"
+  // reads. Nullable with no backfill - a row written before this existed
+  // still means exactly what it meant.
+  entryCount: numeric("entry_count", {
+    precision: NUTRITION_COLUMN_PRECISION,
+    scale: NUTRITION_COLUMN_SCALE,
+  }),
+  entryUnit: text("entry_unit"),
   quantitySource: quantitySourceEnum("quantity_source").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   // Soft delete, same undo reason as meals.deletedAt.

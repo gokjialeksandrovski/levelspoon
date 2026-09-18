@@ -16,7 +16,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const baseInput = { mealId: "meal-1", productId: "product-1", quantity: 150, quantityUnit: "g", source: "manual" as const };
+const baseInput = { mealId: "meal-1", productId: "product-1", quantity: 150, quantityUnit: "g", entryCount: 150, entryUnit: "g", source: "manual" as const };
 
 describe("saveAmount", () => {
   it("fires the haptic on a successful save", async () => {
@@ -60,7 +60,7 @@ describe("resolveAndSaveAmount", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "product-1", quantity: 150, quantityUnit: "g", quantitySource: "manual",
+      mealId: "meal-1", productId: "product-1", quantity: 150, quantityUnit: "g", entryCount: 150, entryUnit: "g", quantitySource: "manual",
     });
   });
 
@@ -77,7 +77,7 @@ describe("resolveAndSaveAmount", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "product-1", quantity: 104, quantityUnit: "g", quantitySource: "manual",
+      mealId: "meal-1", productId: "product-1", quantity: 104, quantityUnit: "g", entryCount: 2, entryUnit: "bar", quantitySource: "manual",
     });
   });
 
@@ -96,7 +96,7 @@ describe("resolveAndSaveAmount", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "product-1", quantity: 2, quantityUnit: "tbsp", quantitySource: "manual",
+      mealId: "meal-1", productId: "product-1", quantity: 2, quantityUnit: "tbsp", entryCount: 2, entryUnit: "tbsp", quantitySource: "manual",
     });
   });
 
@@ -178,6 +178,8 @@ describe("pickChip", () => {
       productId: "product-1",
       quantity: 28,
       quantityUnit: "g",
+      entryCount: 1,
+      entryUnit: "slice",
       quantitySource: "manual",
     });
   });

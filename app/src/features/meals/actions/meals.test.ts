@@ -121,7 +121,7 @@ describe("createMeal", () => {
     const { mealId: otherEmpty } = await createMeal();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId: filled } = await createMeal();
-    await saveMealIngredient({ mealId: filled, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId: filled, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
 
     await createMeal(); // sweep runs here
 
@@ -142,7 +142,7 @@ describe("getMealDetail", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
 
     const meal = await getMealDetail(mealId, "UTC");
 
@@ -182,16 +182,16 @@ describe("getMealDetail", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId: firstId } = await saveMealIngredient({
-      mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g",
     });
     const { mealIngredientId: secondId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
     const { mealIngredientId: thirdId } = await saveMealIngredient({
-      mealId, productId, quantity: 300, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 300, quantityUnit: "g", quantitySource: "manual", entryCount: 300, entryUnit: "g",
     });
 
-    await updateMealIngredientQuantity(firstId, 150, "g");
+    await updateMealIngredientQuantity(firstId, 150, "g", 150, "g");
 
     const meal = await getMealDetail(mealId, "UTC");
 
@@ -246,7 +246,7 @@ describe("getMealDetail", () => {
     const productId = await seedProduct(userId, { servingUnit: "bar", servingGrams: 52, densityGMl: "1.2333" });
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 104, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 104, quantityUnit: "g", quantitySource: "manual", entryCount: 104, entryUnit: "g" });
 
     const meal = await getMealDetail(mealId, "UTC");
 
@@ -277,7 +277,7 @@ describe("getMealDetail", () => {
       .returning();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId: product.id, quantity: 2, quantityUnit: "tbsp", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId: product.id, quantity: 2, quantityUnit: "tbsp", quantitySource: "manual", entryCount: 2, entryUnit: "tbsp" });
 
     const meal = await getMealDetail(mealId, "UTC");
 
@@ -298,6 +298,7 @@ describe("saveMealIngredient", () => {
       productId,
       quantity: 150, quantityUnit: "g",
       quantitySource: "manual",
+      entryCount: 150, entryUnit: "g",
     });
 
     expect(mealIngredientId).toBeTruthy();
@@ -313,7 +314,7 @@ describe("saveMealIngredient", () => {
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
 
     await expect(
-      saveMealIngredient({ mealId, productId, quantity: 150, quantityUnit: "g", quantitySource: "manual" }),
+      saveMealIngredient({ mealId, productId, quantity: 150, quantityUnit: "g", quantitySource: "manual", entryCount: 150, entryUnit: "g" }),
     ).rejects.toThrow(NotAuthorizedError);
   });
 });
@@ -324,7 +325,7 @@ describe("getDayLog", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
 
     const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
 
@@ -339,7 +340,7 @@ describe("getDayLog", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
     await saveNutritionOverride(productId, {
       energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
     });
@@ -350,7 +351,7 @@ describe("getDayLog", () => {
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
     const { mealId: otherMealId } = await createMeal();
-    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
 
     const canonical = await getDayLog(todayLocalDateString("UTC"), "UTC");
     expect(canonical.dayTotal.energyKcal).toBeCloseTo(140, 5);
@@ -361,7 +362,7 @@ describe("getDayLog", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId: filled } = await createMeal();
-    await saveMealIngredient({ mealId: filled, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId: filled, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
     await createMeal(); // empty
 
     const log = await getDayLog(todayLocalDateString("UTC"), "UTC");
@@ -375,7 +376,7 @@ describe("getDayLog", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     await db
@@ -395,7 +396,7 @@ describe("getDayLog", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g",
     });
     // 2026-01-01T22:00:00Z is already 2026-01-02 local in Asia/Kolkata (UTC+5:30) -
     // exactly the bug getDayLog exists to fix.
@@ -420,7 +421,7 @@ describe("getDayLog", () => {
     const { mealId: firstMealId } = await createMeal();
     await db.update(meals).set({ createdAt: new Date("2026-01-01T08:00:00Z") }).where(eq(meals.id, firstMealId));
     const { mealIngredientId: firstIngredientId } = await saveMealIngredient({
-      mealId: firstMealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual",
+      mealId: firstMealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g",
     });
     await db
       .update(mealIngredients)
@@ -430,7 +431,7 @@ describe("getDayLog", () => {
     const { mealId: secondMealId } = await createMeal();
     await db.update(meals).set({ createdAt: new Date("2026-01-01T12:00:00Z") }).where(eq(meals.id, secondMealId));
     const { mealIngredientId: secondIngredientId } = await saveMealIngredient({
-      mealId: secondMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId: secondMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
     await db
       .update(mealIngredients)
@@ -440,7 +441,7 @@ describe("getDayLog", () => {
     const { mealId: thirdMealId } = await createMeal();
     await db.update(meals).set({ createdAt: new Date("2026-01-01T18:00:00Z") }).where(eq(meals.id, thirdMealId));
     const { mealIngredientId: thirdIngredientId } = await saveMealIngredient({
-      mealId: thirdMealId, productId, quantity: 300, quantityUnit: "g", quantitySource: "manual",
+      mealId: thirdMealId, productId, quantity: 300, quantityUnit: "g", quantitySource: "manual", entryCount: 300, entryUnit: "g",
     });
     await db
       .update(mealIngredients)
@@ -449,7 +450,7 @@ describe("getDayLog", () => {
 
     // Edit the first meal's ingredient - without an ORDER BY this can change
     // Postgres's natural row order and make "Breakfast" jump position.
-    await updateMealIngredientQuantity(firstIngredientId, 150, "g");
+    await updateMealIngredientQuantity(firstIngredientId, 150, "g", 150, "g");
 
     const log = await getDayLog(seededDate, "UTC");
 
@@ -464,7 +465,7 @@ describe("removeMealIngredient", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
     const today = todayLocalDateString("UTC");
 
@@ -485,7 +486,7 @@ describe("removeMealIngredient", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
     await db.update(mealIngredients).set({ deletedAt: sql`now() - interval '2 days'` }).where(eq(mealIngredients.id, mealIngredientId));
 
@@ -501,7 +502,7 @@ describe("removeMealIngredient", () => {
     mockAuth.mockResolvedValue({ user: { id: ownerId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
 
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
@@ -516,10 +517,10 @@ describe("updateMealIngredientQuantity", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "ai_estimated",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "ai_estimated", entryCount: 200, entryUnit: "g",
     });
 
-    await updateMealIngredientQuantity(mealIngredientId, 100, "g");
+    await updateMealIngredientQuantity(mealIngredientId, 100, "g", 100, "g");
 
     const [row] = await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId));
     expect(Number(row.quantity)).toBe(100);
@@ -533,11 +534,11 @@ describe("updateMealIngredientQuantity", () => {
     mockAuth.mockResolvedValue({ user: { id: ownerId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
 
     mockAuth.mockResolvedValue({ user: { id: intruderId } });
-    await expect(updateMealIngredientQuantity(mealIngredientId, 100, "g")).rejects.toThrow(NotAuthorizedError);
+    await expect(updateMealIngredientQuantity(mealIngredientId, 100, "g", 100, "g")).rejects.toThrow(NotAuthorizedError);
   });
 });
 
@@ -547,7 +548,7 @@ describe("deleteMeal", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
     const today = todayLocalDateString("UTC");
 
     await deleteMeal(mealId);
@@ -566,7 +567,7 @@ describe("deleteMeal", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
     await db.update(meals).set({ deletedAt: sql`now() - interval '2 days'` }).where(eq(meals.id, mealId));
 
     await createMeal();
@@ -613,7 +614,7 @@ describe("discardEmptyMeal", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
 
     await discardEmptyMeal(mealId);
 
@@ -637,10 +638,10 @@ describe("getDayHistory", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId: today } = await createMeal();
-    await saveMealIngredient({ mealId: today, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId: today, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
     const { mealId: yesterday } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId: yesterday, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual",
+      mealId: yesterday, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
     });
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     await db
@@ -662,7 +663,7 @@ describe("getDayHistory", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
     await saveNutritionOverride(productId, {
       energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
     });
@@ -673,7 +674,7 @@ describe("getDayHistory", () => {
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
     const { mealId: otherMealId } = await createMeal();
-    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
 
     const canonical = await getDayHistory("UTC");
     expect(canonical.entries[0].totalKcal).toBeCloseTo(140, 5);
@@ -684,7 +685,7 @@ describe("getDayHistory", () => {
     const productId = await seedProduct(userId);
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
     await setCalorieGoal(2400);
 
     const page = await getDayHistory("UTC");
@@ -698,7 +699,7 @@ describe("getDayHistory", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     const { mealIngredientId } = await saveMealIngredient({
-      mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual",
+      mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g",
     });
     await db
       .update(mealIngredients)
@@ -719,7 +720,7 @@ describe("getDayHistory", () => {
     for (let daysAgo = 0; daysAgo < HISTORY_PAGE_SIZE + 1; daysAgo += 1) {
       const { mealId } = await createMeal();
       const { mealIngredientId } = await saveMealIngredient({
-        mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual",
+        mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g",
       });
       await db
         .update(mealIngredients)
@@ -758,10 +759,72 @@ describe("getDayHistory", () => {
       .returning();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
-    await saveMealIngredient({ mealId, productId: product.id, quantity: 2, quantityUnit: "tbsp", quantitySource: "manual" });
+    await saveMealIngredient({ mealId, productId: product.id, quantity: 2, quantityUnit: "tbsp", quantitySource: "manual", entryCount: 2, entryUnit: "tbsp" });
 
     const page = await getDayHistory("UTC");
 
     expect(page.entries[0].totalKcal).toBeCloseTo(200, 5);
+  });
+});
+
+describe("entry echo columns", () => {
+  const seedMealAndProduct = async (): Promise<{ mealId: string; productId: string }> => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    return { mealId, productId };
+  };
+
+  it("records the count and unit the user actually entered", async () => {
+    const { mealId, productId } = await seedMealAndProduct();
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 28, quantityUnit: "g",
+      quantitySource: "manual", entryCount: 1, entryUnit: "slice",
+    });
+
+    const [row] = await db
+      .select({
+        quantity: mealIngredients.quantity,
+        quantityUnit: mealIngredients.quantityUnit,
+        entryCount: mealIngredients.entryCount,
+        entryUnit: mealIngredients.entryUnit,
+      })
+      .from(mealIngredients)
+      .where(eq(mealIngredients.id, mealIngredientId));
+
+    expect(row.quantity).toBe("28.00");
+    expect(row.quantityUnit).toBe("g");
+    expect(row.entryCount).toBe("1.00");
+    expect(row.entryUnit).toBe("slice");
+  });
+
+  it("echoes a plain gram entry as itself", async () => {
+    const { mealId, productId } = await seedMealAndProduct();
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 150, quantityUnit: "g",
+      quantitySource: "manual", entryCount: 150, entryUnit: "g",
+    });
+    const [row] = await db
+      .select({ entryCount: mealIngredients.entryCount, entryUnit: mealIngredients.entryUnit })
+      .from(mealIngredients)
+      .where(eq(mealIngredients.id, mealIngredientId));
+    expect(row.entryCount).toBe("150.00");
+    expect(row.entryUnit).toBe("g");
+  });
+
+  it("rewrites the echo when the amount is edited", async () => {
+    const { mealId, productId } = await seedMealAndProduct();
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 28, quantityUnit: "g",
+      quantitySource: "manual", entryCount: 1, entryUnit: "slice",
+    });
+    await updateMealIngredientQuantity(mealIngredientId, 56, "g", 2, "slice");
+    const [row] = await db
+      .select({ entryCount: mealIngredients.entryCount, entryUnit: mealIngredients.entryUnit })
+      .from(mealIngredients)
+      .where(eq(mealIngredients.id, mealIngredientId));
+    expect(row.entryCount).toBe("2.00");
+    expect(row.entryUnit).toBe("slice");
   });
 });

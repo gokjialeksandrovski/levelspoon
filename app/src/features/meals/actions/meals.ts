@@ -23,6 +23,8 @@ export interface SaveMealIngredientInput {
   quantity: number;
   quantityUnit: string;
   quantitySource: "ai_estimated" | "manual";
+  entryCount: number;
+  entryUnit: string;
 }
 
 const assertMealOwnership = async (mealId: string, userId: string): Promise<void> => {
@@ -56,6 +58,8 @@ export const saveMealIngredient = async (
       productId: input.productId,
       quantity: String(input.quantity),
       quantityUnit: input.quantityUnit,
+      entryCount: String(input.entryCount),
+      entryUnit: input.entryUnit,
       quantitySource: input.quantitySource,
     })
     .returning({ id: mealIngredients.id });
@@ -469,12 +473,20 @@ export const updateMealIngredientQuantity = async (
   mealIngredientId: string,
   quantity: number,
   quantityUnit: string,
+  entryCount: number,
+  entryUnit: string,
 ): Promise<void> => {
   const userId = await requireUserId();
   await assertMealIngredientOwnership(mealIngredientId, userId);
   await db
     .update(mealIngredients)
-    .set({ quantity: String(quantity), quantityUnit, quantitySource: "manual" })
+    .set({
+      quantity: String(quantity),
+      quantityUnit,
+      entryCount: String(entryCount),
+      entryUnit,
+      quantitySource: "manual",
+    })
     .where(eq(mealIngredients.id, mealIngredientId));
 };
 

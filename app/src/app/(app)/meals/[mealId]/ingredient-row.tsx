@@ -45,17 +45,29 @@ const removeIngredient = async (mealIngredientId: string, callbacks: MutationCal
   }
 };
 
+interface ResolvedAmount {
+  quantity: number;
+  quantityUnit: string;
+  entryCount: number;
+  entryUnit: string;
+}
+
 const saveIngredientQuantity = async (
   mealIngredientId: string,
-  quantity: number,
-  quantityUnit: string,
+  amount: ResolvedAmount,
   onSaved: () => void,
   callbacks: MutationCallbacks,
 ): Promise<void> => {
   callbacks.onError(null);
   callbacks.onBusyChange(true);
   try {
-    await updateMealIngredientQuantity(mealIngredientId, quantity, quantityUnit);
+    await updateMealIngredientQuantity(
+      mealIngredientId,
+      amount.quantity,
+      amount.quantityUnit,
+      amount.entryCount,
+      amount.entryUnit,
+    );
     onSaved();
     callbacks.router.refresh();
     callbacks.onChanged?.();
@@ -93,7 +105,13 @@ export const resolveAndSaveQuantity = async (
     callbacks.onError(`Couldn't work out the amount in "${input.unit}". Try a different unit.`);
     return;
   }
-  await saveIngredientQuantity(input.ingredientId, resolution.quantity, resolution.quantityUnit, onSaved, callbacks);
+  // An edit re-states the entry, so the echo is what was typed this time.
+  await saveIngredientQuantity(
+    input.ingredientId,
+    { quantity: resolution.quantity, quantityUnit: resolution.quantityUnit, entryCount: Number(input.count), entryUnit: input.unit },
+    onSaved,
+    callbacks,
+  );
 };
 
 interface UseIngredientEditingResult {

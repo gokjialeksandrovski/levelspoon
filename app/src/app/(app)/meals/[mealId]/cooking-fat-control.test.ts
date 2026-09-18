@@ -13,7 +13,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const baseInput = { mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g" };
+const baseInput = { mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", entryCount: 1, entryUnit: "tbsp" };
 
 describe("saveCookingFat", () => {
   it("fires the haptic and always saves as manual quantity source", async () => {
@@ -24,7 +24,7 @@ describe("saveCookingFat", () => {
     await saveCookingFat(baseInput, onSaved, callbacks);
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", quantitySource: "manual",
+      mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", entryCount: 1, entryUnit: "tbsp", quantitySource: "manual",
     });
     expect(triggerLogSuccessHaptic).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledTimes(1);
@@ -56,7 +56,7 @@ describe("resolveAndSaveCookingFat", () => {
     );
 
     expect(saveMealIngredient).toHaveBeenCalledWith({
-      mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", quantitySource: "manual",
+      mealId: "meal-1", productId: "oil-1", quantity: 13.8, quantityUnit: "g", entryCount: 1, entryUnit: "tbsp", quantitySource: "manual",
     });
   });
 

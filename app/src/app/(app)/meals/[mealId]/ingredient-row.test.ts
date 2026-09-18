@@ -23,7 +23,7 @@ describe("resolveAndSaveQuantity", () => {
       onSaved, callbacks,
     );
 
-    expect(updateMealIngredientQuantity).toHaveBeenCalledWith("ingredient-1", 150, "g");
+    expect(updateMealIngredientQuantity).toHaveBeenCalledWith("ingredient-1", 150, "g", 150, "g");
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
@@ -38,7 +38,7 @@ describe("resolveAndSaveQuantity", () => {
       onSaved, callbacks,
     );
 
-    expect(updateMealIngredientQuantity).toHaveBeenCalledWith("ingredient-1", 2, "tbsp");
+    expect(updateMealIngredientQuantity).toHaveBeenCalledWith("ingredient-1", 2, "tbsp", 2, "tbsp");
   });
 
   it("sets an error and never saves when the unit cannot be resolved", async () => {
