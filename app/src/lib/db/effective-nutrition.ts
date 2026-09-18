@@ -6,9 +6,11 @@ import { productOverrides, products } from "./schema";
  * What a given user should see for a product's seven nutrition figures: their
  * own correction if they have one, the canonical label-photo row otherwise.
  *
- * Lives here, in one place, because six read sites need it - two meal
- * selections, two candidate searches, the barcode lookup and the correction
+ * Lives here, in one place, because seven read sites need it - three meal
+ * reads, two candidate searches, the barcode lookup and the correction
  * screen - and seven hand-written coalesces per site is how they drift apart.
+ * The day-history total joins through overrideJoinSql but writes its own
+ * coalesce inline: it selects one summed column, not the seven.
  *
  * Two shapes because the call sites are two shapes: meals.ts builds typed
  * Drizzle selections, products.ts and barcode.ts write raw SQL against
