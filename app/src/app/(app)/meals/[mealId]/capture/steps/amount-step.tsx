@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { linkBarcode } from "@/features/products/actions/barcode";
-import { recentAmounts, saveMealIngredient, type RecentAmount } from "@/features/meals/actions/meals";
+import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
 import type { ProductCandidate } from "@/features/products/actions/products";
 import { getPortions } from "@/features/products/actions/portions";
@@ -17,9 +17,9 @@ import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
-import { AmountChips } from "../../amount-chips";
+import { AmountChips, useRecentAmounts } from "../../amount-chips";
 import { PortionEditor } from "../../portion-editor";
-import { mergeChips, type AmountChip } from "../../amount-chips.utils";
+import { mergeChips, unitsForSelect, type AmountChip } from "../../amount-chips.utils";
 import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
@@ -156,32 +156,6 @@ export const resolveAndSaveAmount = async (
   );
 };
 
-interface RecentAmountsState {
-  recents: RecentAmount[];
-  isLoading: boolean;
-}
-
-const useRecentAmounts = (productId: string): RecentAmountsState => {
-  const [state, setState] = useState<RecentAmountsState>({ recents: [], isLoading: true });
-  useEffect(() => {
-    let isCurrent = true;
-    recentAmounts(productId)
-      .then((loaded) => {
-        if (isCurrent) setState({ recents: loaded, isLoading: false });
-      })
-      // Chips are an accelerator, never the only way in: a failed read leaves
-      // the portion chips and the typed field, both fully usable.
-      .catch((error) => {
-        console.error("Reading recent amounts failed", error);
-        if (isCurrent) setState({ recents: [], isLoading: false });
-      });
-    return () => {
-      isCurrent = false;
-    };
-  }, [productId]);
-  return state;
-};
-
 const contextFor = (product: SelectedProduct): MeasureContext => ({
   productName: product.name,
   densityGMl: product.densityGMl,
@@ -294,19 +268,12 @@ interface AmountStepBodyProps extends AmountStepFieldsProps {
   product: SelectedProduct;
 }
 
-// Portion labels are chips, so they leave the select - one value with two
-// controls is a state question nobody should have to answer. The unit in play
-// stays listed: a select that cannot show its own value renders blank, and
-// the amount would then read as grams while saving slices.
-const typedUnits = (form: UseAmountStepFormResult): string[] =>
-  form.units.filter((unit) => unit === form.unit || !form.chips.some((chip) => chip.unit === unit));
-
 const AmountField = ({ form }: AmountStepFieldsProps) => (
   <UnitAmountField
     name="grams"
     count={form.count}
     unit={form.unit}
-    units={typedUnits(form)}
+    units={unitsForSelect(form.units, form.chips, form.unit)}
     onCountChange={form.setCount}
     onUnitChange={form.setUnit}
   />

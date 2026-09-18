@@ -31,12 +31,37 @@ export const mergeChips = (
   ];
 };
 
+// One decimal, trailing zero dropped. A logged tablespoon of oil weighs
+// 13.8 g and its kcal comes off that figure - printing "14 g" beside a kcal
+// number derived from 13.8 shows two amounts that do not agree. A chip stays
+// rounded (playbook 03): a chip is a reference average not yet logged, where
+// a tenth of a gram is noise.
+const GRAMS_DISPLAY_DECIMALS = 1;
+
+export const formatGrams = (grams: number): string =>
+  `${Number(grams.toFixed(GRAMS_DISPLAY_DECIMALS))}`;
+
 // A gram chip already states its weight in its count - printing "100 g · 100 g"
 // reads as a bug.
 export const chipLabel = (chip: AmountChip): string =>
   chip.unit === "g"
     ? `${chip.count} g`
     : `${chip.count} ${chip.unit} · ${Math.round(chip.grams)} g`;
+
+/**
+ * Units left for the select once the chips have taken theirs.
+ *
+ * A value gets one control: a unit offered as a chip must not also sit in the
+ * select. The unit in play stays listed regardless - a select that cannot show
+ * its own value renders blank, and the amount would then read as grams while
+ * saving slices.
+ */
+export const unitsForSelect = (
+  units: readonly string[],
+  chips: readonly AmountChip[],
+  selectedUnit: string,
+): string[] =>
+  units.filter((unit) => unit === selectedUnit || !chips.some((chip) => chip.unit === unit));
 
 export const isChipSelected = (chip: AmountChip, count: string, unit: string): boolean => {
   const typed = Number(count.trim());
@@ -60,5 +85,5 @@ export const quantityText = (
   if (entryCount === null || entryUnit === null || entryUnit === quantityUnit) {
     return `${quantity} ${quantityUnit}`;
   }
-  return `${entryCount} ${entryUnit} · ${Math.round(quantity)} ${quantityUnit}`;
+  return `${entryCount} ${entryUnit} · ${formatGrams(quantity)} ${quantityUnit}`;
 };

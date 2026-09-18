@@ -4,7 +4,9 @@ vi.mock("@/features/meals/actions/meals", () => ({ updateMealIngredientQuantity:
 
 import { updateMealIngredientQuantity } from "@/features/meals/actions/meals";
 
-import { resolveAndSaveQuantity } from "./ingredient-row";
+import type { MealIngredientDetail } from "@/features/meals/actions/meals";
+
+import { editSeed, resolveAndSaveQuantity } from "./ingredient-row";
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -52,5 +54,27 @@ describe("resolveAndSaveQuantity", () => {
 
     expect(updateMealIngredientQuantity).not.toHaveBeenCalled();
     expect(callbacks.onError).toHaveBeenCalledWith('Couldn\'t work out the amount in "gummies". Try a different unit.');
+  });
+});
+
+describe("editSeed", () => {
+  const ingredient = {
+    quantity: 28,
+    quantityUnit: "g",
+    entryCount: 1,
+    entryUnit: "slice",
+  } as MealIngredientDetail;
+
+  it("opens on the words the amount was entered in", () => {
+    expect(editSeed(ingredient, ["slice", "g"])).toEqual({ count: "1", unit: "slice" });
+  });
+
+  it("falls back to the stored quantity when the entry unit no longer resolves", () => {
+    expect(editSeed(ingredient, ["g"])).toEqual({ count: "28", unit: "g" });
+  });
+
+  it("falls back for a row written before the entry columns existed", () => {
+    const old = { ...ingredient, entryCount: null, entryUnit: null } as MealIngredientDetail;
+    expect(editSeed(old, ["slice", "g"])).toEqual({ count: "28", unit: "g" });
   });
 });

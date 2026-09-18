@@ -1,8 +1,44 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
+import { recentAmounts, type RecentAmount } from "@/features/meals/actions/meals";
 import { Button } from "@/components/ui/button";
 
 import { chipLabel, isChipSelected, type AmountChip } from "./amount-chips.utils";
+
+interface RecentAmountsState {
+  recents: RecentAmount[];
+  isLoading: boolean;
+}
+
+/**
+ * How this user last logged this product, for the chip row.
+ *
+ * Exported from the component file, the way useStandardFoodPicker is: every
+ * screen that renders AmountChips needs this, and a hook with one consumer per
+ * screen is not a second module's worth of surface.
+ */
+export const useRecentAmounts = (productId: string): RecentAmountsState => {
+  const [state, setState] = useState<RecentAmountsState>({ recents: [], isLoading: true });
+  useEffect(() => {
+    let isCurrent = true;
+    recentAmounts(productId)
+      .then((loaded) => {
+        if (isCurrent) setState({ recents: loaded, isLoading: false });
+      })
+      // Chips are an accelerator, never the only way in: a failed read leaves
+      // the portion chips and the typed field, both fully usable.
+      .catch((error) => {
+        console.error("Reading recent amounts failed", error);
+        if (isCurrent) setState({ recents: [], isLoading: false });
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [productId]);
+  return state;
+};
 
 interface AmountChipsProps {
   chips: AmountChip[];

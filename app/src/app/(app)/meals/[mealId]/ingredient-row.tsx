@@ -151,12 +151,31 @@ const buildQuantityActions = (
   clearError: () => setError(null),
 });
 
+/**
+ * What the edit control opens on.
+ *
+ * A row logged as "1 slice" opens on 1 slice, not on the 28 g it resolved to -
+ * otherwise correcting it means re-deriving the count the user already said.
+ * Falls back to the stored quantity when the entry is missing (a row older
+ * than these columns) or when its unit no longer resolves for this product,
+ * which would leave the select unable to show its own value.
+ */
+export const editSeed = (
+  ingredient: MealIngredientDetail,
+  units: readonly string[],
+): { count: string; unit: string } =>
+  ingredient.entryCount !== null && ingredient.entryUnit !== null && units.includes(ingredient.entryUnit)
+    ? { count: String(ingredient.entryCount), unit: ingredient.entryUnit }
+    : { count: String(ingredient.quantity), unit: ingredient.quantityUnit };
+
 const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void, onRemoved?: () => void): UseIngredientEditingResult => {
   const router = useRouter();
   const context = contextFor(ingredient);
+  const units = availableUnits(context);
+  const seed = editSeed(ingredient, units);
   const [isEditing, setIsEditing] = useState(false);
-  const [count, setCount] = useState(String(ingredient.quantity));
-  const [unit, setUnit] = useState(ingredient.quantityUnit);
+  const [count, setCount] = useState(seed.count);
+  const [unit, setUnit] = useState(seed.unit);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged, onRemoved };
@@ -165,7 +184,7 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () =
     isEditing,
     count,
     unit,
-    units: availableUnits(context),
+    units,
     isBusy,
     error,
     ...buildQuantityActions(ingredient, context, count, unit, setIsEditing, setCount, setUnit, setError, callbacks),

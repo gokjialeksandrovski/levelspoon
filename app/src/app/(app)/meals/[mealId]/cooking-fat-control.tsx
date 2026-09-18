@@ -14,6 +14,8 @@ import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
+import { AmountChips, useRecentAmounts } from "./amount-chips";
+import { mergeChips, unitsForSelect } from "./amount-chips.utils";
 import { AmountPreview } from "./nutrition-summary";
 import { StandardFoodPicker, useStandardFoodPicker, type UseStandardFoodPickerResult } from "./standard-food-picker";
 
@@ -136,6 +138,8 @@ interface CookingFatAmountStageProps {
 
 const useCookingFatAmount = (mealId: string, food: StandardFood, onSaved: () => void) => {
   const context = contextFor(food);
+  const { recents, isLoading: isLoadingChips } = useRecentAmounts(food.id);
+  const chips = mergeChips(recents, food.portions);
   const [count, setCount] = useState("");
   const [unit, setUnit] = useState(initialCookingUnit(context));
   const [error, setError] = useState<string | null>(null);
@@ -151,13 +155,18 @@ const useCookingFatAmount = (mealId: string, food: StandardFood, onSaved: () => 
     basisQuantity: food.nutritionBasisQuantity,
   });
 
-  return { count, unit, units: availableUnits(context), preview, error, isBusy, setCount, setUnit, handleSave };
+  const pickChip = (chipCount: string, chipUnit: string) => {
+    setCount(chipCount);
+    setUnit(chipUnit);
+  };
+
+  return { count, unit, units: availableUnits(context), chips, isLoadingChips, preview, error, isBusy, setCount, setUnit, pickChip, handleSave };
 };
 
 // Keyed by food.id in CookingFatSheet so a different result remounts this
 // with fresh state, no reset effect needed.
 const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmountStageProps) => {
-  const { count, unit, units, preview, error, isBusy, setCount, setUnit, handleSave } = useCookingFatAmount(
+  const { count, unit, units, chips, isLoadingChips, preview, error, isBusy, setCount, setUnit, pickChip, handleSave } = useCookingFatAmount(
     mealId,
     food,
     onSaved,
@@ -168,7 +177,8 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
       <Button variant="ghost" link onClick={onBack}>
         Search again
       </Button>
-      <UnitAmountField name="cooking-fat-amount" count={count} unit={unit} units={units} autoFocus onCountChange={setCount} onUnitChange={setUnit} />
+      <AmountChips chips={chips} count={count} unit={unit} isLoading={isLoadingChips} onPick={pickChip} />
+      <UnitAmountField name="cooking-fat-amount" count={count} unit={unit} units={unitsForSelect(units, chips, unit)} autoFocus onCountChange={setCount} onUnitChange={setUnit} />
       <AmountPreview preview={preview} />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <Button disabled={count.trim() === ""} pending={isBusy} onClick={handleSave}>

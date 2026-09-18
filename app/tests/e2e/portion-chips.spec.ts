@@ -31,7 +31,9 @@ test("logs one slice of bread in a single tap", async ({ page }) => {
   await page.getByRole("button", { name: /done/i }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
 
-  await expect(page.getByText("28 g")).toBeVisible();
+  // Full row text, not the "28 g" substring of it: that matched either way and
+  // stopped proving the unit survived the save.
+  await expect(page.getByText("1 slice · 28 g")).toBeVisible();
 });
 
 test("keeps the plain amount field for a food with no portions", async ({ page }) => {

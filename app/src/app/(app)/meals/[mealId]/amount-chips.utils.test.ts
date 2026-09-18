@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chipLabel, isChipSelected, mergeChips, portionChips, quantityText } from "./amount-chips.utils";
+import { chipLabel, formatGrams, isChipSelected, mergeChips, portionChips, quantityText, unitsForSelect } from "./amount-chips.utils";
 
 describe("portionChips", () => {
   it("offers one chip per portion, each at a count of one", () => {
@@ -116,7 +116,42 @@ describe("quantityText", () => {
     expect(quantityText(150, "g", null, null)).toBe("150 g");
   });
 
+  it("keeps the decimal of a resolved weight instead of rounding it away", () => {
+    expect(quantityText(13.8, "g", 1, "tbsp")).toBe("1 tbsp · 13.8 g");
+  });
+
   it("keeps a per-unit product's own basis unit", () => {
     expect(quantityText(2, "tbsp", 2, "tbsp")).toBe("2 tbsp");
+  });
+});
+
+describe("formatGrams", () => {
+  it("keeps one decimal when the weight has one", () => {
+    expect(formatGrams(13.8)).toBe("13.8");
+  });
+
+  it("drops a trailing zero", () => {
+    expect(formatGrams(28)).toBe("28");
+    expect(formatGrams(45.0)).toBe("45");
+  });
+
+  it("rounds past one decimal", () => {
+    expect(formatGrams(13.83)).toBe("13.8");
+  });
+});
+
+describe("unitsForSelect", () => {
+  const chips = [{ count: 1, unit: "slice", grams: 28 }];
+
+  it("drops a unit already offered as a chip", () => {
+    expect(unitsForSelect(["slice", "g"], chips, "g")).toEqual(["g"]);
+  });
+
+  it("keeps the unit in play so the select can show its own value", () => {
+    expect(unitsForSelect(["slice", "g"], chips, "slice")).toEqual(["slice", "g"]);
+  });
+
+  it("leaves every unit when there are no chips", () => {
+    expect(unitsForSelect(["g", "ml"], [], "g")).toEqual(["g", "ml"]);
   });
 });

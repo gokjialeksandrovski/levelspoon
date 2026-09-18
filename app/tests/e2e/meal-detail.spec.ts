@@ -147,8 +147,43 @@ test("adding a cooking fat raises the meal total by its own contribution", async
   await page.getByLabel("Amount", { exact: true }).fill("1");
   await page.getByRole("button", { name: "Add to meal" }).click();
 
-  // Row now echoes the entry: "1 tbsp" with the resolved 13.8 g rounded behind
-  // it. The kcal still comes off the unrounded 13.8 g.
-  await expect(page.getByText(/1 tbsp .*14 g.*122 kcal/)).toBeVisible();
+  // Row echoes the entry: "1 tbsp", with the resolved weight behind it at the
+  // same precision its kcal figure was computed from.
+  await expect(page.getByText(/1 tbsp .*13\.8 g.*122 kcal/)).toBeVisible();
   await expect(page.getByText(/Meal total.*262 kcal/)).toBeVisible();
+});
+
+test("offers the last cooking-fat amount back as a chip", async ({ page }) => {
+  await seedConfidentProduct();
+  await seedStandardFood("Olive oil", {
+    category: "fat",
+    densityGMl: "0.92",
+    nutrition: {
+      energyKcal: "884", fatG: "100", saturatesG: "13.81",
+      carbohydrateG: "0", sugarsG: "0", proteinG: "0", saltG: "0.01",
+    },
+  });
+  await signUp(page);
+  await logOneIngredient(page);
+
+  const addOliveOil = async () => {
+    await page.getByRole("button", { name: "Add cooking oil or fat" }).click();
+    await page.getByLabel("Food name").fill("Olive oil");
+    await page.getByRole("button", { name: "Search" }).click();
+    // Scoped to the sheet: the meal behind it now has an "Olive oil" row too.
+    await page.getByRole("dialog").getByRole("button", { name: "Olive oil" }).click();
+  };
+
+  await addOliveOil();
+  await expect(page.getByRole("group", { name: "Quick amounts" }).getByRole("button")).toHaveCount(0);
+  await page.getByLabel("Amount", { exact: true }).fill("1");
+  await page.getByRole("button", { name: "Add to meal" }).click();
+  await expect(page.getByText(/1 tbsp .*13\.8 g/)).toBeVisible();
+
+  // Second fat goes in at one tap: the sheet now remembers the tablespoon.
+  await addOliveOil();
+  await page.getByRole("button", { name: "1 tbsp · 14 g" }).click();
+  await page.getByRole("button", { name: "Add to meal" }).click();
+
+  await expect(page.getByText(/Meal total.*384 kcal/)).toBeVisible();
 });
