@@ -39,6 +39,7 @@ const seedProduct = async (
     .insert(products)
     .values({
       name: "Test Product",
+      nameSearch: "test product",
       energyKcal: "70",
       fatG: "2.0",
       saturatesG: "1.2",
@@ -260,6 +261,7 @@ describe("getMealDetail", () => {
       .insert(products)
       .values({
         name: "Nutella (per tbsp)",
+        nameSearch: "nutella (per tbsp)",
         energyKcal: "100",
         fatG: "9",
         saturatesG: "3.5",
@@ -740,6 +742,7 @@ describe("getDayHistory", () => {
       .insert(products)
       .values({
         name: "Nutella (per tbsp)",
+        nameSearch: "nutella (per tbsp)",
         energyKcal: "100",
         fatG: "9",
         saturatesG: "3.5",

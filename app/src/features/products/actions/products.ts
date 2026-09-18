@@ -8,6 +8,7 @@ import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
+import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
@@ -27,6 +28,12 @@ const CANDIDATE_LIMIT = 5;
 // not apply here - the user picks the row, nothing auto-accepts. Same limit
 // as searchStandardFoods so both pick lists fill one phone screen.
 const TYPED_SEARCH_LIMIT = 8;
+// A romanization is a spelling, not the spelling: "сирење" is "sirenje" by the
+// book and "sirene" to whoever typed it. So a typed query matches on tokens or
+// on looking close enough as a whole - measured against local Postgres,
+// similarity('sirenje', 'sirene') is 0.5, and an unrelated pair of product
+// names lands well under this floor.
+const TYPED_SEARCH_MIN_SIMILARITY = 0.3;
 
 // productSource.enumValues is the tuple ["user", "standard"].
 const STANDARD_SOURCE = productSource.enumValues[1];
@@ -187,8 +194,12 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
 /**
  * Typed-name search over the user-contributed products.
  *
- * Every token must appear somewhere in the name (ILIKE), ranked by whole-string
- * trigram similarity so the closest name still sorts first. Deliberately NOT
+ * Every token must appear somewhere in the name (ILIKE) - or, for a query whose
+ * spelling drifted from the stored one, the whole query must score at least
+ * TYPED_SEARCH_MIN_SIMILARITY against it. Both sides are compared in their
+ * romanized form (toSearchText), so a name in any script is reachable from a
+ * Latin keyboard. Ranked by whole-string trigram similarity so the closest name
+ * still sorts first. Deliberately NOT
  * matchProduct: that one scores the whole OCR string and owns the confident/
  * ambiguous margin that guards the shared cache. Typing "bella" scores ~0.1
  * against "Bella Farm YOGHURT 2,8% m.m 1kr/kg", below the 0.35 floor - correct
@@ -199,22 +210,24 @@ export const matchProduct = async (ocrText: string): Promise<MatchResult> => {
  */
 export const searchUserProducts = async (query: string): Promise<ProductCandidate[]> => {
   const userId = await requireUserId();
-  const tokens = toLikeTokens(query);
+  const searchQuery = toSearchText(query);
+  const tokens = toLikeTokens(searchQuery);
   if (tokens.length === 0) {
     return [];
   }
 
-  const tokenFilters = tokens.map((token) => sql`AND p.name ILIKE ${`%${token}%`}`);
+  const tokenFilters = tokens.map((token) => sql`p.name_search ILIKE ${`%${token}%`}`);
   const result = await db.execute<CandidateRow>(sql`
     SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
-           similarity(p.name, ${query}) AS score
+           similarity(p.name_search, ${searchQuery}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
     WHERE p.source = ${USER_SOURCE}
       AND ${visibleToUser(userId)}
-    ${sql.join(tokenFilters, sql` `)}
+      AND (${sql.join(tokenFilters, sql` AND `)}
+           OR similarity(p.name_search, ${searchQuery}) >= ${TYPED_SEARCH_MIN_SIMILARITY})
     ORDER BY score DESC, name ASC
     LIMIT ${TYPED_SEARCH_LIMIT}
   `);
@@ -286,6 +299,7 @@ const DEFAULT_NUTRITION_BASIS_QUANTITY = 100;
 
 const toProductInsertValues = (input: CreateProductInput, userId: string, photoKey: string | null) => ({
   name: input.name,
+  nameSearch: toSearchText(input.name),
   ...toNutritionColumns(input.nutritionPer100g),
   ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
   nutritionBasisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
@@ -447,7 +461,7 @@ export const renameOwnProduct = async (productId: string, name: string): Promise
   const userId = await requireUserId();
   const updated = await db
     .update(products)
-    .set({ name, updatedByUserId: userId, updatedAt: new Date() })
+    .set({ name, nameSearch: toSearchText(name), updatedByUserId: userId, updatedAt: new Date() })
     .where(
       and(
         eq(products.id, productId),
@@ -625,7 +639,7 @@ const fetchStandardFoodRows = async (
            serving_unit, serving_grams, density_g_ml, nutrition_basis_unit,
            nutrition_basis_quantity, score
     FROM (
-      SELECT *, similarity(lower(name), lower(${query})) AS score
+      SELECT *, similarity(name_search, ${toSearchText(query)}) AS score
       FROM products
       WHERE source = ${STANDARD_SOURCE} ${categoryFilter}
     ) ranked

@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { pathToFileURL } from "node:url";
 
 import { db } from "../src/lib/db";
+import { toSearchText } from "../src/lib/db/search-text";
 import { products, users } from "../src/lib/db/schema";
 
 const SEED_USER_EMAIL = "seed-user@per100.local";
@@ -51,7 +52,11 @@ const findOrCreateSeedUser = async (): Promise<string> => {
 
 export const seedProducts = async (seedUserId: string): Promise<void> => {
   await db.insert(products).values(
-    SEED_PRODUCTS.map((product) => ({ ...product, createdByUserId: seedUserId })),
+    SEED_PRODUCTS.map((product) => ({
+      ...product,
+      nameSearch: toSearchText(product.name),
+      createdByUserId: seedUserId,
+    })),
   );
 };
 
@@ -161,6 +166,7 @@ const per100gColumns = (per100g: StandardFoodFixture["per100g"]) => ({
 
 const toStandardInsert = (systemUserId: string) => (row: StandardFoodFixture) => ({
   name: row.name,
+  nameSearch: toSearchText(row.name),
   source: "standard" as const,
   standardSlug: row.slug,
   standardCategory: row.category,
@@ -177,6 +183,7 @@ const toStandardInsert = (systemUserId: string) => (row: StandardFoodFixture) =>
 // created_by stay put.
 const STANDARD_RESEED_SET = {
   name: sql`excluded.name`,
+  nameSearch: sql`excluded.name_search`,
   standardCategory: sql`excluded.standard_category`,
   energyKcal: sql`excluded.energy_kcal`,
   fatG: sql`excluded.fat_g`,

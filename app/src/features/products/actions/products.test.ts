@@ -5,6 +5,7 @@ const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
+import { toSearchText } from "@/lib/db/search-text";
 import { products, productBarcodes, productOverrides, users } from "@/lib/db/schema";
 import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
@@ -37,6 +38,7 @@ const seedProduct = async (
     .insert(products)
     .values({
       name,
+      nameSearch: toSearchText(name),
       energyKcal: "70",
       fatG: "2.0",
       saturatesG: "1.2",
@@ -74,6 +76,7 @@ const seedStandardRow = async (row: {
     .insert(products)
     .values({
       name: row.name,
+      nameSearch: toSearchText(row.name),
       source: "standard",
       standardSlug: row.slug,
       standardCategory: row.category ?? "whole",
@@ -189,6 +192,7 @@ describe("matchProduct", () => {
     const userId = await seedUser();
     await db.insert(products).values({
       name: "Nutella Choc Spread",
+      nameSearch: "nutella choc spread",
       energyKcal: "100", fatG: "9", saturatesG: "3.5", carbohydrateG: "10", sugarsG: "10", proteinG: "1", saltG: "0.02",
       nutritionPhotoKey: "test/placeholder.jpg",
       createdByUserId: userId,
@@ -240,6 +244,14 @@ describe("searchStandardFoods", () => {
     mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
 
     expect(await searchStandardFoods("xqzwvk")).toEqual([]);
+  });
+
+  it("finds a name written in another script from its romanization", async () => {
+    await seedStandardRow({ slug: "sirenje", name: "Сирење" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+
+    expect((await searchStandardFoods("sirene")).map((row) => row.slug)).toEqual(["sirenje"]);
+    expect((await searchStandardFoods("sirenje")).map((row) => row.slug)).toEqual(["sirenje"]);
   });
 
   it("round-trips learned serving and density fields as numbers", async () => {
@@ -336,6 +348,23 @@ describe("searchUserProducts", () => {
     mockAuth.mockResolvedValue(null);
 
     await expect(searchUserProducts("bella")).rejects.toThrow();
+  });
+
+  it("finds a name written in another script, typed either way", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Сирење");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect((await searchUserProducts("sirenje")).map((row) => row.name)).toEqual(["Сирење"]);
+    expect((await searchUserProducts("Сирење")).map((row) => row.name)).toEqual(["Сирење"]);
+  });
+
+  it("still finds it when the romanization the user typed is not the one the table holds", async () => {
+    const userId = await seedUser();
+    await seedProduct(userId, "Сирење");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect((await searchUserProducts("sirene")).map((row) => row.name)).toEqual(["Сирење"]);
   });
 });
 

@@ -33,6 +33,10 @@ export const products = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    // Lowercase-ASCII form of `name`, written by every insert (toSearchText)
+    // so a name in any script is reachable from a Latin keyboard. No default:
+    // a writer that forgets it should fail, not file a row nobody can find.
+    nameSearch: text("name_search").notNull(),
     brand: text("brand"),
     source: productSource("source").notNull().default("user"),
     standardSlug: text("standard_slug").unique(),
@@ -76,6 +80,7 @@ export const products = pgTable(
   },
   (table) => [
     index("products_name_trgm_idx").using("gin", table.name.op("gin_trgm_ops")),
+    index("products_name_search_trgm_idx").using("gin", table.nameSearch.op("gin_trgm_ops")),
   ],
 );
 

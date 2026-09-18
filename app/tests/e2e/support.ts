@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { sql } from "drizzle-orm";
 
 import { db } from "../../src/lib/db";
+import { toSearchText } from "../../src/lib/db/search-text";
 import { productBarcodes, products, users } from "../../src/lib/db/schema";
 import { todayLocalDateString } from "../../src/lib/date/day-bounds";
 
@@ -18,16 +19,23 @@ export const BASE_NUTRITION = {
   sugarsG: "4.0", proteinG: "9.0", saltG: "0.18", nutritionPhotoKey: "test/placeholder.jpg",
 };
 
+const productValues = (name: string, createdByUserId: string) => ({
+  ...BASE_NUTRITION,
+  name,
+  nameSearch: toSearchText(name),
+  createdByUserId,
+});
+
 export const seedConfidentProduct = async (name = "Olympus Greek Yogurt 2% Fat") => {
   const [user] = await db.insert(users).values({ email: freshEmail("seed") }).returning();
-  await db.insert(products).values({ ...BASE_NUTRITION, name, createdByUserId: user.id });
+  await db.insert(products).values(productValues(name, user.id));
 };
 
 export const seedAmbiguousVariants = async () => {
   const [user] = await db.insert(users).values({ email: freshEmail("seed") }).returning();
   await db.insert(products).values([
-    { ...BASE_NUTRITION, name: "Olympus Greek Yogurt 2% Fat", createdByUserId: user.id },
-    { ...BASE_NUTRITION, name: "Olympus Greek Yogurt 10% Fat", createdByUserId: user.id },
+    productValues("Olympus Greek Yogurt 2% Fat", user.id),
+    productValues("Olympus Greek Yogurt 10% Fat", user.id),
   ]);
 };
 
@@ -36,7 +44,7 @@ export const seedAmbiguousVariants = async () => {
 export const seedProductFor = async (userId: string, name = "Test Product") => {
   const [product] = await db
     .insert(products)
-    .values({ ...BASE_NUTRITION, name, createdByUserId: userId })
+    .values(productValues(name, userId))
     .returning();
   return product;
 };
@@ -48,7 +56,7 @@ export const seedProductWithBarcode = async (barcode: string, name = "Existing S
   const [user] = await db.insert(users).values({ email: freshEmail("seed") }).returning();
   const [product] = await db
     .insert(products)
-    .values({ ...BASE_NUTRITION, name, createdByUserId: user.id })
+    .values(productValues(name, user.id))
     .returning();
   await db.insert(productBarcodes).values({ barcode, productId: product.id, createdByUserId: user.id });
 };
@@ -65,6 +73,7 @@ const standardFoodValues = (name: string, overrides: StandardFoodOverrides, crea
   ...BASE_NUTRITION,
   ...overrides.nutrition,
   name,
+  nameSearch: toSearchText(name),
   nutritionPhotoKey: null,
   source: "standard" as const,
   standardSlug: `e2e-${crypto.randomUUID()}`,

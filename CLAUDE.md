@@ -83,6 +83,19 @@ similarity cannot separate variants ("Olympus Greek Yogurt 2% Fat" vs
 "10% Fat" score far above 0.65 against each other). Absolute-threshold-only
 would silently attach wrong product's nutrition to shared cache.
 
+### Typed search compares romanized text, never raw names
+
+Every product row carry `name_search`: `toSearchText(name)`
+(`app/src/lib/db/search-text.ts`, any-ascii) lowercase ASCII. Column
+`notNull` with no default, so a forgotten insert fail at compile time
+rather than file row nobody can find. `searchUserProducts` and
+`searchStandardFoods` romanize query same way, so "Сирење" reachable from
+Latin keyboard. Token ILIKE alone not enough, because a romanization is
+a spelling and not the spelling ("sirenje" vs "sirene"). So a query also
+match on whole-string trigram score above `TYPED_SEARCH_MIN_SIMILARITY`.
+`matchProduct` deliberately still score raw `name`: margin rule tuned on
+OCR strings.
+
 ### Confirm step is the shared-cache safety net
 
 Fires **only** for brand-new product about to write to shared table,

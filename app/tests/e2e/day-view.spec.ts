@@ -36,7 +36,7 @@ test("a seeded single-ingredient meal renders as its ingredient's name, with its
   const [product] = await db
     .insert(products)
     .values({
-      name: "Seed Yogurt", energyKcal: "70", fatG: "2", saturatesG: "1", carbohydrateG: "4",
+      name: "Seed Yogurt", nameSearch: "seed yogurt", energyKcal: "70", fatG: "2", saturatesG: "1", carbohydrateG: "4",
       sugarsG: "4", proteinG: "9", saltG: "0.1", nutritionPhotoKey: "x", createdByUserId: user.id,
     })
     .returning();

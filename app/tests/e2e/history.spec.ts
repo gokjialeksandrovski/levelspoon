@@ -24,7 +24,7 @@ test("history lists past days and paginates", async ({ page }) => {
   const [product] = await db
     .insert(products)
     .values({
-      name: "Test Product", energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
+      name: "Test Product", nameSearch: "test product", energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
       sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
       nutritionPhotoKey: "test/placeholder.jpg", createdByUserId: user.id,
     })

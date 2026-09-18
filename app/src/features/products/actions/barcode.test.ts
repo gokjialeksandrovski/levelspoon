@@ -8,6 +8,7 @@ const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { db } from "@/lib/db";
+import { toSearchText } from "@/lib/db/search-text";
 import { productBarcodes, products, users } from "@/lib/db/schema";
 import { MOCK_NOT_FOUND_BARCODE } from "@/lib/barcode/mock-lookup-provider";
 import { InvalidBarcodeError } from "@/lib/barcode/normalize";
@@ -30,6 +31,7 @@ const seedProduct = async (userId: string, name: string): Promise<string> => {
     .insert(products)
     .values({
       name,
+      nameSearch: toSearchText(name),
       energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
       sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
       nutritionPhotoKey: "test/placeholder.jpg",
