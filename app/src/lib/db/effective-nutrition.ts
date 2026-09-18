@@ -39,7 +39,7 @@ const NUTRITION_COLUMN_NAMES = [
 // Aliases are identifiers, not values, so they cannot be bound as parameters.
 // Every call site passes a literal from this module's own callers - never user
 // input - but the guard keeps it that way.
-const assertSafeAlias = (alias: string): void => {
+export const assertSafeAlias = (alias: string): void => {
   if (!/^[a-z][a-z0-9_]*$/.test(alias)) {
     throw new Error(`Unsafe SQL alias: ${alias}`);
   }

@@ -9,6 +9,7 @@ import { MockBarcodeLookupProvider } from "@/lib/barcode/mock-lookup-provider";
 import { OpenFoodFactsProvider } from "@/lib/barcode/open-food-facts-provider";
 import { db } from "@/lib/db";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
+import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
 import { productBarcodes } from "@/lib/db/schema";
 import type { NutritionValues } from "@/types/nutrition";
 
@@ -60,7 +61,8 @@ const fetchProductByBarcode = async (userId: string, barcode: string): Promise<B
   const result = await db.execute<BarcodeMatchRow>(sql`
     SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
-           p.nutrition_basis_unit, p.nutrition_basis_quantity
+           p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           ${portionOverridesJson("p", userId)}
     FROM product_barcodes b
     JOIN products p ON p.id = b.product_id
     ${overrideJoinSql("p", "o", userId)}

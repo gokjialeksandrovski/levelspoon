@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
+import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
 import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import type { Portion } from "@/lib/measures/portions";
@@ -87,6 +88,7 @@ export type CandidateRow = {
   serving_grams: string | null;
   nutrition_basis_unit: string;
   nutrition_basis_quantity: string;
+  portion_overrides: Record<string, string>;
   score: number;
 };
 
@@ -112,15 +114,15 @@ const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
 
 export const toProductCandidate = async (row: Omit<CandidateRow, "score">): Promise<ProductCandidate> => {
   await requireUserId();
-  // Empty until playbook 04 joins portion_overrides; the merge itself already
-  // lives in resolvePortions.
   const portions = resolvePortions({
     standardSlug: row.standard_slug,
     nameSearch: row.name_search,
     servingUnit: row.serving_unit,
     servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
     nutritionBasisUnit: row.nutrition_basis_unit,
-    overrides: {},
+    overrides: Object.fromEntries(
+      Object.entries(row.portion_overrides).map(([label, grams]) => [label, Number(grams)]),
+    ),
   });
   return {
     id: row.id,
@@ -176,6 +178,7 @@ const fetchCandidateRows = async (ocrText: string, userId: string): Promise<Cand
     SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           ${portionOverridesJson("p", userId)},
            similarity(p.name, ${ocrText}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
@@ -240,6 +243,7 @@ export const searchUserProducts = async (query: string): Promise<ProductCandidat
     SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           ${portionOverridesJson("p", userId)},
            similarity(p.name_search, ${searchQuery}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
@@ -642,6 +646,7 @@ type StandardFoodRow = SnakeNutritionRow & {
   density_g_ml: string | null;
   nutrition_basis_unit: string;
   nutrition_basis_quantity: string;
+  portion_overrides: Record<string, string>;
   score: number;
 };
 
@@ -654,15 +659,15 @@ const toStandardFood = (row: StandardFoodRow): StandardFood => ({
   id: row.id,
   slug: row.standard_slug,
   name: row.name,
-  // Empty until playbook 04 joins portion_overrides; the merge itself already
-  // lives in resolvePortions.
   portions: resolvePortions({
     standardSlug: row.standard_slug,
     nameSearch: row.name_search,
     servingUnit: row.serving_unit,
     servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
     nutritionBasisUnit: row.nutrition_basis_unit,
-    overrides: {},
+    overrides: Object.fromEntries(
+      Object.entries(row.portion_overrides).map(([label, grams]) => [label, Number(grams)]),
+    ),
   }),
   category: row.standard_category,
   nutritionPer100g: nutritionFromSnakeRow(row),
@@ -675,6 +680,7 @@ const toStandardFood = (row: StandardFoodRow): StandardFood => ({
 
 const fetchStandardFoodRows = async (
   query: string,
+  userId: string,
   category?: StandardFoodCategory,
 ): Promise<StandardFoodRow[]> => {
   const categoryFilter = category ? sql`AND standard_category = ${category}` : sql``;
@@ -682,7 +688,8 @@ const fetchStandardFoodRows = async (
     SELECT id, standard_slug, name, name_search, standard_category,
            energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g,
            serving_unit, serving_grams, density_g_ml, nutrition_basis_unit,
-           nutrition_basis_quantity, score
+           nutrition_basis_quantity, score,
+           ${portionOverridesJson("ranked", userId)}
     FROM (
       SELECT *, similarity(name_search, ${toSearchText(query)}) AS score
       FROM products
@@ -699,7 +706,7 @@ export const searchStandardFoods = async (
   query: string,
   category?: StandardFoodCategory,
 ): Promise<StandardFood[]> => {
-  await requireUserId();
-  const rows = await fetchStandardFoodRows(query, category);
+  const userId = await requireUserId();
+  const rows = await fetchStandardFoodRows(query, userId, category);
   return rows.map(toStandardFood);
 };

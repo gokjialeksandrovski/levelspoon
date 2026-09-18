@@ -840,6 +840,7 @@ describe("topTwoScores", () => {
     serving_grams: null,
     nutrition_basis_unit: "g",
     nutrition_basis_quantity: "100",
+    portion_overrides: {},
     score,
   });
 
