@@ -7,6 +7,8 @@ import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/da
 import { db } from "@/lib/db";
 import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
+import type { Portion } from "@/lib/measures/portions";
+import { resolvePortions } from "@/lib/measures/resolve-portions";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
@@ -257,6 +259,9 @@ export interface MealIngredientDetail {
   servingUnit: string | null;
   servingGrams: number | null;
   nutritionBasisUnit: string;
+  /** Resolved server-side, same as on a product DTO: the edit control offers
+   * these labels as units, so an amount logged as "1 slice" stays editable. */
+  portions: readonly Portion[];
 }
 
 export interface MealDetail {
@@ -271,6 +276,8 @@ export interface MealDetail {
 }
 
 interface ProductMeasureColumns {
+  nameSearch: string;
+  standardSlug: string | null;
   densityGMl: string | null;
   servingUnit: string | null;
   servingGrams: string | null;
@@ -302,6 +309,8 @@ const mealIngredientSelection = () => ({
   quantitySource: mealIngredients.quantitySource,
   product: effectiveNutritionSelection(),
   measures: {
+    nameSearch: products.nameSearch,
+    standardSlug: products.standardSlug,
     densityGMl: products.densityGMl,
     servingUnit: products.servingUnit,
     servingGrams: products.servingGrams,
@@ -337,6 +346,16 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   servingUnit: row.measures.servingUnit,
   servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
   nutritionBasisUnit: row.measures.nutritionBasisUnit,
+  // Empty until playbook 04 joins portion_overrides; the merge itself already
+  // lives in resolvePortions.
+  portions: resolvePortions({
+    standardSlug: row.measures.standardSlug,
+    nameSearch: row.measures.nameSearch,
+    servingUnit: row.measures.servingUnit,
+    servingGrams: row.measures.servingGrams === null ? null : Number(row.measures.servingGrams),
+    nutritionBasisUnit: row.measures.nutritionBasisUnit,
+    overrides: {},
+  }),
 });
 
 // Upper bound is read back in SQL, not bound as a JS value: Postgres keeps

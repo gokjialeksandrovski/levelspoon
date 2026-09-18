@@ -9,6 +9,7 @@ import { wizardReducer } from "./capture-wizard.types";
 // is opaque here - these tests assert routing, not arithmetic.
 const NO_MEASURES = {
   brand: null,
+  portions: [],
   densityGMl: null,
   servingUnit: null,
   servingGrams: null,

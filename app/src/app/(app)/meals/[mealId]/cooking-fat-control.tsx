@@ -26,7 +26,7 @@ const contextFor = (food: StandardFood): MeasureContext => ({
   servingUnit: food.servingUnit,
   servingGrams: food.servingGrams,
   nutritionBasisUnit: food.nutritionBasisUnit,
-  portions: [],
+  portions: food.portions,
 });
 
 // Cooking fats are near-universally measured by spoon - tbsp offered first

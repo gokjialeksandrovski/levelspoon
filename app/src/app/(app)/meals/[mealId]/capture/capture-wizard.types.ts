@@ -3,12 +3,14 @@ import type { MatchResult } from "@/features/products/actions/products";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
+import type { Portion } from "@/lib/measures/portions";
 import type { NutritionValues } from "@/types/nutrition";
 
 export interface SelectedProduct {
   id: string;
   name: string;
   brand: string | null;
+  portions: readonly Portion[];
   densityGMl: number | null;
   servingUnit: string | null;
   servingGrams: number | null;
@@ -147,10 +149,12 @@ export const toSelectedProduct = (candidate: {
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
   nutritionPer100g: NutritionValues;
+  portions: readonly Portion[];
 }): SelectedProduct => ({
   id: candidate.id,
   name: candidate.name,
   brand: candidate.brand ?? null,
+  portions: candidate.portions,
   densityGMl: candidate.densityGMl,
   servingUnit: candidate.servingUnit,
   servingGrams: candidate.servingGrams,

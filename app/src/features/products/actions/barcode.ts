@@ -58,7 +58,7 @@ type BarcodeMatchRow = Omit<CandidateRow, "score">;
 
 const fetchProductByBarcode = async (userId: string, barcode: string): Promise<BarcodeMatchRow | null> => {
   const result = await db.execute<BarcodeMatchRow>(sql`
-    SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
+    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity
     FROM product_barcodes b

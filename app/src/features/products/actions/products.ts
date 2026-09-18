@@ -12,6 +12,8 @@ import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
+import type { Portion } from "@/lib/measures/portions";
+import { resolvePortions } from "@/lib/measures/resolve-portions";
 import { deletePhoto, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
@@ -43,6 +45,10 @@ export interface ProductCandidate {
   id: string;
   name: string;
   brand: string | null;
+  /** Household portions this user should see, already merged with their own
+   * overrides. Resolved server-side so `portions.ts` never reaches the
+   * browser bundle. */
+  portions: readonly Portion[];
   nutritionPer100g: NutritionValues;
   // Null on standard rows and on any barcode-created row with no label
   // photo (OFF-sourced products never had one taken).
@@ -66,6 +72,8 @@ export type CandidateRow = {
   id: string;
   name: string;
   brand: string | null;
+  name_search: string;
+  standard_slug: string | null;
   energy_kcal: string;
   fat_g: string;
   saturates_g: string;
@@ -104,10 +112,21 @@ const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
 
 export const toProductCandidate = async (row: Omit<CandidateRow, "score">): Promise<ProductCandidate> => {
   await requireUserId();
+  // Empty until playbook 04 joins portion_overrides; the merge itself already
+  // lives in resolvePortions.
+  const portions = resolvePortions({
+    standardSlug: row.standard_slug,
+    nameSearch: row.name_search,
+    servingUnit: row.serving_unit,
+    servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
+    nutritionBasisUnit: row.nutrition_basis_unit,
+    overrides: {},
+  });
   return {
     id: row.id,
     name: row.name,
     brand: row.brand,
+    portions,
     nutritionPer100g: nutritionFromSnakeRow(row),
     nutritionPhotoKey: row.nutrition_photo_key,
     densityGMl: row.density_g_ml === null ? null : Number(row.density_g_ml),
@@ -154,7 +173,7 @@ const visibleToUser = (userId: string) => sql`
 
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
+    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
            similarity(p.name, ${ocrText}) AS score
@@ -218,7 +237,7 @@ export const searchUserProducts = async (query: string): Promise<ProductCandidat
 
   const tokenFilters = tokens.map((token) => sql`p.name_search ILIKE ${`%${token}%`}`);
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, ${effectiveNutritionSql("p", "o")},
+    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
            p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
            similarity(p.name_search, ${searchQuery}) AS score
@@ -343,7 +362,7 @@ const insertBarcodeLink = async (link: () => Promise<unknown>, barcode: string):
 
 export const createProduct = async (
   input: CreateProductInput,
-): Promise<{ productId: string }> => {
+): Promise<{ productId: string; portions: readonly Portion[] }> => {
   const userId = await requireUserId();
   // Before the upload: a rejected barcode must not leave an orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
@@ -359,7 +378,21 @@ export const createProduct = async (
       const values = { barcode, productId: row.id, createdByUserId: userId };
       await insertBarcodeLink(() => tx.insert(productBarcodes).values(values), barcode);
     }
-    return { productId: row.id };
+    // Returned rather than refetched: the confirm step hands this straight to
+    // the amount step, and being a client component it cannot resolve portions
+    // itself without pulling the gram table into the browser bundle.
+    const values = toProductInsertValues(input, userId, photoKey);
+    return {
+      productId: row.id,
+      portions: resolvePortions({
+        standardSlug: null,
+        nameSearch: values.nameSearch,
+        servingUnit: values.servingUnit,
+        servingGrams: values.servingGrams === null ? null : Number(values.servingGrams),
+        nutritionBasisUnit: values.nutritionBasisUnit,
+        overrides: {},
+      }),
+    };
   });
 };
 
@@ -588,6 +621,7 @@ export interface StandardFood {
   id: string;
   slug: string;
   name: string;
+  portions: readonly Portion[];
   category: StandardFoodCategory;
   nutritionPer100g: NutritionValues;
   servingUnit: string | null;
@@ -601,6 +635,7 @@ type StandardFoodRow = SnakeNutritionRow & {
   id: string;
   standard_slug: string;
   name: string;
+  name_search: string;
   standard_category: StandardFoodCategory;
   serving_unit: string | null;
   serving_grams: string | null;
@@ -619,6 +654,16 @@ const toStandardFood = (row: StandardFoodRow): StandardFood => ({
   id: row.id,
   slug: row.standard_slug,
   name: row.name,
+  // Empty until playbook 04 joins portion_overrides; the merge itself already
+  // lives in resolvePortions.
+  portions: resolvePortions({
+    standardSlug: row.standard_slug,
+    nameSearch: row.name_search,
+    servingUnit: row.serving_unit,
+    servingGrams: row.serving_grams === null ? null : Number(row.serving_grams),
+    nutritionBasisUnit: row.nutrition_basis_unit,
+    overrides: {},
+  }),
   category: row.standard_category,
   nutritionPer100g: nutritionFromSnakeRow(row),
   servingUnit: row.serving_unit,
@@ -634,7 +679,7 @@ const fetchStandardFoodRows = async (
 ): Promise<StandardFoodRow[]> => {
   const categoryFilter = category ? sql`AND standard_category = ${category}` : sql``;
   const result = await db.execute<StandardFoodRow>(sql`
-    SELECT id, standard_slug, name, standard_category,
+    SELECT id, standard_slug, name, name_search, standard_category,
            energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g,
            serving_unit, serving_grams, density_g_ml, nutrition_basis_unit,
            nutrition_basis_quantity, score

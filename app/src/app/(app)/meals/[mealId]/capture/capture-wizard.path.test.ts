@@ -9,6 +9,7 @@ const AMOUNT_STEP = {
     id: "p1",
     name: "Olympus Greek Yogurt 2% Fat",
     brand: null,
+    portions: [],
     densityGMl: null,
     servingUnit: null,
     servingGrams: null,

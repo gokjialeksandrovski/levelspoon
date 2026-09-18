@@ -26,6 +26,7 @@ import type { FieldValues } from "@/lib/ocr/nutrition-fields";
 import type { LearnedMeasures } from "@/lib/measures/learn";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
+import type { Portion } from "@/lib/measures/portions";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { NutritionOrigin, SelectedProduct, WizardAction } from "../capture-wizard.types";
 
@@ -182,10 +183,14 @@ const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResu
 
 // The values the user just confirmed are the product's nutrition, so the
 // amount step's preview needs no refetch of the row that was just written.
-const toProductCreatedPayload = (productId: string, input: SaveConfirmInput): SelectedProduct => ({
-  id: productId,
+const toProductCreatedPayload = (
+  created: { productId: string; portions: readonly Portion[] },
+  input: SaveConfirmInput,
+): SelectedProduct => ({
+  id: created.productId,
   name: input.nameValue,
   brand: null,
+  portions: created.portions,
   densityGMl: input.learned.densityGMl,
   servingUnit: input.learned.servingUnit,
   servingGrams: input.learned.servingGrams,
@@ -195,7 +200,7 @@ const toProductCreatedPayload = (productId: string, input: SaveConfirmInput): Se
 });
 
 const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void): Promise<void> => {
-  const { productId } = await createProduct({
+  const created = await createProduct({
     name: input.nameValue,
     nutritionPer100g: toNutritionValues(input.values),
     photo: input.photo,
@@ -205,7 +210,7 @@ const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAct
     barcode: input.barcode ?? undefined,
     nutritionOrigin: input.nutritionOrigin ?? undefined,
   });
-  dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(productId, input) });
+  dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(created, input) });
 };
 
 interface NutritionFieldsProps {

@@ -72,7 +72,7 @@ const contextFor = (ingredient: MealIngredientDetail): MeasureContext => ({
   servingUnit: ingredient.servingUnit,
   servingGrams: ingredient.servingGrams,
   nutritionBasisUnit: ingredient.nutritionBasisUnit,
-  portions: [],
+  portions: ingredient.portions,
 });
 
 interface ResolveAndSaveQuantityInput {

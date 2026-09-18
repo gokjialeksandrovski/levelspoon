@@ -825,6 +825,8 @@ describe("topTwoScores", () => {
     id: "id",
     name: "name",
     brand: null,
+    name_search: "name",
+    standard_slug: null,
     energy_kcal: "0",
     fat_g: "0",
     saturates_g: "0",
@@ -1049,5 +1051,74 @@ describe("replacement label photos", () => {
     await saveNutritionOverride(productId, CORRECTED);
 
     expect(await fetchPhotoDebt()).toEqual([]);
+  });
+});
+
+describe("portions on product DTOs", () => {
+  // Serving figures mirror fixtures/standard-foods.json, since it is that
+  // fixture's own 32 g slice the precedence test is about.
+  const seedCuratedFoods = async (): Promise<void> => {
+    await seedStandardRow({ slug: "bread-white", name: "Bread, white", servingUnit: "slice", servingGrams: 28 });
+    await seedStandardRow({ slug: "bread-whole-wheat", name: "Bread, whole wheat", servingUnit: "slice", servingGrams: 32 });
+    await seedStandardRow({ slug: "egg-boiled", name: "Egg, boiled", servingUnit: "large", servingGrams: 50 });
+    await seedStandardRow({ slug: "chicken-breast-raw", name: "Chicken breast, raw" });
+    mockAuth.mockResolvedValue({ user: { id: crypto.randomUUID() } });
+  };
+
+  it("gives a curated bread standard food its slice portions", async () => {
+    await seedCuratedFoods();
+
+    const [food] = await searchStandardFoods("bread white", "whole");
+
+    expect(food.portions).toEqual([
+      { label: "slice", grams: 28 },
+      { label: "slice, large", grams: 38 },
+    ]);
+  });
+
+  it("prefers whole wheat's own 32 g slice over the class default", async () => {
+    await seedCuratedFoods();
+
+    const [food] = await searchStandardFoods("bread whole wheat", "whole");
+
+    expect(food.portions[0]).toEqual({ label: "slice", grams: 32 });
+  });
+
+  it("gives a curated egg the four EU grades", async () => {
+    await seedCuratedFoods();
+
+    const [food] = await searchStandardFoods("egg boiled", "whole");
+
+    expect(food.portions.map((portion) => portion.label)).toEqual([
+      "small",
+      "medium",
+      "large",
+      "extra large",
+    ]);
+  });
+
+  it("leaves a food with no portion class empty", async () => {
+    await seedCuratedFoods();
+
+    const [food] = await searchStandardFoods("chicken breast raw", "whole");
+
+    expect(food.portions).toEqual([]);
+  });
+
+  it("name-matches a user product the OCR named as a bread", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { productId } = await createProduct({
+      name: "Zito Bread Toast",
+      nutritionPer100g: { energyKcal: 270, fatG: 3.3, saturatesG: 0.7, carbohydrateG: 49, sugarsG: 5, proteinG: 8.8, saltG: 1.2 },
+    });
+
+    const candidates = await searchUserProducts("zito bread");
+
+    const match = candidates.find((candidate) => candidate.id === productId);
+    expect(match?.portions).toEqual([
+      { label: "slice", grams: 28 },
+      { label: "slice, large", grams: 38 },
+    ]);
   });
 });
