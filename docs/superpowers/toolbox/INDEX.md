@@ -76,3 +76,19 @@ unit.
 RULE: resolve on the server, pass down as data. Never import `portions.ts`,
 `portion-class.ts` or `resolve-portions.ts` from a client component.
 Added by: 2026-09-18-02-portion-class-resolution.md
+
+### amount-chips.tsx / amount-chips.utils.ts
+`app/src/app/(app)/meals/[mealId]/amount-chips.tsx`, `...amount-chips.utils.ts`
+Tappable quick-amount row, and the pure builders behind it.
+RULE: one chip row, never two. A new chip source adds a builder to
+`amount-chips.utils.ts` and merges into the same list - never a second row and
+never a second component. Every chip prints its gram weight.
+Added by: 2026-09-18-03-portion-chip-row.md
+
+### typedUnits filter
+`app/src/app/(app)/meals/[mealId]/capture/steps/amount-step.tsx`
+Drops any unit already offered as a chip from the unit select, keeping only
+the unit currently in play so the select can always show its own value.
+RULE: a value gets one control. Anything that adds a chip must stay out of
+the select, and anything added to the select must not also be a chip.
+Added by: 2026-09-18-03-portion-chip-row.md
