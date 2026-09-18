@@ -147,3 +147,38 @@ describe("acceptBarcodeLinkOffer", () => {
     expect(callbacks.onError).toHaveBeenCalledWith("Could not link this barcode. Please try again.");
   });
 });
+
+describe("pickChip", () => {
+  it("saves a tapped portion chip as grams, at manual source", async () => {
+    vi.mocked(saveMealIngredient).mockResolvedValue({ mealIngredientId: "mi-1" });
+
+    await resolveAndSaveAmount(
+      {
+        mealId: "meal-1",
+        productId: "product-1",
+        count: "1",
+        unit: "slice",
+        context: {
+          productName: "Bread, white",
+          densityGMl: null,
+          servingUnit: null,
+          servingGrams: null,
+          nutritionBasisUnit: "g",
+          portions: [{ label: "slice", grams: 28 }],
+        },
+        source: "manual",
+      },
+      vi.fn(),
+      vi.fn(),
+      { setError: vi.fn(), setIsBusy: vi.fn() },
+    );
+
+    expect(saveMealIngredient).toHaveBeenCalledWith({
+      mealId: "meal-1",
+      productId: "product-1",
+      quantity: 28,
+      quantityUnit: "g",
+      quantitySource: "manual",
+    });
+  });
+});

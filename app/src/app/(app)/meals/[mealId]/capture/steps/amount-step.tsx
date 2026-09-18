@@ -8,6 +8,7 @@ import { previewContribution, type ContributionPreview } from "@/features/meals/
 import type { ProductCandidate } from "@/features/products/actions/products";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
@@ -15,6 +16,8 @@ import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
+import { AmountChips } from "../../amount-chips";
+import { portionChips, type AmountChip } from "../../amount-chips.utils";
 import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
@@ -158,12 +161,14 @@ interface UseAmountStepFormResult {
   count: string;
   unit: string;
   units: string[];
+  chips: AmountChip[];
   preview: ContributionPreview;
   error: string | null;
   isBusy: boolean;
   isEstimating: boolean;
   setCount: (value: string) => void;
   setUnit: (value: string) => void;
+  pickChip: (count: string, unit: string) => void;
   handlePhoto: (photo: File) => Promise<void>;
   handleSave: () => Promise<void>;
   changeMatch: () => void;
@@ -195,9 +200,16 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
   const setUnitManually = (value: string) => { state.setUnit(value); state.setSource("manual"); };
   const setCountFromPhoto = (value: string) => { state.setCount(value); state.setUnit("g"); state.setSource("ai_estimated"); };
 
+  const pickChip = (value: string, chipUnit: string) => {
+    state.setCount(value);
+    state.setUnit(chipUnit);
+    state.setSource("manual");
+  };
+
   return {
     setCount: setCountManually,
     setUnit: setUnitManually,
+    pickChip,
     handlePhoto: (photo: File) => estimateAmount(photo, setCountFromPhoto, deps.callbacks, deps.setIsEstimating),
     handleSave: () =>
       resolveAndSaveAmount({ mealId: deps.mealId, productId: deps.product.id, count: state.count, unit: state.unit, context: deps.context, source: state.source }, deps.dispatch, deps.onSaved, deps.callbacks),
@@ -209,6 +221,7 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
 const useAmountStepForm = (mealId: string, product: SelectedProduct, alternatives: SelectedProduct[], pendingBarcode: string | null, dispatch: (action: WizardAction) => void, onSaved: () => void): UseAmountStepFormResult => {
   const context = contextFor(product);
   const units = availableUnits(context);
+  const chips = portionChips(product.portions);
   const [count, setCount] = useState("");
   const [unit, setUnit] = useState(defaultUnit(context));
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
@@ -231,24 +244,44 @@ const useAmountStepForm = (mealId: string, product: SelectedProduct, alternative
     basisQuantity: product.nutritionBasisQuantity,
   });
 
-  return { count, unit, units, preview, error, isBusy, isEstimating, ...actions };
+  return { count, unit, units, chips, preview, error, isBusy, isEstimating, ...actions };
 };
 
 interface AmountStepFieldsProps {
   form: UseAmountStepFormResult;
 }
 
+// Portion labels are chips, so they leave the select - one value with two
+// controls is a state question nobody should have to answer. The unit in play
+// stays listed: a select that cannot show its own value renders blank, and
+// the amount would then read as grams while saving slices.
+const typedUnits = (form: UseAmountStepFormResult): string[] =>
+  form.units.filter((unit) => unit === form.unit || !form.chips.some((chip) => chip.unit === unit));
+
+const AmountField = ({ form }: AmountStepFieldsProps) => (
+  <UnitAmountField
+    name="grams"
+    count={form.count}
+    unit={form.unit}
+    units={typedUnits(form)}
+    onCountChange={form.setCount}
+    onUnitChange={form.setUnit}
+  />
+);
+
 const AmountStepFields = ({ form }: AmountStepFieldsProps) => (
   <>
     {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} isEstimating={form.isEstimating} />}
-    <UnitAmountField
-      name="grams"
-      count={form.count}
-      unit={form.unit}
-      units={form.units}
-      onCountChange={form.setCount}
-      onUnitChange={form.setUnit}
-    />
+    <AmountChips chips={form.chips} count={form.count} unit={form.unit} onPick={form.pickChip} />
+    {/* A product with no chips keeps the plain field: hiding the only way to
+        enter an amount behind a toggle would be a step backwards. */}
+    {form.chips.length === 0 ? (
+      <AmountField form={form} />
+    ) : (
+      <Disclosure label="Enter an exact amount">
+        <AmountField form={form} />
+      </Disclosure>
+    )}
     <AmountPreview preview={form.preview} />
     {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
     {/* Spinning Save during an estimate would claim a save is in flight. */}
