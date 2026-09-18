@@ -100,3 +100,26 @@ RULE: never write a portion weight to `products`. A per-label override is a
 correlated `jsonb_object_agg` subquery, never a LEFT JOIN - this table is one
 row per label and a join multiplies search results.
 Added by: 2026-09-18-04-portion-grams-override.md
+
+### meal_ingredients.entry_count / entry_unit
+`app/src/lib/db/schema/nutrition.ts`
+Echo of what the user entered, beside the canonical resolved quantity.
+RULE: nutrition maths reads `quantity`/`quantity_unit` only. These two are for
+display and for recents. Every write path that saves or edits an amount fills
+them - a null pair means a row predating this column, not an empty entry.
+Added by: 2026-09-18-05-recent-amounts.md
+
+### recentAmounts
+`app/src/features/meals/actions/meals.ts`
+Two most recent distinct units for a product, newest first.
+RULE: one chip per unit, `RECENT_AMOUNT_LIMIT` decides how many. Soft-deleted
+meals and ingredients are excluded. Never re-resolve the weight - it comes off
+the stored `quantity`.
+Added by: 2026-09-18-05-recent-amounts.md
+
+### quantityText
+`app/src/app/(app)/meals/[mealId]/amount-chips.utils.ts`
+Formats a logged amount in the words it was entered in.
+RULE: every screen showing a logged amount uses this, so "1 slice · 28 g"
+reads the same everywhere. Never format a quantity inline.
+Added by: 2026-09-18-05-recent-amounts.md
