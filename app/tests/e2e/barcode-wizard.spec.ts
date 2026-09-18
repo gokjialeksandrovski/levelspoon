@@ -72,7 +72,7 @@ test("a barcode neither source has falls through to the normal flow and surfaces
 
   const checkbox = page.getByLabel("Use the barcode you just scanned for this product");
   await expect(checkbox).toBeChecked();
-  await expect(page.getByRole("button", { name: "Help the app" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /find this product instantly next time/i })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
@@ -133,7 +133,7 @@ test("a restricted-circulation code shows an inline message and stays on the sca
   await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/restricted-barcode.png");
 
-  await expect(page.getByText(/isn't a product barcode/i)).toBeVisible();
+  await expect(page.getByText(/not a product barcode/i)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Scan the barcode" })).toBeVisible();
 });
 
@@ -152,7 +152,7 @@ test("the fresh-scan button at confirm attaches a barcode neither the checkbox n
   await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
   await expect(page.getByLabel("Use the barcode you just scanned for this product")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Help the app" }).click();
+  await page.getByRole("button", { name: /find this product instantly next time/i }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/product-barcode.png");
   await expect(page.getByText("Barcode captured.")).toBeVisible();
 
@@ -174,7 +174,11 @@ test("a not-found-then-name-matched flow shows the link offer, and accepting it 
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
   await page.getByRole("button", { name: "Continue" }).click();
 
-  // Confident name match skips straight to Amount - no confirm step at all.
+  // A typed name never auto-accepts, however exact - it always lands on the
+  // pick list (product-name-step.tsx's handleManualName), so pick the hit.
+  await expect(page.getByRole("heading", { name: "Which product is this?" })).toBeVisible();
+  await page.getByRole("button", { name: /Olympus Greek Yogurt 2% Fat/ }).click();
+
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
   await expect(page.getByText("Link barcode to Olympus Greek Yogurt 2% Fat?")).toBeVisible();
 
@@ -196,7 +200,11 @@ test("accepting the amount-step link offer after another user just bound the cod
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
   await page.getByRole("button", { name: "Continue" }).click();
 
-  // Confident name match skips straight to Amount - no confirm step at all.
+  // A typed name never auto-accepts, however exact - it always lands on the
+  // pick list (product-name-step.tsx's handleManualName), so pick the hit.
+  await expect(page.getByRole("heading", { name: "Which product is this?" })).toBeVisible();
+  await page.getByRole("button", { name: /Olympus Greek Yogurt 2% Fat/ }).click();
+
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
   await expect(page.getByText("Link barcode to Olympus Greek Yogurt 2% Fat?")).toBeVisible();
 

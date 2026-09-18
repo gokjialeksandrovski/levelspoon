@@ -91,7 +91,7 @@ export const signUp = async (page: Page, email = freshEmail()) => {
   await page.goto("/signup");
   await page.getByLabel("Name").fill("E2E Tester");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("correct horse battery staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct horse battery staple");
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/day\//);
   return email;

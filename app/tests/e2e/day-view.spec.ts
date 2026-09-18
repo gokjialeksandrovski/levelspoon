@@ -15,10 +15,10 @@ test("empty today and empty past day show distinct copy", async ({ page }) => {
   await signUp(page);
 
   await page.goto(`/day/${localToday()}`);
-  await expect(page.getByText(/nothing logged/i)).toBeVisible();
+  await expect(page.getByText(/a clean page for today/i)).toBeVisible();
 
   await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
-  await expect(page.getByText(/no meals logged/i)).toBeVisible();
+  await expect(page.getByText(/nothing was logged/i)).toBeVisible();
 });
 
 test("a seeded single-ingredient meal renders as its ingredient's name, with its total", async ({ page }) => {
@@ -28,7 +28,7 @@ test("a seeded single-ingredient meal renders as its ingredient's name, with its
   await page.goto("/signup");
   await page.getByLabel("Name").fill("Day Tester");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("correct horse battery staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct horse battery staple");
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/day\//);
 
@@ -84,7 +84,7 @@ test("the entry point shows today and is absent on a past day", async ({ page })
   await expect(page.getByRole("button", { name: "New meal" })).toBeVisible();
 
   await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
-  await expect(page.getByText(/no meals logged/i)).toBeVisible();
+  await expect(page.getByText(/nothing was logged/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "New meal" })).toHaveCount(0);
   await page.getByRole("link", { name: "Back to today" }).click();
   await page.waitForURL(`**/day/${localToday()}`);
