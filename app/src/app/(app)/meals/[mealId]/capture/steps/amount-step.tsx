@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { linkBarcode } from "@/features/products/actions/barcode";
-import { saveMealIngredient } from "@/features/meals/actions/meals";
+import { recentAmounts, saveMealIngredient, type RecentAmount } from "@/features/meals/actions/meals";
 import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
 import type { ProductCandidate } from "@/features/products/actions/products";
 import { getPortions } from "@/features/products/actions/portions";
@@ -19,7 +19,7 @@ import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
 import { AmountChips } from "../../amount-chips";
 import { PortionEditor } from "../../portion-editor";
-import { portionChips, type AmountChip } from "../../amount-chips.utils";
+import { mergeChips, type AmountChip } from "../../amount-chips.utils";
 import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
@@ -156,6 +156,32 @@ export const resolveAndSaveAmount = async (
   );
 };
 
+interface RecentAmountsState {
+  recents: RecentAmount[];
+  isLoading: boolean;
+}
+
+const useRecentAmounts = (productId: string): RecentAmountsState => {
+  const [state, setState] = useState<RecentAmountsState>({ recents: [], isLoading: true });
+  useEffect(() => {
+    let isCurrent = true;
+    recentAmounts(productId)
+      .then((loaded) => {
+        if (isCurrent) setState({ recents: loaded, isLoading: false });
+      })
+      // Chips are an accelerator, never the only way in: a failed read leaves
+      // the portion chips and the typed field, both fully usable.
+      .catch((error) => {
+        console.error("Reading recent amounts failed", error);
+        if (isCurrent) setState({ recents: [], isLoading: false });
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [productId]);
+  return state;
+};
+
 const contextFor = (product: SelectedProduct): MeasureContext => ({
   productName: product.name,
   densityGMl: product.densityGMl,
@@ -170,6 +196,7 @@ interface UseAmountStepFormResult {
   unit: string;
   units: string[];
   chips: AmountChip[];
+  isLoadingChips: boolean;
   preview: ContributionPreview;
   error: string | null;
   isBusy: boolean;
@@ -232,7 +259,8 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
 const useAmountStepForm = (mealId: string, product: SelectedProduct, alternatives: SelectedProduct[], pendingBarcode: string | null, dispatch: (action: WizardAction) => void, onSaved: () => void): UseAmountStepFormResult => {
   const context = contextFor(product);
   const units = availableUnits(context);
-  const chips = portionChips(product.portions);
+  const { recents, isLoading: isLoadingChips } = useRecentAmounts(product.id);
+  const chips = mergeChips(recents, product.portions);
   const [count, setCount] = useState("");
   const [unit, setUnit] = useState(defaultUnit(context));
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
@@ -255,7 +283,7 @@ const useAmountStepForm = (mealId: string, product: SelectedProduct, alternative
     basisQuantity: product.nutritionBasisQuantity,
   });
 
-  return { count, unit, units, chips, preview, error, isBusy, isEstimating, ...actions };
+  return { count, unit, units, chips, isLoadingChips, preview, error, isBusy, isEstimating, ...actions };
 };
 
 interface AmountStepFieldsProps {
@@ -287,7 +315,7 @@ const AmountField = ({ form }: AmountStepFieldsProps) => (
 const AmountStepFields = ({ form, product }: AmountStepBodyProps) => (
   <>
     {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} isEstimating={form.isEstimating} />}
-    <AmountChips chips={form.chips} count={form.count} unit={form.unit} onPick={form.pickChip} />
+    <AmountChips chips={form.chips} count={form.count} unit={form.unit} isLoading={form.isLoadingChips} onPick={form.pickChip} />
     {form.chips.length > 0 && (
       <PortionEditor productId={product.id} portions={product.portions} onSaved={form.refreshProduct} />
     )}

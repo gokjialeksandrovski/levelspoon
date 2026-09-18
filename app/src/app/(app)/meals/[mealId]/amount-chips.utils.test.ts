@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chipLabel, isChipSelected, portionChips } from "./amount-chips.utils";
+import { chipLabel, isChipSelected, mergeChips, portionChips } from "./amount-chips.utils";
 
 describe("portionChips", () => {
   it("offers one chip per portion, each at a count of one", () => {
@@ -59,5 +59,46 @@ describe("isChipSelected", () => {
   it("ignores surrounding whitespace and a trailing zero", () => {
     const chip = { count: 1, unit: "slice", grams: 28 };
     expect(isChipSelected(chip, " 1.0 ", "slice")).toBe(true);
+  });
+});
+
+describe("mergeChips", () => {
+  const portions = [
+    { label: "slice", grams: 28 },
+    { label: "slice, large", grams: 38 },
+  ];
+
+  it("shows portions alone when there is no history", () => {
+    expect(mergeChips([], portions)).toEqual([
+      { count: 1, unit: "slice", grams: 28 },
+      { count: 1, unit: "slice, large", grams: 38 },
+    ]);
+  });
+
+  it("puts recents first and drops the portion chip they duplicate", () => {
+    const recents = [{ count: 2, unit: "slice", grams: 64 }];
+    expect(mergeChips(recents, portions)).toEqual([
+      { count: 2, unit: "slice", grams: 64 },
+      { count: 1, unit: "slice, large", grams: 38 },
+    ]);
+  });
+
+  it("keeps a recent unit that is not a portion at all", () => {
+    const recents = [{ count: 100, unit: "g", grams: 100 }];
+    expect(mergeChips(recents, portions)).toEqual([
+      { count: 100, unit: "g", grams: 100 },
+      { count: 1, unit: "slice", grams: 28 },
+      { count: 1, unit: "slice, large", grams: 38 },
+    ]);
+  });
+
+  it("shows recents alone for a product with no portions", () => {
+    const recents = [{ count: 100, unit: "g", grams: 100 }];
+    expect(mergeChips(recents, [])).toEqual([{ count: 100, unit: "g", grams: 100 }]);
+  });
+
+  it("prefers the recent weight over the standard one for the same unit", () => {
+    const recents = [{ count: 1, unit: "slice", grams: 32 }];
+    expect(mergeChips(recents, portions)[0]).toEqual({ count: 1, unit: "slice", grams: 32 });
   });
 });

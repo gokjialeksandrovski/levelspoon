@@ -8,6 +8,8 @@ interface AmountChipsProps {
   chips: AmountChip[];
   count: string;
   unit: string;
+  /** Recents arrive after mount; the row holds its height until they land. */
+  isLoading: boolean;
   onPick: (count: string, unit: string) => void;
 }
 
@@ -41,13 +43,15 @@ const AmountChipButton = ({ chip, isSelected, onPick }: AmountChipButtonProps) =
  * Every chip prints its gram weight. A "1 slice" that hides its 28 g turns a
  * reference average into a number the user trusts without ever seeing it.
  */
-export const AmountChips = ({ chips, count, unit, onPick }: AmountChipsProps) => {
-  if (chips.length === 0) {
+export const AmountChips = ({ chips, count, unit, isLoading, onPick }: AmountChipsProps) => {
+  // Nothing to offer and nothing still coming: an empty reserved row would be
+  // 48px of dead space on every product that has no chips at all.
+  if (chips.length === 0 && !isLoading) {
     return null;
   }
 
   return (
-    <div role="group" aria-label="Quick amounts" className="flex flex-wrap gap-2">
+    <div role="group" aria-label="Quick amounts" className="flex min-h-12 flex-wrap content-start gap-2">
       {chips.map((chip) => (
         <AmountChipButton
           key={`${chip.count} ${chip.unit}`}
