@@ -258,6 +258,9 @@ export interface MealIngredientDetail {
   productName: string;
   quantity: number;
   quantityUnit: string;
+  /** Null on rows written before the entry columns existed. */
+  entryCount: number | null;
+  entryUnit: string | null;
   quantitySource: "ai_estimated" | "manual";
   contribution: NutritionValues;
   densityGMl: number | null;
@@ -295,6 +298,8 @@ interface MealIngredientRow {
   productName: string;
   quantity: string;
   quantityUnit: string;
+  entryCount: string | null;
+  entryUnit: string | null;
   nutritionBasisQuantity: string;
   quantitySource: "ai_estimated" | "manual";
   product: ProductNutritionRow;
@@ -310,6 +315,8 @@ const mealIngredientSelection = (userId: string) => ({
   productName: products.name,
   quantity: mealIngredients.quantity,
   quantityUnit: mealIngredients.quantityUnit,
+  entryCount: mealIngredients.entryCount,
+  entryUnit: mealIngredients.entryUnit,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
   quantitySource: mealIngredients.quantitySource,
   product: effectiveNutritionSelection(),
@@ -342,6 +349,8 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
   productName: row.productName,
   quantity: Number(row.quantity),
   quantityUnit: row.quantityUnit,
+  entryCount: row.entryCount === null ? null : Number(row.entryCount),
+  entryUnit: row.entryUnit,
   quantitySource: row.quantitySource,
   contribution: computeContribution(
     productRowToNutritionValues(row.product),

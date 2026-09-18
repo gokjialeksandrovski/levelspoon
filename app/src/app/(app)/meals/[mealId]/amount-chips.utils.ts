@@ -42,3 +42,23 @@ export const isChipSelected = (chip: AmountChip, count: string, unit: string): b
   const typed = Number(count.trim());
   return count.trim() !== "" && Number.isFinite(typed) && typed === chip.count && unit === chip.unit;
 };
+
+/**
+ * What a logged amount reads as on the meal detail.
+ *
+ * A row saved as "1 slice" stores 28 g, because grams is what nutrition
+ * scales from. Printing only the 28 g throws away the sentence the user
+ * actually said, and makes tomorrow's edit start from a number they have to
+ * re-derive. Nulls mean a row written before the entry columns existed.
+ */
+export const quantityText = (
+  quantity: number,
+  quantityUnit: string,
+  entryCount: number | null,
+  entryUnit: string | null,
+): string => {
+  if (entryCount === null || entryUnit === null || entryUnit === quantityUnit) {
+    return `${quantity} ${quantityUnit}`;
+  }
+  return `${entryCount} ${entryUnit} · ${Math.round(quantity)} ${quantityUnit}`;
+};

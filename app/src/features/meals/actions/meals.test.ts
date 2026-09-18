@@ -154,6 +154,42 @@ describe("getMealDetail", () => {
     expect(meal?.total.energyKcal).toBeCloseTo(140, 5);
   });
 
+  it("carries the entry echo so the row can print the words it was logged in", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    await saveMealIngredient({
+      mealId, productId, quantity: 28, quantityUnit: "g",
+      quantitySource: "manual", entryCount: 1, entryUnit: "slice",
+    });
+
+    const meal = await getMealDetail(mealId, "UTC");
+
+    expect(meal?.ingredients[0].entryCount).toBe(1);
+    expect(meal?.ingredients[0].entryUnit).toBe("slice");
+  });
+
+  it("leaves the entry echo null for a row written before the columns existed", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal();
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 150, quantityUnit: "g",
+      quantitySource: "manual", entryCount: 150, entryUnit: "g",
+    });
+    await db
+      .update(mealIngredients)
+      .set({ entryCount: null, entryUnit: null })
+      .where(eq(mealIngredients.id, mealIngredientId));
+
+    const meal = await getMealDetail(mealId, "UTC");
+
+    expect(meal?.ingredients[0].entryCount).toBeNull();
+    expect(meal?.ingredients[0].entryUnit).toBeNull();
+  });
+
   it("returns an empty ingredient list and zero total for a meal with no ingredients yet", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chipLabel, isChipSelected, mergeChips, portionChips } from "./amount-chips.utils";
+import { chipLabel, isChipSelected, mergeChips, portionChips, quantityText } from "./amount-chips.utils";
 
 describe("portionChips", () => {
   it("offers one chip per portion, each at a count of one", () => {
@@ -100,5 +100,23 @@ describe("mergeChips", () => {
   it("prefers the recent weight over the standard one for the same unit", () => {
     const recents = [{ count: 1, unit: "slice", grams: 32 }];
     expect(mergeChips(recents, portions)[0]).toEqual({ count: 1, unit: "slice", grams: 32 });
+  });
+});
+
+describe("quantityText", () => {
+  it("prints the user's own words with the weight behind them", () => {
+    expect(quantityText(28, "g", 1, "slice")).toBe("1 slice · 28 g");
+  });
+
+  it("prints grams once when that is what was entered", () => {
+    expect(quantityText(150, "g", 150, "g")).toBe("150 g");
+  });
+
+  it("falls back to the stored quantity for a row logged before entry was recorded", () => {
+    expect(quantityText(150, "g", null, null)).toBe("150 g");
+  });
+
+  it("keeps a per-unit product's own basis unit", () => {
+    expect(quantityText(2, "tbsp", 2, "tbsp")).toBe("2 tbsp");
   });
 });

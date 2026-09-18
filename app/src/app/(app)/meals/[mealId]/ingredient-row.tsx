@@ -19,6 +19,8 @@ import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 import { rowEnterVariants } from "@/lib/motion/step-transition";
 
+import { quantityText } from "./amount-chips.utils";
+
 interface MutationCallbacks {
   router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
@@ -218,6 +220,8 @@ interface QuantitySummaryProps {
   productName: string;
   quantity: number;
   quantityUnit: string;
+  entryCount: number | null;
+  entryUnit: string | null;
   contribution: NutritionValues;
   quantitySource: MealIngredientDetail["quantitySource"];
   isBusy: boolean;
@@ -253,13 +257,16 @@ const AMOUNT_SOURCE_NOTE: Record<MealIngredientDetail["quantitySource"], string 
 interface QuantityLineProps {
   quantity: number;
   quantityUnit: string;
+  entryCount: number | null;
+  entryUnit: string | null;
   energyKcal: number;
   sourceNote: string | null;
 }
 
-const QuantityLine = ({ quantity, quantityUnit, energyKcal, sourceNote }: QuantityLineProps) => (
+const QuantityLine = ({ quantity, quantityUnit, entryCount, entryUnit, energyKcal, sourceNote }: QuantityLineProps) => (
   <span className="tabular-nums">
-    {quantity} {quantityUnit} · <span className="font-semibold">{Math.round(energyKcal)} kcal</span>
+    {quantityText(quantity, quantityUnit, entryCount, entryUnit)} ·{" "}
+    <span className="font-semibold">{Math.round(energyKcal)} kcal</span>
     {sourceNote && <span className="italic"> · {sourceNote}</span>}
   </span>
 );
@@ -284,12 +291,14 @@ const RowActionsGroup = ({ productName, isBusy, onEdit, onRemove }: RowActionsGr
   </div>
 );
 
-const QuantitySummary = ({ productName, quantity, quantityUnit, contribution, quantitySource, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entryUnit, contribution, quantitySource, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex flex-col gap-1">
     <div className="flex items-center justify-between text-sm text-text-muted">
       <QuantityLine
         quantity={quantity}
         quantityUnit={quantityUnit}
+        entryCount={entryCount}
+        entryUnit={entryUnit}
         energyKcal={contribution.energyKcal}
         sourceNote={AMOUNT_SOURCE_NOTE[quantitySource]}
       />
@@ -325,6 +334,8 @@ const SummaryControls = ({ ingredient, editing, onRequestRemove }: QuantityContr
     productName={displayProductName(ingredient.productName)}
     quantity={ingredient.quantity}
     quantityUnit={ingredient.quantityUnit}
+    entryCount={ingredient.entryCount}
+    entryUnit={ingredient.entryUnit}
     contribution={ingredient.contribution}
     quantitySource={ingredient.quantitySource}
     isBusy={editing.isBusy}
