@@ -40,3 +40,39 @@ RULE: resolve portions server-side and pass them in. Never import
 `portions.ts` from a client component - the table must not reach the browser
 bundle. Never make this field optional.
 Added by: 2026-09-18-01-portion-engine.md
+
+### portion-class.ts
+`app/src/lib/measures/portion-class.ts`
+Slug and romanized-name lookup for a product's portion class.
+RULE: new portion classes are registered in this file's two tables, and in
+`PortionClass` in `portions.ts`. Cup classes are slug-only - never add a cup
+class to `NAME_TOKENS_BY_CLASS`. Two name matches means no match.
+Added by: 2026-09-18-02-portion-class-resolution.md
+
+### resolve-portions.ts
+`app/src/lib/measures/resolve-portions.ts`
+Merges class defaults, the product's own serving weight and per-user overrides.
+RULE: this is the only place portion precedence is decided. A consumer
+receives a finished `Portion[]` and never re-merges. Anything needing a new
+precedence layer adds it here, not at a call site.
+Added by: 2026-09-18-02-portion-class-resolution.md
+
+### check-portion-classes
+`app/scripts/check-portion-classes.ts` - `cd app && npm run check:portion-classes`
+Runs both class-resolution routes over all 212 curated foods and fails on any
+name match that contradicts the curated table.
+RULE: re-run this after ANY change to `PortionClass`, `CLASS_BY_SLUG`,
+`NAME_TOKENS_BY_CLASS`, `EXCLUDED_TOKENS_BY_CLASS` or
+`fixtures/standard-foods.json`. It must exit 0. Never silence it - a conflict
+is a portion chip about to appear on a food nobody measures that way. Fix by
+excluding a token or by mapping the slug, and add a unit test for each fix.
+Added by: 2026-09-18-02-portion-class-resolution.md
+
+### ProductCandidate.portions / StandardFood.portions / SelectedProduct.portions
+`app/src/features/products/actions/products.ts`, `app/src/app/(app)/meals/[mealId]/capture/capture-wizard.types.ts`
+Server-resolved portions carried to the client on every product DTO, and on
+`MealIngredientDetail` so an already-logged amount stays editable in its own
+unit.
+RULE: resolve on the server, pass down as data. Never import `portions.ts`,
+`portion-class.ts` or `resolve-portions.ts` from a client component.
+Added by: 2026-09-18-02-portion-class-resolution.md
