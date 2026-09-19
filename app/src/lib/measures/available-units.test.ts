@@ -44,6 +44,19 @@ describe("availableUnits — grams basis", () => {
     expect(availableUnits(context)).toEqual(["g"]);
   });
 
+  // densities.ts seeds flour, sugar, brown sugar and rolled oats so a levelled
+  // spoon converts. A cup of those does not follow from the same figure.
+  it("withholds cup from a seeded loose solid, keeping the spoon units", () => {
+    const context = contextFor({ productName: "Light Brown Sugar" });
+    expect(availableUnits(context)).toEqual(["g", "tbsp", "tsp", "ml"]);
+  });
+
+  it("offers cup for a loose solid whose own label taught a density", () => {
+    // "1/4 cup (30 g)" on the pack is a measured cup, not a table figure.
+    const context = contextFor({ productName: "Flour", densityGMl: 0.5 });
+    expect(availableUnits(context)).toEqual(["g", "tbsp", "tsp", "ml", "cup"]);
+  });
+
   it("combines a serving unit and a density without duplicates", () => {
     const context = contextFor({ servingUnit: "bottle", servingGrams: 500, densityGMl: 0.92 });
     expect(availableUnits(context)).toEqual(["bottle", "g", "tbsp", "tsp", "ml", "cup"]);

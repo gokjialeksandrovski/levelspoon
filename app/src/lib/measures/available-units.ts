@@ -1,20 +1,29 @@
-import { seededDensity } from "./densities";
+import { isLooseSolid, seededDensity } from "./densities";
 import type { MeasureContext } from "./resolve-grams";
 
-// Cup last: it is the largest and rarest of the four, and a label prints
-// tbsp or ml far more often. Cup is in VOLUME_UNITS_TO_ML and has always
-// been convertible - it was only ever missing from the picker.
-const DENSITY_UNITS = ["tbsp", "tsp", "ml", "cup"] as const;
+const SPOON_UNITS = ["tbsp", "tsp", "ml"] as const;
 
 const hasKnownDensity = (context: MeasureContext): boolean =>
   context.densityGMl !== null || seededDensity(context.productName) !== null;
+
+// Cup last: it is the largest and rarest of the four, and a label prints tbsp
+// or ml far more often. Cup is in VOLUME_UNITS_TO_ML and has always been
+// convertible - it was only ever missing from the picker.
+//
+// Withheld from a dry good whose only density is the seeded cooking-table
+// figure, because that figure cannot say how hard the cup was packed. A
+// density the product's own label taught is a measured one, so it keeps cup.
+const densityUnits = (context: MeasureContext): string[] =>
+  context.densityGMl === null && isLooseSolid(context.productName)
+    ? [...SPOON_UNITS]
+    : [...SPOON_UNITS, "cup"];
 
 const gramsBasisUnits = (context: MeasureContext): string[] => {
   const candidates = [
     ...context.portions.map((portion) => portion.label),
     context.servingUnit,
     "g",
-    ...(hasKnownDensity(context) ? DENSITY_UNITS : []),
+    ...(hasKnownDensity(context) ? densityUnits(context) : []),
   ];
   return [...new Set(candidates.filter((unit): unit is string => unit !== null))];
 };

@@ -124,11 +124,13 @@ RULE: every screen showing a logged amount uses this, so "1 slice · 28 g"
 reads the same everywhere. Never format a quantity inline.
 Added by: 2026-09-18-05-recent-amounts.md
 
-### DENSITY_UNITS
-`app/src/lib/measures/available-units.ts`
+### SPOON_UNITS / densityUnits
+`app/src/lib/measures/available-units.ts`, `isLooseSolid` in `densities.ts`
 Volume units offered when a product's density is known.
 RULE: a unit belongs here only if `VOLUME_UNITS_TO_ML` can convert it AND a
 density is genuinely known. Never seed a density for a dry or loose solid to
 make a unit appear - give that food a portion with a measured gram weight in
-`portions.ts` instead.
+`portions.ts` instead. A seeded loose solid gets the spoon units only: a
+levelled tbsp barely moves with packing, a cup moves a lot. A label-taught
+density is measured, so it keeps cup.
 Added by: 2026-09-18-06-cup-measure.md

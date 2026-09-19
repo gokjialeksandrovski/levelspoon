@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { seededDensity } from "./densities";
+import { isLooseSolid, seededDensity } from "./densities";
 
 describe("seededDensity", () => {
   it("matches a single-word key case-insensitively", () => {
@@ -25,5 +25,21 @@ describe("seededDensity", () => {
 
   it("returns null for a name it does not know", () => {
     expect(seededDensity("Snickers Bar")).toBeNull();
+  });
+});
+
+describe("isLooseSolid", () => {
+  it("is true for a seeded dry good, whose cup weight moves with packing", () => {
+    expect(isLooseSolid("Light Brown Sugar")).toBe(true);
+    expect(isLooseSolid("Organic Rolled Oats")).toBe(true);
+  });
+
+  it("is false for a seeded liquid, whose cup weight does not", () => {
+    expect(isLooseSolid("Olive Oil")).toBe(false);
+    expect(isLooseSolid("Organic Honey")).toBe(false);
+  });
+
+  it("is false for a name with no seeded density at all", () => {
+    expect(isLooseSolid("Snickers Bar")).toBe(false);
   });
 });

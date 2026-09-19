@@ -41,8 +41,26 @@ const mostSpecific = (keys: readonly string[]): string[] => {
   );
 };
 
+const seededKey = (productName: string): string | null => {
+  const survivors = mostSpecific(matchingKeys(tokensOf(productName)));
+  return survivors.length === 1 ? survivors[0] : null;
+};
+
 /** The seeded density for a product name, or null when unknown or ambiguous. */
 export const seededDensity = (productName: string): number | null => {
-  const survivors = mostSpecific(matchingKeys(tokensOf(productName)));
-  return survivors.length === 1 ? SEEDED_DENSITIES_G_ML[survivors[0]] : null;
+  const key = seededKey(productName);
+  return key === null ? null : SEEDED_DENSITIES_G_ML[key];
+};
+
+// A levelled spoon of a dry good weighs close to what its density says - it is
+// small enough that packing barely moves it. A cup is sixteen tablespoons and
+// its weight moves with how hard it was filled: a cup of brown sugar is 213 g
+// packed and about 145 g scooped loose. These names keep tbsp/tsp and get cup
+// as a measured portion in portions.ts instead (docs/DECISIONS.md, 2026-09-18).
+const LOOSE_SOLID_KEYS = new Set(["sugar", "brown sugar", "flour", "rolled oats"]);
+
+/** Whether a name's density comes from the seeded table AND is a dry good. */
+export const isLooseSolid = (productName: string): boolean => {
+  const key = seededKey(productName);
+  return key !== null && LOOSE_SOLID_KEYS.has(key);
 };
