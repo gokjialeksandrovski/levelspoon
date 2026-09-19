@@ -83,29 +83,40 @@ const READING_LABEL = "Reading the nutrition table…";
 
 // Values are only read against a per-100g (or per-100ml) column; a photo
 // cropped below that heading fails however sharp the figures are.
-const FRAMING_HINT = "Fit the whole table in the photo, including the \"per 100g\" heading at the top.";
+const FRAMING_HINT =
+  'Try to fit the whole table in the photo, including the "per 100g" heading at the top.';
 
-// Said here, where the choice is made, rather than after the save.
-const MANUAL_ENTRY_HINT = "Without a label photo, this product stays yours - nobody else's search will find it.";
+// Said where the choice is made, not after the save. Shown only when it is
+// true: visibleToUser (products.ts) shares a row that has either a label
+// photo or a barcode, so a pending barcode or a photo already in hand would
+// make this a false promise - confirm-step states the outcome for those.
+const PRIVATE_PRODUCT_HINT =
+  "This product will be saved for you, but not for other users. Only products with a label photo or a barcode are shared.";
 
 export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, dispatch }: NutritionPhotoStepProps) => {
   const form = useNutritionPhotoStep(nameGuess, netWeightText, pendingBarcode, dispatch);
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Photograph the nutrition table</h2>
-      <PhotoInput
-        label="Nutrition table photo"
-        hint={FRAMING_HINT}
-        onSelect={form.handleSelect}
-        scanningLabel={form.isLoading ? READING_LABEL : undefined}
-      />
-      {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-      <div className="flex flex-col gap-1">
-        <Button variant="ghost" link onClick={form.handleManualEntry}>
+    <div className="flex flex-col gap-6">
+      <h2 className="text-lg font-semibold">Reading {nameGuess}</h2>
+      <div className="flex flex-col gap-2">
+        <PhotoInput
+          label="Nutrition table photo"
+          hint={FRAMING_HINT}
+          onSelect={form.handleSelect}
+          scanningLabel={form.isLoading ? READING_LABEL : undefined}
+        />
+        {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+      </div>
+      <div className="flex flex-col gap-2">
+        {/* Disabled during OCR: wizardReducer applies NUTRITION_PARSED unconditionally,
+            so a tap here mid-scan would race the pending dispatch from handleSelect. */}
+        <Button variant="ghost" link className="self-start" disabled={form.isLoading} onClick={form.handleManualEntry}>
           {form.photo ? "Enter the values manually instead" : "Enter the values manually"}
         </Button>
-        {!form.photo && <InlineMessage tone="info">{MANUAL_ENTRY_HINT}</InlineMessage>}
+        {!form.photo && pendingBarcode === null && (
+          <InlineMessage tone="info">{PRIVATE_PRODUCT_HINT}</InlineMessage>
+        )}
       </div>
     </div>
   );

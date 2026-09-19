@@ -76,11 +76,14 @@ interface DropzoneProps {
 // The label wraps the (visually hidden) file input, so the label text is
 // the input's accessible name; the camera glyph is decorative. A raised tile
 // that presses like a Button, not the stock dashed upload box.
+//
+// Bare glyph at the option rows' own size/gap/colour (product-name-step's
+// OPTION_ROW_LAYOUT), not a disc behind it: every other icon+label row in the
+// app reads that way, and an icon on a disc on a card is the templated-SaaS
+// tell the design context rejects by name.
 const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
-  <label className="relative flex min-h-20 items-center gap-4 rounded-surface bg-surface-raised p-4 text-left transition-transform duration-100 hover:bg-border active:scale-[0.98] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
-    <span className="grid size-12 shrink-0 place-items-center rounded-full bg-bg text-text">
-      <CameraIcon size={24} aria-hidden="true" />
-    </span>
+  <label className="relative flex min-h-16 items-center gap-3 rounded-surface bg-surface-raised p-4 text-left transition-transform duration-100 hover:bg-border active:scale-[0.98] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
+    <CameraIcon size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
     <span className="text-sm font-medium text-text">{label}</span>
     <input
       type="file"
@@ -125,7 +128,7 @@ export const PhotoInput = ({ label, onSelect, hint, scanningLabel }: PhotoInputP
             onChange={(event) => handlePhotoChange(event, onSelect, showPreview)}
           />
           {hint && (
-            <p id={hintId} className="text-xs text-text-muted">
+            <p id={hintId} className="text-sm/relaxed text-text-muted">
               {hint}
             </p>
           )}
