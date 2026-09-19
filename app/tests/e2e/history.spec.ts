@@ -26,7 +26,7 @@ test("history lists past days and paginates", async ({ page }) => {
     .values({
       name: "Test Product", nameSearch: "test product", energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
       sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
-      nutritionPhotoKey: "test/placeholder.jpg", createdByUserId: user.id,
+      nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`, createdByUserId: user.id,
     })
     .returning();
 

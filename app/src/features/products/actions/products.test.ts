@@ -47,7 +47,9 @@ const seedProduct = async (
       proteinG: "9.0",
       saltG: "0.18",
       nutritionPhotoKey:
-        overrides.nutritionPhotoKey === undefined ? "test/placeholder.jpg" : overrides.nutritionPhotoKey,
+        overrides.nutritionPhotoKey === undefined
+          ? `test/${crypto.randomUUID()}.jpg`
+          : overrides.nutritionPhotoKey,
       createdByUserId: userId,
       servingUnit: overrides.servingUnit ?? null,
       servingGrams:
@@ -536,6 +538,23 @@ describe("createProduct", () => {
 
     expect(await db.select().from(products)).toHaveLength(1);
   });
+
+  // Same figures the earlier tests in this block already use inline - not a
+  // new fixture, just a name so this test and the next can share one.
+  const CREATED = {
+    energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
+  };
+
+  it("refuses a second product carrying the first product's label photo", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const label = () => new Blob(["shared-label-bytes"], { type: "image/jpeg" });
+    await createProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
+
+    await expect(
+      createProduct({ name: "Candy Bar", nutritionPer100g: CREATED, photo: label() }),
+    ).rejects.toThrow();
+  });
 });
 
 describe("getProductForCorrection", () => {
@@ -609,7 +628,10 @@ const LEARNED_TEST_NUTRITION = {
   sugarsG: 53.8, proteinG: 7.7, saltG: 0.6,
 };
 
-const testPhoto = () => new Blob(["photo"], { type: "image/jpeg" });
+// A fresh UUID per call, not a fixed literal: a content-addressed key means
+// two calls with identical bytes collide on the same UNIQUE column, and some
+// tests below call this twice to create two distinct products.
+const testPhoto = () => new Blob([crypto.randomUUID()], { type: "image/jpeg" });
 
 describe("createProduct — learned measures", () => {
   it("stores a learned density on the new product row", async () => {
@@ -976,6 +998,7 @@ describe("nutrition overrides", () => {
 
 describe("replacement label photos", () => {
   const newLabelPhoto = () => new Blob(["fake-jpeg-bytes"], { type: "image/jpeg" });
+  const otherLabelPhoto = () => new Blob(["other-fake-jpeg-bytes"], { type: "image/jpeg" });
 
   const overrideOf = async (userId: string, productId: string) => {
     const [row] = await db
@@ -987,13 +1010,14 @@ describe("replacement label photos", () => {
 
   it("attaches the photo to the override and leaves the canonical proof alone", async () => {
     const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    const [before] = await db.select().from(products).where(eq(products.id, productId));
 
     await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
 
     const override = await overrideOf(userId, productId);
     const [product] = await db.select().from(products).where(eq(products.id, productId));
     expect(override.nutritionPhotoKey).toMatch(/^product-claims\//);
-    expect(product.nutritionPhotoKey).toBe("test/placeholder.jpg");
+    expect(product.nutritionPhotoKey).toBe(before.nutritionPhotoKey);
   });
 
   it("keeps the attached photo when the figures are re-saved without one", async () => {
@@ -1013,12 +1037,25 @@ describe("replacement label photos", () => {
     await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
     const first = await overrideOf(userId, productId);
 
-    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+    await saveNutritionOverride(productId, CORRECTED, otherLabelPhoto());
 
     const second = await overrideOf(userId, productId);
     expect(second.nutritionPhotoKey).not.toBe(first.nutritionPhotoKey);
     const staleResponse = await fetch(await getPhotoUrl(first.nutritionPhotoKey!));
     expect(staleResponse.ok).toBe(false);
+  });
+
+  it("keeps the object when the identical file is re-saved", async () => {
+    const { userId, productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
+    const first = await overrideOf(userId, productId);
+
+    await saveNutritionOverride(productId, CORRECTED_AGAIN, newLabelPhoto());
+
+    const second = await overrideOf(userId, productId);
+    expect(second.nutritionPhotoKey).toBe(first.nutritionPhotoKey);
+    const liveResponse = await fetch(await getPhotoUrl(second.nutritionPhotoKey!));
+    expect(liveResponse.ok).toBe(true);
   });
 
   it("deletes the photo when the correction is reverted", async () => {
@@ -1037,7 +1074,9 @@ describe("replacement label photos", () => {
     await saveNutritionOverride(productId, CORRECTED, newLabelPhoto());
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
-    await saveNutritionOverride(productId, CORRECTED_AGAIN, newLabelPhoto());
+    // A distinct photo, not a second newLabelPhoto() - two different users'
+    // claim rows now collide on the same UNIQUE column if their bytes match.
+    await saveNutritionOverride(productId, CORRECTED_AGAIN, otherLabelPhoto());
 
     const debt = await fetchPhotoDebt();
 

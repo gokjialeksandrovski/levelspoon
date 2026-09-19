@@ -68,8 +68,10 @@ export const products = pgTable(
       precision: NUTRITION_COLUMN_PRECISION,
       scale: NUTRITION_COLUMN_SCALE,
     }),
-    // Null on standard rows — they have no label photo. (spec §4)
-    nutritionPhotoKey: text("nutrition_photo_key"),
+    // The key is the content hash (lib/db/photo-keys.ts), so uniqueness here IS
+    // the rule that one label photo belongs to one product (spec §3). NULL stays
+    // legal and repeatable - standard rows and Open Food Facts rows have no photo.
+    nutritionPhotoKey: text("nutrition_photo_key").unique(),
     nutritionOrigin: nutritionOriginEnum("nutrition_origin").notNull().default("label_photo"),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
@@ -112,7 +114,7 @@ export const productOverrides = pgTable(
     // proof: nobody has checked it, so it never touches products.nutrition_
     // photo_key, which is what the correction screen compares against and what
     // the visibility rule (spec §S2) trusts. Null on an ordinary correction.
-    nutritionPhotoKey: text("nutrition_photo_key"),
+    nutritionPhotoKey: text("nutrition_photo_key").unique(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.productId] })],

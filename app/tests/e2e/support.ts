@@ -16,11 +16,15 @@ export const truncateAll = () =>
 
 export const BASE_NUTRITION = {
   energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
-  sugarsG: "4.0", proteinG: "9.0", saltG: "0.18", nutritionPhotoKey: "test/placeholder.jpg",
+  sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
 };
 
+// A fresh key per row, not a shared literal: a content-addressed key means two
+// rows sharing one string (e.g. seedAmbiguousVariants' pair, built in one call)
+// collide on the column's UNIQUE constraint.
 const productValues = (name: string, createdByUserId: string) => ({
   ...BASE_NUTRITION,
+  nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`,
   name,
   nameSearch: toSearchText(name),
   createdByUserId,

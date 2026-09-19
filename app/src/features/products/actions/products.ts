@@ -1,17 +1,17 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-
 import { and, eq, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
+import { CLAIM_PHOTO_PREFIX, PROOF_PHOTO_PREFIX, toPhotoKey } from "@/lib/db/photo-keys";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
 import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
+import { visibleToUser } from "@/lib/db/visibility";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
@@ -153,26 +153,6 @@ export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number
   return { top1: Number(rows[0].score), top2: rows.length > 1 ? Number(rows[1].score) : 0 };
 };
 
-/**
- * Who may be offered this product.
- *
- * The products table is a cross-user cache, so a row another user is offered
- * has to be checkable by someone other than whoever typed it: a stored label
- * photo, or a barcode that resolves to one. A row with neither is real and
- * logged like any other - it is just nobody else's business.
- *
- * Derived, not stored: linkBarcode attaches a barcode to an already-created
- * product, so a persisted flag would need keeping in step there too. This way
- * the row is promoted the moment the barcode lands.
- *
- * Expects the products table aliased as `p`.
- */
-const visibleToUser = (userId: string) => sql`
-  (p.nutrition_photo_key IS NOT NULL
-   OR p.created_by_user_id = ${userId}
-   OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.product_id = p.id))
-`;
-
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
     SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
@@ -274,17 +254,23 @@ export interface CreateProductInput {
   nutritionOrigin?: "label_photo" | "manual" | "open_food_facts";
 }
 
-const PROOF_PHOTO_PREFIX = "products";
-// Kept apart from proof photos so a reviewer working the report can tell, from
-// the key alone, which object is the unverified claim.
-const CLAIM_PHOTO_PREFIX = "product-claims";
+interface PendingPhoto {
+  key: string;
+  buffer: Buffer;
+  contentType: string;
+}
 
-const uploadProductPhoto = async (photo: Blob, prefix: string): Promise<string> => {
+// Hashed before any upload so a refusal (borrowed photo, duplicate product)
+// leaves no orphaned object - the same ordering the barcode check already uses.
+const toPendingPhoto = async (photo: Blob, prefix: string): Promise<PendingPhoto> => {
   const extension = photo.type === "image/png" ? "png" : "jpg";
-  const photoKey = `${prefix}/${randomUUID()}.${extension}`;
   const buffer = Buffer.from(await photo.arrayBuffer());
-  await uploadPhoto(photoKey, buffer, photo.type);
-  return photoKey;
+  return { key: toPhotoKey(buffer, prefix, extension), buffer, contentType: photo.type };
+};
+
+const putPendingPhoto = async (pending: PendingPhoto): Promise<string> => {
+  await uploadPhoto(pending.key, pending.buffer, pending.contentType);
+  return pending.key;
 };
 
 // Shared by createProduct and saveNutritionOverride, so the per100g<->numeric-
@@ -370,7 +356,8 @@ export const createProduct = async (
   const userId = await requireUserId();
   // Before the upload: a rejected barcode must not leave an orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
-  const photoKey = input.photo ? await uploadProductPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
+  const pendingPhoto = input.photo ? await toPendingPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
+  const photoKey = pendingPhoto ? await putPendingPhoto(pendingPhoto) : null;
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -457,7 +444,8 @@ export const saveNutritionOverride = async (
   const supersededPhotoKey = photo ? await fetchOverridePhotoKey(userId, productId) : null;
   // Uploaded before the write so a storage failure leaves no row claiming a
   // key that does not exist - the same ordering createProduct uses.
-  const photoColumn = photo ? { nutritionPhotoKey: await uploadProductPhoto(photo, CLAIM_PHOTO_PREFIX) } : {};
+  const pendingPhoto = photo ? await toPendingPhoto(photo, CLAIM_PHOTO_PREFIX) : null;
+  const photoColumn = pendingPhoto ? { nutritionPhotoKey: await putPendingPhoto(pendingPhoto) } : {};
   const columns = toNutritionColumns(nutritionPer100g);
 
   await db
@@ -468,7 +456,9 @@ export const saveNutritionOverride = async (
       set: { ...columns, ...photoColumn, updatedAt: new Date() },
     });
 
-  if (supersededPhotoKey) {
+  // A content-addressed key means re-saving the same file supersedes itself -
+  // deleting then removes the object the surviving row points at.
+  if (supersededPhotoKey && supersededPhotoKey !== pendingPhoto?.key) {
     await deletePhoto(supersededPhotoKey);
   }
 };

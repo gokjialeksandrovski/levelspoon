@@ -34,7 +34,7 @@ const seedProduct = async (userId: string, name: string): Promise<string> => {
       nameSearch: toSearchText(name),
       energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
       sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
-      nutritionPhotoKey: "test/placeholder.jpg",
+      nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`,
       createdByUserId: userId,
     })
     .returning({ id: products.id });
