@@ -10,6 +10,7 @@ import { products, productBarcodes, productOverrides, users } from "@/lib/db/sch
 import { InvalidBarcodeError } from "@/lib/barcode/normalize";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 import { fetchPhotoDebt } from "@/lib/db/photo-debt";
+import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { getPhotoUrl } from "@/lib/s3";
 
 import { clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
@@ -587,6 +588,29 @@ describe("createProduct", () => {
 
     await expect(rejection).rejects.toThrow(LabelPhotoAlreadyUsedError);
     await expect(rejection).rejects.toMatchObject({ ownerName: null });
+  });
+});
+
+describe("findPhotoOwner", () => {
+  // assertPhotoUnused refuses the write before either table can end up holding
+  // the same key, so this state is unreachable through createProduct or
+  // saveNutritionOverride - it has to be forced directly to prove the tie
+  // between the two arms is decided, not left to UNION ALL's row order.
+  it("prefers the visible product's name when a key matches both a product and an override row", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const sharedKey = `test/${crypto.randomUUID()}.jpg`;
+    await seedProduct(userId, "Visible Product", { nutritionPhotoKey: sharedKey });
+    const otherProductId = await seedProduct(userId, "Some Other Product");
+    await saveNutritionOverride(otherProductId, CORRECTED);
+    await db
+      .update(productOverrides)
+      .set({ nutritionPhotoKey: sharedKey })
+      .where(and(eq(productOverrides.userId, userId), eq(productOverrides.productId, otherProductId)));
+
+    const owner = await findPhotoOwner([sharedKey], userId);
+
+    expect(owner).toEqual({ name: "Visible Product" });
   });
 });
 
