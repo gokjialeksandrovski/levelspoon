@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/features/meals/actions/meals", () => ({ saveMealIngredient: vi.fn() }));
 vi.mock("@/lib/haptics/log-success", () => ({ triggerLogSuccessHaptic: vi.fn() }));
+// amount-step also imports these two action modules; unmocked, they pull
+// next-auth's env module in, which fails to resolve under Vitest and takes
+// the whole file down before a single test runs.
+vi.mock("@/features/products/actions/portions", () => ({ getPortions: vi.fn() }));
+vi.mock("@/features/quantity/actions/quantity", () => ({ estimateQuantity: vi.fn() }));
 
 import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";

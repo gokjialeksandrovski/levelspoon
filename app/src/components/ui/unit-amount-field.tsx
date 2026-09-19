@@ -10,6 +10,8 @@ interface UnitAmountFieldProps {
   unit: string;
   units: string[];
   autoFocus?: boolean;
+  /** Guidance under the field, announced with it - Field's own helperText. */
+  helperText?: string;
   onCountChange: (value: string) => void;
   onUnitChange: (value: string) => void;
 }
@@ -18,6 +20,9 @@ interface CountInputProps {
   name: string;
   count: string;
   autoFocus?: boolean;
+  /** Reserves room for the in-field unit suffix - Field's own pr-14. */
+  hasSuffix: boolean;
+  hasHelperText: boolean;
   onCountChange: (value: string) => void;
 }
 
@@ -25,18 +30,20 @@ const CountInput = ({
   name,
   count,
   autoFocus,
+  hasSuffix,
+  hasHelperText,
   onCountChange,
 }: CountInputProps) => (
   <input
     id={name}
     name={name}
-    aria-describedby={`${name}-unit`}
+    aria-describedby={hasHelperText ? `${name}-unit ${name}-helper` : `${name}-unit`}
     type="number"
     inputMode="decimal"
     autoFocus={autoFocus}
     value={count}
     onChange={(event) => onCountChange(event.target.value)}
-    className={`flex-1 ${fieldInputClassName(false, undefined)}`}
+    className={`w-full appearance-none ${fieldInputClassName(false, undefined)} ${hasSuffix ? "pr-14" : ""}`}
   />
 );
 
@@ -54,10 +61,15 @@ const SelectChevron = () => (
   />
 );
 
-// One unit is nothing to choose: a one-option dropdown reads as broken, so
-// the unit is printed beside the figure instead.
+// One unit is nothing to choose: a one-option dropdown reads as broken, so the
+// unit is printed as an in-field suffix instead - the same overlay Field uses
+// for its trailing control. Beside the box it read as a stray letter floating
+// in the column rather than as part of the amount.
 const FixedUnit = ({ unit }: { unit: string }) => (
-  <span aria-hidden="true" className="self-center px-1 text-sm text-text-muted">
+  <span
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-text-muted"
+  >
     {unit}
   </span>
 );
@@ -86,24 +98,34 @@ export const UnitAmountField = ({
   unit,
   units,
   autoFocus,
+  helperText,
   onCountChange,
   onUnitChange,
-}: UnitAmountFieldProps) => (
-  <div className="flex flex-col gap-2">
-    <label htmlFor={name} className="text-xs font-medium text-text-muted">
-      Amount
-    </label>
-    {/* The unit lives in a separate control, so the figure carries it as its description. */}
-    <span id={`${name}-unit`} className="sr-only">
-      in {unit}
-    </span>
-    <div className="flex gap-2">
-      <CountInput {...{ name, count, autoFocus, onCountChange }} />
-      {units.length > 1 ? (
-        <UnitSelect unit={unit} units={units} onUnitChange={onUnitChange} />
-      ) : (
-        <FixedUnit unit={unit} />
+}: UnitAmountFieldProps) => {
+  const hasUnitChoice = units.length > 1;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={name} className="text-xs font-medium text-text-muted">
+        Amount
+      </label>
+      {/* The unit is its own control, or a suffix the figure does not contain,
+          so either way the figure carries it as its description. */}
+      <span id={`${name}-unit`} className="sr-only">
+        in {unit}
+      </span>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <CountInput {...{ name, count, autoFocus, onCountChange }} hasSuffix={!hasUnitChoice} hasHelperText={Boolean(helperText)} />
+          {!hasUnitChoice && <FixedUnit unit={unit} />}
+        </div>
+        {hasUnitChoice && <UnitSelect unit={unit} units={units} onUnitChange={onUnitChange} />}
+      </div>
+      {helperText && (
+        <p id={`${name}-helper`} className="text-xs text-text-muted">
+          {helperText}
+        </p>
       )}
     </div>
-  </div>
-);
+  );
+};

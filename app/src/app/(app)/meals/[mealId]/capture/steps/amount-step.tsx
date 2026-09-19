@@ -9,7 +9,6 @@ import type { ProductCandidate } from "@/features/products/actions/products";
 import { getPortions } from "@/features/products/actions/portions";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
-import { Disclosure } from "@/components/ui/disclosure";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
@@ -19,7 +18,11 @@ import { resolveQuantity } from "@/lib/measures/resolve-quantity";
 
 import { AmountChips, useRecentAmounts } from "../../amount-chips";
 import { PortionEditor } from "../../portion-editor";
-import { mergeChips, unitsForSelect, type AmountChip } from "../../amount-chips.utils";
+import {
+  mergeChips,
+  unitsForSelect,
+  type AmountChip,
+} from "../../amount-chips.utils";
 import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
@@ -44,7 +47,11 @@ interface AmountStepHeaderProps {
   onChangeMatch: () => void;
 }
 
-const AmountStepHeader = ({ productName, hasAlternatives, onChangeMatch }: AmountStepHeaderProps) => (
+const AmountStepHeader = ({
+  productName,
+  hasAlternatives,
+  onChangeMatch,
+}: AmountStepHeaderProps) => (
   <div className="flex items-center justify-between">
     <h2 className="text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
@@ -64,7 +71,12 @@ interface AmountStepCallbacks {
 // budget - bundled callbacks object, mirroring ingredient-row.tsx's shape.
 // Separate from setIsBusy, which also covers the save: otherwise saving would
 // light the photo overlay with nothing being read.
-const estimateAmount = async (photo: File, onEstimated: (value: string) => void, callbacks: AmountStepCallbacks, setIsEstimating: (value: boolean) => void): Promise<void> => {
+const estimateAmount = async (
+  photo: File,
+  onEstimated: (value: string) => void,
+  callbacks: AmountStepCallbacks,
+  setIsEstimating: (value: boolean) => void,
+): Promise<void> => {
   setIsEstimating(true);
   callbacks.setIsBusy(true);
   callbacks.setError(null);
@@ -110,7 +122,12 @@ const commitAmountSave = async (
 };
 
 // Exported so amount-step.test.ts can call it directly.
-export const saveAmount = async (input: SaveAmountInput, dispatch: (action: WizardAction) => void, onSaved: () => void, callbacks: AmountStepCallbacks): Promise<void> => {
+export const saveAmount = async (
+  input: SaveAmountInput,
+  dispatch: (action: WizardAction) => void,
+  onSaved: () => void,
+  callbacks: AmountStepCallbacks,
+): Promise<void> => {
   callbacks.setError(null);
   callbacks.setIsBusy(true);
   try {
@@ -143,18 +160,36 @@ export const resolveAndSaveAmount = async (
 ): Promise<void> => {
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
-    callbacks.setError(`Could not work out the amount in "${input.unit}" - try a different unit.`);
+    callbacks.setError(
+      `Could not work out the amount in "${input.unit}" - try a different unit.`,
+    );
     return;
   }
   await saveAmount(
     // The echo is what the user typed, never the resolution: a "1 slice" entry
     // that resolves to 28 g has to keep saying "1 slice".
-    { mealId: input.mealId, productId: input.productId, quantity: resolution.quantity, quantityUnit: resolution.quantityUnit, entryCount: Number(input.count), entryUnit: input.unit, source: input.source },
+    {
+      mealId: input.mealId,
+      productId: input.productId,
+      quantity: resolution.quantity,
+      quantityUnit: resolution.quantityUnit,
+      entryCount: Number(input.count),
+      entryUnit: input.unit,
+      source: input.source,
+    },
     dispatch,
     onSaved,
     callbacks,
   );
 };
+
+const RECENTS_HINT =
+  "Your last five entered amounts for this product appear above.";
+
+// Nothing is above the field until this product has history: the recents
+// cluster renders null when empty, and a product with no portions has no chip
+// row at all. Pointing at that space would be pointing at nothing.
+const NO_RECENTS_HINT = "Amounts you enter are saved for next time.";
 
 const contextFor = (product: SelectedProduct): MeasureContext => ({
   productName: product.name,
@@ -170,6 +205,7 @@ interface UseAmountStepFormResult {
   unit: string;
   units: string[];
   chips: AmountChip[];
+  hasRecents: boolean;
   isLoadingChips: boolean;
   preview: ContributionPreview;
   error: string | null;
@@ -205,10 +241,23 @@ interface AmountStepFormState {
   setSource: (value: "ai_estimated" | "manual") => void;
 }
 
-const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFormState) => {
-  const setCountManually = (value: string) => { state.setCount(value); state.setSource("manual"); };
-  const setUnitManually = (value: string) => { state.setUnit(value); state.setSource("manual"); };
-  const setCountFromPhoto = (value: string) => { state.setCount(value); state.setUnit("g"); state.setSource("ai_estimated"); };
+const buildAmountStepActions = (
+  deps: AmountStepActionDeps,
+  state: AmountStepFormState,
+) => {
+  const setCountManually = (value: string) => {
+    state.setCount(value);
+    state.setSource("manual");
+  };
+  const setUnitManually = (value: string) => {
+    state.setUnit(value);
+    state.setSource("manual");
+  };
+  const setCountFromPhoto = (value: string) => {
+    state.setCount(value);
+    state.setUnit("g");
+    state.setSource("ai_estimated");
+  };
 
   const pickChip = (value: string, chipUnit: string) => {
     state.setCount(value);
@@ -221,16 +270,49 @@ const buildAmountStepActions = (deps: AmountStepActionDeps, state: AmountStepFor
     setUnit: setUnitManually,
     pickChip,
     refreshProduct: async () =>
-      deps.dispatch({ type: "PORTIONS_UPDATED", portions: await getPortions(deps.product.id) }),
-    handlePhoto: (photo: File) => estimateAmount(photo, setCountFromPhoto, deps.callbacks, deps.setIsEstimating),
+      deps.dispatch({
+        type: "PORTIONS_UPDATED",
+        portions: await getPortions(deps.product.id),
+      }),
+    handlePhoto: (photo: File) =>
+      estimateAmount(
+        photo,
+        setCountFromPhoto,
+        deps.callbacks,
+        deps.setIsEstimating,
+      ),
     handleSave: () =>
-      resolveAndSaveAmount({ mealId: deps.mealId, productId: deps.product.id, count: state.count, unit: state.unit, context: deps.context, source: state.source }, deps.dispatch, deps.onSaved, deps.callbacks),
+      resolveAndSaveAmount(
+        {
+          mealId: deps.mealId,
+          productId: deps.product.id,
+          count: state.count,
+          unit: state.unit,
+          context: deps.context,
+          source: state.source,
+        },
+        deps.dispatch,
+        deps.onSaved,
+        deps.callbacks,
+      ),
     changeMatch: () =>
-      deps.dispatch({ type: "CHANGE_MATCH", nameGuess: deps.product.name, candidates: [deps.product, ...deps.alternatives], pendingBarcode: deps.pendingBarcode }),
+      deps.dispatch({
+        type: "CHANGE_MATCH",
+        nameGuess: deps.product.name,
+        candidates: [deps.product, ...deps.alternatives],
+        pendingBarcode: deps.pendingBarcode,
+      }),
   };
 };
 
-const useAmountStepForm = (mealId: string, product: SelectedProduct, alternatives: SelectedProduct[], pendingBarcode: string | null, dispatch: (action: WizardAction) => void, onSaved: () => void): UseAmountStepFormResult => {
+const useAmountStepForm = (
+  mealId: string,
+  product: SelectedProduct,
+  alternatives: SelectedProduct[],
+  pendingBarcode: string | null,
+  dispatch: (action: WizardAction) => void,
+  onSaved: () => void,
+): UseAmountStepFormResult => {
   const context = contextFor(product);
   const units = availableUnits(context);
   const { recents, isLoading: isLoadingChips } = useRecentAmounts(product.id);
@@ -243,7 +325,17 @@ const useAmountStepForm = (mealId: string, product: SelectedProduct, alternative
   const [isEstimating, setIsEstimating] = useState(false);
 
   const actions = buildAmountStepActions(
-    { mealId, product, alternatives, context, pendingBarcode, dispatch, onSaved, callbacks: { setError, setIsBusy }, setIsEstimating },
+    {
+      mealId,
+      product,
+      alternatives,
+      context,
+      pendingBarcode,
+      dispatch,
+      onSaved,
+      callbacks: { setError, setIsBusy },
+      setIsEstimating,
+    },
     { count, unit, source, setCount, setUnit, setSource },
   );
 
@@ -257,50 +349,90 @@ const useAmountStepForm = (mealId: string, product: SelectedProduct, alternative
     basisQuantity: product.nutritionBasisQuantity,
   });
 
-  return { count, unit, units, chips, isLoadingChips, preview, error, isBusy, isEstimating, ...actions };
+  return {
+    count,
+    unit,
+    units,
+    chips,
+    hasRecents: recents.length > 0,
+    isLoadingChips,
+    preview,
+    error,
+    isBusy,
+    isEstimating,
+    ...actions,
+  };
 };
 
-interface AmountStepFieldsProps {
+interface AmountStepBodyProps {
   form: UseAmountStepFormResult;
-}
-
-interface AmountStepBodyProps extends AmountStepFieldsProps {
   product: SelectedProduct;
 }
 
-const AmountField = ({ form }: AmountStepFieldsProps) => (
-  <UnitAmountField
-    name="grams"
-    count={form.count}
-    unit={form.unit}
-    units={unitsForSelect(form.units, form.chips, form.unit)}
-    onCountChange={form.setCount}
-    onUnitChange={form.setUnit}
-  />
-);
-
+// Three groups down this screen, tight inside and generous between, so
+// proximity says what belongs with what: a flat gap-4 left every control
+// equidistant from the one it belongs with and the one it does not.
+// Everything that sets the amount goes together: the chips, the editor that
+// changes what a chip weighs, and the field that overrides both. Then the
+// outcome and the commit, one group apart - the gap is the grouping.
+//
+// Four distances, and every gap on this screen is one of them:
+//   6px  gap-1.5  a label to the control it names (Field, UnitAmountField,
+//                 PhotoInput's hint, a chip cluster's heading)
+//   12px gap-3    sibling clusters inside one block (recents, standards)
+//   16px gap-4    distinct controls inside one group
+//   24px gap-6    group to group
+// The step from 6 to 16 is what makes a label unambiguous: "Amount" was 8px
+// below the chip row and 8px above its own input, so proximity named nothing.
 const AmountStepFields = ({ form, product }: AmountStepBodyProps) => (
   <>
-    {form.units.includes("g") && <AmountPhotoField onSelect={form.handlePhoto} isEstimating={form.isEstimating} />}
-    <AmountChips chips={form.chips} count={form.count} unit={form.unit} isLoading={form.isLoadingChips} onPick={form.pickChip} />
-    {form.chips.length > 0 && (
-      <PortionEditor productId={product.id} portions={product.portions} onSaved={form.refreshProduct} />
-    )}
-    {/* A product with no chips keeps the plain field: hiding the only way to
-        enter an amount behind a toggle would be a step backwards. */}
-    {form.chips.length === 0 ? (
-      <AmountField form={form} />
-    ) : (
-      <Disclosure label="Enter an exact amount">
-        <AmountField form={form} />
-      </Disclosure>
-    )}
-    <AmountPreview preview={form.preview} />
-    {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-    {/* Spinning Save during an estimate would claim a save is in flight. */}
-    <Button disabled={form.count.trim() === "" || form.isEstimating} pending={form.isBusy && !form.isEstimating} onClick={form.handleSave}>
-      Save ingredient
-    </Button>
+    <div className="flex flex-col gap-4">
+      {/* The editor docks into the "Standard sizes" header rather than floating
+          under the row: a centred underlined link in a left-aligned column read
+          as a page footer action, and nothing on screen was called a portion
+          size. Gated here on the portions themselves - an editor that renders
+          null is still a header action, and would hold an empty label open. */}
+      <AmountChips
+        chips={form.chips}
+        count={form.count}
+        unit={form.unit}
+        isLoading={form.isLoadingChips}
+        standardAction={
+          product.portions.length > 0 ? (
+            <PortionEditor
+              productId={product.id}
+              portions={product.portions}
+              onSaved={form.refreshProduct}
+            />
+          ) : null
+        }
+        onPick={form.pickChip}
+      />
+      {/* Always open, exactly as the cooking-fat sheet renders it. Typing a
+          gram figure is a first-class path, not the fallback a collapsed
+          "Enter an exact amount" toggle made it look like. */}
+      <UnitAmountField
+        name="grams"
+        count={form.count}
+        unit={form.unit}
+        units={unitsForSelect(form.units, form.chips, form.unit)}
+        helperText={form.hasRecents ? RECENTS_HINT : NO_RECENTS_HINT}
+        onCountChange={form.setCount}
+        onUnitChange={form.setUnit}
+      />
+    </div>
+    <div className="flex flex-col gap-4">
+      <AmountPreview preview={form.preview} />
+      {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+      {/* Spinning Save during an estimate would claim a save is in flight. */}
+      <Button
+        disabled={form.count.trim() === "" || form.isEstimating}
+        pending={form.isBusy && !form.isEstimating}
+        onClick={form.handleSave}
+      >
+        Save ingredient
+      </Button>
+    </div>
   </>
 );
 
@@ -365,12 +497,21 @@ interface BarcodeLinkOfferPromptProps {
   onDecline: () => void;
 }
 
-const BarcodeLinkOfferPrompt = ({ productName, isLinking, onAccept, onDecline }: BarcodeLinkOfferPromptProps) => (
+const BarcodeLinkOfferPrompt = ({
+  productName,
+  isLinking,
+  onAccept,
+  onDecline,
+}: BarcodeLinkOfferPromptProps) => (
   <div className="flex flex-col gap-2">
     <p className="text-sm text-text">Link barcode to {productName}?</p>
     <div className="flex gap-2">
-      <Button variant="ghost" pending={isLinking} onClick={onAccept}>Yes, link it</Button>
-      <Button variant="ghost" disabled={isLinking} onClick={onDecline}>No thanks</Button>
+      <Button variant="ghost" pending={isLinking} onClick={onAccept}>
+        Yes, link it
+      </Button>
+      <Button variant="ghost" disabled={isLinking} onClick={onDecline}>
+        No thanks
+      </Button>
     </div>
   </div>
 );
@@ -380,20 +521,40 @@ interface BarcodeLinkConflictProps {
   dispatch: (action: WizardAction) => void;
 }
 
-const BarcodeLinkConflict = ({ product, dispatch }: BarcodeLinkConflictProps) => (
+const BarcodeLinkConflict = ({
+  product,
+  dispatch,
+}: BarcodeLinkConflictProps) => (
   <div className="flex flex-col gap-2">
-    <InlineMessage tone="warning">This barcode is already linked to {product.name}.</InlineMessage>
+    <InlineMessage tone="warning">
+      This barcode is already linked to {product.name}.
+    </InlineMessage>
     <Button
       variant="ghost"
-      onClick={() => dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(product), alternatives: [], pendingBarcode: null })}
+      onClick={() =>
+        dispatch({
+          type: "CANDIDATE_CHOSEN",
+          product: toSelectedProduct(product),
+          alternatives: [],
+          pendingBarcode: null,
+        })
+      }
     >
       Use {product.name} instead
     </Button>
   </div>
 );
 
-const BarcodeLinkOffer = ({ pendingBarcode, productId, productName, dispatch }: BarcodeLinkOfferProps) => {
-  const { state, accept, decline } = useBarcodeLinkOffer(pendingBarcode, productId);
+const BarcodeLinkOffer = ({
+  pendingBarcode,
+  productId,
+  productName,
+  dispatch,
+}: BarcodeLinkOfferProps) => {
+  const { state, accept, decline } = useBarcodeLinkOffer(
+    pendingBarcode,
+    productId,
+  );
 
   if (state.kind === "resolved") {
     return null;
@@ -403,25 +564,59 @@ const BarcodeLinkOffer = ({ pendingBarcode, productId, productName, dispatch }: 
   }
   return (
     <>
-      <BarcodeLinkOfferPrompt productName={productName} isLinking={state.kind === "linking"} onAccept={accept} onDecline={decline} />
-      {state.kind === "error" && <InlineMessage tone="error">{LINK_BARCODE_ERROR}</InlineMessage>}
+      <BarcodeLinkOfferPrompt
+        productName={productName}
+        isLinking={state.kind === "linking"}
+        onAccept={accept}
+        onDecline={decline}
+      />
+      {state.kind === "error" && (
+        <InlineMessage tone="error">{LINK_BARCODE_ERROR}</InlineMessage>
+      )}
     </>
   );
 };
 
-export const AmountStep = ({ mealId, product, alternatives, pendingBarcode, dispatch, onSaved }: AmountStepProps) => {
-  const form = useAmountStepForm(mealId, product, alternatives, pendingBarcode, dispatch, onSaved);
+export const AmountStep = ({
+  mealId,
+  product,
+  alternatives,
+  pendingBarcode,
+  dispatch,
+  onSaved,
+}: AmountStepProps) => {
+  const form = useAmountStepForm(
+    mealId,
+    product,
+    alternatives,
+    pendingBarcode,
+    dispatch,
+    onSaved,
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      <AmountStepHeader
-        productName={product.name}
-        hasAlternatives={alternatives.length > 0}
-        onChangeMatch={form.changeMatch}
-      />
-      {pendingBarcode && (
-        <BarcodeLinkOffer pendingBarcode={pendingBarcode} productId={product.id} productName={product.name} dispatch={dispatch} />
-      )}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
+        <AmountStepHeader
+          productName={product.name}
+          hasAlternatives={alternatives.length > 0}
+          onChangeMatch={form.changeMatch}
+        />
+        {pendingBarcode && (
+          <BarcodeLinkOffer
+            pendingBarcode={pendingBarcode}
+            productId={product.id}
+            productName={product.name}
+            dispatch={dispatch}
+          />
+        )}
+        {form.units.includes("g") && (
+          <AmountPhotoField
+            onSelect={form.handlePhoto}
+            isEstimating={form.isEstimating}
+          />
+        )}
+      </div>
       <AmountStepFields form={form} product={product} />
     </div>
   );

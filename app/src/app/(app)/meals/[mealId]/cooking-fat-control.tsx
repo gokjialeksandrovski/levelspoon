@@ -172,18 +172,33 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
     onSaved,
   );
 
+  // Same three groups and the same four-distance ladder as the capture amount
+  // step (see AmountStepFields): 6/12/16/24. The 16px gaps make this body 16px
+  // taller than the flat gap-4 one it replaced; Sheet scrolls at 85dvh, so
+  // that buys grouping without costing reachable content.
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      {/* "Pick another", the same words the capture step's escape uses: both
+          leave this product for a different one, and one escape should not
+          have two names across two screens. */}
       <Button variant="ghost" link onClick={onBack}>
-        Search again
+        Pick another
       </Button>
-      <AmountChips chips={chips} count={count} unit={unit} isLoading={isLoadingChips} onPick={pickChip} />
-      <UnitAmountField name="cooking-fat-amount" count={count} unit={unit} units={unitsForSelect(units, chips, unit)} autoFocus onCountChange={setCount} onUnitChange={setUnit} />
-      <AmountPreview preview={preview} />
-      {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button disabled={count.trim() === ""} pending={isBusy} onClick={handleSave}>
-        Add to meal
-      </Button>
+      <div className="flex flex-col gap-4">
+        <AmountChips chips={chips} count={count} unit={unit} isLoading={isLoadingChips} onPick={pickChip} />
+        {/* No autoFocus, matching the capture step: this field is the fallback
+            and the chips above it are the input. Focusing it raises the mobile
+            keyboard over the chip row before the user has seen it, which is
+            worse inside a sheet than on a page, not better. */}
+        <UnitAmountField name="cooking-fat-amount" count={count} unit={unit} units={unitsForSelect(units, chips, unit)} onCountChange={setCount} onUnitChange={setUnit} />
+      </div>
+      <div className="flex flex-col gap-4">
+        <AmountPreview preview={preview} />
+        {error && <InlineMessage tone="error">{error}</InlineMessage>}
+        <Button disabled={count.trim() === ""} pending={isBusy} onClick={handleSave}>
+          Add to meal
+        </Button>
+      </div>
     </div>
   );
 };

@@ -11,22 +11,30 @@ import { SettleNumber } from "@/components/ui/settle-number";
 // and what a product is per its own basis. Both sit on MacroLine so the accent
 // roles and the P/C/F redundant cue stay identical wherever figures appear.
 
-// Reserves its height in both states so a Save button below never jumps the
-// moment a typed count becomes resolvable. Silent whenever the amount doesn't
-// resolve - see previewContribution. The kcal figure carries no accent,
-// matching the day hero.
+// Says what the slot is for while it has no figure to show. The height was
+// always reserved so a Save button below never jumps the moment a typed count
+// becomes resolvable, but reserving it empty read as a hole in the column - and
+// this is the one place that can say where a kcal figure comes from. True of
+// both unavailable cases: nothing entered yet, and an amount that did not
+// resolve (see previewContribution).
+const PREVIEW_PLACEHOLDER = "Pick or type an amount to see what it adds.";
+
+// justify-center only moves the placeholder: the ready state's kcal line plus
+// MacroLine already fill the reserved height.
 export const AmountPreview = ({ preview }: { preview: ContributionPreview }) => {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="min-h-12" aria-live="polite">
-      {preview.kind === "ready" && (
+    <div className="flex min-h-12 flex-col justify-center" aria-live="polite">
+      {preview.kind === "ready" ? (
         <>
           <p className="tabular-nums text-base font-medium text-text">
             <SettleNumber value={Math.round(preview.contribution.energyKcal)} reduceMotion={reduceMotion} /> kcal
           </p>
           <MacroLine contribution={preview.contribution} size="sm" animate />
         </>
+      ) : (
+        <p className="text-sm text-text-muted">{PREVIEW_PLACEHOLDER}</p>
       )}
     </div>
   );

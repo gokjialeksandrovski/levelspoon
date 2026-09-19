@@ -197,6 +197,15 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+/* appearance-none alone drops the spinner in Firefox but WebKit ignores it on
+   input[type=number] - the up/down arrows need their own pseudo-elements
+   killed. type stays "number" for the mobile numeric keyboard. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

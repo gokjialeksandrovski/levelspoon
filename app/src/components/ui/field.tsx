@@ -93,7 +93,7 @@ export const Field = ({
   readOnly = false,
   trailing,
 }: FieldProps) => (
-  <div className="flex flex-col gap-2">
+  <div className="flex flex-col gap-1.5">
     <label htmlFor={name} className="text-xs font-medium text-text-muted">
       {label}
     </label>
