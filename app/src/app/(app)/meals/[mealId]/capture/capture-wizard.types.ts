@@ -27,11 +27,10 @@ export type NutritionOrigin = "label_photo" | "manual" | "open_food_facts";
 
 export type WizardStep =
   | { kind: "product-photo"; pendingBarcode: string | null }
-  /** Steps, not local modes of product-photo: only what sits on the path can
-   * be popped by "Back", and as local state these left Back exiting the
+  /** A step, not a local mode of product-photo: only what sits on the path
+   * can be popped by "Back", and as local state this left Back exiting the
    * wizard entirely. */
   | { kind: "product-manual"; pendingBarcode: string | null }
-  | { kind: "product-barcode"; pendingBarcode: string | null }
   | { kind: "standard-food-search" }
   | {
       kind: "match-result";
@@ -129,13 +128,12 @@ export type WizardAction =
   | { type: "WHOLE_FOOD_SEARCH" }
   | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct }
   | { type: "MANUAL_NAME_ENTRY"; pendingBarcode: string | null }
-  | { type: "BARCODE_ENTRY"; pendingBarcode: string | null }
   | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> }
   | { type: "PORTIONS_UPDATED"; portions: readonly Portion[] };
 
 export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo", pendingBarcode: null };
 
-/** Shared so the three screens offering this route don't each word it differently. */
+/** Shared so the screens offering this route don't each word it differently. */
 export const BACK_TO_OPTIONS_LABEL = "Choose a different way";
 
 // `brand` is optional in the parameter because StandardFood has no brand
@@ -258,7 +256,6 @@ export const wizardReducer = (state: WizardStep, action: WizardAction): WizardSt
     case "WHOLE_FOOD_SEARCH": return { kind: "standard-food-search" };
     case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [], pendingBarcode: null };
     case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
-    case "BARCODE_ENTRY": return { kind: "product-barcode", pendingBarcode: action.pendingBarcode };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
     case "PORTIONS_UPDATED": return applyPortionsUpdated(state, action.portions);
   }

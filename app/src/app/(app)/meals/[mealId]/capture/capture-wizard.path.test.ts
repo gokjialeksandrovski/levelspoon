@@ -46,16 +46,24 @@ describe("pathReducer", () => {
     expect(pathReducer(path, { type: "BACK" })).toBe(path);
   });
 
-  // Back exits the wizard from a single-step path, so these have to land on
+  // Back exits the wizard from a single-step path, so this has to land on
   // the path or Back means "discard this capture".
-  it.each([
-    { type: "MANUAL_NAME_ENTRY", kind: "product-manual" },
-    { type: "BARCODE_ENTRY", kind: "product-barcode" },
-  ] as const)("pushes $kind so BACK returns to the entry options", ({ type, kind }) => {
-    const entered = pathReducer([INITIAL_WIZARD_STEP], { type, pendingBarcode: null });
+  it("pushes product-manual so BACK returns to the entry options", () => {
+    const entered = pathReducer([INITIAL_WIZARD_STEP], { type: "MANUAL_NAME_ENTRY", pendingBarcode: null });
 
-    expect(entered).toEqual([INITIAL_WIZARD_STEP, { kind, pendingBarcode: null }]);
+    expect(entered).toEqual([INITIAL_WIZARD_STEP, { kind: "product-manual", pendingBarcode: null }]);
     expect(pathReducer(entered, { type: "BACK" })).toEqual([INITIAL_WIZARD_STEP]);
+  });
+
+  // The barcode row lives on the entry options, so an unrecognised code has
+  // nowhere forward to go - it re-renders the step the user is already on.
+  it("replaces the entry step for a barcode neither source knows", () => {
+    const scanned = pathReducer([INITIAL_WIZARD_STEP], {
+      type: "BARCODE_SCANNED",
+      result: { kind: "not_found", barcode: "0000000000000" },
+    });
+
+    expect(scanned).toEqual([{ kind: "product-photo", pendingBarcode: "0000000000000" }]);
   });
 
   it("carries a pending barcode into manual entry", () => {

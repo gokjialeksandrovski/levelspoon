@@ -18,17 +18,16 @@ import { AmountStep } from "./steps/amount-step";
 import { ConfirmStep } from "./steps/confirm-step";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
-import { BarcodeNameStep, ManualNameStep, ProductNameStep } from "./steps/product-name-step";
+import { ManualNameStep, ProductNameStep } from "./steps/product-name-step";
 import { ServingSizeStep } from "./steps/serving-size-step";
 import { StandardFoodSearchStep } from "./steps/standard-food-search-step";
 import { WizardShell } from "./wizard-shell";
 
-// The three product-* steps share a title and progress: alternate ways into
+// The two product-* steps share a title and progress: alternate ways into
 // one stage, not progress through it.
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Product name",
   "product-manual": "Product name",
-  "product-barcode": "Product name",
   "standard-food-search": "Whole food",
   "match-result": "Which product?",
   "nutrition-photo": "Nutrition label",
@@ -44,7 +43,6 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
 const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "product-photo": 0.2,
   "product-manual": 0.2,
-  "product-barcode": 0.2,
   "standard-food-search": 0.3,
   "match-result": 0.4,
   "nutrition-photo": 0.5,
@@ -152,11 +150,6 @@ const renderManualNameStep = (
   dispatch: (action: PathAction) => void,
 ) => <ManualNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
 
-const renderBarcodeNameStep = (
-  step: Extract<WizardStep, { kind: "product-barcode" }>,
-  dispatch: (action: PathAction) => void,
-) => <BarcodeNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
-
 const renderStandardFoodSearchStep = (dispatch: (action: PathAction) => void) => (
   <StandardFoodSearchStep dispatch={dispatch} />
 );
@@ -257,14 +250,11 @@ interface StepViewProps {
 // was dropped).
 // One branch per wizard step. CLAUDE.md requires a switch here: TypeScript
 // narrows the discriminated union per case, which a Record lookup cannot do
-// without an unsafe cast. Splitting the table in half to score under 10 would
-// hide the state map, not simplify it.
-// eslint-disable-next-line complexity
+// without an unsafe cast.
 const StepView = ({ step, mealId, moment, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
-    case "product-barcode": return renderBarcodeNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
     case "match-result": return renderMatchResultStep(step, dispatch);
     case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);

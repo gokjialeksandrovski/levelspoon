@@ -88,7 +88,6 @@ const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
     <input
       type="file"
       accept="image/*"
-      capture="environment"
       aria-describedby={describedBy}
       onChange={onChange}
       className="absolute inset-0 cursor-pointer opacity-0"

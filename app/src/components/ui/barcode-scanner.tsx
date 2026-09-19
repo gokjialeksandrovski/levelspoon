@@ -180,26 +180,26 @@ const detectFromPhoto = async (detector: BarcodeDetectorApi, photo: File): Promi
   }
 };
 
-const handlePhotoFallback = async (
+// Exported: the wizard's "Scan the barcode" row reads a photo the same way,
+// without a scanner screen of its own. Null is "no code in this photo", a
+// state the user has already been told about through onError - not a failure
+// for the caller to word again.
+export const readBarcodeFromPhoto = async (
   photo: File,
-  onDetect: (code: string) => void,
   onError: (message: string) => void,
-): Promise<void> => {
+): Promise<string | null> => {
   let detector: BarcodeDetectorApi;
   try {
     detector = await loadDetector();
   } catch {
     onError(SCANNER_LOAD_ERROR_MESSAGE);
-    return;
+    return null;
   }
   const code = await detectFromPhoto(detector, photo);
   if (code === null) {
     onError(NO_BARCODE_FOUND_MESSAGE);
-    return;
   }
-  // Deliberately outside any try/catch here - a throw from the caller's own
-  // onDetect must propagate, not get mislabeled as a decode failure.
-  onDetect(code);
+  return code;
 };
 
 interface UsePhotoFallbackResult {
@@ -211,7 +211,13 @@ const usePhotoFallback = (onDetect: (code: string) => void): UsePhotoFallbackRes
   const [error, setError] = useState<string | null>(null);
   const handleSelect = (photo: File): void => {
     setError(null);
-    void handlePhotoFallback(photo, onDetect, setError);
+    // onDetect deliberately outside any try/catch - a throw from the caller's
+    // own handler must propagate, not get mislabeled as a decode failure.
+    void readBarcodeFromPhoto(photo, setError).then((code) => {
+      if (code !== null) {
+        onDetect(code);
+      }
+    });
   };
   return { error, handleSelect };
 };

@@ -19,6 +19,12 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   if (action.type === "SAVED") {
     return [wizardReducer(path[path.length - 1], action)];
   }
+  // A barcode neither source knows lands back on the entry options it was
+  // photographed from, so it replaces that step rather than stacking a second
+  // copy of it that "Back" would pop to with nothing visibly changed.
+  if (action.type === "BARCODE_SCANNED" && action.result.kind === "not_found") {
+    return [...path.slice(0, -1), wizardReducer(path[path.length - 1], action)];
+  }
   // The same step with new portion figures, not a step forward - appending
   // would leave Back pointing at the weights the user just replaced.
   if (action.type === "PORTIONS_UPDATED") {

@@ -50,7 +50,10 @@ const DisclosurePanel = ({ contentId, isOpen, children }: { contentId: string; i
     id={contentId}
     className={`grid transition-[grid-template-rows] duration-(--duration-step) ease-out-quart ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
   >
-    <div className="overflow-hidden">{children}</div>
+    {/* -mx-1/px-1: the clip edge has to sit outside the content, or it cuts the
+        left and right of a focus ring on anything inside the panel. Vertical
+        clipping is what makes the 0fr collapse work, so only x moves. */}
+    <div className="-mx-1 overflow-hidden px-1">{children}</div>
   </div>
 );
 

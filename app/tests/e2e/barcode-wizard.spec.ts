@@ -9,11 +9,11 @@ import { seedConfidentProduct, seedProductWithBarcode, signUp, truncateAll } fro
 test.beforeEach(async ({ page, context }) => {
   await truncateAll();
   await context.clearPermissions();
-  // Forces every test onto the deterministic photo-upload path: the fake
-  // camera flags in playwright.config.ts apply project-wide, so without this
-  // stub a real live scan races the photo upload these tests intend to
-  // exercise (see barcode-scanner.spec.ts's own permission-denied test for
-  // the same pattern).
+  // The entry rows are plain file inputs, but confirm-step's own fresh-scan
+  // still mounts a live scanner, and the fake camera flags in
+  // playwright.config.ts apply project-wide - without this stub that scan
+  // races the photo upload these tests intend to exercise (see
+  // barcode-scanner.spec.ts's own permission-denied test for the same pattern).
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () =>
       Promise.reject(new DOMException("Permission denied", "NotAllowedError"));
@@ -25,7 +25,6 @@ test("scanning an already-linked barcode skips straight to the amount step", asy
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/product-barcode.png");
 
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
@@ -36,7 +35,6 @@ test("scanning a barcode Open Food Facts recognizes lands on a prefilled confirm
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/external-match-barcode.png");
 
   await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
@@ -53,14 +51,10 @@ test("a barcode neither source has falls through to the normal flow and surfaces
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
 
   // Falls back to the ordinary chooser - same step, nothing attached yet.
-  // exact:true: the wizard shell's own "Product name" title heading and
-  // product-name-step's "Photograph the product name" h2 are both on screen
-  // here, and the latter contains "Product name" as a substring.
-  await expect(page.getByRole("heading", { name: "Product name", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
 
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
@@ -85,7 +79,6 @@ test("unchecking the pre-scanned barcode opt-in saves the product with no barcod
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
@@ -104,7 +97,6 @@ test("a pre-scanned code already bound elsewhere shows that product at confirm a
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
@@ -126,15 +118,16 @@ test("a pre-scanned code already bound elsewhere shows that product at confirm a
   expect(linked).toHaveLength(1);
 });
 
-test("a restricted-circulation code shows an inline message and stays on the scan step", async ({ page }) => {
+test("a restricted-circulation code shows an inline message and leaves the entry options up", async ({ page }) => {
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/restricted-barcode.png");
 
   await expect(page.getByText(/not a product barcode/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Scan the barcode" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
+  // The row the message names is right there, not one back-navigation away.
+  await expect(page.getByLabel("Product photo")).toBeAttached();
 });
 
 test("the fresh-scan button at confirm attaches a barcode neither the checkbox nor an OFF hit provided", async ({ page }) => {
@@ -168,7 +161,6 @@ test("a not-found-then-name-matched flow shows the link offer, and accepting it 
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
@@ -194,7 +186,6 @@ test("accepting the amount-step link offer after another user just bound the cod
   await signUp(page);
 
   await page.getByRole("button", { name: "New meal" }).click();
-  await page.getByRole("button", { name: "Scan the barcode" }).click();
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
