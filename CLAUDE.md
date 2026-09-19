@@ -203,10 +203,11 @@ grade, a cup of cooked rice. Curated, not learned, and layered like this:
   **Nutrition maths reads `quantity` only**; these two are for display
   (`quantityText`) and for recents. Every write path that saves or edits an
   amount fills them.
-- `recentAmounts` (`features/meals/actions/meals.ts`) — the two most recent
-  distinct units for a product, newest first, soft-deleted rows excluded.
-  `RECENT_AMOUNT_LIMIT` decides how many. Never re-resolve the weight; it
-  comes off the stored `quantity`.
+- `recentAmounts` (`features/meals/actions/meals.ts`) — the most recent
+  distinct *amounts* for a product, newest first, soft-deleted rows excluded.
+  Distinct means the count and unit together, not the unit alone, so 200 g and
+  250 g are two chips. `RECENT_AMOUNT_LIMIT` decides how many. Never
+  re-resolve the weight; it comes off the stored `quantity`.
 
 Two UI rules fall out of this, both easy to break:
 

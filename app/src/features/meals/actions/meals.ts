@@ -499,8 +499,10 @@ export const updateMealIngredientQuantity = async (
     .where(eq(mealIngredients.id, mealIngredientId));
 };
 
-// Two chips fit a phone row beside the portion chips without wrapping.
-const RECENT_AMOUNT_LIMIT = 2;
+// Five distinct amounts is about a week of one product's habits: enough that
+// the chip a user reaches for is usually already there, few enough that the
+// wrapped row stays scannable.
+const RECENT_AMOUNT_LIMIT = 5;
 
 export interface RecentAmount {
   count: number;
@@ -511,13 +513,15 @@ export interface RecentAmount {
 type RecentAmountRow = { entry_count: string; entry_unit: string; quantity: string };
 
 /**
- * How this user last logged this product, one entry per unit.
+ * How this user last logged this product, one entry per distinct amount.
  *
- * DISTINCT ON collapses repeats of the same unit to its newest row, so
- * logging "1 slice" then "2 slice" leaves one chip reading 2. The outer
- * ORDER BY then puts the most recently used unit first - the inner one has
- * to sort by entry_unit for DISTINCT ON to work at all, which is not the
- * order anybody wants to read.
+ * The amount is the count and the unit together, not the unit alone: somebody
+ * who alternates 200 g and 250 g wants both chips, and collapsing to one per
+ * unit hands back whichever they typed last. DISTINCT ON therefore keys on
+ * the pair, so "1 slice" and "2 slice" both survive while a repeat of either
+ * collapses to its newest row. The outer ORDER BY puts the most recently used
+ * amount first - the inner one has to sort by the DISTINCT ON key to work at
+ * all, which is not the order anybody wants to read.
  *
  * `grams` comes straight off `quantity`, which is already the resolved
  * weight - nothing is re-resolved here, so a chip can never disagree with
@@ -528,7 +532,7 @@ export const recentAmounts = async (productId: string): Promise<RecentAmount[]> 
   const result = await db.execute<RecentAmountRow>(sql`
     SELECT latest.entry_count, latest.entry_unit, latest.quantity
     FROM (
-      SELECT DISTINCT ON (mi.entry_unit)
+      SELECT DISTINCT ON (mi.entry_count, mi.entry_unit)
              mi.entry_count, mi.entry_unit, mi.quantity, mi.created_at
         FROM meal_ingredients mi
         JOIN meals m ON m.id = mi.meal_id
@@ -538,7 +542,7 @@ export const recentAmounts = async (productId: string): Promise<RecentAmount[]> 
          AND m.deleted_at IS NULL
          AND mi.entry_unit IS NOT NULL
          AND mi.entry_count IS NOT NULL
-       ORDER BY mi.entry_unit, mi.created_at DESC
+       ORDER BY mi.entry_count, mi.entry_unit, mi.created_at DESC
     ) latest
     ORDER BY latest.created_at DESC
     LIMIT ${RECENT_AMOUNT_LIMIT}

@@ -122,10 +122,19 @@ export const PortionEditor = ({ productId, portions, onSaved }: PortionEditorPro
     setIsOpen(true);
   };
 
+  // Nothing curated to override means a sheet with no fields in it. The gate
+  // lives here rather than at the call site so a second caller cannot miss it.
+  if (portions.length === 0) {
+    return null;
+  }
+
   return (
     <>
-      <Button variant="ghost" link onClick={open}>
-        Edit portion sizes
+      {/* "Edit" beside the "Standard sizes" label it sits in: position states
+          the scope, so the word only has to name the verb. The accessible name
+          keeps the scope for a reader who lands on the button directly. */}
+      <Button variant="ghost" link aria-label="Edit standard sizes" onClick={open}>
+        Edit
       </Button>
       <Sheet
         open={isOpen}

@@ -10,8 +10,8 @@ describe("portionChips", () => {
         { label: "slice, large", grams: 38 },
       ]),
     ).toEqual([
-      { count: 1, unit: "slice", grams: 28 },
-      { count: 1, unit: "slice, large", grams: 38 },
+      { count: 1, unit: "slice", grams: 28, source: "standard" },
+      { count: 1, unit: "slice, large", grams: 38, source: "standard" },
     ]);
   });
 
@@ -22,42 +22,42 @@ describe("portionChips", () => {
 
 describe("chipLabel", () => {
   it("prints the count, the unit and the gram weight", () => {
-    expect(chipLabel({ count: 1, unit: "slice", grams: 28 })).toBe("1 slice · 28 g");
+    expect(chipLabel({ count: 1, unit: "slice", grams: 28, source: "standard" as const })).toBe("1 slice · 28 g");
   });
 
   it("prints a gram chip once, not as its own weight twice", () => {
-    expect(chipLabel({ count: 100, unit: "g", grams: 100 })).toBe("100 g");
+    expect(chipLabel({ count: 100, unit: "g", grams: 100, source: "recent" })).toBe("100 g");
   });
 
   it("rounds a fractional gram weight to the nearest gram", () => {
-    expect(chipLabel({ count: 0.5, unit: "slice", grams: 13.5 })).toBe("0.5 slice · 14 g");
+    expect(chipLabel({ count: 0.5, unit: "slice", grams: 13.5, source: "standard" })).toBe("0.5 slice · 14 g");
   });
 
   it("prints a multi-word portion label whole", () => {
-    expect(chipLabel({ count: 2, unit: "extra large", grams: 136 })).toBe("2 extra large · 136 g");
+    expect(chipLabel({ count: 2, unit: "extra large", grams: 136, source: "recent" })).toBe("2 extra large · 136 g");
   });
 });
 
 describe("isChipSelected", () => {
   it("matches the field's current count and unit", () => {
-    const chip = { count: 1, unit: "slice", grams: 28 };
+    const chip = { count: 1, unit: "slice", grams: 28, source: "standard" as const };
     expect(isChipSelected(chip, "1", "slice")).toBe(true);
   });
 
   it("does not match a different count or a different unit", () => {
-    const chip = { count: 1, unit: "slice", grams: 28 };
+    const chip = { count: 1, unit: "slice", grams: 28, source: "standard" as const };
     expect(isChipSelected(chip, "2", "slice")).toBe(false);
     expect(isChipSelected(chip, "1", "g")).toBe(false);
   });
 
   it("treats an unparseable or empty count as no selection", () => {
-    const chip = { count: 1, unit: "slice", grams: 28 };
+    const chip = { count: 1, unit: "slice", grams: 28, source: "standard" as const };
     expect(isChipSelected(chip, "", "slice")).toBe(false);
     expect(isChipSelected(chip, "  ", "slice")).toBe(false);
   });
 
   it("ignores surrounding whitespace and a trailing zero", () => {
-    const chip = { count: 1, unit: "slice", grams: 28 };
+    const chip = { count: 1, unit: "slice", grams: 28, source: "standard" as const };
     expect(isChipSelected(chip, " 1.0 ", "slice")).toBe(true);
   });
 });
@@ -70,36 +70,60 @@ describe("mergeChips", () => {
 
   it("shows portions alone when there is no history", () => {
     expect(mergeChips([], portions)).toEqual([
-      { count: 1, unit: "slice", grams: 28 },
-      { count: 1, unit: "slice, large", grams: 38 },
+      { count: 1, unit: "slice", grams: 28, source: "standard" },
+      { count: 1, unit: "slice, large", grams: 38, source: "standard" },
     ]);
   });
 
   it("puts recents first and drops the portion chip they duplicate", () => {
     const recents = [{ count: 2, unit: "slice", grams: 64 }];
     expect(mergeChips(recents, portions)).toEqual([
-      { count: 2, unit: "slice", grams: 64 },
-      { count: 1, unit: "slice, large", grams: 38 },
+      { count: 2, unit: "slice", grams: 64, source: "recent" },
+      { count: 1, unit: "slice, large", grams: 38, source: "standard" },
     ]);
   });
 
   it("keeps a recent unit that is not a portion at all", () => {
     const recents = [{ count: 100, unit: "g", grams: 100 }];
     expect(mergeChips(recents, portions)).toEqual([
-      { count: 100, unit: "g", grams: 100 },
-      { count: 1, unit: "slice", grams: 28 },
-      { count: 1, unit: "slice, large", grams: 38 },
+      { count: 100, unit: "g", grams: 100, source: "recent" },
+      { count: 1, unit: "slice", grams: 28, source: "standard" },
+      { count: 1, unit: "slice, large", grams: 38, source: "standard" },
     ]);
   });
 
   it("shows recents alone for a product with no portions", () => {
     const recents = [{ count: 100, unit: "g", grams: 100 }];
-    expect(mergeChips(recents, [])).toEqual([{ count: 100, unit: "g", grams: 100 }]);
+    expect(mergeChips(recents, [])).toEqual([{ count: 100, unit: "g", grams: 100, source: "recent" }]);
+  });
+
+  // The egg case from the critique: a curated "1 medium · 50 g" beside a
+  // "1 large · 50 g" the user taught. Same weight, different labels, and the
+  // source tag is the only thing that can tell the two clusters apart.
+  it("marks who supplied each figure, the user or the standard", () => {
+    const recents = [{ count: 1, unit: "large", grams: 50 }];
+    const eggPortions = [
+      { label: "medium", grams: 50 },
+      { label: "large", grams: 58 },
+    ];
+    expect(mergeChips(recents, eggPortions).map((chip) => chip.source)).toEqual(["recent", "standard"]);
+  });
+
+  it("keeps two counts of one unit and still drops that unit's portion chip once", () => {
+    const recents = [
+      { count: 2, unit: "slice", grams: 56 },
+      { count: 1, unit: "slice", grams: 28 },
+    ];
+    expect(mergeChips(recents, portions)).toEqual([
+      { count: 2, unit: "slice", grams: 56, source: "recent" },
+      { count: 1, unit: "slice", grams: 28, source: "recent" },
+      { count: 1, unit: "slice, large", grams: 38, source: "standard" },
+    ]);
   });
 
   it("prefers the recent weight over the standard one for the same unit", () => {
     const recents = [{ count: 1, unit: "slice", grams: 32 }];
-    expect(mergeChips(recents, portions)[0]).toEqual({ count: 1, unit: "slice", grams: 32 });
+    expect(mergeChips(recents, portions)[0]).toEqual({ count: 1, unit: "slice", grams: 32, source: "recent" });
   });
 });
 
@@ -141,7 +165,7 @@ describe("formatGrams", () => {
 });
 
 describe("unitsForSelect", () => {
-  const chips = [{ count: 1, unit: "slice", grams: 28 }];
+  const chips = [{ count: 1, unit: "slice", grams: 28, source: "standard" as const }];
 
   it("drops a unit already offered as a chip", () => {
     expect(unitsForSelect(["slice", "g"], chips, "g")).toEqual(["g"]);

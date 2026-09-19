@@ -41,7 +41,9 @@ test("keeps the plain amount field for a food with no portions", async ({ page }
   await signUp(page);
   await pickWholeFood(page, "chicken", "Chicken breast, raw");
 
-  await expect(page.getByRole("group", { name: "Quick amounts" })).toHaveCount(0);
+  // The chip row is the only grouped region on this step, and it renders one
+  // labelled cluster per source - so no group at all means no chips at all.
+  await expect(page.getByRole("group")).toHaveCount(0);
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
 });
 
@@ -51,7 +53,7 @@ test("remembers an edited slice weight for one bread only", async ({ page }) => 
   await signUp(page);
 
   await pickWholeFood(page, "bread white", "Bread, white");
-  await page.getByRole("button", { name: "Edit portion sizes" }).click();
+  await page.getByRole("button", { name: "Edit standard sizes" }).click();
   await page.getByLabel("One slice weighs").fill("32");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("button", { name: "1 slice · 32 g" })).toBeVisible();
@@ -76,12 +78,12 @@ test("reverts to the standard weight", async ({ page }) => {
   await signUp(page);
   await pickWholeFood(page, "bread white", "Bread, white");
 
-  await page.getByRole("button", { name: "Edit portion sizes" }).click();
+  await page.getByRole("button", { name: "Edit standard sizes" }).click();
   await page.getByLabel("One slice weighs").fill("45");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("button", { name: "1 slice · 45 g" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit portion sizes" }).click();
+  await page.getByRole("button", { name: "Edit standard sizes" }).click();
   await page.getByRole("button", { name: "Use the standard sizes" }).click();
   await expect(page.getByRole("button", { name: "1 slice · 28 g" })).toBeVisible();
 });

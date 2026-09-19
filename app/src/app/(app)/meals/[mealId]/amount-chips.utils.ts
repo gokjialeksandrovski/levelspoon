@@ -1,16 +1,20 @@
 import type { RecentAmount } from "@/features/meals/actions/meals";
 import type { Portion } from "@/lib/measures/portions";
 
+/** Who supplied a chip's figure: this user's own log, or a curated standard. */
+export type ChipSource = "recent" | "standard";
+
 /** One tappable amount: a count, the unit it is counted in, and what that weighs. */
 export interface AmountChip {
   count: number;
   unit: string;
   grams: number;
+  source: ChipSource;
 }
 
 /** A portion is offered singly. Multiples come from what the user actually logged. */
 export const portionChips = (portions: readonly Portion[]): AmountChip[] =>
-  portions.map((portion) => ({ count: 1, unit: portion.label, grams: portion.grams }));
+  portions.map((portion) => ({ count: 1, unit: portion.label, grams: portion.grams, source: "standard" }));
 
 /**
  * One row, recents first.
@@ -19,6 +23,10 @@ export const portionChips = (portions: readonly Portion[]): AmountChip[] =>
  * sitting beside it: two chips reading "1 slice · 28 g" and "1 slice · 32 g"
  * ask the user to spot a four-gram difference to understand why both exist.
  * The recent one wins because it is what this user actually logged.
+ *
+ * Each chip carries its source because the row reads as two labelled clusters.
+ * An egg shows a curated "1 medium · 50 g" beside a "1 large · 50 g" the user
+ * taught it: while both claim the same authority, the pair reads as a bug.
  */
 export const mergeChips = (
   recents: readonly RecentAmount[],
@@ -26,7 +34,7 @@ export const mergeChips = (
 ): AmountChip[] => {
   const recentUnits = new Set(recents.map((recent) => recent.unit));
   return [
-    ...recents.map((recent) => ({ count: recent.count, unit: recent.unit, grams: recent.grams })),
+    ...recents.map((recent) => ({ count: recent.count, unit: recent.unit, grams: recent.grams, source: "recent" as const })),
     ...portionChips(portions).filter((chip) => !recentUnits.has(chip.unit)),
   ];
 };

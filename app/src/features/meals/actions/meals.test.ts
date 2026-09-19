@@ -887,29 +887,52 @@ describe("recentAmounts", () => {
     expect(await recentAmounts(productId)).toEqual([]);
   });
 
-  it("keeps one chip per unit, carrying the most recent count", async () => {
+  it("collapses a repeat of the same amount to one chip", async () => {
     await log(1, "slice", 28);
-    await log(2, "slice", 56);
-    expect(await recentAmounts(productId)).toEqual([{ count: 2, unit: "slice", grams: 56 }]);
+    await log(1, "slice", 28);
+    expect(await recentAmounts(productId)).toEqual([{ count: 1, unit: "slice", grams: 28 }]);
   });
 
-  it("returns the two most recent distinct units, newest first", async () => {
-    await log(50, "g", 50);
-    await log(100, "g", 100);
-    await log(1, "slice", 28);
+  it("keeps two counts of the same unit apart", async () => {
+    await log(200, "g", 200);
+    await log(250, "g", 250);
     expect(await recentAmounts(productId)).toEqual([
-      { count: 1, unit: "slice", grams: 28 },
-      { count: 100, unit: "g", grams: 100 },
+      { count: 250, unit: "g", grams: 250 },
+      { count: 200, unit: "g", grams: 200 },
     ]);
   });
 
-  it("keeps only two even when three units were used", async () => {
+  it("returns distinct amounts newest first, a repeat not costing a slot", async () => {
+    await log(200, "g", 200);
+    await log(250, "g", 250);
+    await log(2, "cup", 480);
+    await log(3, "tbsp", 41);
+    await log(200, "g", 200);
+    await log(250, "g", 250);
+    expect(await recentAmounts(productId)).toEqual([
+      { count: 250, unit: "g", grams: 250 },
+      { count: 200, unit: "g", grams: 200 },
+      { count: 3, unit: "tbsp", grams: 41 },
+      { count: 2, unit: "cup", grams: 480 },
+    ]);
+  });
+
+  it("keeps only five even when six amounts were used", async () => {
+    await log(50, "g", 50);
     await log(100, "g", 100);
+    await log(150, "g", 150);
     await log(1, "cup", 240);
     await log(1, "slice", 28);
+    await log(2, "slice", 56);
     const recents = await recentAmounts(productId);
-    expect(recents).toHaveLength(2);
-    expect(recents.map((recent) => recent.unit)).toEqual(["slice", "cup"]);
+    expect(recents).toHaveLength(5);
+    expect(recents.map((recent) => `${recent.count} ${recent.unit}`)).toEqual([
+      "2 slice",
+      "1 slice",
+      "1 cup",
+      "150 g",
+      "100 g",
+    ]);
   });
 
   it("ignores a removed ingredient", async () => {
