@@ -40,6 +40,11 @@ const ALL_NULL_NUTRITION = {
 const MANUAL_ENTRY_BASIS_UNIT = "g";
 const MANUAL_ENTRY_BASIS_QUANTITY = 100;
 
+const photoReuseError = (ownerName: string | null): string =>
+  ownerName === null
+    ? "This label photo already belongs to another product. Take a photo of this product's own label."
+    : `This label photo already belongs to ${ownerName}. Take a photo of this product's own label.`;
+
 interface UseNutritionPhotoStepResult {
   error: string | null;
   isLoading: boolean;
@@ -59,6 +64,13 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
     setIsLoading(true);
     try {
       const read = await ocrNutritionTable(selected, nameGuess, netWeightText);
+      if (read.kind === "photo-already-used") {
+        // Cleared from state as well as rejected: handleManualEntry carries
+        // `photo` forward, which would smuggle the borrowed photo to confirm.
+        setPhoto(null);
+        setError(photoReuseError(read.ownerName));
+        return;
+      }
       if (read.kind === "needs-serving-size") {
         dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName, pendingBarcode });
         return;

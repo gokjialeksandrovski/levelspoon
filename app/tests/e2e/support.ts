@@ -110,6 +110,30 @@ export const signUp = async (page: Page, email = freshEmail()) => {
   return email;
 };
 
+// Manual-name entry, not the product-photo path: a typed name with no match
+// in the freshly-truncated DB reaches nutrition-photo directly, which is the
+// step callers of this helper actually want to drive.
+export const startCapture = async (page: Page, name: string) => {
+  await page.goto(`/day/${localToday()}`);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
+  await page.getByLabel("Product name").fill(name);
+  await page.getByRole("button", { name: "Continue" }).click();
+};
+
+// Inline bytes, not a fixture file: a photo key is a content hash
+// (photo-keys.ts), so two products only collide on it when given the exact
+// same bytes - a buffer literal keeps that shared identity visible at the
+// call site instead of two callers pointing at "the same fixture" by convention.
+export const uploadNutritionPhoto = async (page: Page, bytes: Buffer) => {
+  await page.getByLabel(/nutrition table photo/i).setInputFiles({
+    name: "label.jpg",
+    mimeType: "image/jpeg",
+    buffer: bytes,
+  });
+};
+
 // New meal -> confident product photo -> 200g -> Save -> Done. Returns the
 // meal detail URL it lands on. Exact-match { exact: true } for both "Product photo"
 // and "Amount" labels to avoid substring collision with "Amount photo (optional)".

@@ -3,6 +3,8 @@
 import type { NutritionValues } from "@/types/nutrition";
 import { findStoredMeasures } from "@/features/products/actions/products";
 import { requireUserId } from "@/lib/auth/require-user";
+import { CLAIM_PHOTO_PREFIX, PROOF_PHOTO_PREFIX, toPhotoKey } from "@/lib/db/photo-keys";
+import { findPhotoOwner } from "@/lib/db/photo-owner";
 import {
   hasLearned,
   learnFromServing,
@@ -50,6 +52,12 @@ export type NutritionRead =
        * unit's weight yet" from "that wasn't a measurement", instead of one
        * generic message for both. */
       unitName: string | null;
+    }
+  | {
+      kind: "photo-already-used";
+      /** Null when the row holding this photo is not one this user may be
+       * shown - see findPhotoOwner. */
+      ownerName: string | null;
     };
 
 const getProvider = (): OcrProvider =>
@@ -70,7 +78,7 @@ const scaledRead = async (
   perServing: NutritionValues,
   grams: number,
   learned: LearnedMeasures,
-): Promise<NutritionRead> => {
+): Promise<Exclude<NutritionRead, { kind: "photo-already-used" }>> => {
   const values = scalePerServingToPer100g(perServing, grams);
   const { flags } = await getProvider().validate(values);
   return {
@@ -91,7 +99,7 @@ const perUnitRead = async (
   perServing: NutritionValues,
   unitName: string,
   parsedQuantity: number,
-): Promise<NutritionRead> => {
+): Promise<Exclude<NutritionRead, { kind: "photo-already-used" }>> => {
   const values = scaleNutrition(perServing, PER_UNIT_BASIS_QUANTITY / parsedQuantity);
   const { flags } = await getProvider().validate(values);
   return {
@@ -197,7 +205,21 @@ export const ocrNutritionTable = async (
   productNameGuess: string,
   netWeightText: string | null = null,
 ): Promise<NutritionRead> => {
-  await requireUserId();
+  const userId = await requireUserId();
+  const buffer = Buffer.from(await photo.arrayBuffer());
+  const extension = photo.type === "image/png" ? "png" : "jpg";
+  // Refused before the OCR call, not after: the answer would be the other
+  // product's figures, and reading them is what makes the mistake look right.
+  const owner = await findPhotoOwner(
+    [
+      toPhotoKey(buffer, PROOF_PHOTO_PREFIX, extension),
+      toPhotoKey(buffer, CLAIM_PHOTO_PREFIX, extension),
+    ],
+    userId,
+  );
+  if (owner) {
+    return { kind: "photo-already-used", ownerName: owner.name };
+  }
   const read = await getProvider().extractNutritionTable(photo);
   if (read.format === "eu") {
     return {
@@ -227,7 +249,7 @@ export const resolveServingSize = async (
   servingSizeText: string,
   perServing: NutritionValues,
   productNameGuess: string,
-): Promise<NutritionRead> => {
+): Promise<Exclude<NutritionRead, { kind: "photo-already-used" }>> => {
   await requireUserId();
   const resolution = resolveGrams(answerText, await contextFor(productNameGuess));
   if (resolution.kind === "unresolved") {
