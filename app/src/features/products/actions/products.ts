@@ -7,6 +7,7 @@ import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
 import { CLAIM_PHOTO_PREFIX, PROOF_PHOTO_PREFIX, toPhotoKey } from "@/lib/db/photo-keys";
+import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
@@ -18,7 +19,7 @@ import { resolvePortions } from "@/lib/measures/resolve-portions";
 import { deletePhoto, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
-import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
+import { BarcodeAlreadyLinkedError, LabelPhotoAlreadyUsedError, ProductNotEditableError } from "./products.errors";
 
 // Spec §1's margin rule: absolute-threshold-only would let nutritionally-
 // different variants (e.g. "2% Fat" vs "10% Fat") take the no-confirm path,
@@ -273,6 +274,37 @@ const putPendingPhoto = async (pending: PendingPhoto): Promise<string> => {
   return pending.key;
 };
 
+const JPEG_EXTENSION = "jpg";
+const PNG_EXTENSION = "png";
+
+const extensionOf = (photoKey: string): string =>
+  photoKey.endsWith(`.${PNG_EXTENSION}`) ? PNG_EXTENSION : JPEG_EXTENSION;
+
+// Identical bytes hash to two different keys under the two prefixes, so a
+// forgery can hide on either side: a photo already filed as one product's
+// proof must not become another's claim, and vice versa. Both forms are
+// derived from the same buffer and probed together. `exemptKey` lets
+// saveNutritionOverride pass the claim it is about to supersede - re-saving
+// your own claim on the same product is not a forgery.
+const assertPhotoUnused = async (
+  pending: PendingPhoto,
+  userId: string,
+  exemptKey?: string | null,
+): Promise<void> => {
+  const extension = extensionOf(pending.key);
+  const keys = [
+    toPhotoKey(pending.buffer, PROOF_PHOTO_PREFIX, extension),
+    toPhotoKey(pending.buffer, CLAIM_PHOTO_PREFIX, extension),
+  ].filter((key) => key !== exemptKey);
+  if (keys.length === 0) {
+    return;
+  }
+  const owner = await findPhotoOwner(keys, userId);
+  if (owner) {
+    throw new LabelPhotoAlreadyUsedError(owner.name);
+  }
+};
+
 // Shared by createProduct and saveNutritionOverride, so the per100g<->numeric-
 // column conversion is one place.
 const toNutritionColumns = (values: NutritionValues) => ({
@@ -357,6 +389,9 @@ export const createProduct = async (
   // Before the upload: a rejected barcode must not leave an orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
   const pendingPhoto = input.photo ? await toPendingPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
+  if (pendingPhoto) {
+    await assertPhotoUnused(pendingPhoto, userId);
+  }
   const photoKey = pendingPhoto ? await putPendingPhoto(pendingPhoto) : null;
 
   return db.transaction(async (tx) => {
@@ -445,6 +480,9 @@ export const saveNutritionOverride = async (
   // Uploaded before the write so a storage failure leaves no row claiming a
   // key that does not exist - the same ordering createProduct uses.
   const pendingPhoto = photo ? await toPendingPhoto(photo, CLAIM_PHOTO_PREFIX) : null;
+  if (pendingPhoto) {
+    await assertPhotoUnused(pendingPhoto, userId, supersededPhotoKey);
+  }
   const photoColumn = pendingPhoto ? { nutritionPhotoKey: await putPendingPhoto(pendingPhoto) } : {};
   const columns = toNutritionColumns(nutritionPer100g);
 

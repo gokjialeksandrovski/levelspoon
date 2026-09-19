@@ -14,7 +14,7 @@ import { getPhotoUrl } from "@/lib/s3";
 
 import { clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
 import type { CandidateRow } from "./products";
-import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
+import { BarcodeAlreadyLinkedError, LabelPhotoAlreadyUsedError, ProductNotEditableError } from "./products.errors";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db
@@ -545,15 +545,48 @@ describe("createProduct", () => {
     energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
   };
 
-  it("refuses a second product carrying the first product's label photo", async () => {
+  it("refuses a second product carrying the first product's label photo, naming the owner", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const label = () => new Blob(["shared-label-bytes"], { type: "image/jpeg" });
     await createProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
 
+    const rejection = createProduct({ name: "Candy Bar", nutritionPer100g: CREATED, photo: label() });
+
+    await expect(rejection).rejects.toThrow(LabelPhotoAlreadyUsedError);
+    await expect(rejection).rejects.toMatchObject({ ownerName: "Bella Farm Yoghurt" });
+  });
+
+  it("refuses a claim photo already used as another product's proof", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const label = () => new Blob(["proof-bytes"], { type: "image/jpeg" });
+    await createProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
+    const otherProductId = await seedProduct(userId, "Some Other Product");
+
     await expect(
-      createProduct({ name: "Candy Bar", nutritionPer100g: CREATED, photo: label() }),
-    ).rejects.toThrow();
+      saveNutritionOverride(otherProductId, CORRECTED, label()),
+    ).rejects.toThrow(LabelPhotoAlreadyUsedError);
+  });
+
+  // The invisible owner is an override row, not a product row: a product row
+  // carrying a photo is visible to everyone through visibleToUser's photo arm,
+  // so "cannot see" is unreachable there, while an override belongs to one
+  // user and is never surfaced to another.
+  it("refuses without naming a row this user cannot see", async () => {
+    const authorId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: authorId } });
+    const productId = await seedProduct(authorId, "Bella Farm Yoghurt");
+    const claim = () => new Blob(["claim-bytes"], { type: "image/jpeg" });
+    await saveNutritionOverride(productId, CORRECTED, claim());
+
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+
+    const rejection = createProduct({ name: "Candy Bar", nutritionPer100g: CREATED, photo: claim() });
+
+    await expect(rejection).rejects.toThrow(LabelPhotoAlreadyUsedError);
+    await expect(rejection).rejects.toMatchObject({ ownerName: null });
   });
 });
 
