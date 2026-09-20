@@ -546,8 +546,37 @@ const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachme
   </label>
 );
 
+interface SameFiguresCheckboxProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+// Same min-h-11 tap target and hidden-native-input approach as
+// PendingBarcodeCheckbox, so the two read as one family of control.
+const SameFiguresCheckbox = ({ checked, onChange }: SameFiguresCheckboxProps) => (
+  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
+    <span className="relative grid size-6 shrink-0 place-items-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="peer size-6 cursor-pointer appearance-none rounded-md border-2 border-text-muted transition-colors checked:border-text checked:bg-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+      />
+      <CheckIcon
+        size={16}
+        weight="bold"
+        aria-hidden="true"
+        className="pointer-events-none absolute text-bg opacity-0 transition-opacity peer-checked:opacity-100"
+      />
+    </span>
+    {SAME_FIGURES_ACK_LABEL}
+  </label>
+);
+
 interface DuplicateNoticeProps {
   duplicate: { id: string; name: string };
+  acknowledged: boolean;
+  onAcknowledge: (checked: boolean) => void;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -555,7 +584,13 @@ interface DuplicateNoticeProps {
 // error they have to understand first. The row is re-read rather than carried
 // on the error, so the amount step gets the same fully-resolved portions
 // every other arrival there gets.
-const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
+//
+// "Use X instead" stays the primary action; the checkbox beneath it is tier
+// 1's escape for the honest collision (two brands of water, two dried-pasta
+// shapes off one label) that DuplicateProductError cannot tell apart from a
+// borrowed photo on name and figures alone - ticking it and saving again
+// resends acknowledgedSameFigures, which now clears tier 1 too.
+const DuplicateNotice = ({ duplicate, acknowledged, onAcknowledge, dispatch }: DuplicateNoticeProps) => {
   const [isResolving, setIsResolving] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   // Named without a "use" prefix on purpose - react-hooks/rules-of-hooks reads
@@ -567,10 +602,13 @@ const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
       const found = (await searchUserProducts(duplicate.name)).find((row) => row.id === duplicate.id);
       if (found) {
         dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(found), alternatives: [], pendingBarcode: null });
+      } else {
+        // Without this, a miss left the button silently un-pending with no
+        // feedback at all - the same dead-button symptom the catch below
+        // exists to fix.
+        setLookupError(DUPLICATE_LOOKUP_ERROR);
       }
     } catch {
-      // Without this, a rejected search left the button silently un-pending
-      // with no feedback at all - indistinguishable from a dead button.
       setLookupError(DUPLICATE_LOOKUP_ERROR);
     } finally {
       setIsResolving(false);
@@ -584,6 +622,7 @@ const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
         {duplicateActionLabel(duplicate.name)}
       </Button>
       {lookupError && <InlineMessage tone="error">{lookupError}</InlineMessage>}
+      <SameFiguresCheckbox checked={acknowledged} onChange={onAcknowledge} />
     </div>
   );
 };
@@ -616,33 +655,6 @@ const DuplicateSuggestions = ({ duplicates, barcode, dispatch }: DuplicateSugges
     </div>
   );
 };
-
-interface SameFiguresCheckboxProps {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}
-
-// Same min-h-11 tap target and hidden-native-input approach as
-// PendingBarcodeCheckbox, so the two read as one family of control.
-const SameFiguresCheckbox = ({ checked, onChange }: SameFiguresCheckboxProps) => (
-  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
-    <span className="relative grid size-6 shrink-0 place-items-center">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer size-6 cursor-pointer appearance-none rounded-md border-2 border-text-muted transition-colors checked:border-text checked:bg-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
-      />
-      <CheckIcon
-        size={16}
-        weight="bold"
-        aria-hidden="true"
-        className="pointer-events-none absolute text-bg opacity-0 transition-opacity peer-checked:opacity-100"
-      />
-    </span>
-    {SAME_FIGURES_ACK_LABEL}
-  </label>
-);
 
 interface SameFiguresNoticeProps {
   ownerName: string | null;
@@ -704,7 +716,14 @@ export const ConfirmStep = (props: ConfirmStepProps) => {
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />
       {props.barcode === null && <BarcodeAttachmentControl pendingBarcode={props.pendingBarcode} attachment={attachment} dispatch={props.dispatch} />}
-      {form.duplicate && <DuplicateNotice duplicate={form.duplicate} dispatch={props.dispatch} />}
+      {form.duplicate && (
+        <DuplicateNotice
+          duplicate={form.duplicate}
+          acknowledged={form.acknowledgedSameFigures}
+          onAcknowledge={form.setAcknowledgedSameFigures}
+          dispatch={props.dispatch}
+        />
+      )}
       {form.sameFigures && (
         <SameFiguresNotice
           ownerName={form.sameFigures.ownerName}

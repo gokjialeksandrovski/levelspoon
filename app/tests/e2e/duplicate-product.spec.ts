@@ -49,3 +49,25 @@ test("files an unrelated product once the identical figures are acknowledged", a
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
 });
+
+// Tier 1's escape (the fix for the regression QA found): same figures, a
+// name similar enough to trip DuplicateProductError, and no way past it
+// before this fix. "Use Snickers Bar instead" stays the primary action;
+// ticking the acknowledgement checkbox and saving again is the alternative.
+test("files a similarly-named product once the same figures are acknowledged", async ({ page }) => {
+  await signUp(page);
+  await startCapture(page, "Snickers Bar");
+  await enterNutritionManually(page, FIGURES);
+  await page.getByRole("button", { name: "Save product" }).click();
+  await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
+
+  await startCapture(page, "Snickers");
+  await page.getByRole("button", { name: "None of these" }).click();
+  await enterNutritionManually(page, FIGURES);
+  await page.getByRole("button", { name: "Save product" }).click();
+
+  await expect(page.getByText(/Snickers Bar already has these figures/)).toBeVisible();
+  await page.getByLabel(/different product/i).check();
+  await page.getByRole("button", { name: "Save product" }).click();
+  await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
+});
