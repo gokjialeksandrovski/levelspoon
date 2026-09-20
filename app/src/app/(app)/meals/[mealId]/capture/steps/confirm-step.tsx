@@ -1,17 +1,18 @@
 "use client";
 
-import { CheckIcon } from "@phosphor-icons/react";
+import { BarcodeIcon, CheckIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { checkBarcodeBinding } from "@/features/products/actions/barcode";
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { createProduct, searchUserProducts } from "@/features/products/actions/products";
 import type { CreateProductResult, ProductCandidate } from "@/features/products/actions/products";
-import { BarcodeScanner } from "@/components/ui/barcode-scanner";
+import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LabelPhotoStrip } from "@/components/ui/label-photo-strip";
+import { PhotoInput } from "@/components/ui/photo-input";
 import {
   changedNutritionFields,
   FIELD_LABELS,
@@ -58,6 +59,9 @@ const SAVE_BLOCKED_ERROR = "Please fix the flagged values before saving.";
 // the product is already in hand, so the way out is the striped code or none.
 const REJECTED_BARCODE_ERROR = "That's not a product barcode. Try the striped code on the packaging, or save without one.";
 const BARCODE_CHECK_ERROR = "Could not check this barcode. Please try again.";
+const BARCODE_ATTACH_LABEL = "Scan the barcode";
+const BARCODE_ATTACH_HINT = "Photographing the code helps everyone else find this product easier.";
+const READING_BARCODE_LABEL = "Reading the barcode…";
 const SAVE_ERROR = "Could not save this product. Please try again.";
 // A second user's scan/OFF-save of the same not-yet-in-per100 barcode won
 // the race between this confirm step's own lookup and its save - a distinct,
@@ -137,14 +141,31 @@ const checkPendingBarcodeOnMount = (pendingBarcode: string | null, setters: Barc
   });
 };
 
-const detectFreshBarcode = (code: string, setters: BarcodeAttachmentSetters, onScanned: () => void): void => {
-  setters.setScanError(null);
-  void resolveBarcodeBinding(code, {
-    onAvailable: (barcode) => { setters.setFreshBarcode(barcode); onScanned(); },
-    onConflict: (product) => { setters.setConflict(product); onScanned(); },
+const detectFreshBarcode = (code: string, setters: BarcodeAttachmentSetters): Promise<void> =>
+  resolveBarcodeBinding(code, {
+    onAvailable: (barcode) => setters.setFreshBarcode(barcode),
+    onConflict: (product) => setters.setConflict(product),
     onRejected: () => setters.setScanError(REJECTED_BARCODE_ERROR),
     onError: (message) => setters.setScanError(message),
   });
+
+// One wait to the user, two failures: a photo with no readable code never
+// reaches the binding check, and readBarcodeFromPhoto words that one itself.
+const readFreshBarcode = async (
+  photo: File,
+  setters: BarcodeAttachmentSetters,
+  setReading: (reading: boolean) => void,
+): Promise<void> => {
+  setters.setScanError(null);
+  setReading(true);
+  try {
+    const code = await readBarcodeFromPhoto(photo, setters.setScanError);
+    if (code !== null) {
+      await detectFreshBarcode(code, setters);
+    }
+  } finally {
+    setReading(false);
+  }
 };
 
 const barcodeToAttachFrom = (
@@ -164,19 +185,17 @@ interface UseBarcodeAttachmentResult {
   checked: boolean;
   conflict: ProductCandidate | null;
   freshBarcode: string | null;
-  isScanning: boolean;
+  isReading: boolean;
   scanError: string | null;
   toggleChecked: (checked: boolean) => void;
-  startScan: () => void;
-  cancelScan: () => void;
-  handleDetect: (code: string) => void;
+  handlePhoto: (photo: File) => void;
 }
 
 const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResult => {
   const [checked, setChecked] = useState(true);
   const [freshBarcode, setFreshBarcode] = useState<string | null>(null);
   const [conflict, setConflict] = useState<ProductCandidate | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isReading, setIsReading] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   // useState setters are referentially stable, so this memo only recomputes
   // once - giving the effect below a stable dependency instead of a fresh
@@ -187,11 +206,9 @@ const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResu
 
   return {
     barcodeToAttach: barcodeToAttachFrom(props, checked, freshBarcode, conflict),
-    checked, conflict, freshBarcode, isScanning, scanError,
+    checked, conflict, freshBarcode, isReading, scanError,
     toggleChecked: setChecked,
-    startScan: () => setIsScanning(true),
-    cancelScan: () => setIsScanning(false),
-    handleDetect: (code: string) => detectFreshBarcode(code, setters, () => setIsScanning(false)),
+    handlePhoto: (photo: File) => void readFreshBarcode(photo, setters, setIsReading),
   };
 };
 
@@ -673,13 +690,19 @@ const SameFiguresNotice = ({ ownerName, acknowledged, onAcknowledge }: SameFigur
   </div>
 );
 
+// A picker, not a live camera: every other camera option in the wizard opens
+// the platform's own camera-or-library sheet, and a live scanner here meant a
+// dead black rectangle wherever the browser had no camera to give.
 const FreshScanPrompt = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
   <div className="flex flex-col gap-2">
-    <BarcodeScanner onDetect={attachment.handleDetect} />
+    <PhotoInput
+      label={BARCODE_ATTACH_LABEL}
+      hint={BARCODE_ATTACH_HINT}
+      icon={BarcodeIcon}
+      onSelect={attachment.handlePhoto}
+      scanningLabel={attachment.isReading ? READING_BARCODE_LABEL : undefined}
+    />
     {attachment.scanError && <InlineMessage tone="error">{attachment.scanError}</InlineMessage>}
-    <Button variant="ghost" link onClick={attachment.cancelScan}>
-      Cancel
-    </Button>
   </div>
 );
 
@@ -690,17 +713,10 @@ const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: Barc
   if (pendingBarcode) {
     return <PendingBarcodeCheckbox attachment={attachment} />;
   }
-  if (attachment.isScanning) {
-    return <FreshScanPrompt attachment={attachment} />;
-  }
   if (attachment.freshBarcode) {
     return <p className="text-sm text-text-muted">Barcode captured.</p>;
   }
-  return (
-    <Button variant="ghost" link onClick={attachment.startScan}>
-      Scan the barcode to help everyone else find this product easier
-    </Button>
-  );
+  return <FreshScanPrompt attachment={attachment} />;
 };
 
 export const ConfirmStep = (props: ConfirmStepProps) => {

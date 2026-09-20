@@ -9,7 +9,7 @@ import { users } from "@/lib/db/schema";
 
 import { fetchCalorieGoal, getCalorieGoal, setCalorieGoal } from "./goals";
 import { InvalidCalorieGoalError } from "./goals.errors";
-import { MAX_CALORIE_GOAL, MIN_CALORIE_GOAL } from "./goals.utils";
+import { GOAL_STORAGE_CEILING, MIN_CALORIE_GOAL } from "./goals.utils";
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db.insert(users).values({ email: `t-${crypto.randomUUID()}@example.com` }).returning();
@@ -55,18 +55,27 @@ describe("setCalorieGoal", () => {
     expect(row.goal).toBe(2400);
   });
 
-  it("rejects a goal below the minimum", async () => {
+  it("rejects zero and below - no target, a slipped keystroke", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
     await expect(setCalorieGoal(MIN_CALORIE_GOAL - 1)).rejects.toThrow(InvalidCalorieGoalError);
   });
 
-  it("rejects a goal above the maximum", async () => {
+  it("rejects a goal past what the column can store", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    await expect(setCalorieGoal(MAX_CALORIE_GOAL + 1)).rejects.toThrow(InvalidCalorieGoalError);
+    await expect(setCalorieGoal(GOAL_STORAGE_CEILING + 1)).rejects.toThrow(InvalidCalorieGoalError);
+  });
+
+  it("saves a contest-prep target the old floor would have refused", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    await setCalorieGoal(900);
+
+    expect(await getCalorieGoal()).toBe(900);
   });
 
   it("rejects a non-integer goal", async () => {

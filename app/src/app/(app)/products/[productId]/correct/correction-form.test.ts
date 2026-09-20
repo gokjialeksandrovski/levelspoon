@@ -8,7 +8,12 @@ vi.mock("@/features/products/actions/products", () => ({
   saveNutritionOverride: vi.fn(),
   clearNutritionOverride: vi.fn(),
   renameOwnProduct: vi.fn(),
+  attachLabelProof: vi.fn(),
 }));
+// Reached through the proof disclosure this form renders: barcode.ts pulls
+// next-auth in, which will not resolve under the node test env either.
+vi.mock("@/features/products/actions/barcode", () => ({ linkBarcode: vi.fn(), lookupBarcode: vi.fn() }));
+vi.mock("@/components/ui/barcode-scanner", () => ({ readBarcodeFromPhoto: vi.fn() }));
 vi.mock("@/lib/haptics/log-success", () => ({ triggerLogSuccessHaptic: vi.fn() }));
 
 import { validateNutrition } from "@/features/products/actions/ocr";
@@ -39,6 +44,8 @@ const PRODUCT = {
   nutritionBasisUnit: "g",
   nutritionBasisQuantity: 100,
   nutritionPhotoKey: "products/oat-biscuits.jpg",
+  sharedProof: "label" as const,
+  hasBarcode: false,
 };
 
 const VALUES = {

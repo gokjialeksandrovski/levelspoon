@@ -35,6 +35,9 @@ import type { NullableNutritionValues } from "@/lib/ocr/provider";
 // key, and this is the identical refusal.
 import { photoReuseError } from "../../../meals/[mealId]/capture/steps/nutrition-photo-step";
 
+import { ChangeRow } from "./figure-changes";
+import { ProofDisclosure } from "./proof-disclosure";
+
 interface CorrectionFormProps {
   product: ProductForCorrection;
   /** Signed by the page; null for a barcode-sourced product, which never had
@@ -91,15 +94,6 @@ const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: 
 // What the save would actually write: an emptied field is stored as 0, so the
 // preview says 0 rather than showing a blank the user could read as "removed".
 const savedFigure = (value: string): string => String(Number(value));
-
-const ChangeRow = ({ label, from, to }: { label: string; from: string; to: string }) => (
-  <li className="flex items-baseline justify-between gap-3">
-    <span className="shrink-0 text-text-muted">{label}</span>
-    <span className="text-right tabular-nums text-text">
-      <s className="text-text-muted">{from}</s> → {to}
-    </span>
-  </li>
-);
 
 interface CorrectionPreviewProps {
   nameChange: { from: string; to: string } | null;
@@ -263,6 +257,9 @@ interface UseCorrectionFormResult {
   changes: NutritionFieldChange[];
   setName: (value: string) => void;
   setFieldValue: (field: keyof FieldValues, value: string) => void;
+  /** A whole table at once, from a barcode listing the user accepted - the
+   * preview below Save then reads back exactly what it changed. */
+  adoptValues: (next: FieldValues) => void;
   setNewLabelPhoto: (photo: File) => void;
   revalidateNow: () => void;
   handleSave: () => Promise<void>;
@@ -292,6 +289,7 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   const flaggedFields = flaggedFieldSet(flags);
   const canSave = flaggedFields.size === 0 || validateError;
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
+  const adoptValues = (next: FieldValues) => { setValues(next); revalidate(next); };
   const revalidateNow = () => revalidate(values);
   const handleSave = () => saveCorrection(product, name, values, newLabelPhoto, { setIsSaving, setSaveError, setFlags, setIsSaved });
   const handleRevert = () =>
@@ -302,17 +300,22 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   return {
     name, values, validateError, saveError, isSaving, isSaved, isReverting, newLabelPhoto,
     flaggedFields, canSave, nameChange, changes: changedNutritionFields(original, values),
-    setName, setFieldValue, setNewLabelPhoto, revalidateNow, handleSave, handleRevert,
+    setName, setFieldValue, adoptValues, setNewLabelPhoto, revalidateNow, handleSave, handleRevert,
   };
 };
 
 // Answers the question the old warning raised: this used to overwrite the
 // product for everyone, including in meals already saved. It no longer can.
-const PrivateCorrectionNotice = () => (
-  <InlineMessage tone="info">
-    This correction is yours alone. The shared product keeps the values read off its label.
-  </InlineMessage>
-);
+// Shown only when someone else can actually be offered this row, and named
+// after the proof they would see - a hand-typed product with no photo and no
+// barcode is nobody else's, so claiming a shared copy survives is a fiction.
+const SHARED_NOTICE = {
+  label: "This correction is yours alone. The shared product keeps the values read off its label.",
+  barcode: "This correction is yours alone. The shared product keeps the values from its barcode listing.",
+} as const;
+
+const PrivateCorrectionNotice = ({ sharedProof }: { sharedProof: ProductForCorrection["sharedProof"] }) =>
+  sharedProof === null ? null : <InlineMessage tone="info">{SHARED_NOTICE[sharedProof]}</InlineMessage>;
 
 const SAVED_MESSAGE = "Saved. Only you see these values.";
 
@@ -370,17 +373,35 @@ const CorrectionSaved = () => {
   );
 };
 
+interface UseProofAttachmentResult {
+  message: string | null;
+  onAttached: (message: string) => void;
+}
+
+// The proof landing changes what the rest of this screen may offer, and that
+// gating is derived server-side - so the row is re-read rather than guessed at
+// here. The message is held above the disclosure that produced it, which the
+// same refresh takes away.
+const useProofAttachment = (router: ReturnType<typeof useRouter>): UseProofAttachmentResult => {
+  const [message, setMessage] = useState<string | null>(null);
+  return {
+    message,
+    onAttached: (next: string) => { setMessage(next); router.refresh(); },
+  };
+};
+
 interface CorrectionFormBodyProps {
   product: ProductForCorrection;
   labelPhotoUrl: string | null;
   form: UseCorrectionFormResult;
+  proof: UseProofAttachmentResult;
 }
 
-const CorrectionFormBody = ({ product, labelPhotoUrl, form }: CorrectionFormBodyProps) => (
+const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionFormBodyProps) => (
   <div className="flex flex-col gap-4">
     {labelPhotoUrl && <LabelPhotoStrip url={labelPhotoUrl} />}
     <h2 className="text-lg font-semibold">Correct nutrition (per {product.nutritionBasisQuantity} {product.nutritionBasisUnit})</h2>
-    <PrivateCorrectionNotice />
+    <PrivateCorrectionNotice sharedProof={product.sharedProof} />
     <Field
       label="Product name"
       name="name"
@@ -395,11 +416,22 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form }: CorrectionFormBody
       onFieldChange={form.setFieldValue}
       onFieldBlur={form.revalidateNow}
     />
-    <LabelChangedDisclosure
-      hasOverridePhoto={product.hasOverridePhoto}
-      selectedName={form.newLabelPhoto?.name ?? null}
-      onSelect={form.setNewLabelPhoto}
+    {proof.message && <InlineMessage tone="info">{proof.message}</InlineMessage>}
+    <ProofDisclosure
+      product={product}
+      values={form.values}
+      callbacks={{ onAdoptValues: form.adoptValues, onAttached: proof.onAttached }}
     />
+    {/* Nothing to compare a new label against until something vouches for the
+        old figures - on a hand-typed product this asked the user to prove a
+        change to values nobody ever printed. */}
+    {product.sharedProof !== null && (
+      <LabelChangedDisclosure
+        hasOverridePhoto={product.hasOverridePhoto}
+        selectedName={form.newLabelPhoto?.name ?? null}
+        onSelect={form.setNewLabelPhoto}
+      />
+    )}
     <CorrectionPreview nameChange={form.nameChange} changes={form.changes} />
     <CorrectionFeedback saveError={form.saveError} validateError={form.validateError} />
     {/* The visible line is aria-hidden and this carries the announcement: a
@@ -421,12 +453,13 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form }: CorrectionFormBody
 export const CorrectionForm = ({ product, labelPhotoUrl }: CorrectionFormProps) => {
   const router = useRouter();
   const form = useCorrectionForm(product);
+  const proof = useProofAttachment(router);
 
   return (
     <>
       <AppHeader variant="back" title="Correct product" onBack={() => router.back()} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
-        <CorrectionFormBody product={product} labelPhotoUrl={labelPhotoUrl} form={form} />
+        <CorrectionFormBody product={product} labelPhotoUrl={labelPhotoUrl} form={form} proof={proof} />
       </main>
     </>
   );

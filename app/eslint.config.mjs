@@ -6,6 +6,7 @@ import {
   cleanCodeTypeScriptRules,
   cleanCodeTypeAwareRules,
   cleanCodeServerClientRules,
+  cleanCodeInteractionRules,
   cleanCodeUiPrimitiveRules,
   cleanCodeInfraRules,
   cleanCodeTailwindRules,
@@ -95,6 +96,13 @@ const eslintConfig = [
     // legitimate server-side imports in scripts/config files outside the UI tree.
     files: ["src/app/**"],
     rules: cleanCodeServerClientRules.rules,
+  },
+  {
+    // Rule 21: a mode the user can enter but not leave. Spread whole — it
+    // registers the `clean-code` plugin as well as the rule. Scoped to the
+    // component trees; meaningless in scripts/ or config files.
+    files: ["src/app/**", "src/components/**", "src/features/**"],
+    ...cleanCodeInteractionRules,
   },
   {
     // Rule 20: components/ui/ is dumb presentational primitives — no

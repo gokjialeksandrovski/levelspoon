@@ -21,14 +21,16 @@ const PILL_ICON_SIZE = 16;
 
 // The pill is 32px tall; the transparent button around it adds -my-2/py-2 so
 // the tap target reaches 48px without the pill or its row growing. Padding is
-// px-2.5, not px-3: at 360px the widest pair ("4,000 kcal left" beside
-// "Goal: 4,000", MAX_CALORIE_GOAL) needs every pixel to stay on one line. The
-// ring draws on the pill, not the invisible hit box.
+// px-2.5, not px-3: at 360px the widest realistic pair ("9,999 kcal left"
+// beside "Goal: 9,999") needs every pixel to stay on one line. A goal longer
+// than that is a slipped keystroke - nothing rejects it, so the pill truncates
+// rather than shoving the headline figure off screen. The ring draws on the
+// pill, not the invisible hit box.
 const GoalPill = ({ goal, onOpen }: GoalPillProps) => (
-  <button type="button" onClick={onOpen} className="group -my-2 shrink-0 py-2 focus-visible:outline-none">
-    <span className="flex items-center gap-1 rounded-full bg-surface-raised px-2.5 py-1.5 text-sm font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
-      {goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}
-      <PencilSimpleIcon size={PILL_ICON_SIZE} />
+  <button type="button" onClick={onOpen} className="group -my-2 min-w-0 shrink py-2 focus-visible:outline-none">
+    <span className="flex items-center gap-1 overflow-hidden rounded-full bg-surface-raised px-2.5 py-1.5 text-sm font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
+      <span className="truncate">{goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}</span>
+      <PencilSimpleIcon size={PILL_ICON_SIZE} className="shrink-0" />
     </span>
   </button>
 );

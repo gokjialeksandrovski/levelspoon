@@ -1,6 +1,7 @@
 "use client";
 
 import { CameraIcon } from "@phosphor-icons/react";
+import type { Icon } from "@phosphor-icons/react";
 import Image from "next/image";
 import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 
@@ -42,6 +43,10 @@ interface PhotoInputProps {
   hint?: string;
   // Set only while something is reading the selected photo.
   scanningLabel?: string;
+  /** What the photo is of, when a camera does not say it: the wizard's entry
+   * rows already print a barcode glyph for a code, and a tile asking for the
+   * same thing has to read the same way. Defaults to the camera. */
+  icon?: Icon;
 }
 
 const PREVIEW_SIZE_PX = 300;
@@ -69,6 +74,7 @@ export const PhotoPreview = ({ previewUrl, scanningLabel }: PhotoPreviewProps) =
 
 interface DropzoneProps {
   label: string;
+  icon: Icon;
   describedBy: string | undefined;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }
@@ -81,9 +87,9 @@ interface DropzoneProps {
 // OPTION_ROW_LAYOUT), not a disc behind it: every other icon+label row in the
 // app reads that way, and an icon on a disc on a card is the templated-SaaS
 // tell the design context rejects by name.
-const Dropzone = ({ label, describedBy, onChange }: DropzoneProps) => (
+const Dropzone = ({ label, icon: DropzoneIcon, describedBy, onChange }: DropzoneProps) => (
   <label className="relative flex min-h-16 items-center gap-3 rounded-surface bg-surface-raised p-4 text-left transition-transform duration-100 hover:bg-border active:scale-[0.98] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
-    <CameraIcon size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
+    <DropzoneIcon size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
     <span className="text-sm font-medium text-text">{label}</span>
     <input
       type="file"
@@ -113,7 +119,7 @@ const handlePhotoChange = (
   input.value = "";
 };
 
-export const PhotoInput = ({ label, onSelect, hint, scanningLabel }: PhotoInputProps) => {
+export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = CameraIcon }: PhotoInputProps) => {
   const { previewUrl, showPreview } = usePreviewUrl();
   const hintId = useId();
 
@@ -123,6 +129,7 @@ export const PhotoInput = ({ label, onSelect, hint, scanningLabel }: PhotoInputP
         <>
           <Dropzone
             label={label}
+            icon={icon}
             describedBy={hint ? hintId : undefined}
             onChange={(event) => handlePhotoChange(event, onSelect, showPreview)}
           />

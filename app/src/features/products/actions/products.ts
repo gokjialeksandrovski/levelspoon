@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
@@ -17,7 +17,7 @@ import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
-import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
+import { nutritionOriginEnum, products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
 import { visibleToUser } from "@/lib/db/visibility";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import type { Portion } from "@/lib/measures/portions";
@@ -768,8 +768,7 @@ export const saveNutritionOverride = async (
  *
  * A withdrawn claim leaves nothing to review, so its photo goes with the row -
  * otherwise reverting is how the bucket fills with objects nothing references. */
-export const clearNutritionOverride = async (productId: string): Promise<void> => {
-  const userId = await requireUserId();
+const dropOverrideRow = async (userId: string, productId: string): Promise<void> => {
   const [removed] = await db
     .delete(productOverrides)
     .where(and(eq(productOverrides.userId, userId), eq(productOverrides.productId, productId)))
@@ -778,6 +777,11 @@ export const clearNutritionOverride = async (productId: string): Promise<void> =
   if (removed?.nutritionPhotoKey) {
     await deletePhoto(removed.nutritionPhotoKey);
   }
+};
+
+export const clearNutritionOverride = async (productId: string): Promise<void> => {
+  const userId = await requireUserId();
+  await dropOverrideRow(userId, productId);
 };
 
 /** A name still lives on the shared row, so only its author may change it -
@@ -799,6 +803,121 @@ export const renameOwnProduct = async (productId: string, name: string): Promise
   assertUpdated(updated, productId);
 };
 
+export type AttachLabelProofResult =
+  | { kind: "attached" }
+  | { kind: "photo_already_used"; ownerName: string | null }
+  | { kind: "not_attachable" };
+
+export interface LabelProofFigures {
+  nutritionPer100g: NutritionValues;
+  /** True when the user accepted what OCR read off this photo, so the row
+   * stops calling its figures typed. False keeps their own numbers, and the
+   * photo then proves the product, not its figures. */
+  fromLabel: boolean;
+}
+
+const LABEL_PHOTO_ORIGIN = nutritionOriginEnum.enumValues[0];
+
+// Proofless means nobody but the author has ever been offered this row
+// (lib/db/visibility.ts), which is what makes the write below safe: no other
+// user's figures are being rewritten, because no other user has these figures.
+const isProofless = async (userId: string, productId: string): Promise<boolean> => {
+  const [row] = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(
+      and(
+        eq(products.id, productId),
+        eq(products.source, USER_SOURCE),
+        eq(products.createdByUserId, userId),
+        isNull(products.nutritionPhotoKey),
+      ),
+    );
+  return row !== undefined && !(await fetchHasBarcode(productId));
+};
+
+/**
+ * The proof a hand-typed product never had: a label photo that promotes the
+ * row from private to offerable, carrying the figures the user confirmed
+ * against it.
+ *
+ * This is the only write outside createProduct that touches the shared row's
+ * nutrition, and it is confined to a row that is still nobody else's. Once
+ * anything vouches for a product - a photo or a barcode - this refuses, so a
+ * second photo can never overwrite the proof the duplicate gate and the
+ * visibility rule already trust.
+ */
+export const attachLabelProof = async (
+  productId: string,
+  photo: Blob,
+  figures: LabelProofFigures,
+): Promise<AttachLabelProofResult> => {
+  const userId = await requireUserId();
+  if (!(await isProofless(userId, productId))) {
+    return { kind: "not_attachable" };
+  }
+
+  const pendingPhoto = await toPendingPhoto(photo, PROOF_PHOTO_PREFIX);
+  try {
+    await assertPhotoUnused(pendingPhoto, userId);
+  } catch (error) {
+    if (error instanceof LabelPhotoAlreadyUsedError) {
+      return { kind: "photo_already_used", ownerName: error.ownerName };
+    }
+    throw error;
+  }
+  const photoKey = await putPendingPhoto(pendingPhoto);
+  const result = await writeLabelProof(productId, userId, photoKey, figures);
+  if (result.kind === "attached") {
+    // The private correction this user was carrying is now the row everyone
+    // sees, and it holds the figures they just confirmed - a layer on top of
+    // it would only replay what they already superseded.
+    await dropOverrideRow(userId, productId);
+  }
+  return result;
+};
+
+// Split out so the refusal paths read as one list in attachLabelProof: the
+// IS NULL in the WHERE and the unique-violation catch are the same race
+// arriving a moment apart - another proof landed between the check and here.
+const writeLabelProof = async (
+  productId: string,
+  userId: string,
+  photoKey: string,
+  figures: LabelProofFigures,
+): Promise<AttachLabelProofResult> => {
+  try {
+    const updated = await db
+      .update(products)
+      .set({
+        nutritionPhotoKey: photoKey,
+        ...toNutritionColumns(figures.nutritionPer100g),
+        ...(figures.fromLabel ? { nutritionOrigin: LABEL_PHOTO_ORIGIN } : {}),
+        updatedByUserId: userId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(products.id, productId),
+          eq(products.createdByUserId, userId),
+          isNull(products.nutritionPhotoKey),
+        ),
+      )
+      .returning({ id: products.id });
+    if (updated.length > 0) {
+      return { kind: "attached" };
+    }
+  } catch (error) {
+    if (!isUniqueViolation(error)) {
+      throw error;
+    }
+    await deletePhoto(photoKey);
+    return { kind: "photo_already_used", ownerName: null };
+  }
+  await deletePhoto(photoKey);
+  return { kind: "not_attachable" };
+};
+
 export interface ProductForCorrection {
   id: string;
   name: string;
@@ -817,7 +936,35 @@ export interface ProductForCorrection {
   /** The stored proof key. The page resolves it to a signed URL; this action
    * stays free of S3 so it can be unit-tested against Postgres alone. */
   nutritionPhotoKey: string | null;
+  /** Why anyone else can be offered this row, or null when nobody can. A
+   * hand-typed product with neither proof is the author's own, so a screen
+   * telling them their correction stays private has nothing to disclaim. */
+  sharedProof: SharedProof;
+  /** Separate from sharedProof, which names only the strongest proof: the
+   * screen offers a barcode to a product that already has a label photo, and
+   * to one that has nothing. */
+  hasBarcode: boolean;
 }
+
+type SharedProof = "label" | "barcode" | null;
+
+const fetchHasBarcode = async (productId: string): Promise<boolean> => {
+  const [barcode] = await db
+    .select({ productId: productBarcodes.productId })
+    .from(productBarcodes)
+    .where(eq(productBarcodes.productId, productId))
+    .limit(1);
+  return barcode !== undefined;
+};
+
+// Mirrors visibleToUser's first two clauses (lib/db/visibility.ts) minus the
+// created_by one: that clause says the author can see it, not that others can.
+const sharedProofOf = (photoKey: string | null, hasBarcode: boolean): SharedProof => {
+  if (photoKey) {
+    return "label";
+  }
+  return hasBarcode ? "barcode" : null;
+};
 
 type OverrideNutritionRow = SnakeNutritionRow & { nutrition_photo_key: string | null };
 
@@ -849,6 +996,7 @@ export const getProductForCorrection = async (productId: string): Promise<Produc
 
   const override = await fetchOverrideRow(userId, productId);
   const original = fromNutritionColumns(product);
+  const hasBarcode = await fetchHasBarcode(product.id);
 
   return {
     id: product.id,
@@ -861,6 +1009,8 @@ export const getProductForCorrection = async (productId: string): Promise<Produc
     nutritionBasisUnit: product.nutritionBasisUnit,
     nutritionBasisQuantity: Number(product.nutritionBasisQuantity),
     nutritionPhotoKey: product.nutritionPhotoKey,
+    sharedProof: sharedProofOf(product.nutritionPhotoKey, hasBarcode),
+    hasBarcode,
   };
 };
 

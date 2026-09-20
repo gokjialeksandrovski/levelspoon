@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CALORIE_GOAL_STEP,
   calorieRemaining,
   clampCalorieGoal,
   commitGoalDraft,
+  GOAL_STORAGE_CEILING,
+  isUnusableGoalDraft,
   isValidCalorieGoal,
-  MAX_CALORIE_GOAL,
+  nudgeCalorieGoal,
   MIN_CALORIE_GOAL,
 } from "./goals.utils";
 
@@ -41,12 +44,12 @@ describe("calorieRemaining", () => {
 describe("isValidCalorieGoal", () => {
   it("accepts the boundary values", () => {
     expect(isValidCalorieGoal(MIN_CALORIE_GOAL)).toBe(true);
-    expect(isValidCalorieGoal(MAX_CALORIE_GOAL)).toBe(true);
+    expect(isValidCalorieGoal(GOAL_STORAGE_CEILING)).toBe(true);
   });
 
   it("rejects below minimum, above maximum, and non-integers", () => {
     expect(isValidCalorieGoal(MIN_CALORIE_GOAL - 1)).toBe(false);
-    expect(isValidCalorieGoal(MAX_CALORIE_GOAL + 1)).toBe(false);
+    expect(isValidCalorieGoal(GOAL_STORAGE_CEILING + 1)).toBe(false);
     expect(isValidCalorieGoal(2000.5)).toBe(false);
   });
 });
@@ -57,8 +60,8 @@ describe("clampCalorieGoal", () => {
   });
 
   it("pulls values outside the range to the nearest bound", () => {
-    expect(clampCalorieGoal(400)).toBe(MIN_CALORIE_GOAL);
-    expect(clampCalorieGoal(99000)).toBe(MAX_CALORIE_GOAL);
+    expect(clampCalorieGoal(MIN_CALORIE_GOAL - 100)).toBe(MIN_CALORIE_GOAL);
+    expect(clampCalorieGoal(GOAL_STORAGE_CEILING + 91000)).toBe(GOAL_STORAGE_CEILING);
   });
 });
 
@@ -67,9 +70,17 @@ describe("commitGoalDraft", () => {
     expect(commitGoalDraft("2350", 2000)).toBe(2350);
   });
 
-  it("clamps a typed value outside the range instead of rejecting it", () => {
-    expect(commitGoalDraft("900", 2000)).toBe(MIN_CALORIE_GOAL);
-    expect(commitGoalDraft("9000", 2000)).toBe(MAX_CALORIE_GOAL);
+  it("keeps a target below what any guideline would advise", () => {
+    expect(commitGoalDraft("900", 2000)).toBe(900);
+    expect(commitGoalDraft("450", 2000)).toBe(450);
+  });
+
+  it("keeps a target above what any guideline would advise", () => {
+    expect(commitGoalDraft("7500", 2000)).toBe(7500);
+  });
+
+  it("clamps only at what the column can store", () => {
+    expect(commitGoalDraft(String(GOAL_STORAGE_CEILING + 1000), 2000)).toBe(GOAL_STORAGE_CEILING);
   });
 
   it("rounds a typed decimal", () => {
@@ -87,5 +98,40 @@ describe("commitGoalDraft", () => {
 
   it("keeps the current goal for a negative typed value", () => {
     expect(commitGoalDraft("-2000", 2350)).toBe(2350);
+  });
+});
+
+describe("isUnusableGoalDraft", () => {
+  it("flags exactly the drafts commitGoalDraft falls back on", () => {
+    expect(isUnusableGoalDraft("")).toBe(true);
+    expect(isUnusableGoalDraft("   ")).toBe(true);
+    expect(isUnusableGoalDraft("abc")).toBe(true);
+    expect(isUnusableGoalDraft("-2000")).toBe(true);
+    expect(isUnusableGoalDraft("0")).toBe(true);
+  });
+
+  it("passes a target the sheet should save", () => {
+    expect(isUnusableGoalDraft("900")).toBe(false);
+    expect(isUnusableGoalDraft("2350.6")).toBe(false);
+  });
+});
+
+describe("nudgeCalorieGoal", () => {
+  it("steps relative to the target on screen", () => {
+    expect(nudgeCalorieGoal(1450, 500)).toBe(1950);
+    expect(nudgeCalorieGoal(1450, -500)).toBe(950);
+  });
+
+  it("reaches a contest-prep target the old floor would have blocked", () => {
+    expect(nudgeCalorieGoal(1400, -500)).toBe(900);
+    expect(nudgeCalorieGoal(900, -500)).toBe(400);
+  });
+
+  it("reaches a bulk target the old ceiling would have blocked", () => {
+    expect(nudgeCalorieGoal(4000, 500)).toBe(4500);
+  });
+
+  it("lands on one step instead of a leftover when it runs out of room", () => {
+    expect(nudgeCalorieGoal(200, -500)).toBe(CALORIE_GOAL_STEP);
   });
 });

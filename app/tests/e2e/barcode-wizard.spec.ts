@@ -6,18 +6,9 @@ import { productBarcodes } from "../../src/lib/db/schema";
 
 import { seedConfidentProduct, seedProductWithBarcode, signUp, truncateAll } from "./support";
 
-test.beforeEach(async ({ page, context }) => {
+test.beforeEach(async ({ context }) => {
   await truncateAll();
   await context.clearPermissions();
-  // The entry rows are plain file inputs, but confirm-step's own fresh-scan
-  // still mounts a live scanner, and the fake camera flags in
-  // playwright.config.ts apply project-wide - without this stub that scan
-  // races the photo upload these tests intend to exercise (see
-  // barcode-scanner.spec.ts's own permission-denied test for the same pattern).
-  await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = () =>
-      Promise.reject(new DOMException("Permission denied", "NotAllowedError"));
-  });
 });
 
 test("scanning an already-linked barcode skips straight to the amount step", async ({ page }) => {

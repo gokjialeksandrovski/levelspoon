@@ -118,8 +118,11 @@
 
   /* A literal, not a --raw-* reference: ::backdrop only inherits custom
      properties in recent engines. Espresso-tinted rather than pure black;
-     one value serves both themes because it dims whatever sits beneath. */
-  --color-scrim: oklch(0.2 0.012 60 / 0.55);
+     one value serves both themes because it dims whatever sits beneath.
+     0.15/0.7 rather than 0.2/0.55: the lighter veil separated a sheet from
+     the light theme fine but read as almost nothing over the dark theme's
+     own #201d1a page, which left the sheet looking non-modal. */
+  --color-scrim: oklch(0.15 0.012 60 / 0.7);
 
   /* Generously rounded rectangles, not circular-arc "squircles" - see spec
      §2.4 for why that word is deliberately not used here. */
@@ -146,6 +149,16 @@
 
 html {
   font-variant-numeric: tabular-nums;
+  scrollbar-color: var(--raw-border) transparent;
+}
+
+/* The browser draws selection and the scrollbar, not any component, so
+   without these the app ships Chrome's Highlight blue and a grey gutter into
+   a palette that has no blue in it. Inverting text on surface reuses a pair
+   the contrast gate already covers, and follows the theme for free. */
+::selection {
+  background-color: var(--raw-text);
+  color: var(--raw-surface);
 }
 
 /* appearance-none removes WebKit's native range thumb outright, and

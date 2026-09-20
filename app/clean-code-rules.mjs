@@ -196,3 +196,133 @@ export const cleanCodeTailwindRules = {
     'better-tailwindcss/enforce-canonical-classes': 'error',
   },
 }
+
+/**
+ * Rule 21 (user control and freedom): a mode you can enter but not leave.
+ *
+ * Catches the shape where a component flips an edit/open flag on but never
+ * off, so the only way out of the state is the committing action — clicking
+ * "Edit" out of curiosity traps the user into a redundant save. Found in the
+ * wild 2026-09-20: an inline row editor shipped with a Save button and no
+ * Cancel.
+ *
+ * Heuristic, deliberately narrow to stay at 'error' severity:
+ *  - only useState whose state or setter name contains edit/open/expand —
+ *    a one-way `setHasConsented(true)` or `setSubmitted(true)` is a
+ *    legitimate latch, a one-way `setIsEditing(true)` is not;
+ *  - a reset is any call passing false/null/undefined/'' or an updater
+ *    function (a toggle is an exit), so only a genuinely one-way setter fires;
+ *  - passing the setter somewhere as a bare reference bails out entirely —
+ *    the exit may live in the child.
+ */
+const RESET_LITERALS = new Set([false, null, ''])
+const EXITABLE_STATE_NAME = /edit|open|expand/i
+
+const isResetArgument = (node) => {
+  if (!node) return true // setX() with no args clears it
+  if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') return true
+  if (node.type === 'Identifier' && node.name === 'undefined') return true
+  if (node.type === 'Literal') return RESET_LITERALS.has(node.value)
+  return false
+}
+
+const isUseStateCall = (node) => {
+  if (node?.type !== 'CallExpression') return false
+  const callee = node.callee
+  return (callee.type === 'MemberExpression' ? callee.property.name : callee.name) === 'useState'
+}
+
+const namesAnExitableMode = (identifiers) =>
+  identifiers.some((identifier) => EXITABLE_STATE_NAME.test(identifier.name))
+
+/** The [state, setter] pair of a useState whose name says it is an enterable mode. */
+const readExitableStatePair = (node) => {
+  if (!isUseStateCall(node.init) || node.id.type !== 'ArrayPattern') return null
+  const [state, setter] = node.id.elements
+  if (state?.type !== 'Identifier' || setter?.type !== 'Identifier') return null
+  return namesAnExitableMode([state, setter]) ? { state, setter } : null
+}
+
+const noOneWayEditState = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'An edit/open mode must have a non-committal exit (CLAUDE.md Rule 21).' },
+    schema: [],
+    messages: {
+      oneWay: [
+        "'{{setter}}' is only ever turned on — nothing in this file turns '{{state}}' back off.",
+        'A user who enters this mode by accident can only leave it through the committing',
+        'action (CLAUDE.md Rule 21). Add a Cancel control that restores the pre-edit value,',
+        'and dismiss on Escape / backdrop where the mode is an overlay.',
+      ].join(' '),
+    },
+  },
+  create(context) {
+    const setters = new Map() // setter name -> { state, node, enters, resets, escaped }
+
+    const track = (name, patch) => {
+      const entry = setters.get(name)
+      if (entry) Object.assign(entry, patch)
+    }
+
+    return {
+      VariableDeclarator(node) {
+        const pair = readExitableStatePair(node)
+        if (!pair) return
+        setters.set(pair.setter.name, {
+          state: pair.state.name,
+          node: pair.setter,
+          enters: false,
+          resets: false,
+          escaped: false,
+        })
+      },
+
+      CallExpression(node) {
+        if (node.callee.type !== 'Identifier') return
+        if (!setters.has(node.callee.name)) return
+        const reset = isResetArgument(node.arguments[0])
+        track(node.callee.name, reset ? { resets: true } : { enters: true })
+      },
+
+      // A bare reference (passed as a prop, stored, aliased) means the exit
+      // can live in another file — unknowable here, so stop judging it.
+      'Identifier:exit'(node) {
+        if (!setters.has(node.name)) return
+        if (node.parent.type === 'CallExpression' && node.parent.callee === node) return
+        if (node.parent.type === 'VariableDeclarator' && node.parent.id === node) return
+        if (node.parent.type === 'ArrayPattern') return
+        if (node.parent.type === 'MemberExpression' && node.parent.property === node) return
+        track(node.name, { escaped: true })
+      },
+
+      'Program:exit'() {
+        for (const [setter, entry] of setters) {
+          if (entry.escaped || entry.resets || !entry.enters) continue
+          context.report({
+            node: entry.node,
+            messageId: 'oneWay',
+            data: { setter, state: entry.state },
+          })
+        }
+      },
+    }
+  },
+}
+
+// Plugin object holding the rules CLAUDE.md needs that core ESLint cannot
+// express. Flat config only — a legacy .eslintrc project has to register it
+// through its own `plugins` array instead.
+export const cleanCodePlugin = {
+  rules: { 'no-one-way-edit-state': noOneWayEditState },
+}
+
+// Rule 21 wiring. Kept a separate export rather than folded into
+// cleanCodeBaseRules because it only means anything in component code — the
+// skill scopes it to the project's UI directories, same as the server/client
+// block. 'error': the heuristic above is narrow enough that a hit is a real
+// trapped mode, and the whole point is that the Stop hook blocks on it.
+export const cleanCodeInteractionRules = {
+  plugins: { 'clean-code': cleanCodePlugin },
+  rules: { 'clean-code/no-one-way-edit-state': 'error' },
+}

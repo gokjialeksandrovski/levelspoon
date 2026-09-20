@@ -4,7 +4,7 @@ import { XIcon } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/features/meals/actions/meals";
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
@@ -124,6 +124,7 @@ interface UseIngredientEditingResult {
   isBusy: boolean;
   error: string | null;
   startEditing: () => void;
+  cancelEditing: () => void;
   setCount: (value: string) => void;
   setUnit: (value: string) => void;
   saveQuantity: () => Promise<void>;
@@ -136,17 +137,17 @@ const buildQuantityActions = (
   context: MeasureContext,
   count: string,
   unit: string,
-  setIsEditing: (value: boolean) => void,
+  setEditing: (value: boolean) => void,
   setCount: (value: string) => void,
   setUnit: (value: string) => void,
   setError: (value: string | null) => void,
   callbacks: MutationCallbacks,
 ) => ({
-  startEditing: () => setIsEditing(true),
+  startEditing: () => setEditing(true),
   setCount,
   setUnit,
   saveQuantity: () =>
-    resolveAndSaveQuantity({ ingredientId: ingredient.id, count, unit, context }, () => setIsEditing(false), callbacks),
+    resolveAndSaveQuantity({ ingredientId: ingredient.id, count, unit, context }, () => setEditing(false), callbacks),
   remove: () => removeIngredient(ingredient.id, callbacks),
   clearError: () => setError(null),
 });
@@ -168,26 +169,69 @@ export const editSeed = (
     ? { count: String(ingredient.entryCount), unit: ingredient.entryUnit }
     : { count: String(ingredient.quantity), unit: ingredient.quantityUnit };
 
+interface DraftSetters {
+  setIsEditing: (value: boolean) => void;
+  setCount: (value: string) => void;
+  setUnit: (value: string) => void;
+  setError: (value: string | null) => void;
+}
+
+// Leaving edit mode restores the committed amount rather than keeping the
+// abandoned draft, and issues no request - opening the editor out of
+// curiosity must cost nothing.
+const resetDraft = (setters: DraftSetters, seedCount: string, seedUnit: string): void => {
+  setters.setIsEditing(false);
+  setters.setCount(seedCount);
+  setters.setUnit(seedUnit);
+  setters.setError(null);
+};
+
 const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void, onRemoved?: () => void): UseIngredientEditingResult => {
   const router = useRouter();
   const context = contextFor(ingredient);
   const units = availableUnits(context);
-  const seed = editSeed(ingredient, units);
+  const { count: seedCount, unit: seedUnit } = editSeed(ingredient, units);
   const [isEditing, setIsEditing] = useState(false);
-  const [count, setCount] = useState(seed.count);
-  const [unit, setUnit] = useState(seed.unit);
+  const [count, setCount] = useState(seedCount);
+  const [unit, setUnit] = useState(seedUnit);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged, onRemoved };
 
+  // useState setters are referentially stable, so this memo only recomputes
+  // once - giving the effect below a stable dependency (same reason as
+  // confirm-step's `setters`).
+  const setters = useMemo(() => ({ setIsEditing, setCount, setUnit, setError }), []);
+
+  // Opening the editor pushes a history entry, so the device Back gesture and
+  // the browser's Back button exit the editor instead of leaving the meal -
+  // the same expectation any overlay sets. Every other way out spends that
+  // entry again (history.back()), so Back is never wasted on a stale one.
+  const setEditing = (value: boolean) => {
+    if (value) window.history.pushState({ inlineEdit: true }, "");
+    else window.history.back();
+    setIsEditing(value);
+  };
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const handlePop = () => resetDraft(setters, seedCount, seedUnit);
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [isEditing, setters, seedCount, seedUnit]);
+
   return {
     isEditing,
+    cancelEditing: () => {
+      resetDraft(setters, seedCount, seedUnit);
+      window.history.back();
+    },
     count,
     unit,
     units,
     isBusy,
     error,
-    ...buildQuantityActions(ingredient, context, count, unit, setIsEditing, setCount, setUnit, setError, callbacks),
+    ...buildQuantityActions(ingredient, context, count, unit, setEditing, setCount, setUnit, setError, callbacks),
   };
 };
 
@@ -204,8 +248,15 @@ const IngredientHeader = ({ productName }: { productName: string }) => (
   <span className="block truncate font-medium text-text">{displayProductName(productName)}</span>
 );
 
+// Escape is the keyboard half of the exit; Back is the device half, and the
+// in-field X (plus a tap outside) is the visible one.
+const escapeHandler = (onCancel: () => void) => (event: React.KeyboardEvent) => {
+  if (event.key === "Escape") onCancel();
+};
+
 interface QuantityEditorProps {
   ingredientId: string;
+  cancelLabel: string;
   count: string;
   unit: string;
   units: string[];
@@ -213,27 +264,46 @@ interface QuantityEditorProps {
   onCountChange: (value: string) => void;
   onUnitChange: (value: string) => void;
   onSave: () => void;
+  onCancel: () => void;
 }
 
-const QuantityEditor = ({ ingredientId, count, unit, units, isBusy, onCountChange, onUnitChange, onSave }: QuantityEditorProps) => (
-  <div className="flex items-end gap-2">
-    <div className="flex-1">
-      <UnitAmountField
-        name={`quantity-${ingredientId}`}
-        count={count}
-        unit={unit}
-        units={units}
-        // Stops focus dropping on the now-unmounted "Edit" button.
-        autoFocus
-        onCountChange={onCountChange}
-        onUnitChange={onUnitChange}
-      />
+const QuantityEditor = ({ ingredientId, cancelLabel, count, unit, units, isBusy, onCountChange, onUnitChange, onSave, onCancel }: QuantityEditorProps) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Tapping anywhere outside the editor leaves it, the same way the X does.
+  // pointerdown, not click: it fires before focus moves, so the editor is gone
+  // by the time the tapped control takes over. The listener mounts with the
+  // editor, so the click that opened it (whose pointerdown already fired)
+  // cannot close it again.
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) onCancel();
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [onCancel]);
+
+  return (
+    <div ref={rootRef} className="flex items-end gap-2" onKeyDown={escapeHandler(onCancel)}>
+      <div className="flex-1">
+        <UnitAmountField
+          name={`quantity-${ingredientId}`}
+          count={count}
+          unit={unit}
+          units={units}
+          // Stops focus dropping on the now-unmounted "Edit" button.
+          autoFocus
+          trailingAction={{ label: cancelLabel, onClick: onCancel, disabled: isBusy }}
+          onCountChange={onCountChange}
+          onUnitChange={onUnitChange}
+        />
+      </div>
+      <Button disabled={count.trim() === ""} pending={isBusy} onClick={onSave}>
+        Save
+      </Button>
     </div>
-    <Button disabled={count.trim() === ""} pending={isBusy} onClick={onSave}>
-      Save
-    </Button>
-  </div>
-);
+  );
+};
 
 interface QuantitySummaryProps {
   productName: string;
@@ -338,6 +408,7 @@ type EditingControlsProps = Pick<QuantityControlsProps, "ingredient" | "editing"
 const EditingControls = ({ ingredient, editing }: EditingControlsProps) => (
   <QuantityEditor
     ingredientId={ingredient.id}
+    cancelLabel={`Cancel editing ${displayProductName(ingredient.productName)} amount`}
     count={editing.count}
     unit={editing.unit}
     units={editing.units}
@@ -345,6 +416,7 @@ const EditingControls = ({ ingredient, editing }: EditingControlsProps) => (
     onCountChange={editing.setCount}
     onUnitChange={editing.setUnit}
     onSave={editing.saveQuantity}
+    onCancel={editing.cancelEditing}
   />
 );
 
@@ -394,7 +466,11 @@ const IngredientRowContent = ({ ingredient, editing, onRequestRemove }: Ingredie
   <>
     <IngredientHeader productName={ingredient.productName} />
     <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
-    <CorrectionLink productId={ingredient.productId} productName={displayProductName(ingredient.productName)} />
+    {/* Hidden while editing: it navigates away mid-edit, which is not an exit,
+        and a row being edited is not the moment to offer it. */}
+    {!editing.isEditing && (
+      <CorrectionLink productId={ingredient.productId} productName={displayProductName(ingredient.productName)} />
+    )}
     {editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}
   </>
 );

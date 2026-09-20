@@ -50,6 +50,50 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();
 });
 
+test("leaving edit mode reverts the draft and saves nothing", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+
+  const amountField = page.getByLabel("Amount", { exact: true });
+  const correctionLink = page.getByRole("link", { name: /Correct values for/ });
+  await expect(correctionLink).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await amountField.fill("100");
+  // The correction link navigates away mid-edit, so editing owns that slot.
+  await expect(correctionLink).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^Cancel editing/ }).click();
+
+  await expect(amountField).toHaveCount(0);
+  await expect(correctionLink).toBeVisible();
+  await expect(page.getByText(/200 ?g.*140 kcal/)).toBeVisible();
+
+  // Re-opening shows the committed amount, not the abandoned "100".
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(amountField).toHaveValue("200");
+
+  // Escape is the keyboard half of the same exit.
+  await amountField.press("Escape");
+  await expect(amountField).toHaveCount(0);
+  await expect(page.getByText(/200 ?g.*140 kcal/)).toBeVisible();
+
+  // Back is the device half: it leaves the editor, not the meal.
+  const mealUrl = page.url();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await amountField.fill("100");
+  await page.goBack();
+  await expect(amountField).toHaveCount(0);
+  await expect(page).toHaveURL(mealUrl);
+  await expect(page.getByText(/200 ?g.*140 kcal/)).toBeVisible();
+
+  // Every other exit spends its own history entry, so Back is never a dead
+  // press afterwards - this one leaves the meal.
+  await page.goBack();
+  await expect(page).not.toHaveURL(mealUrl);
+});
+
 test("removing an ingredient leaves Undo in its place, and Undo puts it back", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);

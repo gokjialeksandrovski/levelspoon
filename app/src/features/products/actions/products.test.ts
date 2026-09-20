@@ -13,7 +13,7 @@ import { fetchPhotoDebt } from "@/lib/db/photo-debt";
 import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { getPhotoUrl } from "@/lib/s3";
 
-import { clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
+import { attachLabelProof, clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
 import type { CandidateRow, CreateProductInput, CreateProductResult } from "./products";
 import {
   LabelPhotoAlreadyUsedError,
@@ -878,6 +878,37 @@ describe("getProductForCorrection", () => {
     const result = await getProductForCorrection(crypto.randomUUID());
     expect(result).toBeNull();
   });
+
+  it("reports a label photo as the shared proof", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Olympus Greek Yogurt 2% Fat");
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await getProductForCorrection(productId);
+
+    expect(result?.sharedProof).toBe("label");
+  });
+
+  it("reports a barcode as the shared proof of a photo-less product", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Bella Farm Yoghurt", { nutritionPhotoKey: null });
+    await db.insert(productBarcodes).values({ barcode: "4006381333931", productId, createdByUserId: userId });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await getProductForCorrection(productId);
+
+    expect(result?.sharedProof).toBe("barcode");
+  });
+
+  it("reports no shared proof for a hand-typed product nobody else can see", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "fstak", { nutritionPhotoKey: null });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const result = await getProductForCorrection(productId);
+
+    expect(result?.sharedProof).toBeNull();
+  });
 });
 
 describe("standard-source product rows", () => {
@@ -1375,6 +1406,85 @@ describe("replacement label photos", () => {
     await saveNutritionOverride(productId, CORRECTED);
 
     expect(await fetchPhotoDebt()).toEqual([]);
+  });
+});
+
+describe("attachLabelProof", () => {
+  const labelPhoto = () => new Blob(["proof-jpeg-bytes"], { type: "image/jpeg" });
+  const fromLabel = { nutritionPer100g: CORRECTED, fromLabel: true };
+
+  // What manual entry actually writes: no photo, no barcode, and figures the
+  // row itself admits were typed rather than read.
+  const seedTyped = async (name: string): Promise<{ userId: string; productId: string }> => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, name, { nutritionPhotoKey: null });
+    await db.update(products).set({ nutritionOrigin: "manual" }).where(eq(products.id, productId));
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    return { userId, productId };
+  };
+
+  it("promotes a hand-typed product with the figures read off its label", async () => {
+    const { productId } = await seedTyped("fstak");
+
+    const result = await attachLabelProof(productId, labelPhoto(), fromLabel);
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(result.kind).toBe("attached");
+    expect(row.nutritionPhotoKey).toMatch(/^products\//);
+    expect(Number(row.energyKcal)).toBe(99);
+    expect(row.nutritionOrigin).toBe("label_photo");
+  });
+
+  it("keeps the user's own figures, and the row's typed origin, when they decline the label's", async () => {
+    const { productId } = await seedTyped("fstak");
+
+    await attachLabelProof(productId, labelPhoto(), { nutritionPer100g: CORRECTED_AGAIN, fromLabel: false });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionPhotoKey).toMatch(/^products\//);
+    expect(Number(row.energyKcal)).toBe(101);
+    expect(row.nutritionOrigin).toBe("manual");
+  });
+
+  it("drops the private correction the promoted figures just replaced", async () => {
+    const { userId, productId } = await seedTyped("fstak");
+    await saveNutritionOverride(productId, CORRECTED_AGAIN);
+
+    await attachLabelProof(productId, labelPhoto(), fromLabel);
+
+    const rows = await db.select().from(productOverrides).where(eq(productOverrides.userId, userId));
+    expect(rows).toEqual([]);
+  });
+
+  it("refuses a product a label photo already vouches for", async () => {
+    const { productId } = await seedOne("Olympus Greek Yogurt 2% Fat");
+    const [before] = await db.select().from(products).where(eq(products.id, productId));
+
+    const result = await attachLabelProof(productId, labelPhoto(), fromLabel);
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(result.kind).toBe("not_attachable");
+    expect(row.nutritionPhotoKey).toBe(before.nutritionPhotoKey);
+    expect(Number(row.energyKcal)).toBe(70);
+  });
+
+  it("refuses a product a barcode already vouches for", async () => {
+    const { userId, productId } = await seedTyped("fstak");
+    await db.insert(productBarcodes).values({ barcode: "4006381333931", productId, createdByUserId: userId });
+
+    const result = await attachLabelProof(productId, labelPhoto(), fromLabel);
+
+    expect(result.kind).toBe("not_attachable");
+  });
+
+  it("refuses a label photo that already belongs to another product", async () => {
+    const { productId: firstId } = await seedTyped("fstak");
+    await attachLabelProof(firstId, labelPhoto(), fromLabel);
+    const { productId: secondId } = await seedTyped("fstak two");
+
+    const result = await attachLabelProof(secondId, labelPhoto(), fromLabel);
+
+    expect(result).toEqual({ kind: "photo_already_used", ownerName: "fstak" });
   });
 });
 
