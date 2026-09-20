@@ -6,13 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { checkBarcodeBinding } from "@/features/products/actions/barcode";
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { createProduct, searchUserProducts } from "@/features/products/actions/products";
-import type { ProductCandidate } from "@/features/products/actions/products";
-import {
-  BarcodeAlreadyLinkedError,
-  DUPLICATE_PRODUCT_SUFFIX,
-  SAME_FIGURES_GENERIC_OWNER,
-  SAME_FIGURES_SUFFIX,
-} from "@/features/products/actions/products.errors";
+import type { CreateProductResult, ProductCandidate } from "@/features/products/actions/products";
 import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -75,17 +69,6 @@ const sameFiguresPrompt = (ownerName: string | null): string =>
 const SAME_FIGURES_ACK_LABEL = "This is a different product that happens to have the same figures";
 const duplicateMessage = (name: string): string => `${name} already has these figures.`;
 const useDuplicateLabel = (name: string): string => `Use ${name} instead`;
-
-// DuplicateProductError/SameFiguresError never reach this catch with their own
-// identity: a thrown Server Action error crosses the RSC boundary as a plain
-// Error carrying only name/message/digest, so instanceof and every other own
-// property (product, ownerName) are gone by the time it lands here (verified
-// empirically via Object.keys(error) on the caught value). name and message
-// are the one channel that does survive, so those are what this reads.
-const nameFrom = (error: Error, suffix: string): string =>
-  error.message.endsWith(suffix) ? error.message.slice(0, -suffix.length) : error.message;
-const isNamedError = (error: unknown, name: string): error is Error =>
-  error instanceof Error && error.name === name;
 
 const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
   if (!flaggedFields.has(field)) {
@@ -224,8 +207,8 @@ const toProductCreatedPayload = (
   nutritionPerBasis: toNutritionValues(input.values),
 });
 
-const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void): Promise<void> => {
-  const created = await createProduct({
+const saveProduct = (input: SaveConfirmInput): Promise<CreateProductResult> =>
+  createProduct({
     name: input.nameValue,
     nutritionPer100g: toNutritionValues(input.values),
     photo: input.photo,
@@ -236,8 +219,6 @@ const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAct
     nutritionOrigin: input.nutritionOrigin ?? undefined,
     acknowledgedSameFigures: input.acknowledgedSameFigures ? true : undefined,
   });
-  dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(created, input) });
-};
 
 interface NutritionFieldsProps {
   values: FieldValues;
@@ -286,12 +267,45 @@ interface ConfirmSaveCallbacks {
   setFlags: (flags: string[]) => void;
   setError: (error: string | null) => void;
   setIsSaving: (isSaving: boolean) => void;
-  setDuplicate: (duplicate: string | null) => void;
+  setDuplicate: (duplicate: { id: string; name: string } | null) => void;
   setSameFiguresOwner: (ownerName: string | null) => void;
 }
 
+// createProduct returns its outcome as data (CreateProductResult), never a
+// throw, for exactly the reason barcode.ts's LookupBarcodeResult already
+// does: a Server Action's throw does not survive the trip back to a client
+// component with its subclass identity or its own properties intact. This is
+// the one place that result is turned into UI state - a switch, not an
+// if-chain, so a fifth arm added later fails to compile here until handled.
+const applyCreateProductResult = (
+  result: CreateProductResult,
+  input: SaveConfirmInput,
+  dispatch: (action: WizardAction) => void,
+  callbacks: ConfirmSaveCallbacks,
+): void => {
+  switch (result.kind) {
+    case "created":
+      dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(result, input) });
+      return;
+    case "duplicate_product":
+      callbacks.setDuplicate(result.product);
+      return;
+    case "same_figures":
+      callbacks.setSameFiguresOwner(result.ownerName);
+      return;
+    case "barcode_conflict":
+      callbacks.setError(BARCODE_CONFLICT_ERROR);
+      return;
+  }
+};
+
 // Standalone, not a hook, so useConfirmStepForm's body stays under the line
 // budget - bundled callbacks object rather than closing over hook state.
+// The catch below is now only a backstop for a genuinely unexpected throw
+// (e.g. LabelPhotoAlreadyUsedError's race-condition backstop at save time,
+// which stays a throw - Task 3 already gives the user the good path earlier,
+// at the nutrition step) - every refusal this step itself understands arrives
+// as data through applyCreateProductResult instead.
 const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, callbacks: ConfirmSaveCallbacks): Promise<void> => {
   callbacks.setError(null);
   callbacks.setIsSaving(true);
@@ -303,18 +317,10 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
       focusFirstFlagged(freshFlags);
       return;
     }
-    await saveProduct(input, dispatch);
-  } catch (error) {
-    if (isNamedError(error, "DuplicateProductError")) {
-      callbacks.setDuplicate(nameFrom(error, DUPLICATE_PRODUCT_SUFFIX));
-      return;
-    }
-    if (isNamedError(error, "SameFiguresError")) {
-      const owner = nameFrom(error, SAME_FIGURES_SUFFIX);
-      callbacks.setSameFiguresOwner(owner === SAME_FIGURES_GENERIC_OWNER ? null : owner);
-      return;
-    }
-    callbacks.setError(error instanceof BarcodeAlreadyLinkedError ? BARCODE_CONFLICT_ERROR : SAVE_ERROR);
+    const result = await saveProduct(input);
+    applyCreateProductResult(result, input, dispatch, callbacks);
+  } catch {
+    callbacks.setError(SAVE_ERROR);
   } finally {
     callbacks.setIsSaving(false);
   }
@@ -327,7 +333,7 @@ interface UseConfirmStepFormResult {
   isSaving: boolean;
   flaggedFields: Set<keyof FieldValues>;
   canSave: boolean;
-  duplicate: string | null;
+  duplicate: { id: string; name: string } | null;
   sameFigures: { ownerName: string | null } | null;
   acknowledgedSameFigures: boolean;
   setNameValue: (value: string) => void;
@@ -346,7 +352,7 @@ interface ConfirmFormState {
   setError: (error: string | null) => void;
   setIsSaving: (isSaving: boolean) => void;
   revalidate: (values: FieldValues) => void;
-  setDuplicate: (duplicate: string | null) => void;
+  setDuplicate: (duplicate: { id: string; name: string } | null) => void;
   setSameFigures: (sameFigures: { ownerName: string | null } | null) => void;
   acknowledgedSameFigures: boolean;
 }
@@ -418,7 +424,7 @@ const useConfirmStepForm = (props: ConfirmStepProps, barcodeToAttach: string | n
   const [flags, setFlags] = useState(props.flags);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [duplicate, setDuplicate] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null);
   const [sameFigures, setSameFigures] = useState<{ ownerName: string | null } | null>(null);
   const [acknowledgedSameFigures, setAcknowledgedSameFigures] = useState(false);
 
@@ -519,17 +525,14 @@ const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachme
 );
 
 interface DuplicateNoticeProps {
-  duplicate: string;
+  duplicate: { id: string; name: string };
   dispatch: (action: WizardAction) => void;
 }
 
 // Mirrors ConflictNotice: a refusal the user can act on in one tap, not an
 // error they have to understand first. The row is re-read rather than carried
 // on the error, so the amount step gets the same fully-resolved portions
-// every other arrival there gets. Matched by exact name, not id - the id never
-// survives the Server Action's throw back to the client (see nameFrom above),
-// and this row's name is the one thing the server already told us is unique
-// enough to have collided on.
+// every other arrival there gets.
 const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
   const [isResolving, setIsResolving] = useState(false);
   // Named without a "use" prefix on purpose - react-hooks/rules-of-hooks reads
@@ -537,7 +540,7 @@ const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
   const chooseDuplicate = async (): Promise<void> => {
     setIsResolving(true);
     try {
-      const found = (await searchUserProducts(duplicate)).find((row) => row.name === duplicate);
+      const found = (await searchUserProducts(duplicate.name)).find((row) => row.id === duplicate.id);
       if (found) {
         dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(found), alternatives: [], pendingBarcode: null });
       }
@@ -548,9 +551,9 @@ const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
 
   return (
     <div className="flex flex-col gap-2">
-      <InlineMessage tone="warning">{duplicateMessage(duplicate)}</InlineMessage>
+      <InlineMessage tone="warning">{duplicateMessage(duplicate.name)}</InlineMessage>
       <Button variant="ghost" pending={isResolving} onClick={() => void chooseDuplicate()}>
-        {useDuplicateLabel(duplicate)}
+        {useDuplicateLabel(duplicate.name)}
       </Button>
     </div>
   );

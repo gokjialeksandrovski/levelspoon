@@ -536,46 +536,105 @@ const insertBarcodeLink = async (link: () => Promise<unknown>, barcode: string):
   }
 };
 
-export const createProduct = async (
+/**
+ * `createProduct`'s outcome, as data rather than a throw.
+ *
+ * A Server Action's thrown error does not survive the trip back to a client
+ * component with its subclass identity or its own properties intact - only a
+ * generic `Error` carrying `name`/`message`/`digest` crosses that boundary
+ * (`barcode.ts`'s `LookupBarcodeResult`/`already_linked_elsewhere` already
+ * established this pattern for the same reason). `assertNotDuplicate` and
+ * `insertBarcodeLink` below still throw their named errors - `instanceof`
+ * stays reliable there because it never leaves this module - and this
+ * function is what catches each one at its own boundary and maps it here.
+ */
+export type CreateProductResult =
+  | { kind: "created"; productId: string; portions: readonly Portion[] }
+  | { kind: "duplicate_product"; product: { id: string; name: string } }
+  | { kind: "same_figures"; ownerName: string | null }
+  | { kind: "barcode_conflict" };
+
+// assertNotDuplicate's two refusal tiers, mapped to CreateProductResult; any
+// other throw (e.g. an actual DB failure) is not this function's to interpret
+// and propagates unchanged.
+const duplicateResult = async (
   input: CreateProductInput,
-): Promise<{ productId: string; portions: readonly Portion[] }> => {
+  userId: string,
+): Promise<CreateProductResult | null> => {
+  try {
+    await assertNotDuplicate(input, userId);
+    return null;
+  } catch (error) {
+    if (error instanceof DuplicateProductError) {
+      return { kind: "duplicate_product", product: error.product };
+    }
+    if (error instanceof SameFiguresError) {
+      return { kind: "same_figures", ownerName: error.ownerName };
+    }
+    throw error;
+  }
+};
+
+const insertProductRow = async (
+  input: CreateProductInput,
+  userId: string,
+  photoKey: string | null,
+  barcode: string | null,
+): Promise<CreateProductResult> => {
+  try {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(products)
+        .values(toProductInsertValues(input, userId, photoKey))
+        .returning({ id: products.id });
+
+      if (barcode) {
+        const values = { barcode, productId: row.id, createdByUserId: userId };
+        await insertBarcodeLink(() => tx.insert(productBarcodes).values(values), barcode);
+      }
+      // Returned rather than refetched: the confirm step hands this straight to
+      // the amount step, and being a client component it cannot resolve portions
+      // itself without pulling the gram table into the browser bundle.
+      const values = toProductInsertValues(input, userId, photoKey);
+      return {
+        kind: "created",
+        productId: row.id,
+        portions: resolvePortions({
+          standardSlug: null,
+          nameSearch: values.nameSearch,
+          servingUnit: values.servingUnit,
+          servingGrams: values.servingGrams === null ? null : Number(values.servingGrams),
+          nutritionBasisUnit: values.nutritionBasisUnit,
+          overrides: {},
+        }),
+      };
+    });
+  } catch (error) {
+    if (error instanceof BarcodeAlreadyLinkedError) {
+      return { kind: "barcode_conflict" };
+    }
+    throw error;
+  }
+};
+
+export const createProduct = async (input: CreateProductInput): Promise<CreateProductResult> => {
   const userId = await requireUserId();
   // Before the upload: a rejected barcode or duplicate must not leave an
   // orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
-  await assertNotDuplicate(input, userId);
+
+  const duplicate = await duplicateResult(input, userId);
+  if (duplicate) {
+    return duplicate;
+  }
+
   const pendingPhoto = input.photo ? await toPendingPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
   if (pendingPhoto) {
     await assertPhotoUnused(pendingPhoto, userId);
   }
   const photoKey = pendingPhoto ? await putPendingPhoto(pendingPhoto) : null;
 
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(products)
-      .values(toProductInsertValues(input, userId, photoKey))
-      .returning({ id: products.id });
-
-    if (barcode) {
-      const values = { barcode, productId: row.id, createdByUserId: userId };
-      await insertBarcodeLink(() => tx.insert(productBarcodes).values(values), barcode);
-    }
-    // Returned rather than refetched: the confirm step hands this straight to
-    // the amount step, and being a client component it cannot resolve portions
-    // itself without pulling the gram table into the browser bundle.
-    const values = toProductInsertValues(input, userId, photoKey);
-    return {
-      productId: row.id,
-      portions: resolvePortions({
-        standardSlug: null,
-        nameSearch: values.nameSearch,
-        servingUnit: values.servingUnit,
-        servingGrams: values.servingGrams === null ? null : Number(values.servingGrams),
-        nutritionBasisUnit: values.nutritionBasisUnit,
-        overrides: {},
-      }),
-    };
-  });
+  return insertProductRow(input, userId, photoKey, barcode);
 };
 
 const assertUpdated = (updated: { id: string }[], productId: string): void => {

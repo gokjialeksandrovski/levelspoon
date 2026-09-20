@@ -14,13 +14,10 @@ import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { getPhotoUrl } from "@/lib/s3";
 
 import { clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
-import type { CandidateRow } from "./products";
+import type { CandidateRow, CreateProductInput, CreateProductResult } from "./products";
 import {
-  BarcodeAlreadyLinkedError,
-  DuplicateProductError,
   LabelPhotoAlreadyUsedError,
   ProductNotEditableError,
-  SameFiguresError,
 } from "./products.errors";
 
 const seedUser = async (): Promise<string> => {
@@ -107,6 +104,21 @@ beforeEach(async () => {
   await db.execute(sql`TRUNCATE TABLE products, product_overrides, meal_ingredients, meals CASCADE`);
   mockAuth.mockReset();
 });
+
+// Most createProduct calls below are just fixture setup expecting success -
+// this narrows CreateProductResult and fails loudly (rather than destructuring
+// a refusal arm's missing productId) if a setup call unexpectedly gets
+// refused. Tests that exist to exercise a refusal call createProduct directly
+// and assert on `result.kind` instead.
+const createdProduct = async (
+  input: CreateProductInput,
+): Promise<Extract<CreateProductResult, { kind: "created" }>> => {
+  const result = await createProduct(input);
+  if (result.kind !== "created") {
+    throw new Error(`expected createProduct to succeed, got kind "${result.kind}"`);
+  }
+  return result;
+};
 
 describe("matchProduct", () => {
   it("returns a confident match with no alternatives when only one product exists", async () => {
@@ -382,7 +394,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Fresh Milk 3.2%",
       nutritionPer100g: {
         energyKcal: 61,
@@ -406,7 +418,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Fresh Milk 3.2%",
       nutritionPer100g: {
         energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
@@ -423,7 +435,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Nutella Hazelnut Spread",
       nutritionPer100g: {
         energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225,
@@ -462,7 +474,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Loose Banana",
       nutritionPer100g: {
         energyKcal: 89, fatG: 0.33, saturatesG: 0.11, carbohydrateG: 22.84,
@@ -478,7 +490,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Fresh Milk 3.2%",
       nutritionPer100g: {
         energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
@@ -494,7 +506,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Test Cereal",
       nutritionPer100g: {
         energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
@@ -529,25 +541,24 @@ describe("createProduct", () => {
     expect(await db.select().from(products)).toEqual([]);
   });
 
-  it("throws a named error, not a raw driver error, when the barcode is already linked", async () => {
+  it("returns a barcode_conflict result, not a raw driver error, when the barcode is already linked", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const nutritionPer100g = {
       energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
     };
-    await createProduct({ name: "First Owner", nutritionPer100g, barcode: "0012345678905" });
+    await createdProduct({ name: "First Owner", nutritionPer100g, barcode: "0012345678905" });
 
     // Same code in its non-canonical UPC-A form - the collision is on the
     // normalized value, not the raw string. Figures differ from First Owner's
     // so the barcode check, not the figures gate, is what fires here.
-    await expect(
-      createProduct({
-        name: "Second Claimant",
-        nutritionPer100g: { ...nutritionPer100g, energyKcal: 381 },
-        barcode: "012345678905",
-      }),
-    ).rejects.toThrow(BarcodeAlreadyLinkedError);
+    const result = await createProduct({
+      name: "Second Claimant",
+      nutritionPer100g: { ...nutritionPer100g, energyKcal: 381 },
+      barcode: "012345678905",
+    });
 
+    expect(result).toEqual({ kind: "barcode_conflict" });
     expect(await db.select().from(products)).toHaveLength(1);
   });
 
@@ -561,7 +572,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const label = () => new Blob(["shared-label-bytes"], { type: "image/jpeg" });
-    await createProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
+    await createdProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
 
     // Figures differ from Bella Farm Yoghurt's so the photo-reuse check, not
     // the figures gate, is what fires here.
@@ -579,7 +590,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const label = () => new Blob(["proof-bytes"], { type: "image/jpeg" });
-    await createProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
+    await createdProduct({ name: "Bella Farm Yoghurt", nutritionPer100g: CREATED, photo: label() });
     const otherProductId = await seedProduct(userId, "Some Other Product");
 
     await expect(
@@ -610,42 +621,44 @@ describe("createProduct", () => {
   it("refuses a second product with the same figures and a similar name", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Snickers Bar",
       nutritionPer100g: CREATED,
       photo: new Blob(["snickers-label"], { type: "image/jpeg" }),
     });
 
-    const rejection = createProduct({ name: "Snickers", nutritionPer100g: CREATED });
+    const result = await createProduct({ name: "Snickers", nutritionPer100g: CREATED });
 
-    await expect(rejection).rejects.toThrow(DuplicateProductError);
-    await expect(rejection).rejects.toMatchObject({ product: { name: "Snickers Bar" } });
+    expect(result.kind).toBe("duplicate_product");
+    if (result.kind === "duplicate_product") {
+      expect(result.product).toMatchObject({ name: "Snickers Bar" });
+    }
   });
 
   it("asks before filing an unrelated name with identical figures", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Bella Farm Yoghurt",
       nutritionPer100g: CREATED,
       photo: new Blob(["yoghurt-label"], { type: "image/jpeg" }),
     });
 
-    await expect(
-      createProduct({ name: "Candy Bar", nutritionPer100g: CREATED }),
-    ).rejects.toThrow(SameFiguresError);
+    const result = await createProduct({ name: "Candy Bar", nutritionPer100g: CREATED });
+
+    expect(result).toEqual({ kind: "same_figures", ownerName: "Bella Farm Yoghurt" });
   });
 
   it("files it once the user acknowledges the identical figures", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Bella Farm Yoghurt",
       nutritionPer100g: CREATED,
       photo: new Blob(["yoghurt-label"], { type: "image/jpeg" }),
     });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Candy Bar",
       nutritionPer100g: CREATED,
       acknowledgedSameFigures: true,
@@ -658,15 +671,15 @@ describe("createProduct", () => {
   it("refuses the same product even when the user acknowledges", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Snickers Bar",
       nutritionPer100g: CREATED,
       photo: new Blob(["snickers-label"], { type: "image/jpeg" }),
     });
 
-    await expect(
-      createProduct({ name: "Snickers", nutritionPer100g: CREATED, acknowledgedSameFigures: true }),
-    ).rejects.toThrow(DuplicateProductError);
+    const result = await createProduct({ name: "Snickers", nutritionPer100g: CREATED, acknowledgedSameFigures: true });
+
+    expect(result.kind).toBe("duplicate_product");
   });
 
   it("degrades a same-product match to same-figures without naming an invisible collision", async () => {
@@ -686,28 +699,27 @@ describe("createProduct", () => {
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
 
-    const rejection = createProduct({
+    const result = await createProduct({
       name: "Snickers",
       nutritionPer100g: {
         energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
       },
     });
 
-    await expect(rejection).rejects.toThrow(SameFiguresError);
-    await expect(rejection).rejects.toMatchObject({ ownerName: null });
+    expect(result).toEqual({ kind: "same_figures", ownerName: null });
     expect(await db.select().from(products)).toHaveLength(1);
   });
 
   it("files a variant whose figures differ", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Olympus Greek Yogurt 2% Fat",
       nutritionPer100g: CREATED,
       photo: new Blob(["2pct-label"], { type: "image/jpeg" }),
     });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Olympus Greek Yogurt 10% Fat",
       nutritionPer100g: { ...CREATED, fatG: CREATED.fatG + 8 },
     });
@@ -718,13 +730,13 @@ describe("createProduct", () => {
   it("files figures stated per a different basis", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Protein Bar",
       nutritionPer100g: CREATED,
       photo: new Blob(["bar-label"], { type: "image/jpeg" }),
     });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Protein Bar single",
       nutritionPer100g: CREATED,
       nutritionBasisUnit: "bar",
@@ -774,7 +786,7 @@ describe("getProductForCorrection", () => {
   it("surfaces the nutrition basis for a per-unit product", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Nutella Hazelnut Spread 2",
       nutritionPer100g: {
         energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225,
@@ -839,7 +851,7 @@ describe("createProduct — learned measures", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    await createProduct({
+    await createdProduct({
       name: "Zzq Density Fixture",
       nutritionPer100g: LEARNED_TEST_NUTRITION,
       photo: testPhoto(),
@@ -854,7 +866,7 @@ describe("createProduct — learned measures", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    await createProduct({
+    await createdProduct({
       name: "Zzq Bar Fixture",
       nutritionPer100g: LEARNED_TEST_NUTRITION,
       photo: testPhoto(),
@@ -870,7 +882,7 @@ describe("createProduct — learned measures", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    await createProduct({
+    await createdProduct({
       name: "Zzq Plain Fixture",
       nutritionPer100g: LEARNED_TEST_NUTRITION,
       photo: testPhoto(),
@@ -900,7 +912,7 @@ describe("findStoredMeasures", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
 
-    await createProduct({
+    await createdProduct({
       name: "Zzq Bar Original",
       nutritionPer100g: LEARNED_TEST_NUTRITION,
       photo: testPhoto(),
@@ -908,7 +920,7 @@ describe("findStoredMeasures", () => {
     });
     // Figures differ from Zzq Bar Original's so the figures gate does not
     // fire here - this test is about name-exactness, not duplicate figures.
-    await createProduct({
+    await createdProduct({
       name: "Zzq Bar Deluxe",
       nutritionPer100g: { ...LEARNED_TEST_NUTRITION, energyKcal: LEARNED_TEST_NUTRITION.energyKcal + 1 },
       photo: testPhoto(),
@@ -942,7 +954,7 @@ describe("findStoredMeasures", () => {
     });
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    await createProduct({
+    await createdProduct({
       name: "Zzq Learned Fixture Two",
       nutritionPer100g: LEARNED_TEST_NUTRITION,
       photo: testPhoto(),
@@ -1033,7 +1045,7 @@ describe("private products", () => {
     const author = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: author } });
 
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Six Eggs From The Market",
       nutritionPer100g: {
         energyKcal: 70, fatG: 2, saturatesG: 1.2, carbohydrateG: 4,
@@ -1351,7 +1363,7 @@ describe("portions on product DTOs", () => {
   it("name-matches a user product the OCR named as a bread", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
-    const { productId } = await createProduct({
+    const { productId } = await createdProduct({
       name: "Zito Bread Toast",
       nutritionPer100g: { energyKcal: 270, fatG: 3.3, saturatesG: 0.7, carbohydrateG: 49, sugarsG: 5, proteinG: 8.8, saltG: 1.2 },
     });
