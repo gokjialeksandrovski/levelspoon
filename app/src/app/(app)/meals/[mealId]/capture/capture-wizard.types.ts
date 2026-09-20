@@ -82,6 +82,10 @@ export type WizardStep =
        * resolved it (barcode spec §7). */
       barcode: string | null;
       nutritionOrigin: NutritionOrigin | null;
+      /** Rows that may already be this product, from the Open Food Facts name
+       * (spec §6). Empty on every other arrival - the photo and manual paths
+       * matched names before they got here. */
+      duplicates: SelectedProduct[];
     }
   | {
       kind: "amount";
@@ -198,6 +202,7 @@ const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_P
   pendingBarcode: action.pendingBarcode,
   barcode: null,
   nutritionOrigin: null,
+  duplicates: [],
 });
 
 const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
@@ -223,7 +228,7 @@ const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
     case "internal_match":
       return { kind: "amount", product: toSelectedProduct(result.product), alternatives: [], pendingBarcode: null };
     case "external_match":
-      return { kind: "confirm", parsed: result.nutritionPer100g, flags: result.flags, name: result.nameGuess, photo: undefined, learned: NOTHING_LEARNED, nutritionBasisUnit: result.nutritionBasisUnit, nutritionBasisQuantity: EXTERNAL_MATCH_BASIS_QUANTITY, pendingBarcode: null, barcode: result.barcode, nutritionOrigin: "open_food_facts" };
+      return { kind: "confirm", parsed: result.nutritionPer100g, flags: result.flags, name: result.nameGuess, photo: undefined, learned: NOTHING_LEARNED, nutritionBasisUnit: result.nutritionBasisUnit, nutritionBasisQuantity: EXTERNAL_MATCH_BASIS_QUANTITY, pendingBarcode: null, barcode: result.barcode, nutritionOrigin: "open_food_facts", duplicates: result.duplicates.map(toSelectedProduct) };
     case "not_found":
       return { kind: "product-photo", pendingBarcode: result.barcode };
   }

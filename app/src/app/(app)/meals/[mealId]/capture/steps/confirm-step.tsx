@@ -42,6 +42,10 @@ interface ConfirmStepProps {
   pendingBarcode: string | null;
   barcode: string | null;
   nutritionOrigin: NutritionOrigin | null;
+  /** Rows that may already be this product, from the Open Food Facts name
+   * (spec §6). Empty on every other arrival - the photo and manual paths
+   * matched names before they got here. */
+  duplicates: SelectedProduct[];
   dispatch: (action: WizardAction) => void;
 }
 
@@ -70,6 +74,7 @@ const SAME_FIGURES_ACK_LABEL = "This is a different product that happens to have
 const DUPLICATE_LOOKUP_ERROR = "Could not look up that product. Please try again.";
 const duplicateMessage = (name: string): string => `${name} already has these figures.`;
 const duplicateActionLabel = (name: string): string => `Use ${name} instead`;
+const DUPLICATE_SUGGESTION_HINT = "This may already be in per100:";
 
 const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
   if (!flaggedFields.has(field)) {
@@ -583,6 +588,35 @@ const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
   );
 };
 
+interface DuplicateSuggestionsProps {
+  duplicates: SelectedProduct[];
+  barcode: string | null;
+  dispatch: (action: WizardAction) => void;
+}
+
+// pendingBarcode, not barcode: choosing an existing row means attaching this
+// scan to a shared product, which stays the opt-in the amount step already
+// offers rather than a side effect of picking a suggestion (barcode spec §7).
+const DuplicateSuggestions = ({ duplicates, barcode, dispatch }: DuplicateSuggestionsProps) => {
+  if (duplicates.length === 0) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <InlineMessage tone="info">{DUPLICATE_SUGGESTION_HINT}</InlineMessage>
+      {duplicates.map((row) => (
+        <Button
+          key={row.id}
+          variant="ghost"
+          onClick={() => dispatch({ type: "CANDIDATE_CHOSEN", product: row, alternatives: [], pendingBarcode: barcode })}
+        >
+          Use {row.name} instead
+        </Button>
+      ))}
+    </div>
+  );
+};
+
 interface SameFiguresCheckboxProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -666,6 +700,7 @@ export const ConfirmStep = (props: ConfirmStepProps) => {
     <div className="flex flex-col gap-4">
       {photoUrl && <LabelPhotoStrip url={photoUrl} />}
       <h2 className="text-lg font-semibold">Confirm nutrition (per {props.nutritionBasisQuantity} {props.nutritionBasisUnit})</h2>
+      <DuplicateSuggestions duplicates={props.duplicates} barcode={props.barcode} dispatch={props.dispatch} />
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />
       {props.barcode === null && <BarcodeAttachmentControl pendingBarcode={props.pendingBarcode} attachment={attachment} dispatch={props.dispatch} />}

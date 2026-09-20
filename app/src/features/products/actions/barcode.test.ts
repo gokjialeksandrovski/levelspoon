@@ -78,7 +78,39 @@ describe("lookupBarcode", () => {
       nutritionBasisUnit: "g",
       netWeightText: "250 g",
       flags: [],
+      duplicates: [],
     });
+  });
+
+  it("offers products that may already be this barcode's product", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    // The mock lookup provider answers every barcode but the not-found
+    // sentinel with nameGuess "Mock Product" - seed a row whose tokens that
+    // guess's search will match (searchUserProducts requires every token).
+    await seedProduct(userId, "Mock Product Bar");
+
+    const result = await lookupBarcode(EXTERNAL_HIT_BARCODE);
+
+    expect(result.kind).toBe("external_match");
+    expect(result.kind === "external_match" && result.duplicates.map((row) => row.name)).toContain(
+      "Mock Product Bar",
+    );
+  });
+
+  it("offers at most three", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    await Promise.all([
+      seedProduct(userId, "Mock Product Bar"),
+      seedProduct(userId, "Mock Product Duo"),
+      seedProduct(userId, "Mock Product Mini"),
+      seedProduct(userId, "Mock Product Xtra"),
+    ]);
+
+    const result = await lookupBarcode(EXTERNAL_HIT_BARCODE);
+
+    expect(result.kind === "external_match" && result.duplicates).toHaveLength(3);
   });
 
   it("returns not_found on a double miss (internal and external)", async () => {

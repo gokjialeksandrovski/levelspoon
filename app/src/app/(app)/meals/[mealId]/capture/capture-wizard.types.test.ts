@@ -214,6 +214,7 @@ describe("wizardReducer", () => {
       pendingBarcode: null,
       barcode: null,
       nutritionOrigin: null,
+      duplicates: [],
     });
   });
 
@@ -231,6 +232,7 @@ describe("wizardReducer", () => {
         pendingBarcode: null,
         barcode: null,
         nutritionOrigin: null,
+        duplicates: [],
       },
       { type: "PRODUCT_CREATED", product: { id: "p3", name: "Unknown Product", ...NO_MEASURES } },
     );
@@ -371,6 +373,7 @@ describe("wizardReducer — serving size", () => {
       pendingBarcode: "1111111111116",
       barcode: null,
       nutritionOrigin: null,
+      duplicates: [],
     });
   });
 });
@@ -413,6 +416,7 @@ describe("wizardReducer — barcode scan", () => {
           nutritionBasisUnit: "g",
           netWeightText: "250 g",
           flags: [],
+          duplicates: [],
         },
       },
     );
@@ -429,6 +433,7 @@ describe("wizardReducer — barcode scan", () => {
       pendingBarcode: null,
       barcode: "4006381333931",
       nutritionOrigin: "open_food_facts",
+      duplicates: [],
     });
   });
 
