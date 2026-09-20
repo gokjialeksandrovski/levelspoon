@@ -466,8 +466,8 @@ same chip row 2026-09-19.
 Playbook 06 (`2026-09-18-06-cup-measure.md`) shipped 2026-09-19: `cup` is
 offered wherever a density is genuinely known.
 
-Photo and product identity (`2026-09-20-photo-and-product-identity.md`)
-shipped 2026-09-20: content-addressed label-photo keys, the two-tier
+Photo and product identity shipped 2026-09-20 (plan and spec deleted once
+shipped; recover from git history): content-addressed label-photo keys, the two-tier
 same-figures gate, and duplicate suggestions on an Open Food Facts hit — see
 "One label photo, one product" and "Same figures, same product" above. A
 duplicate is now caught at write time on every entry path. Merging duplicates
