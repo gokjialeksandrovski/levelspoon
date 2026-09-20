@@ -160,6 +160,61 @@ export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number
   return { top1: Number(rows[0].score), top2: rows.length > 1 ? Number(rows[1].score) : 0 };
 };
 
+const NUTRITION_FIELDS = [
+  "energyKcal",
+  "fatG",
+  "saturatesG",
+  "carbohydrateG",
+  "sugarsG",
+  "proteinG",
+  "saltG",
+] as const satisfies readonly (keyof NutritionValues)[];
+
+interface ComparableNutrition {
+  nutrition: NutritionValues;
+  basisUnit: string;
+  basisQuantity: number;
+}
+
+// Exact equality, not a tolerance: both sides came off the same printed label,
+// so a real duplicate matches digit for digit. A tolerance would start merging
+// products that genuinely differ by a gram.
+const hasSameFigures = (left: ComparableNutrition, right: ComparableNutrition): boolean =>
+  left.basisUnit === right.basisUnit &&
+  left.basisQuantity === right.basisQuantity &&
+  NUTRITION_FIELDS.every((field) => left.nutrition[field] === right.nutrition[field]);
+
+export type DuplicateVerdict =
+  | { kind: "insert" }
+  | { kind: "same-product" }
+  | { kind: "same-figures" };
+
+/**
+ * Whether these figures are a product per100 already stores.
+ *
+ * Byte-identical photo keys catch a reused file; this catches the same label
+ * re-photographed from another angle, which hashes differently but parses to
+ * the same seven values (spec §5).
+ *
+ * Name similarity only picks the tier, it is not a condition: "candy bar"
+ * scores ~0 against "Bella Farm YOGHURT 2,8% m.m", and that is exactly the
+ * case worth catching. Below the floor the figures may still collide honestly -
+ * every brand of water is 0 across the board - so that tier asks rather than
+ * refuses.
+ */
+export const decideDuplicate = async (
+  candidate: ComparableNutrition & { nameSimilarity: number },
+  existing: ComparableNutrition | null,
+): Promise<DuplicateVerdict> => {
+  await requireUserId();
+  if (!existing || !hasSameFigures(candidate, existing)) {
+    return { kind: "insert" };
+  }
+  return candidate.nameSimilarity >= AMBIGUOUS_SIMILARITY_THRESHOLD
+    ? { kind: "same-product" }
+    : { kind: "same-figures" };
+};
+
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
     SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
