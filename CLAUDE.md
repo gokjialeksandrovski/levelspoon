@@ -97,6 +97,13 @@ Photo key **is** content hash (`app/src/lib/db/photo-keys.ts`), so `UNIQUE` on
 enforce it in Postgres. Never mint a photo key another way — a `randomUUID()`
 key silently opts that row out of the ban.
 
+The key's extension is sniffed from the bytes (`extensionFromBytes` - PNG's own
+signature, else jpg), never from a caller-declared MIME type. A browser
+`<input type="file">` reports its type from the file's name, so a renamed file
+used to mint a second key for one photo and evade the index entirely — fixed
+2026-09-20. `photo.type` is still correct for the upload's content-type
+header; only the key's extension changed source.
+
 Reuse refused at three points: `ocrNutritionTable` (earliest, both entry paths
 funnel there, returns `NutritionRead`'s `photo-already-used` variant),
 `createProduct`, and `saveNutritionOverride` (`assertPhotoUnused` +
@@ -108,15 +115,21 @@ key, and the delete would take the live object —
 
 Ban is unconditional; **owner naming is not**. Name the owner only when its
 row passes `visibleToUser`, else generic — naming an invisible row leaks
-another user's private product or private claim.
+another user's private product or private claim. The one exception: an
+override names its own author unconditionally — a user trying the same bytes
+on a second product is shown their own row both times, and that leaks nothing
+they do not already know.
 
 Fixtures must seed a per-row photo key. A shared literal
 (`test/placeholder.jpg`) breaks the index, not the rule.
 
-`LabelPhotoAlreadyUsedError` still throws all the way to its caller — the one
-exception to the boundary rule below. It is a backstop for a race the
-nutrition step already turned into a good path, so degrading to generic copy
-here costs nothing a user would notice.
+`LabelPhotoAlreadyUsedError` still throws all the way to its caller from
+`createProduct` — the one exception to the boundary rule below. It is a
+backstop for a race the nutrition step already turned into a good path, so
+degrading to generic copy here costs nothing a user would notice.
+`saveNutritionOverride` has no earlier good path, so it never had this luxury —
+it returns `SaveNutritionOverrideResult` (`saved` / `photo_already_used`) as
+data instead, same reasoning as `CreateProductResult` below.
 
 ### Same figures, same product
 
@@ -126,14 +139,39 @@ under the same `nutrition_basis_unit`/`nutrition_basis_quantity`:
 
 - name similarity ≥ `AMBIGUOUS_SIMILARITY_THRESHOLD` and row visible →
   `duplicate_product` result, carrying that row.
-- else → `same_figures` result, cleared only by `acknowledgedSameFigures`.
-  Not a hard block: every brand of water reads `0` across the board.
+- else → `same_figures` result.
+
+Both tiers are cleared the same way, by `acknowledgedSameFigures` — tier 1
+included, since 2026-09-20. Two brands of bottled water, or two dried-pasta
+shapes off one brand's shared per-100g table, can score above the threshold on
+name alone while being genuinely different products; water is not among the
+212 curated standard foods, so a hard tier-1 block with no escape made the
+second brand permanently unfileable, and the only workaround (nudge a figure)
+writes false nutrition into the shared cache — the exact corruption this gate
+exists to prevent. "Use X instead" stays tier 1's primary action; the
+acknowledgement checkbox is the escape for the honest collision, same as
+tier 2's. Not a hard block anywhere in this gate: every brand of water reads
+`0` across the board.
 
 `decideDuplicate` is the tested statement of this rule; `findSameFigures`'s
-SQL mirrors it for one indexed round trip. Disagreement means the SQL is wrong.
+SQL mirrors it for one indexed round trip, scoring `name_search` against
+`toSearchText(input.name)` — the "typed search compares romanized text, never
+raw names" rule below applies to this comparison too. Disagreement between
+the two means the SQL is wrong.
 
 Name similarity picks the tier, is never a condition — "candy bar" scores ~0
 against "Bella Farm YOGHURT 2,8% m.m", and that case is the one worth catching.
+
+**Ceiling, stated honestly.** `hasSameFigures` is exact equality, sound for
+two OCR reads of one printed label — not for OCR vs. a third party's
+transcription of it. An Open Facts contributor's figure can round what OCR
+read exactly (484 vs. 485 kcal) and defeat the gate silently; nothing here
+catches that with certainty. What covers it is the barcode `external_match`
+path's duplicate suggestions (`searchUserProducts` on the OFF `nameGuess`,
+capped at `DUPLICATE_SUGGESTION_LIMIT`) — advisory and dismissible, not a
+gate. The full residual: bytes differ (a real re-shot — a caller-declared MIME
+type can no longer manufacture this, see above) *and* figures differ by any
+amount including third-party rounding *and* the name is unlike the original.
 
 **Refusal crosses to the client as data, never a thrown class.** A Server
 Action's thrown error reaches a client component as a plain `Error` —
