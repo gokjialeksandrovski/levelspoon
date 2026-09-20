@@ -6,7 +6,13 @@ import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
-import { CLAIM_PHOTO_PREFIX, PROOF_PHOTO_PREFIX, toPhotoKey } from "@/lib/db/photo-keys";
+import {
+  CLAIM_PHOTO_PREFIX,
+  extensionFromMimeType,
+  photoKeysFor,
+  PROOF_PHOTO_PREFIX,
+  toPhotoKey,
+} from "@/lib/db/photo-keys";
 import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
@@ -259,26 +265,21 @@ interface PendingPhoto {
   key: string;
   buffer: Buffer;
   contentType: string;
+  extension: string;
 }
 
 // Hashed before any upload so a refusal (borrowed photo, duplicate product)
 // leaves no orphaned object - the same ordering the barcode check already uses.
 const toPendingPhoto = async (photo: Blob, prefix: string): Promise<PendingPhoto> => {
-  const extension = photo.type === "image/png" ? "png" : "jpg";
+  const extension = extensionFromMimeType(photo.type);
   const buffer = Buffer.from(await photo.arrayBuffer());
-  return { key: toPhotoKey(buffer, prefix, extension), buffer, contentType: photo.type };
+  return { key: toPhotoKey(buffer, prefix, extension), buffer, contentType: photo.type, extension };
 };
 
 const putPendingPhoto = async (pending: PendingPhoto): Promise<string> => {
   await uploadPhoto(pending.key, pending.buffer, pending.contentType);
   return pending.key;
 };
-
-const JPEG_EXTENSION = "jpg";
-const PNG_EXTENSION = "png";
-
-const extensionOf = (photoKey: string): string =>
-  photoKey.endsWith(`.${PNG_EXTENSION}`) ? PNG_EXTENSION : JPEG_EXTENSION;
 
 // Identical bytes hash to two different keys under the two prefixes, so a
 // forgery can hide on either side: a photo already filed as one product's
@@ -291,11 +292,8 @@ const assertPhotoUnused = async (
   userId: string,
   exemptKey?: string | null,
 ): Promise<void> => {
-  const extension = extensionOf(pending.key);
-  const keys = [
-    toPhotoKey(pending.buffer, PROOF_PHOTO_PREFIX, extension),
-    toPhotoKey(pending.buffer, CLAIM_PHOTO_PREFIX, extension),
-  ].filter((key) => key !== exemptKey);
+  const { proofKey, claimKey } = photoKeysFor(pending.buffer, pending.extension);
+  const keys = [proofKey, claimKey].filter((key) => key !== exemptKey);
   if (keys.length === 0) {
     return;
   }

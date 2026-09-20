@@ -3,7 +3,7 @@
 import type { NutritionValues } from "@/types/nutrition";
 import { findStoredMeasures } from "@/features/products/actions/products";
 import { requireUserId } from "@/lib/auth/require-user";
-import { CLAIM_PHOTO_PREFIX, PROOF_PHOTO_PREFIX, toPhotoKey } from "@/lib/db/photo-keys";
+import { extensionFromMimeType, photoKeysFor } from "@/lib/db/photo-keys";
 import { findPhotoOwner } from "@/lib/db/photo-owner";
 import {
   hasLearned,
@@ -207,16 +207,10 @@ export const ocrNutritionTable = async (
 ): Promise<NutritionRead> => {
   const userId = await requireUserId();
   const buffer = Buffer.from(await photo.arrayBuffer());
-  const extension = photo.type === "image/png" ? "png" : "jpg";
+  const { proofKey, claimKey } = photoKeysFor(buffer, extensionFromMimeType(photo.type));
   // Refused before the OCR call, not after: the answer would be the other
   // product's figures, and reading them is what makes the mistake look right.
-  const owner = await findPhotoOwner(
-    [
-      toPhotoKey(buffer, PROOF_PHOTO_PREFIX, extension),
-      toPhotoKey(buffer, CLAIM_PHOTO_PREFIX, extension),
-    ],
-    userId,
-  );
+  const owner = await findPhotoOwner([proofKey, claimKey], userId);
   if (owner) {
     return { kind: "photo-already-used", ownerName: owner.name };
   }
