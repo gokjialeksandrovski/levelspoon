@@ -25,7 +25,13 @@ import { resolvePortions } from "@/lib/measures/resolve-portions";
 import { deletePhoto, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
-import { BarcodeAlreadyLinkedError, LabelPhotoAlreadyUsedError, ProductNotEditableError } from "./products.errors";
+import {
+  BarcodeAlreadyLinkedError,
+  DuplicateProductError,
+  LabelPhotoAlreadyUsedError,
+  ProductNotEditableError,
+  SameFiguresError,
+} from "./products.errors";
 
 // Spec §1's margin rule: absolute-threshold-only would let nutritionally-
 // different variants (e.g. "2% Fat" vs "10% Fat") take the no-confirm path,
@@ -215,6 +221,98 @@ export const decideDuplicate = async (
     : { kind: "same-figures" };
 };
 
+interface FiguresMatch {
+  id: string;
+  name: string;
+  visible: boolean;
+  nameSimilarity: number;
+  existing: ComparableNutrition;
+}
+
+// Every user row, visibility ignored: a private row is still a real product, so
+// a collision with it is still a collision. Visibility decides only whether the
+// user is told which product it was. The WHERE clause does the figure equality
+// itself (rather than through decideDuplicate) so the probe stays one indexed
+// round trip; decideDuplicate still decides the tier below.
+const findSameFigures = async (
+  input: CreateProductInput,
+  userId: string,
+): Promise<FiguresMatch | null> => {
+  const values = toNutritionColumns(input.nutritionPer100g);
+  const basisUnit = input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT;
+  const basisQuantity = input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY;
+  const result = await db.execute<
+    SnakeNutritionRow & {
+      id: string;
+      name: string;
+      visible: boolean;
+      nutrition_basis_unit: string;
+      nutrition_basis_quantity: string;
+      score: number;
+    }
+  >(sql`
+    SELECT p.id, p.name, (${visibleToUser(userId)}) AS visible,
+           p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g, p.sugars_g, p.protein_g, p.salt_g,
+           p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           similarity(p.name, ${input.name}) AS score
+    FROM products p
+    WHERE p.source = ${USER_SOURCE}
+      AND p.energy_kcal = ${values.energyKcal}
+      AND p.fat_g = ${values.fatG}
+      AND p.saturates_g = ${values.saturatesG}
+      AND p.carbohydrate_g = ${values.carbohydrateG}
+      AND p.sugars_g = ${values.sugarsG}
+      AND p.protein_g = ${values.proteinG}
+      AND p.salt_g = ${values.saltG}
+      AND p.nutrition_basis_unit = ${basisUnit}
+      AND p.nutrition_basis_quantity = ${String(basisQuantity)}
+    ORDER BY score DESC
+    LIMIT 1
+  `);
+  const row = result.rows[0];
+  return row
+    ? {
+        id: row.id,
+        name: row.name,
+        visible: row.visible,
+        nameSimilarity: Number(row.score),
+        existing: {
+          nutrition: nutritionFromSnakeRow(row),
+          basisUnit: row.nutrition_basis_unit,
+          basisQuantity: Number(row.nutrition_basis_quantity),
+        },
+      }
+    : null;
+};
+
+// decideDuplicate is the tested statement of the tier rule; this only finds
+// the colliding row and acts on the verdict. A same-product match the user
+// cannot see degrades to the same-figures tier - there is nothing to offer
+// them without naming a row they cannot see.
+const assertNotDuplicate = async (input: CreateProductInput, userId: string): Promise<void> => {
+  const match = await findSameFigures(input, userId);
+  if (!match) {
+    return;
+  }
+  const candidate = {
+    nutrition: input.nutritionPer100g,
+    basisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
+    basisQuantity: input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY,
+    nameSimilarity: match.nameSimilarity,
+  };
+  const verdict = await decideDuplicate(candidate, match.existing);
+  if (verdict.kind === "insert") {
+    return;
+  }
+  if (verdict.kind === "same-product" && match.visible) {
+    throw new DuplicateProductError({ id: match.id, name: match.name });
+  }
+  if (input.acknowledgedSameFigures) {
+    return;
+  }
+  throw new SameFiguresError(match.visible ? match.name : null);
+};
+
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
     SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
@@ -314,6 +412,9 @@ export interface CreateProductInput {
   barcode?: string;
   /** Omitted defaults to "label_photo" via the column's own DB default. */
   nutritionOrigin?: "label_photo" | "manual" | "open_food_facts";
+  /** Set only after the user was shown SameFiguresError and said the figures
+   * collide honestly (two brands of water read identically). Never defaulted. */
+  acknowledgedSameFigures?: true;
 }
 
 interface PendingPhoto {
@@ -439,8 +540,10 @@ export const createProduct = async (
   input: CreateProductInput,
 ): Promise<{ productId: string; portions: readonly Portion[] }> => {
   const userId = await requireUserId();
-  // Before the upload: a rejected barcode must not leave an orphaned photo.
+  // Before the upload: a rejected barcode or duplicate must not leave an
+  // orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
+  await assertNotDuplicate(input, userId);
   const pendingPhoto = input.photo ? await toPendingPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
   if (pendingPhoto) {
     await assertPhotoUnused(pendingPhoto, userId);
