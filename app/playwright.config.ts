@@ -28,6 +28,7 @@ export default defineConfig({
     "barcode-wizard.spec.ts",
     "portion-chips.spec.ts",
     "label-photo-reuse.spec.ts",
+    "duplicate-product.spec.ts",
   ],
   fullyParallel: false,
   // Every spec file's `beforeEach` truncates the same shared Postgres tables,

@@ -5,6 +5,8 @@ import { db } from "../../src/lib/db";
 import { toSearchText } from "../../src/lib/db/search-text";
 import { productBarcodes, products, users } from "../../src/lib/db/schema";
 import { todayLocalDateString } from "../../src/lib/date/day-bounds";
+import { FIELD_LABELS } from "../../src/lib/ocr/nutrition-fields";
+import type { FieldValues } from "../../src/lib/ocr/nutrition-fields";
 
 export const freshEmail = (prefix = "e2e") => `${prefix}-${crypto.randomUUID()}@example.com`;
 
@@ -120,6 +122,16 @@ export const startCapture = async (page: Page, name: string) => {
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill(name);
   await page.getByRole("button", { name: "Continue" }).click();
+};
+
+// The nutrition-photo step's own escape hatch for when no photo is taken -
+// every field arrives blank and flagged, so this fills all seven rather than
+// just the one a caller cares about (a flagged-but-empty field blocks Save).
+export const enterNutritionManually = async (page: Page, figures: FieldValues) => {
+  await page.getByRole("button", { name: "Enter the values manually" }).click();
+  for (const field of Object.keys(FIELD_LABELS) as (keyof FieldValues)[]) {
+    await page.getByLabel(FIELD_LABELS[field]).fill(figures[field]);
+  }
 };
 
 // Inline bytes, not a fixture file: a photo key is a content hash
