@@ -106,6 +106,13 @@
       "when": 1789857757391,
       "tag": "0014_stiff_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789948444119,
+      "tag": "0015_add-weight-goal",
+      "breakpoints": true
     }
   ]
 }
