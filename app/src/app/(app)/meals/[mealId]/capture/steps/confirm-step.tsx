@@ -610,7 +610,7 @@ const DuplicateSuggestions = ({ duplicates, barcode, dispatch }: DuplicateSugges
           variant="ghost"
           onClick={() => dispatch({ type: "CANDIDATE_CHOSEN", product: row, alternatives: [], pendingBarcode: barcode })}
         >
-          Use {row.name} instead
+          {duplicateActionLabel(row.name)}
         </Button>
       ))}
     </div>
