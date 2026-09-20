@@ -26,6 +26,12 @@ vi.mock("@/features/products/actions/products", async (importOriginal) => {
   return { ...actual, findStoredMeasures: mockFindStoredMeasures };
 });
 
+import { eq } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { extensionFromBytes, PROOF_PHOTO_PREFIX, toPhotoKey } from "@/lib/db/photo-keys";
+import { toSearchText } from "@/lib/db/search-text";
+import { products, users } from "@/lib/db/schema";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 
@@ -307,6 +313,41 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     const result = await ocrNutritionTable(new Blob(["photo"]), "Peanut Butter");
 
     expect(result).toMatchObject({ flags: ["energy_kcal"] });
+  });
+
+  // Pins the ordering the whole of Task 3 rests on: the photo-owner probe
+  // must run before the OCR call, or the answer handed back would be the
+  // other product's figures - reading them is what makes the mistake look
+  // right. mockExtractNutritionTable not being called is the actual proof;
+  // a wrong result alone wouldn't show whether the provider was skipped.
+  it("refuses before calling the OCR provider when the photo already belongs to another product", async () => {
+    const buffer = Buffer.from("shared-label-bytes");
+    const key = toPhotoKey(buffer, PROOF_PHOTO_PREFIX, extensionFromBytes(buffer));
+    const [user] = await db
+      .insert(users)
+      .values({ email: `ocr-test-${crypto.randomUUID()}@example.com` })
+      .returning();
+    const [product] = await db
+      .insert(products)
+      .values({
+        name: "Bella Farm Yoghurt",
+        nameSearch: toSearchText("Bella Farm Yoghurt"),
+        energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
+        sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
+        nutritionPhotoKey: key,
+        createdByUserId: user.id,
+      })
+      .returning();
+
+    try {
+      const result = await ocrNutritionTable(new Blob([buffer]), "Candy Bar");
+
+      expect(result).toEqual({ kind: "photo-already-used", ownerName: "Bella Farm Yoghurt" });
+      expect(mockExtractNutritionTable).not.toHaveBeenCalled();
+    } finally {
+      await db.delete(products).where(eq(products.id, product.id));
+      await db.delete(users).where(eq(users.id, user.id));
+    }
   });
 });
 
