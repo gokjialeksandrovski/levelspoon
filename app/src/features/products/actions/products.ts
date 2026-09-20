@@ -1,24 +1,37 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-
 import { and, eq, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
+import {
+  CLAIM_PHOTO_PREFIX,
+  extensionFromBytes,
+  photoKeysFor,
+  PROOF_PHOTO_PREFIX,
+  toPhotoKey,
+} from "@/lib/db/photo-keys";
+import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
 import { products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
+import { visibleToUser } from "@/lib/db/visibility";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
 import { deletePhoto, uploadPhoto } from "@/lib/s3";
 import type { NutritionValues } from "@/types/nutrition";
 
-import { BarcodeAlreadyLinkedError, ProductNotEditableError } from "./products.errors";
+import {
+  BarcodeAlreadyLinkedError,
+  DuplicateProductError,
+  LabelPhotoAlreadyUsedError,
+  ProductNotEditableError,
+  SameFiguresError,
+} from "./products.errors";
 
 // Spec §1's margin rule: absolute-threshold-only would let nutritionally-
 // different variants (e.g. "2% Fat" vs "10% Fat") take the no-confirm path,
@@ -153,25 +166,164 @@ export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number
   return { top1: Number(rows[0].score), top2: rows.length > 1 ? Number(rows[1].score) : 0 };
 };
 
+const NUTRITION_FIELDS = [
+  "energyKcal",
+  "fatG",
+  "saturatesG",
+  "carbohydrateG",
+  "sugarsG",
+  "proteinG",
+  "saltG",
+] as const satisfies readonly (keyof NutritionValues)[];
+
+interface ComparableNutrition {
+  nutrition: NutritionValues;
+  basisUnit: string;
+  basisQuantity: number;
+}
+
+// Exact equality, not a tolerance: both sides came off the same printed label,
+// so a real duplicate matches digit for digit. A tolerance would start merging
+// products that genuinely differ by a gram.
+const hasSameFigures = (left: ComparableNutrition, right: ComparableNutrition): boolean =>
+  left.basisUnit === right.basisUnit &&
+  left.basisQuantity === right.basisQuantity &&
+  NUTRITION_FIELDS.every((field) => left.nutrition[field] === right.nutrition[field]);
+
+export type DuplicateVerdict =
+  | { kind: "insert" }
+  | { kind: "same-product" }
+  | { kind: "same-figures" };
+
 /**
- * Who may be offered this product.
+ * Whether these figures are a product per100 already stores.
  *
- * The products table is a cross-user cache, so a row another user is offered
- * has to be checkable by someone other than whoever typed it: a stored label
- * photo, or a barcode that resolves to one. A row with neither is real and
- * logged like any other - it is just nobody else's business.
+ * Byte-identical photo keys catch a reused file; this catches the same label
+ * re-photographed from another angle, which hashes differently but parses to
+ * the same seven values (spec §5).
  *
- * Derived, not stored: linkBarcode attaches a barcode to an already-created
- * product, so a persisted flag would need keeping in step there too. This way
- * the row is promoted the moment the barcode lands.
- *
- * Expects the products table aliased as `p`.
+ * Name similarity only picks the tier, it is not a condition: "candy bar"
+ * scores ~0 against "Bella Farm YOGHURT 2,8% m.m", and that is exactly the
+ * case worth catching. Below the floor the figures may still collide honestly -
+ * every brand of water is 0 across the board - so that tier asks rather than
+ * refuses.
  */
-const visibleToUser = (userId: string) => sql`
-  (p.nutrition_photo_key IS NOT NULL
-   OR p.created_by_user_id = ${userId}
-   OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.product_id = p.id))
-`;
+export const decideDuplicate = async (
+  candidate: ComparableNutrition & { nameSimilarity: number },
+  existing: ComparableNutrition | null,
+): Promise<DuplicateVerdict> => {
+  await requireUserId();
+  if (!existing || !hasSameFigures(candidate, existing)) {
+    return { kind: "insert" };
+  }
+  return candidate.nameSimilarity >= AMBIGUOUS_SIMILARITY_THRESHOLD
+    ? { kind: "same-product" }
+    : { kind: "same-figures" };
+};
+
+interface FiguresMatch {
+  id: string;
+  name: string;
+  visible: boolean;
+  nameSimilarity: number;
+  existing: ComparableNutrition;
+}
+
+// Every user row, visibility ignored: a private row is still a real product, so
+// a collision with it is still a collision. Visibility decides only whether the
+// user is told which product it was. The WHERE clause does the figure equality
+// itself (rather than through decideDuplicate) so the probe stays one indexed
+// round trip; decideDuplicate still decides the tier below.
+//
+// Scores name_search, not the raw name - CLAUDE.md's "typed search compares
+// romanized text, never raw names" carves out exactly one exception
+// (matchProduct, tuned on OCR strings); this probe is a second comparison and
+// belongs under the same rule, or a Cyrillic stored name versus its
+// Latin-typed duplicate scores ~0 and a genuine collision quietly degrades to
+// tier 2's ask.
+const findSameFigures = async (
+  input: CreateProductInput,
+  userId: string,
+): Promise<FiguresMatch | null> => {
+  const values = toNutritionColumns(input.nutritionPer100g);
+  const { basisUnit, basisQuantity } = basisOf(input);
+  const result = await db.execute<
+    SnakeNutritionRow & {
+      id: string;
+      name: string;
+      visible: boolean;
+      nutrition_basis_unit: string;
+      nutrition_basis_quantity: string;
+      score: number;
+    }
+  >(sql`
+    SELECT p.id, p.name, (${visibleToUser(userId)}) AS visible,
+           p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g, p.sugars_g, p.protein_g, p.salt_g,
+           p.nutrition_basis_unit, p.nutrition_basis_quantity,
+           similarity(p.name_search, ${toSearchText(input.name)}) AS score
+    FROM products p
+    WHERE p.source = ${USER_SOURCE}
+      AND p.energy_kcal = ${values.energyKcal}
+      AND p.fat_g = ${values.fatG}
+      AND p.saturates_g = ${values.saturatesG}
+      AND p.carbohydrate_g = ${values.carbohydrateG}
+      AND p.sugars_g = ${values.sugarsG}
+      AND p.protein_g = ${values.proteinG}
+      AND p.salt_g = ${values.saltG}
+      AND p.nutrition_basis_unit = ${basisUnit}
+      AND p.nutrition_basis_quantity = ${String(basisQuantity)}
+    ORDER BY score DESC
+    LIMIT 1
+  `);
+  const row = result.rows[0];
+  return row
+    ? {
+        id: row.id,
+        name: row.name,
+        visible: row.visible,
+        nameSimilarity: Number(row.score),
+        existing: {
+          nutrition: nutritionFromSnakeRow(row),
+          basisUnit: row.nutrition_basis_unit,
+          basisQuantity: Number(row.nutrition_basis_quantity),
+        },
+      }
+    : null;
+};
+
+// decideDuplicate is the tested statement of the tier rule; this only finds
+// the colliding row and acts on the verdict. A same-product match the user
+// cannot see degrades to the same-figures tier - there is nothing to offer
+// them without naming a row they cannot see.
+//
+// Tier 1 is acknowledgeable too, not just tier 2. Two brands of bottled water
+// ("Jana Natural Mineral Water" / "Rosa Natural Mineral Water") or one brand's
+// dried pasta shapes sharing a per-100g table score well above
+// AMBIGUOUS_SIMILARITY_THRESHOLD on name alone while being genuinely different
+// products, and water is not among the curated standard foods - a hard block
+// with no escape made the second brand permanently unfileable, and the only
+// workaround (nudge a figure by 0.1) writes false nutrition into the shared
+// cache, the exact corruption this gate exists to prevent. "Use X instead"
+// stays the primary action offered for this tier; the checkbox is the escape
+// for the honest collision, same as tier 2's.
+const assertNotDuplicate = async (input: CreateProductInput, userId: string): Promise<void> => {
+  const match = await findSameFigures(input, userId);
+  if (!match) {
+    return;
+  }
+  const candidate = { nutrition: input.nutritionPer100g, ...basisOf(input), nameSimilarity: match.nameSimilarity };
+  const verdict = await decideDuplicate(candidate, match.existing);
+  if (verdict.kind === "insert") {
+    return;
+  }
+  if (verdict.kind === "same-product" && match.visible && !input.acknowledgedSameFigures) {
+    throw new DuplicateProductError({ id: match.id, name: match.name });
+  }
+  if (input.acknowledgedSameFigures) {
+    return;
+  }
+  throw new SameFiguresError(match.visible ? match.name : null);
+};
 
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
@@ -272,19 +424,52 @@ export interface CreateProductInput {
   barcode?: string;
   /** Omitted defaults to "label_photo" via the column's own DB default. */
   nutritionOrigin?: "label_photo" | "manual" | "open_food_facts";
+  /** Set only after the user was shown SameFiguresError and said the figures
+   * collide honestly (two brands of water read identically). Never defaulted. */
+  acknowledgedSameFigures?: true;
 }
 
-const PROOF_PHOTO_PREFIX = "products";
-// Kept apart from proof photos so a reviewer working the report can tell, from
-// the key alone, which object is the unverified claim.
-const CLAIM_PHOTO_PREFIX = "product-claims";
+interface PendingPhoto {
+  key: string;
+  buffer: Buffer;
+  contentType: string;
+}
 
-const uploadProductPhoto = async (photo: Blob, prefix: string): Promise<string> => {
-  const extension = photo.type === "image/png" ? "png" : "jpg";
-  const photoKey = `${prefix}/${randomUUID()}.${extension}`;
+// Hashed before any upload so a refusal (borrowed photo, duplicate product)
+// leaves no orphaned object - the same ordering the barcode check already uses.
+// The key's extension comes from the bytes (extensionFromBytes), never from
+// photo.type - contentType still carries the declared MIME type, which stays
+// correct for the upload's content-type header, just not for the key.
+const toPendingPhoto = async (photo: Blob, prefix: string): Promise<PendingPhoto> => {
   const buffer = Buffer.from(await photo.arrayBuffer());
-  await uploadPhoto(photoKey, buffer, photo.type);
-  return photoKey;
+  return { key: toPhotoKey(buffer, prefix, extensionFromBytes(buffer)), buffer, contentType: photo.type };
+};
+
+const putPendingPhoto = async (pending: PendingPhoto): Promise<string> => {
+  await uploadPhoto(pending.key, pending.buffer, pending.contentType);
+  return pending.key;
+};
+
+// Identical bytes hash to two different keys under the two prefixes, so a
+// forgery can hide on either side: a photo already filed as one product's
+// proof must not become another's claim, and vice versa. Both forms are
+// derived from the same buffer and probed together. `exemptKey` lets
+// saveNutritionOverride pass the claim it is about to supersede - re-saving
+// your own claim on the same product is not a forgery.
+const assertPhotoUnused = async (
+  pending: PendingPhoto,
+  userId: string,
+  exemptKey?: string | null,
+): Promise<void> => {
+  const { proofKey, claimKey } = photoKeysFor(pending.buffer);
+  // At most one of the two forms can ever equal exemptKey - they carry
+  // different prefixes - so this never empties the array; a guard for that
+  // would misstate the prefix invariant rather than protect anything.
+  const keys = [proofKey, claimKey].filter((key) => key !== exemptKey);
+  const owner = await findPhotoOwner(keys, userId);
+  if (owner) {
+    throw new LabelPhotoAlreadyUsedError(owner.name);
+  }
 };
 
 // Shared by createProduct and saveNutritionOverride, so the per100g<->numeric-
@@ -320,17 +505,27 @@ const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValue
 const DEFAULT_NUTRITION_BASIS_UNIT = "g";
 const DEFAULT_NUTRITION_BASIS_QUANTITY = 100;
 
-const toProductInsertValues = (input: CreateProductInput, userId: string, photoKey: string | null) => ({
-  name: input.name,
-  nameSearch: toSearchText(input.name),
-  ...toNutritionColumns(input.nutritionPer100g),
-  ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
-  nutritionBasisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
-  nutritionBasisQuantity: String(input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY),
-  nutritionPhotoKey: photoKey,
-  createdByUserId: userId,
-  ...(input.nutritionOrigin ? { nutritionOrigin: input.nutritionOrigin } : {}),
+// The default-filling pair was inlined at three call sites (findSameFigures,
+// assertNotDuplicate, here) - one helper so the default lives in one place.
+const basisOf = (input: CreateProductInput): { basisUnit: string; basisQuantity: number } => ({
+  basisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
+  basisQuantity: input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY,
 });
+
+const toProductInsertValues = (input: CreateProductInput, userId: string, photoKey: string | null) => {
+  const { basisUnit, basisQuantity } = basisOf(input);
+  return {
+    name: input.name,
+    nameSearch: toSearchText(input.name),
+    ...toNutritionColumns(input.nutritionPer100g),
+    ...toLearnedColumns(input.learned ?? NOTHING_LEARNED),
+    nutritionBasisUnit: basisUnit,
+    nutritionBasisQuantity: String(basisQuantity),
+    nutritionPhotoKey: photoKey,
+    createdByUserId: userId,
+    ...(input.nutritionOrigin ? { nutritionOrigin: input.nutritionOrigin } : {}),
+  };
+};
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -364,40 +559,105 @@ const insertBarcodeLink = async (link: () => Promise<unknown>, barcode: string):
   }
 };
 
-export const createProduct = async (
+/**
+ * `createProduct`'s outcome, as data rather than a throw.
+ *
+ * A Server Action's thrown error does not survive the trip back to a client
+ * component with its subclass identity or its own properties intact - only a
+ * generic `Error` carrying `name`/`message`/`digest` crosses that boundary
+ * (`barcode.ts`'s `LookupBarcodeResult`/`already_linked_elsewhere` already
+ * established this pattern for the same reason). `assertNotDuplicate` and
+ * `insertBarcodeLink` below still throw their named errors - `instanceof`
+ * stays reliable there because it never leaves this module - and this
+ * function is what catches each one at its own boundary and maps it here.
+ */
+export type CreateProductResult =
+  | { kind: "created"; productId: string; portions: readonly Portion[] }
+  | { kind: "duplicate_product"; product: { id: string; name: string } }
+  | { kind: "same_figures"; ownerName: string | null }
+  | { kind: "barcode_conflict" };
+
+// assertNotDuplicate's two refusal tiers, mapped to CreateProductResult; any
+// other throw (e.g. an actual DB failure) is not this function's to interpret
+// and propagates unchanged.
+const duplicateResult = async (
   input: CreateProductInput,
-): Promise<{ productId: string; portions: readonly Portion[] }> => {
-  const userId = await requireUserId();
-  // Before the upload: a rejected barcode must not leave an orphaned photo.
-  const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
-  const photoKey = input.photo ? await uploadProductPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
-
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(products)
-      .values(toProductInsertValues(input, userId, photoKey))
-      .returning({ id: products.id });
-
-    if (barcode) {
-      const values = { barcode, productId: row.id, createdByUserId: userId };
-      await insertBarcodeLink(() => tx.insert(productBarcodes).values(values), barcode);
+  userId: string,
+): Promise<CreateProductResult | null> => {
+  try {
+    await assertNotDuplicate(input, userId);
+    return null;
+  } catch (error) {
+    if (error instanceof DuplicateProductError) {
+      return { kind: "duplicate_product", product: error.product };
     }
-    // Returned rather than refetched: the confirm step hands this straight to
-    // the amount step, and being a client component it cannot resolve portions
-    // itself without pulling the gram table into the browser bundle.
-    const values = toProductInsertValues(input, userId, photoKey);
-    return {
-      productId: row.id,
-      portions: resolvePortions({
-        standardSlug: null,
-        nameSearch: values.nameSearch,
-        servingUnit: values.servingUnit,
-        servingGrams: values.servingGrams === null ? null : Number(values.servingGrams),
-        nutritionBasisUnit: values.nutritionBasisUnit,
-        overrides: {},
-      }),
-    };
-  });
+    if (error instanceof SameFiguresError) {
+      return { kind: "same_figures", ownerName: error.ownerName };
+    }
+    throw error;
+  }
+};
+
+const insertProductRow = async (
+  input: CreateProductInput,
+  userId: string,
+  photoKey: string | null,
+  barcode: string | null,
+): Promise<CreateProductResult> => {
+  try {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(products)
+        .values(toProductInsertValues(input, userId, photoKey))
+        .returning({ id: products.id });
+
+      if (barcode) {
+        const values = { barcode, productId: row.id, createdByUserId: userId };
+        await insertBarcodeLink(() => tx.insert(productBarcodes).values(values), barcode);
+      }
+      // Returned rather than refetched: the confirm step hands this straight to
+      // the amount step, and being a client component it cannot resolve portions
+      // itself without pulling the gram table into the browser bundle.
+      const values = toProductInsertValues(input, userId, photoKey);
+      return {
+        kind: "created",
+        productId: row.id,
+        portions: resolvePortions({
+          standardSlug: null,
+          nameSearch: values.nameSearch,
+          servingUnit: values.servingUnit,
+          servingGrams: values.servingGrams === null ? null : Number(values.servingGrams),
+          nutritionBasisUnit: values.nutritionBasisUnit,
+          overrides: {},
+        }),
+      };
+    });
+  } catch (error) {
+    if (error instanceof BarcodeAlreadyLinkedError) {
+      return { kind: "barcode_conflict" };
+    }
+    throw error;
+  }
+};
+
+export const createProduct = async (input: CreateProductInput): Promise<CreateProductResult> => {
+  const userId = await requireUserId();
+  // Before the upload: a rejected barcode or duplicate must not leave an
+  // orphaned photo.
+  const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
+
+  const duplicate = await duplicateResult(input, userId);
+  if (duplicate) {
+    return duplicate;
+  }
+
+  const pendingPhoto = input.photo ? await toPendingPhoto(input.photo, PROOF_PHOTO_PREFIX) : null;
+  if (pendingPhoto) {
+    await assertPhotoUnused(pendingPhoto, userId);
+  }
+  const photoKey = pendingPhoto ? await putPendingPhoto(pendingPhoto) : null;
+
+  return insertProductRow(input, userId, photoKey, barcode);
 };
 
 const assertUpdated = (updated: { id: string }[], productId: string): void => {
@@ -432,6 +692,19 @@ const fetchOverridePhotoKey = async (userId: string, productId: string): Promise
 };
 
 /**
+ * `saveNutritionOverride`'s outcome, as data rather than a throw - the same
+ * reason `createProduct` returns `CreateProductResult` instead of letting
+ * `LabelPhotoAlreadyUsedError` cross the Server Action boundary. This is the
+ * write path's other photo-key mint site; it went without this for a while
+ * because only createProduct had an earlier good path (the nutrition step's
+ * own probe) to fall back on - this path has none, so a caller that only
+ * catches never sees which refusal happened.
+ */
+export type SaveNutritionOverrideResult =
+  | { kind: "saved" }
+  | { kind: "photo_already_used"; ownerName: string | null };
+
+/**
  * One user's correction to one product, written to product_overrides rather
  * than onto the shared row.
  *
@@ -450,14 +723,25 @@ export const saveNutritionOverride = async (
   productId: string,
   nutritionPer100g: NutritionValues,
   photo?: Blob,
-): Promise<void> => {
+): Promise<SaveNutritionOverrideResult> => {
   const userId = await requireUserId();
   await assertUserProduct(userId, productId);
 
   const supersededPhotoKey = photo ? await fetchOverridePhotoKey(userId, productId) : null;
   // Uploaded before the write so a storage failure leaves no row claiming a
   // key that does not exist - the same ordering createProduct uses.
-  const photoColumn = photo ? { nutritionPhotoKey: await uploadProductPhoto(photo, CLAIM_PHOTO_PREFIX) } : {};
+  const pendingPhoto = photo ? await toPendingPhoto(photo, CLAIM_PHOTO_PREFIX) : null;
+  if (pendingPhoto) {
+    try {
+      await assertPhotoUnused(pendingPhoto, userId, supersededPhotoKey);
+    } catch (error) {
+      if (error instanceof LabelPhotoAlreadyUsedError) {
+        return { kind: "photo_already_used", ownerName: error.ownerName };
+      }
+      throw error;
+    }
+  }
+  const photoColumn = pendingPhoto ? { nutritionPhotoKey: await putPendingPhoto(pendingPhoto) } : {};
   const columns = toNutritionColumns(nutritionPer100g);
 
   await db
@@ -468,9 +752,13 @@ export const saveNutritionOverride = async (
       set: { ...columns, ...photoColumn, updatedAt: new Date() },
     });
 
-  if (supersededPhotoKey) {
+  // A content-addressed key means re-saving the same file supersedes itself -
+  // deleting then removes the object the surviving row points at.
+  if (supersededPhotoKey && supersededPhotoKey !== pendingPhoto?.key) {
     await deletePhoto(supersededPhotoKey);
   }
+
+  return { kind: "saved" };
 };
 
 /** "Use the original values" - drops this user's correction, leaving the

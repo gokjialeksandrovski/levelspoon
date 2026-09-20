@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { clearNutritionOverride, renameOwnProduct, saveNutritionOverride } from "@/features/products/actions/products";
-import type { ProductForCorrection } from "@/features/products/actions/products";
+import type { ProductForCorrection, SaveNutritionOverrideResult } from "@/features/products/actions/products";
 import { AppHeader } from "@/components/layout/app-header";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -29,6 +29,11 @@ import {
 } from "@/lib/ocr/nutrition-fields";
 import type { FieldValues, NutritionFieldChange } from "@/lib/ocr/nutrition-fields";
 import type { NullableNutritionValues } from "@/lib/ocr/provider";
+
+// Reused rather than a second string: correction-form.tsx and
+// nutrition-photo-step.tsx are the two write paths that mint a claim-photo
+// key, and this is the identical refusal.
+import { photoReuseError } from "../../../meals/[mealId]/capture/steps/nutrition-photo-step";
 
 interface CorrectionFormProps {
   product: ProductForCorrection;
@@ -143,20 +148,28 @@ const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProp
 
 // Name and figures are two different writes now: a correction is private to
 // this user, a rename still lands on the shared row and only its author may
-// make one. Rename first - if it is refused, nothing has been written yet.
+// make one. The refusable write runs first: saveNutritionOverride can now
+// refuse a borrowed claim photo (photo_already_used) as data rather than a
+// throw, so running the rename first would leave it committed beside a
+// rejected correction - the refusable one goes first, same reasoning as
+// createProduct's own upload-after-check ordering.
 const applyCorrection = async (
   product: ProductForCorrection,
   name: string,
   values: FieldValues,
   newLabelPhoto: File | null,
   onSaved: () => void,
-): Promise<void> => {
+): Promise<SaveNutritionOverrideResult> => {
+  const result = await saveNutritionOverride(product.id, toNutritionValues(values), newLabelPhoto ?? undefined);
+  if (result.kind !== "saved") {
+    return result;
+  }
   if (product.canRename && name.trim() !== product.name) {
     await renameOwnProduct(product.id, name.trim());
   }
-  await saveNutritionOverride(product.id, toNutritionValues(values), newLabelPhoto ?? undefined);
   triggerLogSuccessHaptic();
   onSaved();
+  return result;
 };
 
 interface CorrectionSaveCallbacks {
@@ -183,8 +196,12 @@ export const saveCorrection = async (
       focusFirstFlagged(freshFlags);
       return;
     }
-    await applyCorrection(product, name, values, newLabelPhoto, () => callbacks.setIsSaved(true));
-  } catch {
+    const result = await applyCorrection(product, name, values, newLabelPhoto, () => callbacks.setIsSaved(true));
+    if (result.kind === "photo_already_used") {
+      callbacks.setSaveError(photoReuseError(result.ownerName));
+    }
+  } catch (error) {
+    console.error("Saving a correction failed", error);
     callbacks.setSaveError("Could not save this correction. Please try again.");
   } finally {
     callbacks.setIsSaving(false);

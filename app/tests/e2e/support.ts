@@ -5,6 +5,8 @@ import { db } from "../../src/lib/db";
 import { toSearchText } from "../../src/lib/db/search-text";
 import { productBarcodes, products, users } from "../../src/lib/db/schema";
 import { todayLocalDateString } from "../../src/lib/date/day-bounds";
+import { FIELD_LABELS } from "../../src/lib/ocr/nutrition-fields";
+import type { FieldValues } from "../../src/lib/ocr/nutrition-fields";
 
 export const freshEmail = (prefix = "e2e") => `${prefix}-${crypto.randomUUID()}@example.com`;
 
@@ -16,11 +18,15 @@ export const truncateAll = () =>
 
 export const BASE_NUTRITION = {
   energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
-  sugarsG: "4.0", proteinG: "9.0", saltG: "0.18", nutritionPhotoKey: "test/placeholder.jpg",
+  sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
 };
 
+// A fresh key per row, not a shared literal: a content-addressed key means two
+// rows sharing one string (e.g. seedAmbiguousVariants' pair, built in one call)
+// collide on the column's UNIQUE constraint.
 const productValues = (name: string, createdByUserId: string) => ({
   ...BASE_NUTRITION,
+  nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`,
   name,
   nameSearch: toSearchText(name),
   createdByUserId,
@@ -104,6 +110,40 @@ export const signUp = async (page: Page, email = freshEmail()) => {
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/day\//);
   return email;
+};
+
+// Manual-name entry, not the product-photo path: a typed name with no match
+// in the freshly-truncated DB reaches nutrition-photo directly, which is the
+// step callers of this helper actually want to drive.
+export const startCapture = async (page: Page, name: string) => {
+  await page.goto(`/day/${localToday()}`);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
+  await page.getByLabel("Product name").fill(name);
+  await page.getByRole("button", { name: "Continue" }).click();
+};
+
+// The nutrition-photo step's own escape hatch for when no photo is taken -
+// every field arrives blank and flagged, so this fills all seven rather than
+// just the one a caller cares about (a flagged-but-empty field blocks Save).
+export const enterNutritionManually = async (page: Page, figures: FieldValues) => {
+  await page.getByRole("button", { name: "Enter the values manually" }).click();
+  for (const field of Object.keys(FIELD_LABELS) as (keyof FieldValues)[]) {
+    await page.getByLabel(FIELD_LABELS[field]).fill(figures[field]);
+  }
+};
+
+// Inline bytes, not a fixture file: a photo key is a content hash
+// (photo-keys.ts), so two products only collide on it when given the exact
+// same bytes - a buffer literal keeps that shared identity visible at the
+// call site instead of two callers pointing at "the same fixture" by convention.
+export const uploadNutritionPhoto = async (page: Page, bytes: Buffer) => {
+  await page.getByLabel(/nutrition table photo/i).setInputFiles({
+    name: "label.jpg",
+    mimeType: "image/jpeg",
+    buffer: bytes,
+  });
 };
 
 // New meal -> confident product photo -> 200g -> Save -> Done. Returns the

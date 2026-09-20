@@ -5,9 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { checkBarcodeBinding } from "@/features/products/actions/barcode";
 import { validateNutrition } from "@/features/products/actions/ocr";
-import { createProduct } from "@/features/products/actions/products";
-import type { ProductCandidate } from "@/features/products/actions/products";
-import { BarcodeAlreadyLinkedError } from "@/features/products/actions/products.errors";
+import { createProduct, searchUserProducts } from "@/features/products/actions/products";
+import type { CreateProductResult, ProductCandidate } from "@/features/products/actions/products";
 import { BarcodeScanner } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -43,6 +42,10 @@ interface ConfirmStepProps {
   pendingBarcode: string | null;
   barcode: string | null;
   nutritionOrigin: NutritionOrigin | null;
+  /** Rows that may already be this product, from the Open Food Facts name
+   * (spec §6). Empty on every other arrival - the photo and manual paths
+   * matched names before they got here. */
+  duplicates: SelectedProduct[];
   dispatch: (action: WizardAction) => void;
 }
 
@@ -60,6 +63,18 @@ const SAVE_ERROR = "Could not save this product. Please try again.";
 // the race between this confirm step's own lookup and its save - a distinct,
 // named failure (CLAUDE.md Rule 10), not the generic save error.
 const BARCODE_CONFLICT_ERROR = "This barcode was just linked to a different product. Search for that product instead of creating a new one.";
+// The colliding row's own name only appears once its owner is visible to this
+// user - SameFiguresError already carries null rather than a name in that case.
+const SAME_FIGURES_PROMPT = "Another product already has these exact figures. If this really is a different product, confirm below and save again.";
+const sameFiguresPrompt = (ownerName: string | null): string =>
+  ownerName === null
+    ? SAME_FIGURES_PROMPT
+    : `${ownerName} already has these exact figures. If this really is a different product, confirm below and save again.`;
+const SAME_FIGURES_ACK_LABEL = "This is a different product that happens to have the same figures";
+const DUPLICATE_LOOKUP_ERROR = "Could not look up that product. Please try again.";
+const duplicateMessage = (name: string): string => `${name} already has these figures.`;
+const duplicateActionLabel = (name: string): string => `Use ${name} instead`;
+const DUPLICATE_SUGGESTION_HINT = "This may already be in per100:";
 
 const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
   if (!flaggedFields.has(field)) {
@@ -198,8 +213,8 @@ const toProductCreatedPayload = (
   nutritionPerBasis: toNutritionValues(input.values),
 });
 
-const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void): Promise<void> => {
-  const created = await createProduct({
+const saveProduct = (input: SaveConfirmInput): Promise<CreateProductResult> =>
+  createProduct({
     name: input.nameValue,
     nutritionPer100g: toNutritionValues(input.values),
     photo: input.photo,
@@ -208,9 +223,8 @@ const saveProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAct
     nutritionBasisQuantity: input.nutritionBasisQuantity,
     barcode: input.barcode ?? undefined,
     nutritionOrigin: input.nutritionOrigin ?? undefined,
+    acknowledgedSameFigures: input.acknowledgedSameFigures ? true : undefined,
   });
-  dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(created, input) });
-};
 
 interface NutritionFieldsProps {
   values: FieldValues;
@@ -252,18 +266,70 @@ interface SaveConfirmInput {
   nutritionBasisQuantity: number;
   barcode: string | null;
   nutritionOrigin: NutritionOrigin | null;
+  acknowledgedSameFigures: boolean;
 }
 
 interface ConfirmSaveCallbacks {
   setFlags: (flags: string[]) => void;
   setError: (error: string | null) => void;
   setIsSaving: (isSaving: boolean) => void;
+  setDuplicate: (duplicate: { id: string; name: string } | null) => void;
+  setSameFigures: (sameFigures: { ownerName: string | null } | null) => void;
 }
+
+// createProduct returns its outcome as data (CreateProductResult), never a
+// throw, for exactly the reason barcode.ts's LookupBarcodeResult already
+// does: a Server Action's throw does not survive the trip back to a client
+// component with its subclass identity or its own properties intact. This is
+// the one place that result is turned into UI state.
+//
+// The default arm is what actually makes this exhaustive: the switch itself
+// has no `switch-exhaustiveness-check` lint rule backing it (none is wired
+// into this project), so without it a fifth CreateProductResult kind would
+// silently fall through and do nothing. Narrowing `result` to `never` here
+// means adding a kind without a matching case above fails `tsc`, not just a
+// hoped-for lint.
+const applyCreateProductResult = (
+  result: CreateProductResult,
+  input: SaveConfirmInput,
+  dispatch: (action: WizardAction) => void,
+  callbacks: ConfirmSaveCallbacks,
+): void => {
+  switch (result.kind) {
+    case "created":
+      dispatch({ type: "PRODUCT_CREATED", product: toProductCreatedPayload(result, input) });
+      return;
+    case "duplicate_product":
+      callbacks.setDuplicate(result.product);
+      return;
+    case "same_figures":
+      callbacks.setSameFigures({ ownerName: result.ownerName });
+      return;
+    case "barcode_conflict":
+      callbacks.setError(BARCODE_CONFLICT_ERROR);
+      return;
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
+  }
+};
 
 // Standalone, not a hook, so useConfirmStepForm's body stays under the line
 // budget - bundled callbacks object rather than closing over hook state.
+// The catch below is now only a backstop for a genuinely unexpected throw
+// (e.g. LabelPhotoAlreadyUsedError's race-condition backstop at save time,
+// which stays a throw - Task 3 already gives the user the good path earlier,
+// at the nutrition step) - every refusal this step itself understands arrives
+// as data through applyCreateProductResult instead.
 const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, callbacks: ConfirmSaveCallbacks): Promise<void> => {
   callbacks.setError(null);
+  // A fresh attempt starts clean - otherwise a same_figures notice from an
+  // earlier attempt could still be showing beside a duplicate_product notice
+  // from this one (each switch arm only ever sets its own kind, never a
+  // sibling's).
+  callbacks.setDuplicate(null);
+  callbacks.setSameFigures(null);
   callbacks.setIsSaving(true);
   try {
     const freshFlags = await checkNutritionFlags(input.values);
@@ -273,9 +339,10 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
       focusFirstFlagged(freshFlags);
       return;
     }
-    await saveProduct(input, dispatch);
-  } catch (error) {
-    callbacks.setError(error instanceof BarcodeAlreadyLinkedError ? BARCODE_CONFLICT_ERROR : SAVE_ERROR);
+    const result = await saveProduct(input);
+    applyCreateProductResult(result, input, dispatch, callbacks);
+  } catch {
+    callbacks.setError(SAVE_ERROR);
   } finally {
     callbacks.setIsSaving(false);
   }
@@ -288,8 +355,12 @@ interface UseConfirmStepFormResult {
   isSaving: boolean;
   flaggedFields: Set<keyof FieldValues>;
   canSave: boolean;
+  duplicate: { id: string; name: string } | null;
+  sameFigures: { ownerName: string | null } | null;
+  acknowledgedSameFigures: boolean;
   setNameValue: (value: string) => void;
   setFieldValue: (field: keyof FieldValues, value: string) => void;
+  setAcknowledgedSameFigures: (checked: boolean) => void;
   revalidateNow: () => void;
   handleSave: () => Promise<void>;
 }
@@ -303,6 +374,9 @@ interface ConfirmFormState {
   setError: (error: string | null) => void;
   setIsSaving: (isSaving: boolean) => void;
   revalidate: (values: FieldValues) => void;
+  setDuplicate: (duplicate: { id: string; name: string } | null) => void;
+  setSameFigures: (sameFigures: { ownerName: string | null } | null) => void;
+  acknowledgedSameFigures: boolean;
 }
 
 const MANUAL_ORIGIN: NutritionOrigin = "manual";
@@ -341,6 +415,7 @@ const buildSaveInput = (props: ConfirmStepProps, state: ConfirmFormState, barcod
   nutritionBasisQuantity: props.nutritionBasisQuantity,
   barcode: barcodeToAttach,
   nutritionOrigin: resolveNutritionOrigin(props.parsed, state.values, props.nutritionOrigin),
+  acknowledgedSameFigures: state.acknowledgedSameFigures,
 });
 
 const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormState, barcodeToAttach: string | null) => {
@@ -348,7 +423,13 @@ const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormStat
   const canSave = [...flaggedFields].every((field) => state.values[field].trim() !== "");
   const setFieldValue = (field: keyof FieldValues, value: string) => state.setValues({ ...state.values, [field]: value });
   const saveInput = buildSaveInput(props, state, barcodeToAttach);
-  const saveCallbacks = { setFlags: state.setFlags, setError: state.setError, setIsSaving: state.setIsSaving };
+  const saveCallbacks: ConfirmSaveCallbacks = {
+    setFlags: state.setFlags,
+    setError: state.setError,
+    setIsSaving: state.setIsSaving,
+    setDuplicate: state.setDuplicate,
+    setSameFigures: state.setSameFigures,
+  };
 
   return {
     flaggedFields,
@@ -365,6 +446,9 @@ const useConfirmStepForm = (props: ConfirmStepProps, barcodeToAttach: string | n
   const [flags, setFlags] = useState(props.flags);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null);
+  const [sameFigures, setSameFigures] = useState<{ ownerName: string | null } | null>(null);
+  const [acknowledgedSameFigures, setAcknowledgedSameFigures] = useState(false);
 
   const revalidate = useCallback((currentValues: FieldValues) => {
     checkNutritionFlags(currentValues)
@@ -374,9 +458,13 @@ const useConfirmStepForm = (props: ConfirmStepProps, barcodeToAttach: string | n
       .catch(() => {});
   }, []);
 
-  const actions = buildConfirmStepActions(props, { nameValue, values, setValues, flags, setFlags, setError, setIsSaving, revalidate }, barcodeToAttach);
+  const actions = buildConfirmStepActions(
+    props,
+    { nameValue, values, setValues, flags, setFlags, setError, setIsSaving, revalidate, setDuplicate, setSameFigures, acknowledgedSameFigures },
+    barcodeToAttach,
+  );
 
-  return { nameValue, values, error, isSaving, setNameValue, ...actions };
+  return { nameValue, values, error, isSaving, duplicate, sameFigures, acknowledgedSameFigures, setNameValue, setAcknowledgedSameFigures, ...actions };
 };
 
 interface ProductNameFieldProps {
@@ -458,6 +546,133 @@ const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachme
   </label>
 );
 
+interface SameFiguresCheckboxProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+// Same min-h-11 tap target and hidden-native-input approach as
+// PendingBarcodeCheckbox, so the two read as one family of control.
+const SameFiguresCheckbox = ({ checked, onChange }: SameFiguresCheckboxProps) => (
+  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
+    <span className="relative grid size-6 shrink-0 place-items-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="peer size-6 cursor-pointer appearance-none rounded-md border-2 border-text-muted transition-colors checked:border-text checked:bg-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+      />
+      <CheckIcon
+        size={16}
+        weight="bold"
+        aria-hidden="true"
+        className="pointer-events-none absolute text-bg opacity-0 transition-opacity peer-checked:opacity-100"
+      />
+    </span>
+    {SAME_FIGURES_ACK_LABEL}
+  </label>
+);
+
+interface DuplicateNoticeProps {
+  duplicate: { id: string; name: string };
+  acknowledged: boolean;
+  onAcknowledge: (checked: boolean) => void;
+  dispatch: (action: WizardAction) => void;
+}
+
+// Mirrors ConflictNotice: a refusal the user can act on in one tap, not an
+// error they have to understand first. The row is re-read rather than carried
+// on the error, so the amount step gets the same fully-resolved portions
+// every other arrival there gets.
+//
+// "Use X instead" stays the primary action; the checkbox beneath it is tier
+// 1's escape for the honest collision (two brands of water, two dried-pasta
+// shapes off one label) that DuplicateProductError cannot tell apart from a
+// borrowed photo on name and figures alone - ticking it and saving again
+// resends acknowledgedSameFigures, which now clears tier 1 too.
+const DuplicateNotice = ({ duplicate, acknowledged, onAcknowledge, dispatch }: DuplicateNoticeProps) => {
+  const [isResolving, setIsResolving] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  // Named without a "use" prefix on purpose - react-hooks/rules-of-hooks reads
+  // that prefix as a hook declaration even on a plain async callback.
+  const chooseDuplicate = async (): Promise<void> => {
+    setIsResolving(true);
+    setLookupError(null);
+    try {
+      const found = (await searchUserProducts(duplicate.name)).find((row) => row.id === duplicate.id);
+      if (found) {
+        dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(found), alternatives: [], pendingBarcode: null });
+      } else {
+        // Without this, a miss left the button silently un-pending with no
+        // feedback at all - the same dead-button symptom the catch below
+        // exists to fix.
+        setLookupError(DUPLICATE_LOOKUP_ERROR);
+      }
+    } catch {
+      setLookupError(DUPLICATE_LOOKUP_ERROR);
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <InlineMessage tone="warning">{duplicateMessage(duplicate.name)}</InlineMessage>
+      <Button variant="ghost" pending={isResolving} onClick={() => void chooseDuplicate()}>
+        {duplicateActionLabel(duplicate.name)}
+      </Button>
+      {lookupError && <InlineMessage tone="error">{lookupError}</InlineMessage>}
+      <SameFiguresCheckbox checked={acknowledged} onChange={onAcknowledge} />
+    </div>
+  );
+};
+
+interface DuplicateSuggestionsProps {
+  duplicates: SelectedProduct[];
+  barcode: string | null;
+  dispatch: (action: WizardAction) => void;
+}
+
+// pendingBarcode, not barcode: choosing an existing row means attaching this
+// scan to a shared product, which stays the opt-in the amount step already
+// offers rather than a side effect of picking a suggestion (barcode spec §7).
+const DuplicateSuggestions = ({ duplicates, barcode, dispatch }: DuplicateSuggestionsProps) => {
+  if (duplicates.length === 0) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <InlineMessage tone="info">{DUPLICATE_SUGGESTION_HINT}</InlineMessage>
+      {duplicates.map((row) => (
+        <Button
+          key={row.id}
+          variant="ghost"
+          onClick={() => dispatch({ type: "CANDIDATE_CHOSEN", product: row, alternatives: [], pendingBarcode: barcode })}
+        >
+          {duplicateActionLabel(row.name)}
+        </Button>
+      ))}
+    </div>
+  );
+};
+
+interface SameFiguresNoticeProps {
+  ownerName: string | null;
+  acknowledged: boolean;
+  onAcknowledge: (checked: boolean) => void;
+}
+
+// The borrowed-label case, but also how every brand of water legitimately
+// reads (SameFiguresError's own doc comment) - so this asks rather than
+// refuses, same shape as DuplicateNotice but resolved by checking a box
+// instead of picking a row.
+const SameFiguresNotice = ({ ownerName, acknowledged, onAcknowledge }: SameFiguresNoticeProps) => (
+  <div className="flex flex-col gap-2">
+    <InlineMessage tone="warning">{sameFiguresPrompt(ownerName)}</InlineMessage>
+    <SameFiguresCheckbox checked={acknowledged} onChange={onAcknowledge} />
+  </div>
+);
+
 const FreshScanPrompt = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
   <div className="flex flex-col gap-2">
     <BarcodeScanner onDetect={attachment.handleDetect} />
@@ -497,9 +712,25 @@ export const ConfirmStep = (props: ConfirmStepProps) => {
     <div className="flex flex-col gap-4">
       {photoUrl && <LabelPhotoStrip url={photoUrl} />}
       <h2 className="text-lg font-semibold">Confirm nutrition (per {props.nutritionBasisQuantity} {props.nutritionBasisUnit})</h2>
+      <DuplicateSuggestions duplicates={props.duplicates} barcode={props.barcode} dispatch={props.dispatch} />
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
       <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />
       {props.barcode === null && <BarcodeAttachmentControl pendingBarcode={props.pendingBarcode} attachment={attachment} dispatch={props.dispatch} />}
+      {form.duplicate && (
+        <DuplicateNotice
+          duplicate={form.duplicate}
+          acknowledged={form.acknowledgedSameFigures}
+          onAcknowledge={form.setAcknowledgedSameFigures}
+          dispatch={props.dispatch}
+        />
+      )}
+      {form.sameFigures && (
+        <SameFiguresNotice
+          ownerName={form.sameFigures.ownerName}
+          acknowledged={form.acknowledgedSameFigures}
+          onAcknowledge={form.setAcknowledgedSameFigures}
+        />
+      )}
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
         Save product

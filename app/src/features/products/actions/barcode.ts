@@ -14,7 +14,11 @@ import { productBarcodes } from "@/lib/db/schema";
 import type { NutritionValues } from "@/types/nutrition";
 
 import { validateNutrition } from "./ocr";
-import { toProductCandidate, type CandidateRow, type ProductCandidate } from "./products";
+import { searchUserProducts, toProductCandidate, type CandidateRow, type ProductCandidate } from "./products";
+
+// Three, not the typed search's eight: this is a nudge under a confirm form the
+// user is already filling, not a pick list.
+const DUPLICATE_SUGGESTION_LIMIT = 3;
 
 export type LookupBarcodeResult =
   | { kind: "internal_match"; product: ProductCandidate }
@@ -26,6 +30,7 @@ export type LookupBarcodeResult =
       nutritionBasisUnit: string;
       netWeightText: string | null;
       flags: string[];
+      duplicates: ProductCandidate[];
     }
   | { kind: "not_found"; barcode: string }
   | { kind: "rejected" };
@@ -92,7 +97,12 @@ export const lookupBarcode = async (rawCode: string): Promise<LookupBarcodeResul
     return { kind: "not_found", barcode };
   }
   const { flags } = await validateNutrition(external.match.nutritionPer100g);
-  return { kind: "external_match", ...external.match, barcode, flags };
+  // searchUserProducts, not matchProduct: an Open Food Facts nameGuess is a
+  // clean short name, which is what the romanized token+trigram search is tuned
+  // for - matchProduct's floor is calibrated on OCR dumps and scores ~0.1 on a
+  // keyword (see its docstring).
+  const duplicates = (await searchUserProducts(external.match.nameGuess)).slice(0, DUPLICATE_SUGGESTION_LIMIT);
+  return { kind: "external_match", ...external.match, barcode, flags, duplicates };
 };
 
 export const linkBarcode = async (rawCode: string, productId: string): Promise<LinkBarcodeResult> => {

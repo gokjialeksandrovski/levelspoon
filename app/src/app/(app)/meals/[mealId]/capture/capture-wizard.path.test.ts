@@ -22,6 +22,28 @@ const AMOUNT_STEP = {
   pendingBarcode: null,
 };
 
+// Same seven fields the other reducer test files use for opaque nutrition
+// figures - these tests assert routing, not arithmetic.
+const EXTERNAL_FIGURES = {
+  energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5,
+};
+
+// A ProductCandidate-shaped fixture, matching what applyBarcodeScanned's
+// external_match branch maps through toSelectedProduct.
+const EXISTING_CANDIDATE = {
+  id: "p2",
+  name: "Snickers Bar",
+  brand: null,
+  portions: [],
+  nutritionPer100g: EXTERNAL_FIGURES,
+  nutritionPhotoKey: null,
+  densityGMl: null,
+  servingUnit: null,
+  servingGrams: null,
+  nutritionBasisUnit: "g",
+  nutritionBasisQuantity: 100,
+};
+
 describe("pathReducer", () => {
   it("appends the next step for a forward action", () => {
     const next = pathReducer([INITIAL_WIZARD_STEP], {
@@ -64,6 +86,24 @@ describe("pathReducer", () => {
     });
 
     expect(scanned).toEqual([{ kind: "product-photo", pendingBarcode: "0000000000000" }]);
+  });
+
+  it("carries Open Food Facts duplicate suggestions onto the confirm step", () => {
+    const path = pathReducer([INITIAL_WIZARD_STEP], {
+      type: "BARCODE_SCANNED",
+      result: {
+        kind: "external_match",
+        barcode: "5000159461122",
+        nameGuess: "Snickers",
+        nutritionPer100g: EXTERNAL_FIGURES,
+        nutritionBasisUnit: "g",
+        netWeightText: null,
+        flags: [],
+        duplicates: [EXISTING_CANDIDATE],
+      },
+    });
+    const step = path[path.length - 1];
+    expect(step.kind === "confirm" && step.duplicates.map((row) => row.name)).toEqual(["Snickers Bar"]);
   });
 
   it("carries a pending barcode into manual entry", () => {

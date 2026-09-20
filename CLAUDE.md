@@ -51,6 +51,16 @@ Run from repo root.
 separate for ESLint + Clean Code — easy miss, this a milestone exit
 criterion.
 
+`npm run db:migrate` alone (not `db:reset`) fails migration `0014` with
+"could not create unique index" on a dev DB seeded before this branch —
+that DB's fixtures share a literal photo key (e.g. `test/placeholder.jpg`)
+across rows, which the migration's new `UNIQUE` index refuses. `db:reset`
+(drop, migrate, seed from scratch) is the path on such a DB, not `db:migrate`.
+An applied migration file itself stays byte-for-byte immutable — drizzle-orm
+hashes each migration file's content for its own applied-migration
+bookkeeping, so editing one after it has run against a DB that recorded its
+original hash is its own hazard, worse than the one this note warns about.
+
 Docker Desktop must run. Installed per-user: `docker` on **User** PATH.
 MinIO not auto-create buckets — create `per100-photos` once (see README).
 
@@ -89,6 +99,104 @@ Confident match: `top1 ≥ 0.65` **and** `top1 − top2 ≥ 0.15`. Ambiguous:
 similarity cannot separate variants ("Olympus Greek Yogurt 2% Fat" vs
 "10% Fat" score far above 0.65 against each other). Absolute-threshold-only
 would silently attach wrong product's nutrition to shared cache.
+
+### One label photo, one product
+
+Photo key **is** content hash (`app/src/lib/db/photo-keys.ts`), so `UNIQUE` on
+`products.nutrition_photo_key` and `product_overrides.nutrition_photo_key`
+enforce it in Postgres. Never mint a photo key another way — a `randomUUID()`
+key silently opts that row out of the ban.
+
+The key's extension is sniffed from the bytes (`extensionFromBytes` - PNG's own
+signature, else jpg), never from a caller-declared MIME type. A browser
+`<input type="file">` reports its type from the file's name, so a renamed file
+used to mint a second key for one photo and evade the index entirely — fixed
+2026-09-20. `photo.type` is still correct for the upload's content-type
+header; only the key's extension changed source.
+
+Reuse refused at three points: `ocrNutritionTable` (earliest, both entry paths
+funnel there, returns `NutritionRead`'s `photo-already-used` variant),
+`createProduct`, and `saveNutritionOverride` (`assertPhotoUnused` +
+`findPhotoOwner`, probing both the proof and claim key forms of the same
+bytes). Refuse **before** upload — an orphaned object otherwise. Never
+`deletePhoto` a key equal to the one about to be written: same bytes, same
+key, and the delete would take the live object —
+`saveNutritionOverride`'s guard is `supersededPhotoKey !== pendingPhoto?.key`.
+
+Ban is unconditional; **owner naming is not**. Name the owner only when its
+row passes `visibleToUser`, else generic — naming an invisible row leaks
+another user's private product or private claim. The one exception: an
+override names its own author unconditionally — a user trying the same bytes
+on a second product is shown their own row both times, and that leaks nothing
+they do not already know.
+
+Fixtures must seed a per-row photo key. A shared literal
+(`test/placeholder.jpg`) breaks the index, not the rule.
+
+`LabelPhotoAlreadyUsedError` still throws all the way to its caller from
+`createProduct` — the one exception to the boundary rule below. It is a
+backstop for a race the nutrition step already turned into a good path, so
+degrading to generic copy here costs nothing a user would notice.
+`saveNutritionOverride` has no earlier good path, so it never had this luxury —
+it returns `SaveNutritionOverrideResult` (`saved` / `photo_already_used`) as
+data instead, same reasoning as `CreateProductResult` below.
+
+### Same figures, same product
+
+Byte hash catches a reused file, never the same label re-shot from another
+angle. So `createProduct` also refuses on exact match of all seven figures
+under the same `nutrition_basis_unit`/`nutrition_basis_quantity`:
+
+- name similarity ≥ `AMBIGUOUS_SIMILARITY_THRESHOLD` and row visible →
+  `duplicate_product` result, carrying that row.
+- else → `same_figures` result.
+
+Both tiers are cleared the same way, by `acknowledgedSameFigures` — tier 1
+included, since 2026-09-20. Two brands of bottled water, or two dried-pasta
+shapes off one brand's shared per-100g table, can score above the threshold on
+name alone while being genuinely different products; water is not among the
+212 curated standard foods, so a hard tier-1 block with no escape made the
+second brand permanently unfileable, and the only workaround (nudge a figure)
+writes false nutrition into the shared cache — the exact corruption this gate
+exists to prevent. "Use X instead" stays tier 1's primary action; the
+acknowledgement checkbox is the escape for the honest collision, same as
+tier 2's. Not a hard block anywhere in this gate: every brand of water reads
+`0` across the board.
+
+`decideDuplicate` is the tested statement of this rule; `findSameFigures`'s
+SQL mirrors it for one indexed round trip, scoring `name_search` against
+`toSearchText(input.name)` — the "typed search compares romanized text, never
+raw names" rule below applies to this comparison too. Disagreement between
+the two means the SQL is wrong.
+
+Name similarity picks the tier, is never a condition — "candy bar" scores ~0
+against "Bella Farm YOGHURT 2,8% m.m", and that case is the one worth catching.
+
+**Ceiling, stated honestly.** `hasSameFigures` is exact equality, sound for
+two OCR reads of one printed label — not for OCR vs. a third party's
+transcription of it. An Open Facts contributor's figure can round what OCR
+read exactly (484 vs. 485 kcal) and defeat the gate silently; nothing here
+catches that with certainty. What covers it is the barcode `external_match`
+path's duplicate suggestions (`searchUserProducts` on the OFF `nameGuess`,
+capped at `DUPLICATE_SUGGESTION_LIMIT`) — advisory and dismissible, not a
+gate. The full residual: bytes differ (a real re-shot — a caller-declared MIME
+type can no longer manufacture this, see above) *and* figures differ by any
+amount including third-party rounding *and* the name is unlike the original.
+
+**Refusal crosses to the client as data, never a thrown class.** A Server
+Action's thrown error reaches a client component as a plain `Error` —
+subclass identity and every custom property stripped, and a production build
+also replaces `.message`, leaving only `.digest`. `DuplicateProductError` and
+`SameFiguresError` (and `BarcodeAlreadyLinkedError`) still throw, but only
+inside `products.ts`, where nothing outside the module ever sees the throw —
+that is what keeps `instanceof` reliable there. `createProduct` catches each
+at its own boundary and returns `CreateProductResult`
+(`created`/`duplicate_product`/`same_figures`/`barcode_conflict`), the same
+shape `barcode.ts`'s `LookupBarcodeResult` already used for this reason.
+`confirm-step.tsx` consumes it through an exhaustive `switch` with a
+`const _exhaustive: never = result` default arm, never `instanceof`. Reach for
+this shape, not a thrown class, for the next refusal a Server Action needs to
+hand back to a client component.
 
 ### Typed search compares romanized text, never raw names
 
@@ -267,15 +375,27 @@ per request), never server's UTC day.
   (`drizzle.config.ts`, `vitest.config.ts`, `next.config.ts`,
   `eslint.config.mjs`) keep their default exports — compliant, not finding.
 - **Named error types are judgment-only, not linted.** A named class earns
-  its keep only where something discriminates on it. Production code still
-  discriminates exactly one — `BarcodeAlreadyLinkedError` (`confirm-step.tsx`);
-  tests discriminate six more, which is also a reason to name one. Of 16
-  classes in `app/src`, nine go undiscriminated anywhere. Name a failure when
-  a caller or test must tell it apart from its siblings; leave a bare
-  `throw new Error` for boot-time invariants nothing can catch (missing env
-  var in `lib/s3.ts`, `lib/db/index.ts`, `lib/ocr/http-provider.ts`). A
-  blanket ESLint ban was considered and rejected 2026-09-17: it cannot see
-  which throws are domain failures.
+  its keep only where something discriminates on it. This section used to
+  claim production code discriminated exactly one, `BarcodeAlreadyLinkedError`
+  in `confirm-step.tsx` — false even before 2026-09-20, and not just stale:
+  a Server Action's thrown error reaches a client component as a plain
+  `Error`, subclass identity and every custom property stripped, so that
+  `instanceof` check was always `false` and that branch never fired.
+  Production code discriminates three now — `BarcodeAlreadyLinkedError`,
+  `DuplicateProductError`, `SameFiguresError` — all by `instanceof`, all
+  inside `products.ts` only, which is what keeps `instanceof` reliable: the
+  throw never leaves that module. `createProduct` maps each to
+  `CreateProductResult`, and `confirm-step.tsx` discriminates that union's
+  `kind` instead, never a class — see "Same figures, same product" above.
+  Tests discriminate seven more via `.rejects.toThrow`, which is also a
+  reason to name one. Of 19 classes in `app/src`, nine go undiscriminated
+  anywhere. Name a failure when a caller or test must tell it apart from its
+  siblings — but when that caller is a Server Action's client component,
+  name a result-union member, not an error class, or the name never survives
+  the trip. Leave a bare `throw new Error` for boot-time invariants nothing
+  can catch (missing env var in `lib/s3.ts`, `lib/db/index.ts`,
+  `lib/ocr/http-provider.ts`). A blanket ESLint ban was considered and
+  rejected 2026-09-17: it cannot see which throws are domain failures.
 - Impure/heavy deps sit behind env-var-selected interface: `OCR_PROVIDER`
   and `QUANTITY_PROVIDER` pick real vs mock. `.env.example` default both to
   `mock` — real deployment must set them or every photo return canned
@@ -344,9 +464,18 @@ recent amounts with the entry echo on `meal_ingredients`. Cooking fats got the
 same chip row 2026-09-19.
 
 Playbook 06 (`2026-09-18-06-cup-measure.md`) shipped 2026-09-19: `cup` is
-offered wherever a density is genuinely known. Every playbook under
-`docs/superpowers/plans/` is now done. **M4 — provision cloud — next, not
-started.**
+offered wherever a density is genuinely known.
+
+Photo and product identity shipped 2026-09-20 (plan and spec deleted once
+shipped; recover from git history): content-addressed label-photo keys, the two-tier
+same-figures gate, and duplicate suggestions on an Open Food Facts hit — see
+"One label photo, one product" and "Same figures, same product" above. A
+duplicate is now caught at write time on every entry path. Merging duplicates
+already stored is a separate, unstarted concern: no production data exists
+yet, so no merge tool was built — reconsider once there is one to merge.
+
+Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
+cloud — next, not started.**
 
 ### Known gap: no *photo* path for unpackaged food
 

@@ -210,6 +210,7 @@ const renderConfirmStep = (
     pendingBarcode={step.pendingBarcode}
     barcode={step.barcode}
     nutritionOrigin={step.nutritionOrigin}
+    duplicates={step.duplicates}
     dispatch={dispatch}
   />
 );

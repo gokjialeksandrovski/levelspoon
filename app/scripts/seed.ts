@@ -12,6 +12,11 @@ const SEED_USER_EMAIL = "seed-user@per100.local";
 // The deliberate variant pair tier-2's own matchProduct test seeds
 // independently for isolation - this is for interactive local dev only,
 // e.g. exercising the (future, M2b) capture flow UI by hand.
+//
+// Deliberate exception to "never mint a photo key any other way"
+// (app/src/lib/db/photo-keys.ts, CLAUDE.md): these two literal strings are
+// placeholders with no photo bytes behind them - MinIO holds no object at
+// either key, and no real capture-flow write path takes this shortcut.
 export const SEED_PRODUCTS = [
   {
     name: "Olympus Greek Yogurt 2% Fat",
