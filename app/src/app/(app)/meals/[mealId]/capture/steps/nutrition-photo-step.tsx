@@ -40,7 +40,10 @@ const ALL_NULL_NUTRITION = {
 const MANUAL_ENTRY_BASIS_UNIT = "g";
 const MANUAL_ENTRY_BASIS_QUANTITY = 100;
 
-const photoReuseError = (ownerName: string | null): string =>
+// Exported so correction-form.tsx's claim-photo refusal (a second write path
+// that mints the same kind of key) shows the same words rather than a second,
+// independently-worded string for the identical case.
+export const photoReuseError = (ownerName: string | null): string =>
   ownerName === null
     ? "This label photo already belongs to another product. Take a photo of this product's own label."
     : `This label photo already belongs to ${ownerName}. Take a photo of this product's own label.`;

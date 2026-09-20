@@ -52,7 +52,7 @@ const makeCallbacks = () => ({
 describe("saveCorrection", () => {
   it("marks the correction saved so the confirmation can hold before navigating", async () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
-    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+    vi.mocked(saveNutritionOverride).mockResolvedValue({ kind: "saved" });
     const callbacks = makeCallbacks();
 
     await saveCorrection(PRODUCT, "Oat biscuits", VALUES, null, callbacks);
@@ -60,6 +60,38 @@ describe("saveCorrection", () => {
     expect(saveNutritionOverride).toHaveBeenCalledTimes(1);
     expect(triggerLogSuccessHaptic).toHaveBeenCalledTimes(1);
     expect(callbacks.setIsSaved).toHaveBeenCalledWith(true);
+  });
+
+  it("shows the borrowed-photo refusal instead of the generic retry message", async () => {
+    vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
+    vi.mocked(saveNutritionOverride).mockResolvedValue({ kind: "photo_already_used", ownerName: "Other Product" });
+    const callbacks = makeCallbacks();
+    const photo = new File(["bytes"], "label.jpg", { type: "image/jpeg" });
+
+    await saveCorrection(PRODUCT, PRODUCT.name, VALUES, photo, callbacks);
+
+    expect(renameOwnProduct).not.toHaveBeenCalled();
+    expect(triggerLogSuccessHaptic).not.toHaveBeenCalled();
+    expect(callbacks.setIsSaved).not.toHaveBeenCalled();
+    expect(callbacks.setSaveError).toHaveBeenCalledWith(
+      "This label photo already belongs to Other Product. Take a photo of this product's own label.",
+    );
+  });
+
+  it("writes the override before renaming, so a borrowed photo leaves no rename committed", async () => {
+    vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
+    const order: string[] = [];
+    vi.mocked(saveNutritionOverride).mockImplementation(async () => {
+      order.push("override");
+      return { kind: "saved" };
+    });
+    vi.mocked(renameOwnProduct).mockImplementation(async () => {
+      order.push("rename");
+    });
+
+    await saveCorrection({ ...PRODUCT, canRename: true }, "New Name", VALUES, null, makeCallbacks());
+
+    expect(order).toEqual(["override", "rename"]);
   });
 
   it("never confirms a save that was blocked by a flagged value", async () => {
@@ -86,9 +118,9 @@ describe("saveCorrection", () => {
     expect(callbacks.setSaveError).toHaveBeenCalledWith("Could not save this correction. Please try again.");
   });
 
-  it("renames before writing the override, and only when the user may rename", async () => {
+  it("writes the override, and only renames when the user may", async () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
-    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+    vi.mocked(saveNutritionOverride).mockResolvedValue({ kind: "saved" });
     vi.mocked(renameOwnProduct).mockResolvedValue(undefined);
 
     await saveCorrection({ ...PRODUCT, canRename: false }, "New Name", VALUES, null, makeCallbacks());
@@ -99,7 +131,7 @@ describe("saveCorrection", () => {
 
   it("saves the figures with no photo when none was chosen", async () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
-    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+    vi.mocked(saveNutritionOverride).mockResolvedValue({ kind: "saved" });
 
     await saveCorrection(PRODUCT, PRODUCT.name, VALUES, null, makeCallbacks());
 
@@ -108,7 +140,7 @@ describe("saveCorrection", () => {
 
   it("forwards a chosen replacement photo", async () => {
     vi.mocked(validateNutrition).mockResolvedValue({ flags: [] });
-    vi.mocked(saveNutritionOverride).mockResolvedValue(undefined);
+    vi.mocked(saveNutritionOverride).mockResolvedValue({ kind: "saved" });
     const photo = new File(["bytes"], "label.jpg", { type: "image/jpeg" });
 
     await saveCorrection(PRODUCT, PRODUCT.name, VALUES, photo, makeCallbacks());
