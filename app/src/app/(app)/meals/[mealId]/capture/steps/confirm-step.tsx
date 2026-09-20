@@ -67,8 +67,9 @@ const sameFiguresPrompt = (ownerName: string | null): string =>
     ? SAME_FIGURES_PROMPT
     : `${ownerName} already has these exact figures. If this really is a different product, confirm below and save again.`;
 const SAME_FIGURES_ACK_LABEL = "This is a different product that happens to have the same figures";
+const DUPLICATE_LOOKUP_ERROR = "Could not look up that product. Please try again.";
 const duplicateMessage = (name: string): string => `${name} already has these figures.`;
-const useDuplicateLabel = (name: string): string => `Use ${name} instead`;
+const duplicateActionLabel = (name: string): string => `Use ${name} instead`;
 
 const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
   if (!flaggedFields.has(field)) {
@@ -268,15 +269,21 @@ interface ConfirmSaveCallbacks {
   setError: (error: string | null) => void;
   setIsSaving: (isSaving: boolean) => void;
   setDuplicate: (duplicate: { id: string; name: string } | null) => void;
-  setSameFiguresOwner: (ownerName: string | null) => void;
+  setSameFigures: (sameFigures: { ownerName: string | null } | null) => void;
 }
 
 // createProduct returns its outcome as data (CreateProductResult), never a
 // throw, for exactly the reason barcode.ts's LookupBarcodeResult already
 // does: a Server Action's throw does not survive the trip back to a client
 // component with its subclass identity or its own properties intact. This is
-// the one place that result is turned into UI state - a switch, not an
-// if-chain, so a fifth arm added later fails to compile here until handled.
+// the one place that result is turned into UI state.
+//
+// The default arm is what actually makes this exhaustive: the switch itself
+// has no `switch-exhaustiveness-check` lint rule backing it (none is wired
+// into this project), so without it a fifth CreateProductResult kind would
+// silently fall through and do nothing. Narrowing `result` to `never` here
+// means adding a kind without a matching case above fails `tsc`, not just a
+// hoped-for lint.
 const applyCreateProductResult = (
   result: CreateProductResult,
   input: SaveConfirmInput,
@@ -291,11 +298,15 @@ const applyCreateProductResult = (
       callbacks.setDuplicate(result.product);
       return;
     case "same_figures":
-      callbacks.setSameFiguresOwner(result.ownerName);
+      callbacks.setSameFigures({ ownerName: result.ownerName });
       return;
     case "barcode_conflict":
       callbacks.setError(BARCODE_CONFLICT_ERROR);
       return;
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
   }
 };
 
@@ -308,6 +319,12 @@ const applyCreateProductResult = (
 // as data through applyCreateProductResult instead.
 const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, callbacks: ConfirmSaveCallbacks): Promise<void> => {
   callbacks.setError(null);
+  // A fresh attempt starts clean - otherwise a same_figures notice from an
+  // earlier attempt could still be showing beside a duplicate_product notice
+  // from this one (each switch arm only ever sets its own kind, never a
+  // sibling's).
+  callbacks.setDuplicate(null);
+  callbacks.setSameFigures(null);
   callbacks.setIsSaving(true);
   try {
     const freshFlags = await checkNutritionFlags(input.values);
@@ -406,7 +423,7 @@ const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormStat
     setError: state.setError,
     setIsSaving: state.setIsSaving,
     setDuplicate: state.setDuplicate,
-    setSameFiguresOwner: (ownerName) => state.setSameFigures({ ownerName }),
+    setSameFigures: state.setSameFigures,
   };
 
   return {
@@ -535,15 +552,21 @@ interface DuplicateNoticeProps {
 // every other arrival there gets.
 const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
   const [isResolving, setIsResolving] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   // Named without a "use" prefix on purpose - react-hooks/rules-of-hooks reads
   // that prefix as a hook declaration even on a plain async callback.
   const chooseDuplicate = async (): Promise<void> => {
     setIsResolving(true);
+    setLookupError(null);
     try {
       const found = (await searchUserProducts(duplicate.name)).find((row) => row.id === duplicate.id);
       if (found) {
         dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(found), alternatives: [], pendingBarcode: null });
       }
+    } catch {
+      // Without this, a rejected search left the button silently un-pending
+      // with no feedback at all - indistinguishable from a dead button.
+      setLookupError(DUPLICATE_LOOKUP_ERROR);
     } finally {
       setIsResolving(false);
     }
@@ -553,8 +576,9 @@ const DuplicateNotice = ({ duplicate, dispatch }: DuplicateNoticeProps) => {
     <div className="flex flex-col gap-2">
       <InlineMessage tone="warning">{duplicateMessage(duplicate.name)}</InlineMessage>
       <Button variant="ghost" pending={isResolving} onClick={() => void chooseDuplicate()}>
-        {useDuplicateLabel(duplicate.name)}
+        {duplicateActionLabel(duplicate.name)}
       </Button>
+      {lookupError && <InlineMessage tone="error">{lookupError}</InlineMessage>}
     </div>
   );
 };
