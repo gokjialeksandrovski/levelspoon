@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CLAIM_PHOTO_PREFIX,
-  extensionFromMimeType,
+  extensionFromBytes,
   photoKeysFor,
   PROOF_PHOTO_PREFIX,
   toPhotoKey,
@@ -38,21 +38,34 @@ describe("toPhotoKey", () => {
   });
 });
 
-describe("extensionFromMimeType", () => {
-  it("maps image/png to png", () => {
-    expect(extensionFromMimeType("image/png")).toBe("png");
+describe("extensionFromBytes", () => {
+  it("recognizes PNG's own signature", () => {
+    const pngBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), bytesOf("rest-of-file")]);
+    expect(extensionFromBytes(pngBytes)).toBe("png");
   });
 
-  it("maps every other MIME type to jpg", () => {
-    expect(extensionFromMimeType("image/jpeg")).toBe("jpg");
-    expect(extensionFromMimeType("application/octet-stream")).toBe("jpg");
+  it("falls back to jpg for anything without that signature", () => {
+    expect(extensionFromBytes(bytesOf("label-a"))).toBe("jpg");
   });
 });
 
 describe("photoKeysFor", () => {
   it("returns the proof- and claim-prefixed keys for the same bytes", () => {
-    const { proofKey, claimKey } = photoKeysFor(bytesOf("label-a"), "jpg");
+    const { proofKey, claimKey } = photoKeysFor(bytesOf("label-a"));
     expect(proofKey).toBe(toPhotoKey(bytesOf("label-a"), PROOF_PHOTO_PREFIX, "jpg"));
     expect(claimKey).toBe(toPhotoKey(bytesOf("label-a"), CLAIM_PHOTO_PREFIX, "jpg"));
+  });
+
+  // The finding this pins: a <input type="file"> reports its MIME type from
+  // the file's name, so a borrowed label renamed from .jpg to .png used to
+  // mint a different key for the identical bytes - evading the UNIQUE index
+  // that is supposed to be the actual guard. There is no MIME parameter left
+  // to lie with; the extension now comes only from the bytes' own signature.
+  it("derives the identical key for identical bytes carrying a PNG signature or not", () => {
+    const jpegLikeBytes = bytesOf("shared-label-bytes");
+    const pngLikeBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), bytesOf("shared-label-bytes")]);
+    expect(photoKeysFor(jpegLikeBytes)).toEqual(photoKeysFor(jpegLikeBytes));
+    expect(photoKeysFor(pngLikeBytes).proofKey).toMatch(/\.png$/);
+    expect(photoKeysFor(jpegLikeBytes).proofKey).toMatch(/\.jpg$/);
   });
 });
