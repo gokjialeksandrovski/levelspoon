@@ -51,6 +51,16 @@ Run from repo root.
 separate for ESLint + Clean Code — easy miss, this a milestone exit
 criterion.
 
+`npm run db:migrate` alone (not `db:reset`) fails migration `0014` with
+"could not create unique index" on a dev DB seeded before this branch —
+that DB's fixtures share a literal photo key (e.g. `test/placeholder.jpg`)
+across rows, which the migration's new `UNIQUE` index refuses. `db:reset`
+(drop, migrate, seed from scratch) is the path on such a DB, not `db:migrate`.
+An applied migration file itself stays byte-for-byte immutable — drizzle-orm
+hashes each migration file's content for its own applied-migration
+bookkeeping, so editing one after it has run against a DB that recorded its
+original hash is its own hazard, worse than the one this note warns about.
+
 Docker Desktop must run. Installed per-user: `docker` on **User** PATH.
 MinIO not auto-create buckets — create `per100-photos` once (see README).
 
