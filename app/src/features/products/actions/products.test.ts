@@ -669,6 +669,35 @@ describe("createProduct", () => {
     ).rejects.toThrow(DuplicateProductError);
   });
 
+  it("degrades a same-product match to same-figures without naming an invisible collision", async () => {
+    const authorId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: authorId } });
+    // No photo, no barcode, and a different creator than the collider below -
+    // all three of visibleToUser's arms false, so this row is invisible to
+    // the second user. The name is a similar-name pair (score ~0.69, well
+    // above AMBIGUOUS_SIMILARITY_THRESHOLD, same pairing "refuses a second
+    // product with the same figures and a similar name" uses for the visible
+    // case), so decideDuplicate returns "same-product" and it is invisibility
+    // alone - not name similarity - that must degrade it to tier 2. A
+    // dissimilar name would return "same-figures" directly and never touch
+    // that degrade path at all.
+    await seedProduct(authorId, "Snickers Bar", { nutritionPhotoKey: null });
+
+    const otherUserId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: otherUserId } });
+
+    const rejection = createProduct({
+      name: "Snickers",
+      nutritionPer100g: {
+        energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      },
+    });
+
+    await expect(rejection).rejects.toThrow(SameFiguresError);
+    await expect(rejection).rejects.toMatchObject({ ownerName: null });
+    expect(await db.select().from(products)).toHaveLength(1);
+  });
+
   it("files a variant whose figures differ", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
