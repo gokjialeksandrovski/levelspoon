@@ -338,14 +338,24 @@ Optional. App fully usable without one — nothing gates on it, nothing nags.
 
 - `weight_goals` one row per user, `weight_entries` one reading per **local**
   calendar day (unique index; a re-log replaces, never appends). Deleting a
-  goal keeps the readings. All three CHECK constraints are load-bearing: a
+  goal keeps the readings. All four CHECK constraints are load-bearing: a
   target-mode row carries target + rate and no band, a hold-mode row carries a
-  band and neither, and a cadence is at least one day.
+  band and neither, `recomp` is true only on a hold row
+  (`weight_goals_recomp_hold`), and a cadence is at least one day.
 - **Carries no calorie arithmetic, in either direction.** No deficit, no TDEE,
   no suggested intake, not even as an aside. `features/weight/` must not import
   `features/goals/` or the reverse. A rate in kg/week is the user's own wish;
   converting it to kcal would make it the app's advice, which is the one thing
-  `goal-sheet.tsx`'s no-reset-chip rule exists to refuse.
+  `goal-sheet.tsx`'s no-reset-chip rule exists to refuse. The arithmetic this
+  refuses lives in `features/intake/` (see "Intake estimate"), which may import
+  `features/weight/`; the reverse stays banned. One sentence is the exception:
+  `RecompCheckbox`'s helper states a published protein range (Morton 2018),
+  asked for by the user — copy only, no figure computed or stored (see
+  `DECISIONS.md`). Nothing else joins it.
+- **Recomp is a tick on holding steady, not a mode.** `weight_goals.recomp`,
+  shown as `RecompCheckbox` under the band on the sheet's Hold steady and on
+  the estimate's Maintain. Switching to a target drops it. It changes no
+  figure.
 - All maths pure in `features/weight/actions/weight.utils.ts`. `weightProgress`
   is the only progress function; `nextCheckinDate` and `checkinCountdown` the
   only cadence ones. A rail share is clamped 0–1 and the text beside it states
@@ -384,6 +394,40 @@ Optional. App fully usable without one — nothing gates on it, nothing nags.
   back-off after repeated dismissals, because counting them would be the app
   deciding they stopped meaning it (rejected 2026-09-21, see `DECISIONS.md`).
 - Spec: `docs/superpowers/specs/2026-09-21-weight-goal-design.md`.
+
+## Intake estimate
+
+Optional page at `/calories/estimate`, reached only from `GoalSheet`'s
+`Not sure? Work it out` link. Nothing on the day view points at it.
+
+- All maths pure in `features/intake/actions/intake.utils.ts`, run by the form
+  for the live range and again by `saveIntakeEstimate`, which never trusts a
+  figure from the browser. Every constant is labelled **published** (with its
+  source) or **judgment**; keep that labelling when adding one.
+- **Stored only with consent.** `intake_profiles` is written only when the
+  consent box is ticked; saving unticked deletes the row, and `Forget these
+  details` deletes it too. The consent copy is verbatim once approved — never
+  paraphrase it, and bump `CONSENT_VERSION` when it changes. The condition box
+  never asks which condition.
+- **Not stored:** current weight, goal weight, pace, band, recomp (they live
+  in the weight tables), and any derived figure (BMI, FFMI, lean mass,
+  timeline, the estimate itself). The one output kept is
+  `users.daily_calorie_goal`.
+- **The goal fields are the weight goal.** A goal weight saves a target goal;
+  Maintain's band saves a hold goal (with recomp). No opt-in box. An
+  unchanged goal writes nothing, so recalculating never resets its start; a
+  band of 0 leaves any goal alone.
+- **The disclaimer promises an adaptive burn estimate that is not built.**
+  Release blocker before M4. If it slips, cut the sentence first.
+- Rails: no estimate under 18 or in pregnancy/breastfeeding; maintenance only
+  below BMI 18.5; a deficit floors at `max(BMR, 1200 F / 1500 M)` and never
+  above maintenance. A typed pace past the cap is stated, not refused.
+- Imports: `intake → weight` only. Weight writes it needs go through
+  `features/weight/actions/weight.store.ts`, which takes a `DbTransaction` and
+  has no `"use server"` — it takes a userId, so exposing it as an action would
+  let a browser write any user's rows.
+- Refusals cross as `SaveIntakeResult`, never thrown classes.
+- Spec: `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
 
 ## Time
 
@@ -531,6 +575,14 @@ The weight goal shipped 2026-09-21 (`docs/superpowers/plans/2026-09-21-weight-go
 an optional target-or-hold goal with a weigh-in cadence, one quiet row on
 today below the macros — see "Weight goal" above. It carries no calorie
 arithmetic in either direction, by design.
+
+The calorie estimate shipped 2026-09-21
+(`docs/superpowers/plans/2026-09-21-intake-estimate.md`): an optional form
+that works out a daily kcal range and sets the goal on request — see "Intake
+estimate" above. Before launch (M4) it needs the adaptive burn estimate its
+disclaimer promises, the lawyer-reviewed consent copy, the app-wide privacy
+policy and terms, and consent for `weight_entries`, which already holds
+health data (spec §13.3).
 
 Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
 cloud — next, not started.**

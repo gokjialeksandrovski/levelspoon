@@ -27,8 +27,12 @@ a photo) and is never allowed near a product name or a nutrition value. Shared
 crowd-sourced product table with per-user override, so a correction never
 silently rewrites another user's figures.
 
-The app states figures. It does not advise intake. No expenditure model, no
-recommended calorie number, no diet plan.
+The app states figures. It advises intake in exactly one place, on request:
+the calorie estimate (`/calories/estimate`), which shows a range from
+published formulas with its working and its uncertainty. One sentence of
+advice sits beside it on purpose: the Recomp tick states a published protein
+range. No diet plan, no nudge to run the estimate, and nothing else in the
+app names an intake.
 
 ## Operating Context
 
@@ -44,6 +48,15 @@ reach. Weeks-scale review happens on `/history`.
 - Daily calorie goal: optional, hand-set, per user (`users.daily_calorie_goal`,
   null until set). App offers no default and no reset-to-2000 chip — a flat
   number on a button would be the app recommending an intake.
+- Calorie estimate: shipped 2026-09-21. Optional form reached only from the
+  goal sheet; Mifflin-St Jeor or Katch-McArdle, standard activity factors,
+  shown as a range that narrows with each answer. A goal weight saves a
+  target weight goal; Maintain's band saves a hold goal, optionally with
+  Recomp. Answers stored only with explicit consent (`intake_profiles`). See
+  `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
+- Adaptive calorie burn from logged meals and weigh-ins: **not built, release
+  blocker.** The estimate's disclaimer already promises it; it ships before
+  M4, or that sentence is cut first.
 - Amounts: grams, millilitres, learned label servings, curated portion classes
   (a slice, an egg grade, a cup where density is genuinely known), and recent
   amounts per product.
@@ -81,8 +94,9 @@ documented in `CLAUDE.md`; four accents each carry exactly one semantic role
 
 1. Deterministic where a number is involved. AI only where no deterministic
    answer exists, and never for a nutrition figure.
-2. State, never advise. Every figure on screen traces to a label, a measurement,
-   or the user's own entry.
+2. State by default. Advise only where the user asks, and show the
+   uncertainty. Every figure on screen traces to a label, a measurement, the
+   user's own entry, or a named published formula.
 3. The shared table is the thing worth protecting: refuse a duplicate or a
    reused photo at write time rather than cleaning up later.
 4. Optional stays optional. A feature the user has not set up must not block,
