@@ -228,6 +228,7 @@ interface PresetFieldProps {
   value: string;
   presets: number[];
   presetLabel?: (value: number) => string;
+  helperText?: string;
   onChange: (value: string) => void;
 }
 
@@ -235,7 +236,7 @@ interface PresetFieldProps {
 // field - the same relationship AmountChips has with the amount field - so a
 // figure nobody put on a chip is still typeable, and the chips still say what
 // the common answers are.
-const PresetField = ({ label, name, suffix, value, presets, presetLabel, onChange }: PresetFieldProps) => {
+const PresetField = ({ label, name, suffix, value, presets, presetLabel, helperText, onChange }: PresetFieldProps) => {
   const selected = parseDecimalDraft(value);
 
   return (
@@ -246,6 +247,7 @@ const PresetField = ({ label, name, suffix, value, presets, presetLabel, onChang
         inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        helperText={helperText}
         trailing={<UnitSuffix>{suffix}</UnitSuffix>}
       />
       <div className="flex gap-2">
@@ -380,6 +382,7 @@ export const WeightGoalSheet = ({ open, view, onClose, onSaved }: WeightGoalShee
             suffix={`± ${draft.unit}`}
             value={draft.bandDraft}
             presets={bandPresets(draft.unit)}
+            helperText="How far above or below your current weight still counts as steady."
             onChange={(bandDraft) => setDraft({ ...draft, bandDraft })}
           />
         )}
