@@ -3,7 +3,7 @@
 import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
-import { dayBoundsInTimezone, localDateStringOf, type DayBounds } from "@/lib/date/day-bounds";
+import { dayBoundsInTimezone, localDateStringOf, todayLocalDateString, type DayBounds } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { portionOverridesSelection } from "@/lib/db/portion-overrides-sql";
 import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective-nutrition";
@@ -14,6 +14,8 @@ import { resolvePortions } from "@/lib/measures/resolve-portions";
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
 import { fetchCalorieGoal } from "@/features/goals/actions/goals";
+import { fetchWeightView } from "@/features/weight/actions/weight";
+import type { WeightView } from "@/features/weight/actions/weight.utils";
 import { calorieRemaining, type CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import type { NutritionValues } from "@/types/nutrition";
 
@@ -135,6 +137,9 @@ export interface DayLog {
   dayTotal: NutritionValues;
   calorieGoal: number | null;
   calorieRemaining: CalorieRemaining;
+  // Today only: a past day's weight is not today's weight, and a check-in
+  // prompt on a day that has passed asks for a reading nobody can take.
+  weight: WeightView | null;
 }
 
 interface ProductNutritionRow {
@@ -243,13 +248,21 @@ const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
 export const getDayLog = async (date: string, timezone: string): Promise<DayLog> => {
   const userId = await requireUserId();
   const bounds = dayBoundsInTimezone(date, timezone);
-  const [rows, calorieGoal] = await Promise.all([
+  const isToday = date === todayLocalDateString(timezone);
+  const [rows, calorieGoal, weight] = await Promise.all([
     fetchDayMealIngredientRows(userId, bounds),
     fetchCalorieGoal(userId),
+    isToday ? fetchWeightView(userId) : Promise.resolve(null),
   ]);
   const dayMeals = toDayMealSummaries(rows);
   const dayTotal = dayMeals.reduce((total, meal) => addNutrition(total, meal.total), ZERO_NUTRITION);
-  return { meals: dayMeals, dayTotal, calorieGoal, calorieRemaining: calorieRemaining(calorieGoal, dayTotal.energyKcal) };
+  return {
+    meals: dayMeals,
+    dayTotal,
+    calorieGoal,
+    calorieRemaining: calorieRemaining(calorieGoal, dayTotal.energyKcal),
+    weight,
+  };
 };
 
 export interface MealIngredientDetail {
