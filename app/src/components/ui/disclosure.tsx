@@ -8,6 +8,8 @@ import { Button } from "./button";
 
 interface DisclosureProps {
   label: string;
+  /** Open on first render - for a panel already holding the user's answers. */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }
 
@@ -57,8 +59,8 @@ const DisclosurePanel = ({ contentId, isOpen, children }: { contentId: string; i
   </div>
 );
 
-export const Disclosure = ({ label, children }: DisclosureProps) => {
-  const [isOpen, setIsOpen] = useState(false);
+export const Disclosure = ({ label, defaultOpen = false, children }: DisclosureProps) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const reduceMotion = useReducedMotion();
   const contentId = useId();
 

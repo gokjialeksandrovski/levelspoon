@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 
 import { setCalorieGoal } from "@/features/goals/actions/goals";
@@ -10,16 +11,17 @@ import {
   isValidCalorieGoal,
   nudgeCalorieGoal,
 } from "@/features/goals/actions/goals.utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
 
 const SMALL_NUDGE = 100;
 const LARGE_NUDGE = 500;
 // Symmetrical pairs, coarse outside fine, so the row reads as one scale left to
-// right. There is no reset-to-2000 chip: with no expenditure model behind it,
-// a flat number on a button is this app recommending an intake, which it does
-// not do. Typing is how you jump anywhere.
+// right. There is no reset-to-2000 chip: a flat number on a button would be an
+// intake recommendation with nothing behind it. The estimate page linked below
+// is the one place a figure comes with its working. Typing is how you jump
+// anywhere.
 const GOAL_NUDGES = [-LARGE_NUDGE, -SMALL_NUDGE, SMALL_NUDGE, LARGE_NUDGE] as const;
 
 interface GoalNumberInputProps {
@@ -193,6 +195,11 @@ const GoalSheetBody = ({ goalDraft, openingGoal, hasError, onSubmit }: GoalSheet
       />
       <GoalChips goal={goalDraft.goal} onChange={goalDraft.setGoal} />
     </div>
+    {/* The one way into the estimate (spec §2): the moment a user is holding
+        a number they cannot fill. */}
+    <Link href="/calories/estimate" className={buttonClassName("ghost", "self-center", true)}>
+      Not sure? Work it out
+    </Link>
     {goalDraft.wasRejected && (
       <InlineMessage tone="info">That was not a number we could read, so the goal above is unchanged.</InlineMessage>
     )}
