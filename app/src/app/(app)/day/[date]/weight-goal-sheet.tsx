@@ -172,29 +172,30 @@ const UNIT_OPTIONS: WeightUnit[] = ["kg", "lb"];
 
 // Fused into the field's right edge rather than stacked above it: the unit
 // belongs to the figure, and a row of its own costs height this sheet does
-// not have. Each segment is the field's full height and w-11, so both land on
-// the 44px touch floor without the box growing.
+// not have.
 // Raw buttons are the documented Rule 16 exception - no Button variant covers
 // a segment sitting inside another control's box.
 //
 // The selected unit is a filled pill that slides between the two segments
 // rather than two segments swapping fill: the movement is what says the two
 // are one switch and not two buttons. It is a sibling of the segments, not
-// their background, so each segment keeps its full 44px hit box while the
-// pill sits inset from the track - the visible gap the shape needs. Colour is
-// bg-text on the raised mat, the same inversion the rest of the block uses;
-// the weight feature spends no accent (CLAUDE.md).
-const PILL_OFFSET: Record<WeightUnit, string> = { kg: "translate-x-0", lb: "translate-x-11" };
+// their background, so the pill sits inset from the track while each segment
+// stays tappable across the whole track. Colour is bg-text on the raised mat,
+// the same inversion the rest of the block uses; the weight feature spends no
+// accent (CLAUDE.md).
+//
+// h-9, not the field's own height: a full-height track's rounded ends land on
+// the input's border and read as a hole punched through the box rather than a
+// control sitting inside it. 36 x 40 per segment stays well past WCAG 2.5.8's
+// 24px target floor - the 44px reach target belongs to controls that stand
+// alone, not to one riding inside a field the thumb is already aimed at.
+const PILL_OFFSET: Record<WeightUnit, string> = { kg: "translate-x-0", lb: "translate-x-10" };
 
 const UnitToggle = ({ unit, onChange }: { unit: WeightUnit; onChange: (unit: WeightUnit) => void }) => (
-  <div
-    role="group"
-    aria-label="Weight unit"
-    className="relative flex h-full items-stretch rounded-full bg-surface-raised p-1"
-  >
+  <div role="group" aria-label="Weight unit" className="relative flex h-9 items-stretch rounded-full bg-surface-raised p-1">
     <span
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-y-1 left-1 w-11 rounded-full bg-text transition-transform duration-(--duration-step) ease-out-quart motion-reduce:transition-none ${PILL_OFFSET[unit]}`}
+      className={`pointer-events-none absolute inset-y-1 left-1 w-10 rounded-full bg-text transition-transform duration-(--duration-step) ease-out-quart motion-reduce:transition-none ${PILL_OFFSET[unit]}`}
     />
     {UNIT_OPTIONS.map((option) => (
       <button
@@ -202,7 +203,7 @@ const UnitToggle = ({ unit, onChange }: { unit: WeightUnit; onChange: (unit: Wei
         type="button"
         onClick={() => onChange(option)}
         aria-pressed={unit === option}
-        className={`relative flex w-11 items-center justify-center rounded-full text-sm transition-colors ${FOCUS_OUTLINE} ${
+        className={`relative flex w-10 items-center justify-center rounded-full text-sm transition-colors ${FOCUS_OUTLINE} ${
           unit === option ? "font-medium text-bg" : "text-text-muted hover:text-text"
         }`}
       >
@@ -350,7 +351,7 @@ export const WeightGoalSheet = ({ open, view, onClose, onSaved }: WeightGoalShee
             value={draft.currentDraft}
             onChange={(event) => setDraft({ ...draft, currentDraft: event.target.value })}
             trailing={<UnitToggle unit={draft.unit} onChange={(unit) => setDraft(convertDraft(draft, unit))} />}
-            trailingReserveClass="pr-26"
+            trailingReserveClass="pr-24"
           />
           {draft.mode === "target" && (
             <Field
