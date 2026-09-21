@@ -332,6 +332,36 @@ Re-run `cd app && npm run check:portion-classes` after touching `PortionClass`,
 `fixtures/standard-foods.json`. It must exit 0 — a conflict is a portion chip
 about to appear on a food nobody measures that way.
 
+## Weight goal
+
+Optional. App fully usable without one — nothing gates on it, nothing nags.
+
+- `weight_goals` one row per user, `weight_entries` one reading per **local**
+  calendar day (unique index; a re-log replaces, never appends). Deleting a
+  goal keeps the readings. Both CHECK constraints are load-bearing: a
+  target-mode row carries target + rate and no band, a hold-mode row carries a
+  band and neither.
+- **Carries no calorie arithmetic, in either direction.** No deficit, no TDEE,
+  no suggested intake, not even as an aside. `features/weight/` must not import
+  `features/goals/` or the reverse. A rate in kg/week is the user's own wish;
+  converting it to kcal would make it the app's advice, which is the one thing
+  `goal-sheet.tsx`'s no-reset-chip rule exists to refuse.
+- All maths pure in `features/weight/actions/weight.utils.ts`. `weightProgress`
+  is the only progress function; `nextCheckinDate` and `checkinCountdown` the
+  only cadence ones. A rail share is clamped 0–1 and the text beside it states
+  the real figure.
+- Cadence floor is one week. No daily option — a daily reading is scale noise.
+- Row shows on **today** only, below `DayMacros`, one emphasis tier quieter:
+  one text line plus an `h-1` rail. **No accent or `danger` colour in the
+  block** — the accents own protein/carbs/fat/log-success and `danger` means
+  over the kcal goal. No verdict copy, no chart, no card.
+- Refusals cross to the client as `SaveWeightGoalResult` / `LogWeightResult`,
+  not thrown classes — same reasoning as `CreateProductResult`.
+- Weigh-in dismissal is per-device `localStorage`
+  (`per100:weigh-in-dismissed:<date>`), like the AI-photo consent key. The ✕
+  fires no request and does not mark the check-in done.
+- Spec: `docs/superpowers/specs/2026-09-21-weight-goal-design.md`.
+
 ## Time
 
 Day boundaries are user's **local** calendar day (browser IANA timezone,
@@ -473,6 +503,11 @@ same-figures gate, and duplicate suggestions on an Open Food Facts hit — see
 duplicate is now caught at write time on every entry path. Merging duplicates
 already stored is a separate, unstarted concern: no production data exists
 yet, so no merge tool was built — reconsider once there is one to merge.
+
+The weight goal shipped 2026-09-21 (`docs/superpowers/plans/2026-09-21-weight-goal.md`):
+an optional target-or-hold goal with a weigh-in cadence, one quiet row on
+today below the macros — see "Weight goal" above. It carries no calorie
+arithmetic in either direction, by design.
 
 Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
 cloud — next, not started.**

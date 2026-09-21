@@ -134,3 +134,34 @@ make a unit appear - give that food a portion with a measured gram weight in
 levelled tbsp barely moves with packing, a cup moves a lot. A label-taught
 density is measured, so it keeps cup.
 Added by: 2026-09-18-06-cup-measure.md
+
+### weight.utils.ts
+`app/src/features/weight/actions/weight.utils.ts`
+Every weight figure, rail share, cadence date and countdown, as pure functions.
+RULE: all weight maths goes here, never in a component and never in a Server
+Action body. This file must never import from `features/goals/` and must never
+compute, mention or return a calorie figure — the weight goal carries no
+arithmetic to or from `daily_calorie_goal`. A new progress shape adds a variant
+to `WeightProgress`, not a second progress function.
+Added by: 2026-09-21-weight-goal.md
+
+### weight_goals / weight_entries
+`app/src/lib/db/schema/weight.ts`
+One goal row per user; one weight reading per user per local calendar day.
+RULE: readings are keyed by the user's **local** day, derived server-side from
+a browser timezone — never a server UTC day, never a client-supplied date. The
+unique index is the one-reading-per-day rule: re-logging a day replaces it,
+never appends. Deleting a goal leaves the readings. Both CHECK constraints on
+`weight_goals` are load-bearing; a mode's fields are all-or-nothing.
+Added by: 2026-09-21-weight-goal.md
+
+### WeightRow / weight-row.utils.ts
+`app/src/app/(app)/day/[date]/weight-row.tsx`, `...weight-row.utils.ts`
+The home page's weight line, its rail, its expanded panel and its weigh-in
+prompt, plus the pure copy builders behind them.
+RULE: one line plus one rail at rest, quieter than `DayMacros`, and no accent
+or `danger` colour inside the block. Copy comes from the spec's copy table via
+these builders — never format a weight figure inline. No line may state a
+verdict on the user's pace. Shown on today only.
+Added by: 2026-09-21-weight-goal.md
+

@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import { db } from "../src/lib/db";
 import { toSearchText } from "../src/lib/db/search-text";
-import { products, users } from "../src/lib/db/schema";
+import { products, users, weightEntries, weightGoals } from "../src/lib/db/schema";
+import { addCalendarDays, todayLocalDateString } from "../src/lib/date/day-bounds";
 
 const SEED_USER_EMAIL = "seed-user@per100.local";
 
@@ -63,6 +64,32 @@ export const seedProducts = async (seedUserId: string): Promise<void> => {
       createdByUserId: seedUserId,
     })),
   );
+};
+
+// A seeded goal with two readings, so the day view's weight row has a rail to
+// draw and a "last change" line straight after db:reset. The second reading is
+// six days old against a weekly cadence, which puts the row in its resting
+// state one day from due - the state most worth seeing after a reset.
+const GOAL_START_DAYS_AGO = -20;
+const LAST_READING_DAYS_AGO = -6;
+const SEED_CHECKIN_INTERVAL_DAYS = 7;
+
+export const seedWeightGoal = async (seedUserId: string): Promise<void> => {
+  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const startDate = addCalendarDays(today, GOAL_START_DAYS_AGO);
+  await db.insert(weightGoals).values({
+    userId: seedUserId,
+    mode: "target",
+    startWeightKg: "84.8",
+    startDate,
+    targetWeightKg: "72.0",
+    rateKgPerWeek: "0.50",
+    checkinIntervalDays: SEED_CHECKIN_INTERVAL_DAYS,
+  });
+  await db.insert(weightEntries).values([
+    { userId: seedUserId, measuredOn: startDate, weightKg: "84.8" },
+    { userId: seedUserId, measuredOn: addCalendarDays(today, LAST_READING_DAYS_AGO), weightKg: "78.7" },
+  ]);
 };
 
 export const SYSTEM_USER_EMAIL = "system@per100.local";
@@ -232,10 +259,11 @@ export const seedStandardFoods = async (systemUserId: string): Promise<number> =
 const main = async () => {
   const seedUserId = await findOrCreateSeedUser();
   await seedProducts(seedUserId);
+  await seedWeightGoal(seedUserId);
   const systemUserId = await findOrCreateSystemUser();
   const standardCount = await seedStandardFoods(systemUserId);
   console.log(
-    `Seeded 2 users (seed + system), 2 products (2%/10% variant pair) and ${standardCount} standard foods.`,
+    `Seeded 2 users (seed + system), 2 products (2%/10% variant pair), 1 weight goal and ${standardCount} standard foods.`,
   );
 };
 
