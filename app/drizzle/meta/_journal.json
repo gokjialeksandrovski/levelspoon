@@ -120,6 +120,13 @@
       "when": 1789955545287,
       "tag": "0016_weight-unit-and-free-cadence",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789996065995,
+      "tag": "0017_add-intake-profile",
+      "breakpoints": true
     }
   ]
 }
