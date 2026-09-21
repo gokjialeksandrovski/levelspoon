@@ -6,13 +6,15 @@ import { fetchWeightView } from "@/features/weight/actions/weight";
 import { fetchLatestWeightKg, upsertWeightEntry, writeWeightGoal } from "@/features/weight/actions/weight.store";
 import {
   DEFAULT_CHECKIN_INTERVAL_DAYS,
+  fromKg,
   roundToHundredth,
+  roundToTenth,
   weightGoalInputError,
   type WeightGoalInput,
   type WeightUnit,
   type WeightView,
 } from "@/features/weight/actions/weight.utils";
-import { requireUserId } from "@/lib/auth/require-user";
+import { NotAuthenticatedError, requireUserId } from "@/lib/auth/require-user";
 import { db, type DbTransaction } from "@/lib/db";
 import { intakeProfiles, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
@@ -37,6 +39,8 @@ export interface IntakePrefill {
   latestWeightKg: number | null;
   /** Only a target goal prefills goal weight and pace; a hold has neither. */
   targetGoal: { targetWeightKg: number; rateKgPerWeek: number } | null;
+  /** Only a hold goal prefills the band and recomp. */
+  holdGoal: { holdBandKg: number; recomp: boolean } | null;
   hasWeightGoal: boolean;
   profile: IntakeProfile | null;
 }
@@ -45,7 +49,6 @@ export interface IntakeSaveInput extends IntakeInput {
   unit: WeightUnit;
   /** The consent checkbox (spec §13). False writes no answers and deletes any. */
   saveAnswers: boolean;
-  trackAsWeightGoal: boolean;
 }
 
 // Refusals travel as data: a Server Action's thrown error reaches a client
@@ -71,7 +74,7 @@ const toProfile = (row: ProfileRow): IntakeProfile => ({
   trainingStyle: row.trainingStyle,
   strengthDaysPerWeek: row.strengthDaysPerWeek,
   trainingYears: row.trainingYears,
-  trackingStyle: row.trackingStyle,
+  trackingPeriodDays: row.trackingPeriodDays,
   pregnantOrBreastfeeding: row.pregnantOrBreastfeeding,
   metabolismCondition: row.metabolismCondition,
   metabolismAdjustPct: row.metabolismAdjustPct,
@@ -91,7 +94,7 @@ const toProfileRow = (userId: string, input: IntakeSaveInput) => ({
   trainingStyle: input.trainingStyle,
   strengthDaysPerWeek: input.strengthDaysPerWeek,
   trainingYears: input.trainingYears,
-  trackingStyle: input.trackingStyle,
+  trackingPeriodDays: input.trackingPeriodDays,
   pregnantOrBreastfeeding: input.pregnantOrBreastfeeding,
   metabolismCondition: input.metabolismCondition,
   metabolismAdjustPct: input.metabolismAdjustPct,
@@ -108,6 +111,12 @@ const toTargetGoal = (view: WeightView | null): IntakePrefill["targetGoal"] => {
   return { targetWeightKg: goal.targetWeightKg, rateKgPerWeek: goal.rateKgPerWeek };
 };
 
+const toHoldGoal = (view: WeightView | null): IntakePrefill["holdGoal"] => {
+  const goal = view?.goal;
+  if (goal?.mode !== "hold" || goal.holdBandKg === null) return null;
+  return { holdBandKg: goal.holdBandKg, recomp: goal.recomp };
+};
+
 export const getIntakePrefill = async (): Promise<IntakePrefill> => {
   const userId = await requireUserId();
   const [view, latestWeightKg, [userRow], [profileRow]] = await Promise.all([
@@ -116,29 +125,75 @@ export const getIntakePrefill = async (): Promise<IntakePrefill> => {
     db.select({ unit: users.weightUnit }).from(users).where(eq(users.id, userId)),
     db.select().from(intakeProfiles).where(eq(intakeProfiles.userId, userId)),
   ]);
+  // A JWT outlives its user row (a reset dev DB): name that, rather than
+  // crash on reading the unit off nothing.
+  if (!userRow) throw new NotAuthenticatedError();
   return {
     unit: userRow.unit,
     latestWeightKg,
     targetGoal: toTargetGoal(view),
+    holdGoal: toHoldGoal(view),
     hasWeightGoal: view !== null,
     profile: profileRow ? toProfile(profileRow) : null,
   };
 };
 
+// Compared at the precision the form prints in the user's unit: a goal
+// prefilled in pounds and left alone comes back a hair off in kilograms.
+const isSameTarget = (
+  current: IntakePrefill["targetGoal"],
+  targetKg: number,
+  rateKgPerWeek: number,
+  unit: WeightUnit,
+): boolean =>
+  current !== null &&
+  roundToTenth(fromKg(current.targetWeightKg, unit)) === roundToTenth(fromKg(targetKg, unit)) &&
+  roundToHundredth(fromKg(current.rateKgPerWeek, unit)) === roundToHundredth(fromKg(rateKgPerWeek, unit));
+
+const isSameHold = (current: IntakePrefill["holdGoal"], bandKg: number, recomp: boolean, unit: WeightUnit): boolean =>
+  current !== null &&
+  current.recomp === recomp &&
+  roundToHundredth(fromKg(current.holdBandKg, unit)) === roundToHundredth(fromKg(bandKg, unit));
+
+// Maintain with a band is a hold goal, the same way a goal weight is a target
+// goal. A band of 0 (null here) saves none and leaves any existing goal alone.
+const toHoldGoalInput = (input: IntakeSaveInput, view: WeightView | null): WeightGoalInput | null => {
+  if (input.holdBandKg === null) return null;
+  if (isSameHold(toHoldGoal(view), input.holdBandKg, input.recomp, input.unit)) return null;
+  return {
+    mode: "hold",
+    unit: input.unit,
+    currentWeightKg: input.weightKg,
+    targetWeightKg: null,
+    rateKgPerWeek: null,
+    holdBandKg: roundToHundredth(input.holdBandKg),
+    recomp: input.recomp,
+    checkinIntervalDays: view?.goal.checkinIntervalDays ?? DEFAULT_CHECKIN_INTERVAL_DAYS,
+  };
+};
+
+// A goal weight typed here is the weight goal - no separate opt-in, because a
+// goal weight nothing keeps is a field that does nothing. An unchanged goal
+// writes nothing, so recalculating calories never resets the goal's start and
+// its progress.
 const toWeightGoalInput = (
   input: IntakeSaveInput,
   paceKgPerWeek: number | null,
-  checkinIntervalDays: number,
+  view: WeightView | null,
 ): WeightGoalInput | null => {
-  if (!input.trackAsWeightGoal || input.goalWeightKg === null || paceKgPerWeek === null) return null;
+  if (input.primaryGoal === "maintain") return toHoldGoalInput(input, view);
+  if (input.goalWeightKg === null || paceKgPerWeek === null) return null;
+  const rateKgPerWeek = roundToHundredth(paceKgPerWeek);
+  if (isSameTarget(toTargetGoal(view), input.goalWeightKg, rateKgPerWeek, input.unit)) return null;
   return {
     mode: "target",
     unit: input.unit,
     currentWeightKg: input.weightKg,
     targetWeightKg: input.goalWeightKg,
-    rateKgPerWeek: roundToHundredth(paceKgPerWeek),
+    rateKgPerWeek,
     holdBandKg: null,
-    checkinIntervalDays,
+    recomp: false,
+    checkinIntervalDays: view?.goal.checkinIntervalDays ?? DEFAULT_CHECKIN_INTERVAL_DAYS,
   };
 };
 
@@ -194,12 +249,10 @@ export const saveIntakeEstimate = async (input: IntakeSaveInput, timezone: strin
   if (estimate.kind === "refused") return { kind: "refused", reason: estimate.reason };
 
   const [view, latestKg] = await Promise.all([fetchWeightView(userId), fetchLatestWeightKg(userId)]);
-  const weightGoal = toWeightGoalInput(
-    input,
-    estimate.paceKgPerWeek,
-    view?.goal.checkinIntervalDays ?? DEFAULT_CHECKIN_INTERVAL_DAYS,
-  );
-  if (weightGoal && weightGoalInputError(weightGoal)) return { kind: "invalid", field: "goal_weight" };
+  const weightGoal = toWeightGoalInput(input, estimate.paceKgPerWeek, view);
+  if (weightGoal && weightGoalInputError(weightGoal)) {
+    return { kind: "invalid", field: weightGoal.mode === "hold" ? "band" : "goal_weight" };
+  }
 
   const calorieGoal = roundKcal(estimate.pointKcal);
   await commitSave({

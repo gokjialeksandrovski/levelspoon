@@ -16,7 +16,7 @@ import {
 
 const CURRENT_YEAR = 2026;
 
-const empty = initialDraft({ unit: "kg", latestWeightKg: null, targetGoal: null, hasWeightGoal: false, profile: null });
+const empty = initialDraft({ unit: "kg", latestWeightKg: null, targetGoal: null, holdGoal: null, hasWeightGoal: false, profile: null });
 
 // The worked case from intake.utils.test.ts: 2087.1–2550.9, point 2319.
 const caseA: IntakeDraft = {
@@ -78,7 +78,6 @@ describe("draftToInput", () => {
       bodyFatPct: null,
       bodyFatSource: null,
       saveAnswers: false,
-      trackAsWeightGoal: false,
     });
   });
 
@@ -104,10 +103,30 @@ describe("draftToInput", () => {
   it("never sends pregnancy for a male answer", () => {
     expect(draftToInput({ ...caseA, pregnantOrBreastfeeding: true })?.pregnantOrBreastfeeding).toBe(false);
   });
+});
 
-  it("tracks as a weight goal only with a goal weight", () => {
-    expect(draftToInput({ ...caseA, trackAsWeightGoal: true })?.trackAsWeightGoal).toBe(false);
-    expect(draftToInput({ ...caseA, trackAsWeightGoal: true, goalWeightDraft: "72" })?.trackAsWeightGoal).toBe(true);
+describe("maintain", () => {
+  const maintain: IntakeDraft = { ...caseA, primaryGoal: "maintain", recomp: true };
+
+  it("starts on the weight sheet's default band", () => {
+    expect(empty.bandDraft).toBe("1");
+  });
+
+  it("sends the band and recomp", () => {
+    expect(draftToInput(maintain)).toMatchObject({ holdBandKg: 1, recomp: true });
+  });
+
+  it("treats a band of 0 as no hold goal, so recomp has nowhere to go", () => {
+    expect(draftToInput({ ...maintain, bandDraft: "0" })?.holdBandKg).toBeNull();
+    expect(barStateOf({ ...maintain, bandDraft: "0" }, CURRENT_YEAR)).toEqual({ kind: "invalid", field: "recomp" });
+  });
+
+  it("drops band and recomp for a goal with a direction", () => {
+    expect(draftToInput({ ...maintain, primaryGoal: "lose_fat" })).toMatchObject({ holdBandKg: null, recomp: false });
+  });
+
+  it("moves a preset band to the pound row's own preset", () => {
+    expect(convertUnit(maintain, "lb").bandDraft).toBe("2");
   });
 });
 
@@ -133,6 +152,7 @@ describe("initialDraft", () => {
       unit: "kg",
       latestWeightKg: 80,
       targetGoal: { targetWeightKg: 72, rateKgPerWeek: 0.4 },
+      holdGoal: null,
       hasWeightGoal: true,
       profile: {
         sex: "male",
@@ -145,7 +165,7 @@ describe("initialDraft", () => {
         trainingStyle: null,
         strengthDaysPerWeek: null,
         trainingYears: null,
-        trackingStyle: null,
+        trackingPeriodDays: null,
         pregnantOrBreastfeeding: false,
         metabolismCondition: true,
         metabolismAdjustPct: -10,
@@ -155,7 +175,6 @@ describe("initialDraft", () => {
       weightDraft: "80",
       goalWeightDraft: "72",
       paceDraft: "0.4",
-      trackAsWeightGoal: true,
       bodyFatStage: "soft",
       bodyFatDraft: "",
       metabolismDirection: "down",

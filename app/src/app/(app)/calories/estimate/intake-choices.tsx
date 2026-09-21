@@ -2,10 +2,10 @@ import { useId } from "react";
 
 import { FOCUS_OUTLINE } from "@/components/ui/tap-target";
 
-// Native radios and checkboxes - the documented Rule 16 exception: no project
-// wrapper covers either, and the native control brings arrow keys within a
-// group and Space to toggle. Each option is a card so the whole label is the
-// tap target and the description sits inside it.
+// Native radios - the documented Rule 16 exception: no project wrapper covers
+// them, and the native control brings arrow keys within a group. Each option
+// is a card so the whole label is the tap target and the description sits
+// inside it.
 
 export interface ChoiceOption<T extends string> {
   value: T;
@@ -87,8 +87,6 @@ interface ChoiceGroupProps<T extends string> {
   helperText?: string;
   layout?: ChoiceLayout;
   required?: boolean;
-  /** Below the cards, so text that appears on a pick never pushes them down. */
-  note?: string;
   onChange: (value: T) => void;
 }
 
@@ -100,7 +98,6 @@ export const ChoiceGroup = <T extends string>({
   helperText,
   layout = "stack",
   required = false,
-  note,
   onChange,
 }: ChoiceGroupProps<T>) => (
   <fieldset className="flex flex-col gap-2">
@@ -121,39 +118,5 @@ export const ChoiceGroup = <T extends string>({
         />
       ))}
     </div>
-    {note && <p className="text-xs text-text-muted">{note}</p>}
   </fieldset>
 );
-
-interface CheckboxRowProps {
-  name: string;
-  label: string;
-  helperText?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}
-
-export const CheckboxRow = ({ name, label, helperText, checked, onChange }: CheckboxRowProps) => {
-  const helperId = useId();
-
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
-        <input
-          type="checkbox"
-          name={name}
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-          aria-describedby={helperText ? helperId : undefined}
-          className={`size-4 shrink-0 accent-text ${FOCUS_OUTLINE}`}
-        />
-        {label}
-      </label>
-      {helperText && (
-        <p id={helperId} className="pl-7 text-xs text-text-muted">
-          {helperText}
-        </p>
-      )}
-    </div>
-  );
-};

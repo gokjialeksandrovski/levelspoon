@@ -18,25 +18,33 @@ import {
   type IntakeField,
   type IntakeSex,
   type PrimaryGoal,
-  type TrackingStyle,
   type TrainingStyle,
   type TrainingYears,
 } from "@/features/intake/actions/intake.utils";
-import { pacePresets } from "@/features/weight/actions/weight.utils";
-import { PresetField, UnitSuffix, UnitToggle } from "@/features/weight/components/weight-fields";
+import { bandPresets, cadenceLabel, CHECKIN_PRESETS, pacePresets } from "@/features/weight/actions/weight.utils";
+import {
+  BAND_HELPER,
+  PresetField,
+  RecompCheckbox,
+  UnitSuffix,
+  UnitToggle,
+} from "@/features/weight/components/weight-fields";
 import { AppHeader } from "@/components/layout/app-header";
 import { Button } from "@/components/ui/button";
+import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
-import { CheckboxRow, ChoiceGroup, RequiredMark, type ChoiceOption } from "./intake-choices";
+import { ChoiceGroup, RequiredMark, type ChoiceOption } from "./intake-choices";
 import {
+  BAND_SAVE_TEXT,
   barStateOf,
   convertUnit,
   draftToInput,
   fieldText,
+  goalWeightHelperText,
   hasDirection,
   hasSharpenAnswers,
   initialDraft,
@@ -81,12 +89,7 @@ const GOAL_OPTIONS: ChoiceOption<PrimaryGoal>[] = [
   { value: "lose_fat", label: "Lose weight" },
   { value: "maintain", label: "Maintain" },
   { value: "gain_muscle", label: "Gain weight" },
-  { value: "recomp", label: "Recomp" },
 ];
-
-// Under the grid, not inside a card: a description in one card made it twice
-// the height of its row-mates. Shown only once Recomp is picked.
-const RECOMP_NOTE = "Lose fat and build muscle at the same time, eating around maintenance.";
 
 const STAGE_LABEL: Record<BodyFatStage, string> = {
   abs: "Visible abs",
@@ -113,11 +116,6 @@ const TRAINING_YEARS_OPTIONS: ChoiceOption<TrainingYears>[] = [
   { value: "under_1", label: "Under 1" },
   { value: "1_to_3", label: "1–3" },
   { value: "over_3", label: "Over 3" },
-];
-
-const TRACKING_OPTIONS: ChoiceOption<TrackingStyle>[] = [
-  { value: "daily", label: "A strict daily target" },
-  { value: "weekly_average", label: "A weekly average" },
 ];
 
 const DIRECTION_OPTIONS: ChoiceOption<MetabolismDirection>[] = [
@@ -245,14 +243,14 @@ const AboutYou = ({ draft, update, errorFor }: SectionProps) => (
         value={draft.activityLevel}
         onChange={(activityLevel) => update({ activityLevel })}
       />
+      {/* Stacked: three options in the two-column grid left Gain weight alone
+          on a full-width second row, reading as a different kind of answer. */}
       <ChoiceGroup
         legend="Primary goal"
         name="goal"
-        layout="grid"
         required
         options={GOAL_OPTIONS}
         value={draft.primaryGoal}
-        note={draft.primaryGoal === "recomp" ? RECOMP_NOTE : undefined}
         onChange={(primaryGoal) => update({ primaryGoal })}
       />
     </div>
@@ -261,44 +259,70 @@ const AboutYou = ({ draft, update, errorFor }: SectionProps) => (
 
 interface YourGoalProps extends SectionProps {
   paceHelper: string | undefined;
+  hasWeightGoal: boolean;
 }
 
-// Hidden for maintain and recomp: neither moves the scale on purpose, so a
-// goal weight there has no direction and a pace nothing to set.
-const YourGoal = ({ draft, update, errorFor, paceHelper }: YourGoalProps) => {
-  if (!hasDirection(draft.primaryGoal)) return null;
+// Goal weight and pace show for a direction, band and recomp for maintain -
+// the same split as the weight sheet's Reach a target and Hold steady, and
+// each set saves as that goal. Current weight is already asked above. The
+// averaging window applies to every goal, so it always shows.
+const YourGoal = ({ draft, update, errorFor, paceHelper, hasWeightGoal }: YourGoalProps) => {
+  if (draft.primaryGoal === null) return null;
   return (
     <section aria-labelledby="your-goal" className="flex flex-col gap-4">
       <h2 id="your-goal" className="font-display text-lg font-semibold">
         Your goal
       </h2>
       <div className="flex flex-col gap-6">
-        <Field
-          label="Goal weight"
-          name="goal-weight"
-          inputMode="decimal"
-          value={draft.goalWeightDraft}
-          error={errorFor("goal_weight") ?? errorFor("goal_direction")}
-          onChange={(event) => update({ goalWeightDraft: event.target.value })}
-          trailing={<UnitSuffix>{draft.unit}</UnitSuffix>}
-        />
-        <PresetField
-          label="Pace"
-          name="pace"
-          suffix={`${draft.unit}/wk`}
-          value={draft.paceDraft}
-          presets={pacePresets(draft.unit)}
-          helperText={errorFor("pace") ?? paceHelper}
-          onChange={(paceDraft) => update({ paceDraft })}
-        />
-        {draft.goalWeightDraft.trim() !== "" && (
-          <CheckboxRow
-            name="track-weight-goal"
-            label="Also track as my weight goal"
-            checked={draft.trackAsWeightGoal}
-            onChange={(trackAsWeightGoal) => update({ trackAsWeightGoal })}
-          />
+        {hasDirection(draft.primaryGoal) && (
+          <>
+            <Field
+              label="Goal weight"
+              name="goal-weight"
+              inputMode="decimal"
+              value={draft.goalWeightDraft}
+              error={errorFor("goal_weight") ?? errorFor("goal_direction")}
+              helperText={goalWeightHelperText(hasWeightGoal)}
+              onChange={(event) => update({ goalWeightDraft: event.target.value })}
+              trailing={<UnitSuffix>{draft.unit}</UnitSuffix>}
+            />
+            <PresetField
+              label="Pace"
+              name="pace"
+              suffix={`${draft.unit}/wk`}
+              value={draft.paceDraft}
+              presets={pacePresets(draft.unit)}
+              helperText={errorFor("pace") ?? paceHelper}
+              onChange={(paceDraft) => update({ paceDraft })}
+            />
+          </>
         )}
+        {draft.primaryGoal === "maintain" && (
+          <div className="flex flex-col gap-3">
+            <PresetField
+              label="Band"
+              name="hold-band"
+              suffix={`± ${draft.unit}`}
+              value={draft.bandDraft}
+              presets={bandPresets(draft.unit)}
+              helperText={errorFor("band") ?? errorFor("recomp") ?? `${BAND_HELPER} ${BAND_SAVE_TEXT}`}
+              onChange={(bandDraft) => update({ bandDraft })}
+            />
+            <RecompCheckbox unit={draft.unit} checked={draft.recomp} onChange={(recomp) => update({ recomp })} />
+          </div>
+        )}
+        {/* Same shape as the weight goal's "Weigh in every": any whole number of
+            days, with the four cadences people name as shortcuts. */}
+        <PresetField
+          label="Average my calories over"
+          name="tracking-period"
+          suffix="days"
+          value={draft.trackingPeriodDraft}
+          presets={[...CHECKIN_PRESETS]}
+          presetLabel={cadenceLabel}
+          helperText={errorFor("tracking_period") ?? "Saved for later. Today's screen shows a daily target either way."}
+          onChange={(trackingPeriodDraft) => update({ trackingPeriodDraft })}
+        />
       </div>
     </section>
   );
@@ -394,23 +418,19 @@ const SharpenFields = (props: SectionProps) => (
     <p className="text-xs text-text-muted">Optional. Each answer narrows the range.</p>
     <BodyFatFields {...props} />
     <TrainingFields {...props} />
-    <ChoiceGroup
-      legend="How you'd like to track"
-      name="tracking-style"
-      options={TRACKING_OPTIONS}
-      value={props.draft.trackingStyle}
-      helperText="Saved for later. Today's screen shows a daily target either way."
-      onChange={(trackingStyle) => props.update({ trackingStyle })}
-    />
-    {props.draft.sex !== "male" && (
-      <CheckboxRow
-        name="pregnant"
-        label="Pregnant or breastfeeding"
-        checked={props.draft.pregnantOrBreastfeeding}
-        onChange={(pregnantOrBreastfeeding) => props.update({ pregnantOrBreastfeeding })}
-      />
-    )}
-    <MetabolismFields {...props} />
+    {/* One list, no gap: each row is already a 44px tap target, so the
+        section gap on top of that left the two boxes looking unrelated. */}
+    <div className="flex flex-col">
+      {props.draft.sex !== "male" && (
+        <CheckboxRow
+          name="pregnant"
+          label="Pregnant or breastfeeding"
+          checked={props.draft.pregnantOrBreastfeeding}
+          onChange={(pregnantOrBreastfeeding) => props.update({ pregnantOrBreastfeeding })}
+        />
+      )}
+      <MetabolismFields {...props} />
+    </div>
   </div>
 );
 
@@ -557,7 +577,7 @@ export const IntakeForm = ({ prefill }: { prefill: IntakePrefill }) => {
       <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col gap-10 px-4 pt-6 pb-8">
         <p className="text-sm text-text-muted">Fill in what you know. The more you add, the narrower the range.</p>
         <AboutYou {...sections} />
-        <YourGoal {...sections} paceHelper={paceHelperOf(bar, draft)} />
+        <YourGoal {...sections} paceHelper={paceHelperOf(bar, draft)} hasWeightGoal={prefill.hasWeightGoal} />
         <Disclosure label="Sharpen the estimate" defaultOpen={hasSharpenAnswers(draft)}>
           <SharpenFields {...sections} />
         </Disclosure>

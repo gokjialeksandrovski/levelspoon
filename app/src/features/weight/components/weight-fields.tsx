@@ -1,6 +1,7 @@
 // Field controls shared by the weight goal sheet and the calorie estimate
 // page. Moved out of the day route when the second route needed them.
 import { Button } from "@/components/ui/button";
+import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { Field } from "@/components/ui/field";
 import { FOCUS_OUTLINE } from "@/components/ui/tap-target";
 
@@ -30,7 +31,11 @@ const UNIT_OPTIONS: WeightUnit[] = ["kg", "lb"];
 const PILL_OFFSET: Record<WeightUnit, string> = { kg: "translate-x-0", lb: "translate-x-10" };
 
 export const UnitToggle = ({ unit, onChange }: { unit: WeightUnit; onChange: (unit: WeightUnit) => void }) => (
-  <div role="group" aria-label="Weight unit" className="relative flex h-9 items-stretch rounded-full bg-surface-raised p-1">
+  <div
+    role="group"
+    aria-label="Weight unit"
+    className="relative flex h-9 items-stretch rounded-full bg-surface-raised p-1"
+  >
     <span
       aria-hidden="true"
       className={`pointer-events-none absolute inset-y-1 left-1 w-10 rounded-full bg-text transition-transform duration-(--duration-step) ease-out-quart motion-reduce:transition-none ${PILL_OFFSET[unit]}`}
@@ -74,7 +79,16 @@ export interface PresetFieldProps {
 // field - the same relationship AmountChips has with the amount field - so a
 // figure nobody put on a chip is still typeable, and the chips still say what
 // the common answers are.
-export const PresetField = ({ label, name, suffix, value, presets, presetLabel, helperText, onChange }: PresetFieldProps) => {
+export const PresetField = ({
+  label,
+  name,
+  suffix,
+  value,
+  presets,
+  presetLabel,
+  helperText,
+  onChange,
+}: PresetFieldProps) => {
   const selected = parseDecimalDraft(value);
 
   return (
@@ -104,3 +118,25 @@ export const PresetField = ({ label, name, suffix, value, presets, presetLabel, 
     </div>
   );
 };
+
+export const BAND_HELPER = "How far above or below your current weight still counts as steady.";
+
+// PUBLISHED - Morton RW et al., Br J Sports Med 2018;52:376: protein's effect
+// on lean mass gains plateaus near 1.6 g/kg/day, upper 95% CI 2.2. The pound
+// row is the same range divided by 2.2046, rounded to what a person would say.
+const RECOMP_HELPER: Record<WeightUnit, string> = {
+  kg: "Build muscle and lose fat while your weight stays about the same. It takes regular strength training and more protein than usual, about 1.6 to 2.2 g per kg of body weight a day.",
+  lb: "Build muscle and lose fat while your weight stays about the same. It takes regular strength training and more protein than usual, about 0.7 to 1 g per lb of body weight a day.",
+};
+
+interface RecompCheckboxProps {
+  unit: WeightUnit;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+// A modifier on holding steady, not a goal of its own: recomp keeps the scale
+// where it is, so it lives under the band on both the sheet and the estimate.
+export const RecompCheckbox = ({ unit, checked, onChange }: RecompCheckboxProps) => (
+  <CheckboxRow name="recomp" label="Recomp" helperText={RECOMP_HELPER[unit]} checked={checked} onChange={onChange} />
+);

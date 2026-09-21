@@ -67,6 +67,30 @@ const MONTHLY_DAYS = 30;
 export const CHECKIN_PRESETS = [DAILY_DAYS, WEEKLY_DAYS, FORTNIGHTLY_DAYS, MONTHLY_DAYS] as const;
 export const DEFAULT_CHECKIN_INTERVAL_DAYS = WEEKLY_DAYS;
 
+const CADENCE_LABELS: Record<number, string> = {
+  [DAILY_DAYS]: "Daily",
+  [WEEKLY_DAYS]: "Weekly",
+  [FORTNIGHTLY_DAYS]: "2 weeks",
+  [MONTHLY_DAYS]: "Monthly",
+};
+
+// Names a preset chip. Only the presets are ever passed, so every call finds
+// its label; the fallback states the figure rather than guessing a name.
+export const cadenceLabel = (days: number): string => CADENCE_LABELS[days] ?? `${days} days`;
+
+// Flipping the unit re-expresses a typed figure, but a figure still sitting on
+// a preset moves to the same position in the new unit's own round numbers, so
+// 0.5 kg/wk becomes 1 lb/wk and not 1.1. Null when it is not on a preset.
+export const convertedPreset = (
+  text: string,
+  presets: (unit: WeightUnit) => number[],
+  from: WeightUnit,
+  to: WeightUnit,
+): string | null => {
+  const index = presets(from).indexOf(parseDecimalDraft(text));
+  return index === -1 ? null : String(presets(to)[index]);
+};
+
 const TENTHS_PER_UNIT = 10;
 const HUNDREDTHS_PER_UNIT = 100;
 const DAYS_PER_WEEK = 7;
@@ -82,6 +106,8 @@ export interface WeightGoal {
   targetWeightKg: number | null;
   rateKgPerWeek: number | null;
   holdBandKg: number | null;
+  /** Hold mode only: the weight stays put while fat goes and muscle comes. */
+  recomp: boolean;
   checkinIntervalDays: number;
 }
 
@@ -107,6 +133,7 @@ export interface WeightGoalInput {
   targetWeightKg: number | null;
   rateKgPerWeek: number | null;
   holdBandKg: number | null;
+  recomp: boolean;
   checkinIntervalDays: number;
 }
 
@@ -115,6 +142,7 @@ export type InvalidGoalReason =
   | "target"
   | "rate"
   | "band"
+  | "recomp"
   | "cadence"
   | "target_equals_current";
 
@@ -193,6 +221,8 @@ const targetGoalError = (input: WeightGoalInput): InvalidGoalReason | null => {
     return "rate";
   }
   if (input.holdBandKg !== null) return "band";
+  // Recomp is holding a weight on purpose; a target is moving it.
+  if (input.recomp) return "recomp";
   // A target equal to the current weight is a hold, and stored as a target it
   // draws a zero-length rail - the DB's own CHECK refuses it too.
   if (roundToTenth(input.targetWeightKg) === roundToTenth(input.currentWeightKg)) return "target_equals_current";

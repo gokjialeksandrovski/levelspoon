@@ -5,9 +5,11 @@ import { useState } from "react";
 
 import { saveWeightGoal } from "@/features/weight/actions/weight";
 import {
+  cadenceLabel,
   CHECKIN_PRESETS,
   bandPresets,
   commitWeightDraft,
+  convertedPreset,
   defaultBand,
   defaultPace,
   DEFAULT_CHECKIN_INTERVAL_DAYS,
@@ -27,7 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
-import { PresetField, UnitSuffix, UnitToggle } from "@/features/weight/components/weight-fields";
+import {
+  BAND_HELPER,
+  PresetField,
+  RecompCheckbox,
+  UnitSuffix,
+  UnitToggle,
+} from "@/features/weight/components/weight-fields";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { projectionLineText } from "./weight-row.utils";
@@ -41,20 +49,9 @@ export interface GoalDraft {
   targetDraft: string;
   paceDraft: string;
   bandDraft: string;
+  recomp: boolean;
   cadenceDraft: string;
 }
-
-const DAILY_DAYS = 1;
-const WEEKLY_DAYS = 7;
-const FORTNIGHTLY_DAYS = 14;
-
-const CADENCE_LABELS: Record<number, string> = {
-  [DAILY_DAYS]: "Daily",
-  [WEEKLY_DAYS]: "Weekly",
-  [FORTNIGHTLY_DAYS]: "2 weeks",
-};
-
-export const cadenceLabel = (days: number): string => CADENCE_LABELS[days] ?? "Monthly";
 
 // A rejected draft becomes an input the action refuses by name, rather than a
 // guessed number: 0 is not a weight anybody typed.
@@ -77,6 +74,7 @@ export const draftToInput = (draft: GoalDraft): WeightGoalInput => {
       targetWeightKg: null,
       rateKgPerWeek: null,
       holdBandKg: draftToRangedKg(draft.bandDraft, draft.unit),
+      recomp: draft.recomp,
     };
   }
   return {
@@ -85,6 +83,7 @@ export const draftToInput = (draft: GoalDraft): WeightGoalInput => {
     targetWeightKg: weightFromDraft(draft.targetDraft, draft.unit),
     rateKgPerWeek: draftToRangedKg(draft.paceDraft, draft.unit),
     holdBandKg: null,
+    recomp: false,
   };
 };
 
@@ -97,6 +96,7 @@ const emptyDraft = (unit: WeightUnit): GoalDraft => ({
   targetDraft: "",
   paceDraft: String(defaultPace(unit)),
   bandDraft: String(defaultBand(unit)),
+  recomp: false,
   cadenceDraft: String(DEFAULT_CHECKIN_INTERVAL_DAYS),
 });
 
@@ -113,24 +113,13 @@ const initialDraft = (view: WeightView | null): GoalDraft => {
     targetDraft: storedWeight(view.goal.targetWeightKg, unit),
     paceDraft: storedWeight(view.goal.rateKgPerWeek, unit) || String(defaultPace(unit)),
     bandDraft: storedWeight(view.goal.holdBandKg, unit) || String(defaultBand(unit)),
+    recomp: view.goal.recomp,
     cadenceDraft: String(view.goal.checkinIntervalDays),
   };
 };
 
 // Flipping the unit re-expresses what is already typed rather than clearing
 // it: a draft the user cannot get back is a cancel they did not ask for.
-// A figure still sitting on a preset moves to the same position in the new
-// unit's own round numbers, so 0.5 kg/wk becomes 1 lb/wk and not 1.1.
-const convertedPreset = (
-  text: string,
-  presets: (unit: WeightUnit) => number[],
-  from: WeightUnit,
-  to: WeightUnit,
-): string | null => {
-  const index = presets(from).indexOf(parseDecimalDraft(text));
-  return index === -1 ? null : String(presets(to)[index]);
-};
-
 const convertDraft = (draft: GoalDraft, unit: WeightUnit): GoalDraft => {
   const reexpress = (text: string): string =>
     text.trim() === "" ? text : String(displayWeight(draftToRangedKg(text, draft.unit), unit));
@@ -174,6 +163,7 @@ const REASON_MESSAGE: Record<InvalidGoalReason, string> = {
   target_equals_current: "That target is your current weight. Choose Hold steady instead.",
   rate: "Enter a pace above zero.",
   band: "Enter a band above zero.",
+  recomp: "Recomp goes with Hold steady.",
   cadence: "Enter how many days between weigh-ins.",
 };
 
@@ -206,6 +196,7 @@ export const WeightGoalSheet = ({ open, view, onClose, onSaved }: WeightGoalShee
             targetWeightKg: input.targetWeightKg,
             rateKgPerWeek: input.rateKgPerWeek,
             holdBandKg: null,
+            recomp: false,
             checkinIntervalDays: input.checkinIntervalDays,
           },
           input.currentWeightKg,
@@ -277,15 +268,22 @@ export const WeightGoalSheet = ({ open, view, onClose, onSaved }: WeightGoalShee
             onChange={(paceDraft) => setDraft({ ...draft, paceDraft })}
           />
         ) : (
-          <PresetField
-            label="Band"
-            name="hold-band"
-            suffix={`± ${draft.unit}`}
-            value={draft.bandDraft}
-            presets={bandPresets(draft.unit)}
-            helperText="How far above or below your current weight still counts as steady."
-            onChange={(bandDraft) => setDraft({ ...draft, bandDraft })}
-          />
+          <div className="flex flex-col gap-3">
+            <PresetField
+              label="Band"
+              name="hold-band"
+              suffix={`± ${draft.unit}`}
+              value={draft.bandDraft}
+              presets={bandPresets(draft.unit)}
+              helperText={BAND_HELPER}
+              onChange={(bandDraft) => setDraft({ ...draft, bandDraft })}
+            />
+            <RecompCheckbox
+              unit={draft.unit}
+              checked={draft.recomp}
+              onChange={(recomp) => setDraft({ ...draft, recomp })}
+            />
+          </div>
         )}
         <PresetField
           label="Weigh in every"

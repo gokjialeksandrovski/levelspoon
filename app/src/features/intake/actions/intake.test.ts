@@ -28,17 +28,18 @@ const baseInput = {
   primaryGoal: "lose_fat" as const,
   goalWeightKg: null,
   paceKgPerWeek: null,
+  holdBandKg: null,
+  recomp: false,
   bodyFatPct: null,
   bodyFatSource: null,
   trainingStyle: null,
   strengthDaysPerWeek: null,
   trainingYears: null,
-  trackingStyle: null,
+  trackingPeriodDays: null,
   pregnantOrBreastfeeding: false,
   metabolismCondition: false,
   metabolismAdjustPct: null,
   saveAnswers: false,
-  trackAsWeightGoal: false,
 };
 
 const calorieGoal = async (): Promise<number | null> => {
@@ -120,17 +121,44 @@ describe("saveIntakeEstimate", () => {
     expect(await entryRows()).toHaveLength(1);
   });
 
-  it("writes a target weight goal only when asked, at the pace in use", async () => {
-    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 72 }, TIMEZONE);
+  it("writes a target weight goal from a goal weight, at the pace in use", async () => {
+    await saveIntakeEstimate(baseInput, TIMEZONE);
     expect(await db.select().from(weightGoals).where(eq(weightGoals.userId, userId))).toHaveLength(0);
 
-    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 72, trackAsWeightGoal: true }, TIMEZONE);
+    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 72 }, TIMEZONE);
     const [goal] = await db.select().from(weightGoals).where(eq(weightGoals.userId, userId));
     expect(goal.mode).toBe("target");
     expect(goal.targetWeightKg).toBe("72.00");
     // the suggested 0.5% of 80 kg
     expect(goal.rateKgPerWeek).toBe("0.40");
     expect(goal.checkinIntervalDays).toBe(7);
+  });
+
+  it("leaves an unchanged goal alone, so its start survives a recalculation", async () => {
+    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 72 }, TIMEZONE);
+    await db.update(weightGoals).set({ startDate: "2026-01-01" }).where(eq(weightGoals.userId, userId));
+
+    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 72 }, TIMEZONE);
+    const [kept] = await db.select().from(weightGoals).where(eq(weightGoals.userId, userId));
+    expect(kept.startDate).toBe("2026-01-01");
+
+    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 70 }, TIMEZONE);
+    const [moved] = await db.select().from(weightGoals).where(eq(weightGoals.userId, userId));
+    expect(moved.targetWeightKg).toBe("70.00");
+    expect(moved.startDate).toBe(todayLocalDateString(TIMEZONE));
+  });
+
+  it("writes a hold goal with recomp from maintain, and a band of 0 leaves the goal alone", async () => {
+    const maintain = { ...baseInput, primaryGoal: "maintain" as const };
+    await saveIntakeEstimate({ ...baseInput, goalWeightKg: 72 }, TIMEZONE);
+
+    await saveIntakeEstimate({ ...maintain, holdBandKg: null }, TIMEZONE);
+    const [untouched] = await db.select().from(weightGoals).where(eq(weightGoals.userId, userId));
+    expect(untouched.mode).toBe("target");
+
+    await saveIntakeEstimate({ ...maintain, holdBandKg: 1, recomp: true }, TIMEZONE);
+    const [hold] = await db.select().from(weightGoals).where(eq(weightGoals.userId, userId));
+    expect(hold).toMatchObject({ mode: "hold", holdBandKg: "1.00", recomp: true, startWeightKg: "80.00" });
   });
 
   it("stores the unit the user typed in", async () => {
@@ -146,6 +174,7 @@ describe("getIntakePrefill", () => {
       unit: "kg",
       latestWeightKg: null,
       targetGoal: null,
+      holdGoal: null,
       hasWeightGoal: false,
       profile: null,
     });
@@ -156,7 +185,6 @@ describe("getIntakePrefill", () => {
       {
         ...baseInput,
         goalWeightKg: 72,
-        trackAsWeightGoal: true,
         saveAnswers: true,
         metabolismCondition: true,
         metabolismAdjustPct: -10,

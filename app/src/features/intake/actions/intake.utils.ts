@@ -7,17 +7,18 @@
 // (chosen here; no published figure). Tell the two apart before changing one.
 import {
   isValidWeightKg,
+  MAX_BAND_KG,
   MAX_RATE_KG_PER_WEEK,
+  MIN_BAND_KG,
   MIN_RATE_KG_PER_WEEK,
 } from "@/features/weight/actions/weight.utils";
 
 export type IntakeSex = "male" | "female" | "unspecified";
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "very" | "extreme";
-export type PrimaryGoal = "lose_fat" | "maintain" | "gain_muscle" | "recomp";
+export type PrimaryGoal = "lose_fat" | "maintain" | "gain_muscle";
 export type BodyFatSource = "typed" | "visual";
 export type TrainingStyle = "sedentary" | "cardio" | "strength" | "mixed";
 export type TrainingYears = "none" | "under_1" | "1_to_3" | "over_3";
-export type TrackingStyle = "daily" | "weekly_average";
 
 export const BODY_FAT_STAGES = ["abs", "flat", "soft", "belly", "large"] as const;
 export type BodyFatStage = (typeof BODY_FAT_STAGES)[number];
@@ -34,20 +35,25 @@ export interface IntakeProfile {
   trainingStyle: TrainingStyle | null;
   strengthDaysPerWeek: number | null;
   trainingYears: TrainingYears | null;
-  trackingStyle: TrackingStyle | null;
+  /** Days the user wants their intake averaged over; 1 is a strict daily target. */
+  trackingPeriodDays: number | null;
   pregnantOrBreastfeeding: boolean;
   metabolismCondition: boolean;
   /** Signed: + the condition raised metabolism, - lowered it. */
   metabolismAdjustPct: number | null;
 }
 
-/** Everything the estimate reads. Weight, goal weight and pace belong to the
- * weight feature's tables, not intake_profiles. */
+/** Everything the estimate reads. Weight, goal weight, pace, band and recomp
+ * belong to the weight feature's tables, not intake_profiles. */
 export interface IntakeInput extends IntakeProfile {
   weightKg: number;
   goalWeightKg: number | null;
   /** A typed pace. Null asks for the suggested one. */
   paceKgPerWeek: number | null;
+  /** Maintain only. Null saves no hold goal. */
+  holdBandKg: number | null;
+  /** Maintain only, and only with a band: it is stored on the hold goal. */
+  recomp: boolean;
 }
 
 export type IntakeField =
@@ -57,8 +63,11 @@ export type IntakeField =
   | "goal_weight"
   | "goal_direction"
   | "pace"
+  | "band"
+  | "recomp"
   | "body_fat"
   | "strength_days"
+  | "tracking_period"
   | "metabolism";
 
 export type RefusalReason = "under_18" | "pregnancy";
@@ -172,6 +181,10 @@ const MAX_BODY_FAT_PCT = 60;
 const MIN_METABOLISM_ADJUST_PCT = 1;
 export const MAX_METABOLISM_ADJUST_PCT = 30;
 const MAX_STRENGTH_DAYS = 7;
+// Mirrors intake_tracking_period in the schema. A year, the same ceiling a
+// weigh-in cadence has: any whole number of days, like that field.
+export const MIN_TRACKING_PERIOD_DAYS = 1;
+export const MAX_TRACKING_PERIOD_DAYS = 365;
 
 // JUDGMENT - visual body-fat charts are approximations; §6.5 keeps the range
 // wide for a stage rather than narrowing it.
@@ -188,7 +201,7 @@ const CM_PER_M = 100;
 const KCAL_ROUNDING = 10;
 const YEAR_DIGITS = 4;
 
-const GOAL_DIRECTION: Record<PrimaryGoal, number> = { lose_fat: -1, maintain: 0, gain_muscle: 1, recomp: 0 };
+const GOAL_DIRECTION: Record<PrimaryGoal, number> = { lose_fat: -1, maintain: 0, gain_muscle: 1 };
 
 export const roundKcal = (kcal: number): number => Math.round(kcal / KCAL_ROUNDING) * KCAL_ROUNDING;
 
@@ -216,16 +229,21 @@ const bodyError = (input: IntakeInput, currentYear: number): IntakeField | null 
   return isValidWeightKg(input.weightKg) ? null : "weight";
 };
 
-// Maintain and recomp carry neither figure: a goal weight there has no
-// direction to check, and a pace has nothing to move.
+// Maintain carries neither figure: a goal weight there has no direction to
+// check, and a pace has nothing to move. It carries a band instead, and recomp
+// rides on the hold goal that band saves, so recomp without one has no home.
 const undirectedGoalError = (input: IntakeInput): IntakeField | null => {
   if (input.goalWeightKg !== null) return "goal_weight";
-  return input.paceKgPerWeek === null ? null : "pace";
+  if (input.paceKgPerWeek !== null) return "pace";
+  if (input.holdBandKg === null) return input.recomp ? "recomp" : null;
+  return inRange(input.holdBandKg, MIN_BAND_KG, MAX_BAND_KG) ? null : "band";
 };
 
 const goalError = (input: IntakeInput): IntakeField | null => {
   const direction = GOAL_DIRECTION[input.primaryGoal];
   if (direction === 0) return undirectedGoalError(input);
+  if (input.holdBandKg !== null) return "band";
+  if (input.recomp) return "recomp";
   if (input.paceKgPerWeek !== null && !inRange(input.paceKgPerWeek, MIN_RATE_KG_PER_WEEK, MAX_RATE_KG_PER_WEEK)) {
     return "pace";
   }
@@ -248,6 +266,14 @@ const trainingError = (input: IntakeInput): IntakeField | null => {
   return Number.isInteger(days) && inRange(days, 0, MAX_STRENGTH_DAYS) ? null : "strength_days";
 };
 
+const trackingPeriodError = (input: IntakeInput): IntakeField | null => {
+  const days = input.trackingPeriodDays;
+  if (days === null) return null;
+  return Number.isInteger(days) && inRange(days, MIN_TRACKING_PERIOD_DAYS, MAX_TRACKING_PERIOD_DAYS)
+    ? null
+    : "tracking_period";
+};
+
 const metabolismError = (input: IntakeInput): IntakeField | null => {
   const pct = input.metabolismAdjustPct;
   if (pct === null) return null;
@@ -266,6 +292,7 @@ export const intakeInputError = (input: IntakeInput, currentYear: number): Intak
   goalError(input) ??
   bodyFatError(input) ??
   trainingError(input) ??
+  trackingPeriodError(input) ??
   metabolismError(input);
 
 const leanMassKg = (input: IntakeInput): number | null =>

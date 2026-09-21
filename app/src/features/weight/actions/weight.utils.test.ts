@@ -31,6 +31,7 @@ const losingGoal: WeightGoal = {
   targetWeightKg: 72,
   rateKgPerWeek: 0.5,
   holdBandKg: null,
+  recomp: false,
   checkinIntervalDays: 7,
 };
 
@@ -43,6 +44,7 @@ const holdGoal: WeightGoal = {
   targetWeightKg: null,
   rateKgPerWeek: null,
   holdBandKg: 1,
+  recomp: false,
   checkinIntervalDays: 14,
 };
 
@@ -134,6 +136,7 @@ describe("weightGoalInputError", () => {
     targetWeightKg: 72,
     rateKgPerWeek: 0.5,
     holdBandKg: null,
+    recomp: false,
     checkinIntervalDays: 7,
   };
 
@@ -153,6 +156,8 @@ describe("weightGoalInputError", () => {
     const hold = { ...validTarget, mode: "hold" as const, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1 };
     expect(weightGoalInputError(hold)).toBeNull();
     expect(weightGoalInputError({ ...hold, holdBandKg: 0 })).toBe("band");
+    expect(weightGoalInputError({ ...hold, recomp: true })).toBeNull();
+    expect(weightGoalInputError({ ...validTarget, recomp: true })).toBe("recomp");
   });
 
   it("takes a pace and a cadence the presets never offered", () => {

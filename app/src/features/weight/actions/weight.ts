@@ -40,6 +40,7 @@ interface GoalRow {
   targetWeightKg: string | null;
   rateKgPerWeek: string | null;
   holdBandKg: string | null;
+  recomp: boolean;
   checkinIntervalDays: number;
 }
 
@@ -52,6 +53,7 @@ const toGoal = (row: GoalRow): WeightGoal => ({
   targetWeightKg: row.targetWeightKg === null ? null : Number(row.targetWeightKg),
   rateKgPerWeek: row.rateKgPerWeek === null ? null : Number(row.rateKgPerWeek),
   holdBandKg: row.holdBandKg === null ? null : Number(row.holdBandKg),
+  recomp: row.recomp,
   checkinIntervalDays: row.checkinIntervalDays,
 });
 
@@ -73,6 +75,7 @@ export const fetchWeightView = async (userId: string): Promise<WeightView | null
       targetWeightKg: weightGoals.targetWeightKg,
       rateKgPerWeek: weightGoals.rateKgPerWeek,
       holdBandKg: weightGoals.holdBandKg,
+      recomp: weightGoals.recomp,
       checkinIntervalDays: weightGoals.checkinIntervalDays,
       unit: users.weightUnit,
     })

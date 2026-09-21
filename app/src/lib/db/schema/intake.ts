@@ -5,11 +5,12 @@ import { users } from "./auth";
 
 export const intakeSexEnum = pgEnum("intake_sex", ["male", "female", "unspecified"]);
 export const activityLevelEnum = pgEnum("activity_level", ["sedentary", "light", "moderate", "very", "extreme"]);
-export const primaryGoalEnum = pgEnum("primary_goal", ["lose_fat", "maintain", "gain_muscle", "recomp"]);
+// No recomp: it holds the scale still, so it is a tick on maintain's hold goal
+// (weight_goals.recomp), not a goal of its own.
+export const primaryGoalEnum = pgEnum("primary_goal", ["lose_fat", "maintain", "gain_muscle"]);
 export const bodyFatSourceEnum = pgEnum("body_fat_source", ["typed", "visual"]);
 export const trainingStyleEnum = pgEnum("training_style", ["sedentary", "cardio", "strength", "mixed"]);
 export const trainingYearsEnum = pgEnum("training_years", ["none", "under_1", "1_to_3", "over_3"]);
-export const trackingStyleEnum = pgEnum("tracking_style", ["daily", "weekly_average"]);
 
 // 999.9 cm and 99.9%: one decimal is what a tape or a caliper reads, and the
 // app's own ranges (100-250 cm, 3-60%) sit well inside both.
@@ -38,7 +39,9 @@ export const intakeProfiles = pgTable(
     trainingStyle: trainingStyleEnum("training_style"),
     strengthDaysPerWeek: smallint("strength_days_per_week"),
     trainingYears: trainingYearsEnum("training_years"),
-    trackingStyle: trackingStyleEnum("tracking_style"),
+    // Days the user wants intake averaged over: 1 is a strict daily target,
+    // 7 a weekly average, and anything between is theirs to type.
+    trackingPeriodDays: smallint("tracking_period_days"),
     pregnantOrBreastfeeding: boolean("pregnant_or_breastfeeding").default(false).notNull(),
     metabolismCondition: boolean("metabolism_condition").default(false).notNull(),
     // Signed percent: + the condition raised metabolism, - lowered it. Which
@@ -60,6 +63,11 @@ export const intakeProfiles = pgTable(
     check(
       "intake_metabolism_pct",
       sql`${table.metabolismAdjustPct} IS NULL OR (${table.metabolismCondition} AND ${table.metabolismAdjustPct} BETWEEN -30 AND 30 AND ${table.metabolismAdjustPct} <> 0)`,
+    ),
+    // Mirrors MIN/MAX_TRACKING_PERIOD_DAYS in intake.utils.ts.
+    check(
+      "intake_tracking_period",
+      sql`${table.trackingPeriodDays} IS NULL OR ${table.trackingPeriodDays} BETWEEN 1 AND 365`,
     ),
     check(
       "intake_strength_days",

@@ -1,0 +1,3 @@
+ALTER TABLE "intake_profiles" ADD COLUMN "tracking_period_days" smallint;--> statement-breakpoint
+UPDATE "intake_profiles" SET "tracking_period_days" = CASE "tracking_style" WHEN 'daily' THEN 1 WHEN 'weekly_average' THEN 7 END WHERE "tracking_style" IS NOT NULL;--> statement-breakpoint
+ALTER TABLE "intake_profiles" ADD CONSTRAINT "intake_tracking_period" CHECK ("intake_profiles"."tracking_period_days" IS NULL OR "intake_profiles"."tracking_period_days" BETWEEN 1 AND 365);

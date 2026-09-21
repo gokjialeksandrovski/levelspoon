@@ -54,6 +54,8 @@ const ReadyBody = ({ estimate, unit, today, hasCondition, isSaving, onUse }: Rea
   return (
     <div className="flex flex-col gap-2">
       <p className="font-display text-xl font-semibold tabular-nums">{rangeText(estimate)}</p>
+      {/* Out of Details: it is the one line a goal weight changes. */}
+      {timeline && <p className="text-sm text-text-muted">{timeline}</p>}
       {noticeLines(estimate).map((line) => (
         <p key={line} className="text-sm text-text-muted">
           {line}
@@ -69,7 +71,6 @@ const ReadyBody = ({ estimate, unit, today, hasCondition, isSaving, onUse }: Rea
           {detailLines(estimate, unit).map((line) => (
             <p key={line}>{line}</p>
           ))}
-          {timeline && <p>{timeline}</p>}
         </div>
       </Disclosure>
     </div>

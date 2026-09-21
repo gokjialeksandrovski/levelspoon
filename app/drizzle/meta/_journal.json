@@ -127,6 +127,27 @@
       "when": 1789996065995,
       "tag": "0017_add-intake-profile",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790001736241,
+      "tag": "0018_add-tracking-period",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790001743010,
+      "tag": "0019_drop-tracking-style",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790003237073,
+      "tag": "0020_drop-recomp-goal",
+      "breakpoints": true
     }
   ]
 }

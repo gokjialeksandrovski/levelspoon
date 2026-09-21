@@ -1,7 +1,7 @@
 // app/src/app/(app)/day/[date]/weight-goal-sheet.test.ts
 import { describe, expect, it, vi } from "vitest";
 
-import { weightGoalInputError } from "@/features/weight/actions/weight.utils";
+import { cadenceLabel, weightGoalInputError } from "@/features/weight/actions/weight.utils";
 
 // The component imports the Server Action, whose chain reaches next-auth and
 // its bare `next/server` specifier - which vitest cannot resolve, so this file
@@ -9,7 +9,7 @@ import { weightGoalInputError } from "@/features/weight/actions/weight.utils";
 // action; only the pure draft functions beside it are under test.
 vi.mock("@/features/weight/actions/weight", () => ({ saveWeightGoal: vi.fn() }));
 
-import { cadenceLabel, draftToInput, type GoalDraft } from "./weight-goal-sheet";
+import { draftToInput, type GoalDraft } from "./weight-goal-sheet";
 
 const targetDraft: GoalDraft = {
   mode: "target",
@@ -18,6 +18,7 @@ const targetDraft: GoalDraft = {
   targetDraft: "72",
   paceDraft: "0.5",
   bandDraft: "1",
+  recomp: false,
   cadenceDraft: "7",
 };
 
@@ -31,6 +32,7 @@ describe("draftToInput", () => {
       targetWeightKg: 72,
       rateKgPerWeek: 0.5,
       holdBandKg: null,
+      recomp: false,
       checkinIntervalDays: 7,
     });
     expect(weightGoalInputError(input)).toBeNull();
@@ -42,6 +44,11 @@ describe("draftToInput", () => {
     expect(input.rateKgPerWeek).toBeNull();
     expect(input.holdBandKg).toBe(1);
     expect(weightGoalInputError(input)).toBeNull();
+  });
+
+  it("keeps recomp on a hold and drops it on a target", () => {
+    expect(draftToInput({ ...targetDraft, mode: "hold", recomp: true }).recomp).toBe(true);
+    expect(draftToInput({ ...targetDraft, recomp: true }).recomp).toBe(false);
   });
 
   it("reads a comma decimal", () => {
@@ -70,6 +77,7 @@ describe("a pound draft", () => {
     targetDraft: "158.7",
     paceDraft: "1",
     bandDraft: "2",
+    recomp: false,
     cadenceDraft: "2",
   };
 

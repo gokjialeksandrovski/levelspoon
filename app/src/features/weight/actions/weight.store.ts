@@ -50,6 +50,7 @@ export const writeWeightGoal = async (
     targetWeightKg: toStoredOrNull(input.targetWeightKg),
     rateKgPerWeek: toStoredOrNull(input.rateKgPerWeek),
     holdBandKg: toStoredOrNull(input.holdBandKg),
+    recomp: input.recomp,
     checkinIntervalDays: input.checkinIntervalDays,
     updatedAt: new Date(),
   };

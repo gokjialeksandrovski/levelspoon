@@ -19,6 +19,7 @@ const losingGoal: WeightGoal = {
   targetWeightKg: 72,
   rateKgPerWeek: 0.5,
   holdBandKg: null,
+  recomp: false,
   checkinIntervalDays: 7,
 };
 
@@ -29,6 +30,7 @@ const holdGoal: WeightGoal = {
   targetWeightKg: null,
   rateKgPerWeek: null,
   holdBandKg: 1,
+  recomp: false,
   checkinIntervalDays: 7,
 };
 

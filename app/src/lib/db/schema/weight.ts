@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, integer, numeric, pgEnum, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, integer, numeric, pgEnum, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
 
@@ -47,6 +47,7 @@ export const weightGoals = pgTable(
       precision: BAND_COLUMN_PRECISION,
       scale: BAND_COLUMN_SCALE,
     }),
+    recomp: boolean("recomp").default(false).notNull(),
     checkinIntervalDays: integer("checkin_interval_days").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -58,6 +59,8 @@ export const weightGoals = pgTable(
       sql`(${table.mode} = 'target' AND ${table.targetWeightKg} IS NOT NULL AND ${table.rateKgPerWeek} IS NOT NULL AND ${table.holdBandKg} IS NULL)
        OR (${table.mode} = 'hold' AND ${table.holdBandKg} IS NOT NULL AND ${table.targetWeightKg} IS NULL AND ${table.rateKgPerWeek} IS NULL)`,
     ),
+    // Recomp holds the scale still on purpose; a target moves it.
+    check("weight_goals_recomp_hold", sql`${table.mode} = 'hold' OR NOT ${table.recomp}`),
     // Zero days is not a cadence: the next check-in would be the day it was
     // set, forever. The ceiling is the app's, not this column's.
     check("weight_goals_checkin_interval_positive", sql`${table.checkinIntervalDays} >= 1`),

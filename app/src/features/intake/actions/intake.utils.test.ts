@@ -24,12 +24,14 @@ const base: IntakeInput = {
   primaryGoal: "lose_fat",
   goalWeightKg: null,
   paceKgPerWeek: null,
+  holdBandKg: null,
+  recomp: false,
   bodyFatPct: null,
   bodyFatSource: null,
   trainingStyle: null,
   strengthDaysPerWeek: null,
   trainingYears: null,
-  trackingStyle: null,
+  trackingPeriodDays: null,
   pregnantOrBreastfeeding: false,
   metabolismCondition: false,
   metabolismAdjustPct: null,
@@ -116,9 +118,9 @@ describe("estimateIntake - goals and pace", () => {
     expect(unknown.paceKgPerWeek).toBeCloseTo(0.1846, 4);
   });
 
-  it("uses no pace for maintain and recomp", () => {
-    for (const primaryGoal of ["maintain", "recomp"] as const) {
-      const estimate = ready({ ...base, primaryGoal });
+  it("uses no pace for maintain, recomp or not", () => {
+    for (const recomp of [false, true]) {
+      const estimate = ready({ ...base, primaryGoal: "maintain", holdBandKg: 1, recomp });
       expect(estimate.paceKgPerWeek).toBeNull();
       expect(estimate.adjustmentKcal).toBe(0);
       expect(estimate.pointKcal).toBeCloseTo(2759);
@@ -203,11 +205,18 @@ describe("intakeInputError", () => {
     [{ primaryGoal: "gain_muscle" as const, goalWeightKg: 75 }, "goal_direction"],
     [{ goalWeightKg: 10 }, "goal_weight"],
     [{ primaryGoal: "maintain" as const, goalWeightKg: 75 }, "goal_weight"],
-    [{ primaryGoal: "recomp" as const, paceKgPerWeek: 0.5 }, "pace"],
+    [{ primaryGoal: "maintain" as const, paceKgPerWeek: 0.5 }, "pace"],
+    [{ primaryGoal: "maintain" as const, holdBandKg: 0 }, "band"],
+    [{ primaryGoal: "maintain" as const, recomp: true }, "recomp"],
+    [{ holdBandKg: 1 }, "band"],
+    [{ recomp: true }, "recomp"],
     [{ paceKgPerWeek: 0 }, "pace"],
     [{ bodyFatPct: 20 }, "body_fat"],
     [{ bodyFatPct: 70, bodyFatSource: "typed" as const }, "body_fat"],
     [{ strengthDaysPerWeek: 8 }, "strength_days"],
+    [{ trackingPeriodDays: 0 }, "tracking_period"],
+    [{ trackingPeriodDays: 1.5 }, "tracking_period"],
+    [{ trackingPeriodDays: 366 }, "tracking_period"],
     [{ metabolismAdjustPct: 10 }, "metabolism"],
     [{ metabolismCondition: true, metabolismAdjustPct: 31 }, "metabolism"],
     [{ metabolismCondition: true, metabolismAdjustPct: 0 }, "metabolism"],

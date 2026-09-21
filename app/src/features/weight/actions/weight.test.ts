@@ -22,6 +22,7 @@ const targetInput = {
   targetWeightKg: 72,
   rateKgPerWeek: 0.5,
   holdBandKg: null,
+  recomp: false,
   checkinIntervalDays: 7,
 };
 
@@ -75,12 +76,13 @@ describe("saveWeightGoal", () => {
 
   it("stores a hold goal with its band and no rate", async () => {
     const result = await saveWeightGoal(
-      { mode: "hold", unit: "kg", currentWeightKg: 78, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1, checkinIntervalDays: 14 },
+      { mode: "hold", unit: "kg", currentWeightKg: 78, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1, recomp: true, checkinIntervalDays: 14 },
       TIMEZONE,
     );
     expect(result.kind).toBe("saved");
     if (result.kind !== "saved") return;
     expect(result.view.goal.holdBandKg).toBe(1);
+    expect(result.view.goal.recomp).toBe(true);
     expect(result.view.goal.rateKgPerWeek).toBeNull();
   });
 });
