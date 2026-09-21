@@ -17,6 +17,7 @@ const TIMEZONE = "Europe/Berlin";
 
 const targetInput = {
   mode: "target" as const,
+  unit: "kg" as const,
   currentWeightKg: 84.8,
   targetWeightKg: 72,
   rateKgPerWeek: 0.5,
@@ -57,7 +58,7 @@ describe("saveWeightGoal", () => {
   });
 
   it("returns the offending field as data, never a throw", async () => {
-    const result = await saveWeightGoal({ ...targetInput, rateKgPerWeek: 9 }, TIMEZONE);
+    const result = await saveWeightGoal({ ...targetInput, rateKgPerWeek: 0 }, TIMEZONE);
     expect(result).toEqual({ kind: "invalid", reason: "rate" });
     expect(await fetchWeightView(userId)).toBeNull();
   });
@@ -74,7 +75,7 @@ describe("saveWeightGoal", () => {
 
   it("stores a hold goal with its band and no rate", async () => {
     const result = await saveWeightGoal(
-      { mode: "hold", currentWeightKg: 78, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1, checkinIntervalDays: 14 },
+      { mode: "hold", unit: "kg", currentWeightKg: 78, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1, checkinIntervalDays: 14 },
       TIMEZONE,
     );
     expect(result.kind).toBe("saved");
@@ -99,7 +100,7 @@ describe("logWeight", () => {
     await logWeight(78.9, TIMEZONE);
     const rows = await db.select().from(weightEntries).where(eq(weightEntries.userId, userId));
     expect(rows).toHaveLength(1);
-    expect(rows[0].weightKg).toBe("78.9");
+    expect(rows[0].weightKg).toBe("78.90");
   });
 
   it("refuses an implausible reading as data", async () => {

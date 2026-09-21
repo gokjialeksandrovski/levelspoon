@@ -13,7 +13,7 @@ const setTargetGoal = async (page: import("@playwright/test").Page): Promise<voi
   await page.getByRole("button", { name: /Track a weight goal/ }).click();
   await page.getByLabel("Current weight").fill("84.8");
   await page.getByLabel("Target weight").fill("72");
-  await page.getByRole("button", { name: "0.5 kg/wk" }).click();
+  await page.getByRole("button", { name: "0.5", exact: true }).click();
   await page.getByRole("button", { name: "Weekly" }).click();
   await page.getByRole("button", { name: "Save goal" }).click();
 };
@@ -93,4 +93,59 @@ test("a logged reading moves the row and the countdown", async ({ page }) => {
   const row = page.getByRole("button", { name: "Weight goal" });
   await expect(row).toContainText("78.4 kg");
   await expect(row).toContainText("6.4 to go");
+});
+
+test("pounds carry the whole feature, and the presets are round in pounds", async ({ page }) => {
+  await signUp(page);
+  await page.goto(`/day/${localToday()}`);
+
+  await page.getByRole("button", { name: /Track a weight goal/ }).click();
+  await page.getByLabel("Current weight").fill("187");
+  await page.getByRole("button", { name: "lb", exact: true }).click();
+  // The pound row is 0.5 / 1 / 1.5 / 2, not the kilogram row converted.
+  await expect(page.getByRole("button", { name: "1.5", exact: true })).toBeVisible();
+  await page.getByLabel("Target weight").fill("160");
+  await page.getByRole("button", { name: "Save goal" }).click();
+
+  const row = page.getByRole("button", { name: "Weight goal" });
+  await expect(row).toContainText("187 lb");
+  await expect(row).toContainText("27 to go");
+  await expect(row).toContainText("lb/wk");
+  await expect(row).not.toContainText("kg");
+});
+
+test("a pace and a cadence the presets never offered are storable", async ({ page }) => {
+  await signUp(page);
+  await page.goto(`/day/${localToday()}`);
+
+  await page.getByRole("button", { name: /Track a weight goal/ }).click();
+  await page.getByLabel("Current weight").fill("84.8");
+  await page.getByLabel("Target weight").fill("72");
+  await page.getByLabel("Pace").fill("1.6");
+  await page.getByLabel("Weigh in every").fill("2");
+  await page.getByRole("button", { name: "Save goal" }).click();
+
+  await expect(page.getByRole("button", { name: "Weight goal" })).toContainText("1.6 kg/wk");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Weight goal" })).toContainText("1.6 kg/wk");
+});
+
+test("deleting a goal takes two taps and the first one is reversible", async ({ page }) => {
+  await signUp(page);
+  await page.goto(`/day/${localToday()}`);
+  await setTargetGoal(page);
+
+  await page.getByRole("button", { name: "Weight goal" }).click();
+  await page.getByRole("button", { name: "Delete goal" }).click();
+  await expect(page.locator("#main-content")).toContainText("Delete this goal? Your readings stay.");
+
+  // Cancel writes nothing and fires no request.
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Weight goal" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Weight goal" }).click();
+  await page.getByRole("button", { name: "Delete goal" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Track a weight goal/ })).toBeVisible();
 });

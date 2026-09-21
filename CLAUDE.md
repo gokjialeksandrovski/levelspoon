@@ -338,9 +338,9 @@ Optional. App fully usable without one — nothing gates on it, nothing nags.
 
 - `weight_goals` one row per user, `weight_entries` one reading per **local**
   calendar day (unique index; a re-log replaces, never appends). Deleting a
-  goal keeps the readings. Both CHECK constraints are load-bearing: a
+  goal keeps the readings. All three CHECK constraints are load-bearing: a
   target-mode row carries target + rate and no band, a hold-mode row carries a
-  band and neither.
+  band and neither, and a cadence is at least one day.
 - **Carries no calorie arithmetic, in either direction.** No deficit, no TDEE,
   no suggested intake, not even as an aside. `features/weight/` must not import
   `features/goals/` or the reverse. A rate in kg/week is the user's own wish;
@@ -350,16 +350,39 @@ Optional. App fully usable without one — nothing gates on it, nothing nags.
   is the only progress function; `nextCheckinDate` and `checkinCountdown` the
   only cadence ones. A rail share is clamped 0–1 and the text beside it states
   the real figure.
-- Cadence floor is one week. No daily option — a daily reading is scale noise.
+- **Every figure the user picks is typeable; the presets are shortcuts, not
+  the range.** Pace, band and cadence each render as one `Field` with a preset
+  row under it (`PresetField` in `weight-goal-sheet.tsx`) — the same
+  relationship `AmountChips` has with the amount field. A cadence is any whole
+  number of days, 1–365; a pace is any figure above zero. The one-week floor
+  was dropped 2026-09-21: it was the app deciding for the user, and a daily
+  reading being mostly water is a fact the app states rather than smooths.
+- **Storage is always kg; the unit is a display preference.**
+  `users.weight_unit` (`kg` default, `lb`) decides which unit figures are typed
+  and printed in, and it is a column on `user` because it is one field with no
+  cross-field invariant — the same call `daily_calorie_goal` makes. Every
+  weight column is `numeric` at **two** decimals: 0.1 lb is 0.045 kg, so at one
+  decimal a pound reading came back as a pound the user never typed. Conversion
+  is `toKg`/`fromKg`/`displayWeight`, and a figure is rounded once, at the copy
+  layer, in the unit it prints in. Presets are round numbers **in each unit**
+  (0.25 kg/wk vs 0.5 lb/wk), never the kilogram row converted — only a figure
+  the user typed themselves is ever converted.
 - Row shows on **today** only, below `DayMacros`, one emphasis tier quieter:
-  one text line plus an `h-1` rail. **No accent or `danger` colour in the
-  block** — the accents own protein/carbs/fat/log-success and `danger` means
-  over the kcal goal. No verdict copy, no chart, no card.
+  one text line plus an `h-1` rail. **No accent colour in the block** — the
+  accents own protein/carbs/fat/log-success. No verdict copy, no chart, no
+  card. `danger` appears on exactly one control, the armed `Delete` in the
+  row's expanded panel, and only while it is armed — the resting `Delete goal`
+  is as quiet as `Edit goal` beside it, and arming fires no request. The sheet
+  carries no destructive control at all: a delete a user meets while reading a
+  form is one they can hit instead of cancelling.
 - Refusals cross to the client as `SaveWeightGoalResult` / `LogWeightResult`,
   not thrown classes — same reasoning as `CreateProductResult`.
 - Weigh-in dismissal is per-device `localStorage`
   (`per100:weigh-in-dismissed:<date>`), like the AI-photo consent key. The ✕
-  fires no request and does not mark the check-in done.
+  fires no request and does not mark the check-in done, so a daily cadence
+  asks again tomorrow. That is the cadence the user chose — there is no
+  back-off after repeated dismissals, because counting them would be the app
+  deciding they stopped meaning it (rejected 2026-09-21, see `DECISIONS.md`).
 - Spec: `docs/superpowers/specs/2026-09-21-weight-goal-design.md`.
 
 ## Time

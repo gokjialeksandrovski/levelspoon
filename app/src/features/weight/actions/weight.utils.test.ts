@@ -2,8 +2,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bandPresets,
   checkinCountdown,
   commitWeightDraft,
+  defaultPace,
+  displayWeight,
+  draftToKg,
+  fromKg,
+  isValidCheckinInterval,
+  pacePresets,
+  toKg,
   isCheckinDue,
   isUnusableWeightDraft,
   isValidWeightKg,
@@ -60,24 +68,68 @@ describe("isValidWeightKg", () => {
 
 describe("weight drafts", () => {
   it("reads a comma decimal separator", () => {
-    expect(commitWeightDraft("78,4", 80)).toBe(78.4);
+    expect(commitWeightDraft("78,4", "kg", 80)).toBe(78.4);
   });
 
   it("treats an empty or unreadable draft as unusable and keeps the fallback", () => {
-    expect(isUnusableWeightDraft("")).toBe(true);
-    expect(isUnusableWeightDraft("abc")).toBe(true);
-    expect(isUnusableWeightDraft("12")).toBe(true);
-    expect(commitWeightDraft("abc", 80)).toBe(80);
+    expect(isUnusableWeightDraft("", "kg")).toBe(true);
+    expect(isUnusableWeightDraft("abc", "kg")).toBe(true);
+    expect(isUnusableWeightDraft("12", "kg")).toBe(true);
+    expect(commitWeightDraft("abc", "kg", 80)).toBe(80);
   });
 
   it("rounds a usable draft to one decimal", () => {
-    expect(commitWeightDraft(" 78.46 ", 80)).toBe(78.5);
+    expect(commitWeightDraft(" 78.46 ", "kg", 80)).toBe(78.5);
+  });
+
+  it("reads a pound draft in pounds, and refuses one below the kilogram guard", () => {
+    // 172.7 lb is a plausible reading; 60 lb is under MIN_WEIGHT_KG.
+    expect(isUnusableWeightDraft("172.7", "lb")).toBe(false);
+    expect(isUnusableWeightDraft("60", "lb")).toBe(true);
+  });
+});
+
+describe("units", () => {
+  it("round-trips a pound reading without moving it", () => {
+    // The bug this precision exists for: at one stored decimal, 172.7 lb came
+    // back as 172.6 lb.
+    expect(displayWeight(draftToKg("172.7", "lb"), "lb")).toBe(172.7);
+    expect(displayWeight(draftToKg("78.4", "kg"), "kg")).toBe(78.4);
+  });
+
+  it("converts on the international pound", () => {
+    expect(toKg(1, "lb")).toBeCloseTo(0.45359237);
+    expect(fromKg(1, "lb")).toBeCloseTo(2.2046226);
+    expect(toKg(80, "kg")).toBe(80);
+  });
+
+  it("offers round presets in each unit rather than converted ones", () => {
+    expect(pacePresets("kg")).toEqual([0.25, 0.5, 0.75, 1]);
+    expect(pacePresets("lb")).toEqual([0.5, 1, 1.5, 2]);
+    expect(bandPresets("lb")).toEqual([1, 2, 3, 4]);
+    expect(defaultPace("lb")).toBe(1);
+  });
+});
+
+describe("isValidCheckinInterval", () => {
+  it("accepts any whole number of days from one", () => {
+    expect(isValidCheckinInterval(1)).toBe(true);
+    expect(isValidCheckinInterval(2)).toBe(true);
+    expect(isValidCheckinInterval(365)).toBe(true);
+  });
+
+  it("refuses a zero, a fraction and a figure past a year", () => {
+    expect(isValidCheckinInterval(0)).toBe(false);
+    expect(isValidCheckinInterval(1.5)).toBe(false);
+    expect(isValidCheckinInterval(366)).toBe(false);
+    expect(isValidCheckinInterval(Number.NaN)).toBe(false);
   });
 });
 
 describe("weightGoalInputError", () => {
   const validTarget = {
     mode: "target" as const,
+    unit: "kg" as const,
     currentWeightKg: 84.8,
     targetWeightKg: 72,
     rateKgPerWeek: 0.5,
@@ -92,15 +144,20 @@ describe("weightGoalInputError", () => {
   it("names the offending field", () => {
     expect(weightGoalInputError({ ...validTarget, currentWeightKg: 12 })).toBe("weight");
     expect(weightGoalInputError({ ...validTarget, targetWeightKg: 500 })).toBe("target");
-    expect(weightGoalInputError({ ...validTarget, rateKgPerWeek: 3 })).toBe("rate");
-    expect(weightGoalInputError({ ...validTarget, checkinIntervalDays: 1 })).toBe("cadence");
+    expect(weightGoalInputError({ ...validTarget, rateKgPerWeek: 0 })).toBe("rate");
+    expect(weightGoalInputError({ ...validTarget, checkinIntervalDays: 0 })).toBe("cadence");
     expect(weightGoalInputError({ ...validTarget, targetWeightKg: 84.8 })).toBe("target_equals_current");
   });
 
   it("requires a band and no rate for a hold goal", () => {
     const hold = { ...validTarget, mode: "hold" as const, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1 };
     expect(weightGoalInputError(hold)).toBeNull();
-    expect(weightGoalInputError({ ...hold, holdBandKg: 9 })).toBe("band");
+    expect(weightGoalInputError({ ...hold, holdBandKg: 0 })).toBe("band");
+  });
+
+  it("takes a pace and a cadence the presets never offered", () => {
+    expect(weightGoalInputError({ ...validTarget, rateKgPerWeek: 1.6 })).toBeNull();
+    expect(weightGoalInputError({ ...validTarget, checkinIntervalDays: 2 })).toBeNull();
   });
 });
 
@@ -109,7 +166,7 @@ describe("weightProgress", () => {
     const progress = weightProgress(losingGoal, { measuredOn: "2026-09-21", weightKg: 78.4 });
     expect(progress.kind).toBe("losing");
     if (progress.kind !== "losing") return;
-    expect(progress.remainingKg).toBe(6.4);
+    expect(progress.remainingKg).toBeCloseTo(6.4);
     // 6.4 of 12.8 kg closed.
     expect(progress.fillShare).toBeCloseTo(0.5);
     expect(progress.railShare).toBeCloseTo(0.5);
@@ -119,7 +176,7 @@ describe("weightProgress", () => {
     const progress = weightProgress(gainingGoal, { measuredOn: "2026-09-21", weightKg: 67 });
     expect(progress.kind).toBe("gaining");
     if (progress.kind !== "gaining") return;
-    expect(progress.remainingKg).toBe(3);
+    expect(progress.remainingKg).toBeCloseTo(3);
     expect(progress.fillShare).toBeCloseTo(0.5);
   });
 

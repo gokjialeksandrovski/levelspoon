@@ -71,8 +71,11 @@ const SheetBody = ({ titleId, title, children, footer, onClose }: Pick<SheetProp
     </div>
     {/* -mx-1 px-1: overflow-y-auto also clips horizontally, which shaves the
         sides off any offset focus outline inside. The gutter gives them room
-        without moving the content. */}
-    <div tabIndex={footer ? 0 : undefined} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        without moving the content.
+        scrollbar-thin: html's scrollbar-color is inherited here, but the
+        default `auto` width draws a 15px chrome gutter down the inside edge of
+        a rounded sheet, which reads as a seam rather than as a scrollbar. */}
+    <div tabIndex={footer ? 0 : undefined} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 scrollbar-thin">
       {children}
     </div>
     {footer && <div className="shrink-0 pt-3">{footer}</div>}

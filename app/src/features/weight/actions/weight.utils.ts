@@ -4,40 +4,71 @@
 import { addCalendarDays, dayBoundsInTimezone } from "@/lib/date/day-bounds";
 
 // Storage-and-typing guards, not medical opinion - the same stance as
-// MIN_CALORIE_GOAL. A numeric(5,1) column plus a plausible adult reading need
-// nothing outside this range, so a value past it is a slipped keystroke.
+// MIN_CALORIE_GOAL. A plausible adult reading needs nothing outside this
+// range, so a value past it is a slipped keystroke.
 export const MIN_WEIGHT_KG = 30;
 export const MAX_WEIGHT_KG = 300;
 
-export const MIN_RATE_KG_PER_WEEK = 0.1;
-export const MAX_RATE_KG_PER_WEEK = 1.5;
-export const MIN_BAND_KG = 0.5;
-export const MAX_BAND_KG = 3;
+// The numeric(4,2) columns' own ceiling, not an opinion about pace or band.
+// A rate in kg/week is the user's wish; the app has no view on which wish is
+// sensible, so the only floor is "a figure that means something" - a pace of
+// zero projects a date that never arrives.
+const COLUMN_CEILING = 99.99;
+const SMALLEST_STORABLE = 0.01;
+export const MIN_RATE_KG_PER_WEEK = SMALLEST_STORABLE;
+export const MAX_RATE_KG_PER_WEEK = COLUMN_CEILING;
+export const MIN_BAND_KG = SMALLEST_STORABLE;
+export const MAX_BAND_KG = COLUMN_CEILING;
 
-// Offered as chips. Typing is not offered for the rate: unlike a calorie goal,
-// every rate a user means is one of these four.
-const QUARTER_KG_PER_WEEK = 0.25;
-const HALF_KG_PER_WEEK = 0.5;
-const THREE_QUARTER_KG_PER_WEEK = 0.75;
-const ONE_KG_PER_WEEK = 1;
-export const PACE_CHOICES = [
-  QUARTER_KG_PER_WEEK,
-  HALF_KG_PER_WEEK,
-  THREE_QUARTER_KG_PER_WEEK,
-  ONE_KG_PER_WEEK,
-] as const;
-export const DEFAULT_PACE_KG_PER_WEEK = HALF_KG_PER_WEEK;
+// A cadence is any whole number of days. Daily is offered: a daily reading is
+// mostly water, which the app states rather than smooths, and the floor that
+// used to sit at one week was the app deciding for the user.
+export const MIN_CHECKIN_INTERVAL_DAYS = 1;
+// Past a year the "in 400 days" countdown is a typo's output, not a schedule.
+export const MAX_CHECKIN_INTERVAL_DAYS = 365;
 
-// One week is the floor, confirmed with the user: a daily reading is scale
-// noise, not progress.
+export type WeightUnit = "kg" | "lb";
+
+// International avoirdupois pound, exact by definition since 1959.
+const KG_PER_LB = 0.45359237;
+
+export const toKg = (value: number, unit: WeightUnit): number =>
+  unit === "lb" ? value * KG_PER_LB : value;
+
+export const fromKg = (weightKg: number, unit: WeightUnit): number =>
+  unit === "lb" ? weightKg / KG_PER_LB : weightKg;
+
+// Presets, built from one step each so the pound row is round numbers a
+// person would say (0.5 / 1 / 1.5 / 2 lb per week) rather than the kilogram
+// row converted into 0.55 / 1.1 / 1.65 / 2.2. Only a figure the user typed
+// themselves is ever converted.
+const PRESET_COUNT = 4;
+const PACE_PRESET_STEP: Record<WeightUnit, number> = { kg: 0.25, lb: 0.5 };
+const BAND_PRESET_STEP: Record<WeightUnit, number> = { kg: 0.5, lb: 1 };
+// The second chip in each row: 0.5 kg/wk or 1 lb/wk, ±1 kg or ±2 lb.
+const DEFAULT_PRESET_STEPS = 2;
+
+const presetsFrom = (step: number): number[] =>
+  Array.from({ length: PRESET_COUNT }, (_, index) => roundToHundredth(step * (index + 1)));
+
+export const pacePresets = (unit: WeightUnit): number[] => presetsFrom(PACE_PRESET_STEP[unit]);
+export const bandPresets = (unit: WeightUnit): number[] => presetsFrom(BAND_PRESET_STEP[unit]);
+
+export const defaultPace = (unit: WeightUnit): number =>
+  roundToHundredth(PACE_PRESET_STEP[unit] * DEFAULT_PRESET_STEPS);
+export const defaultBand = (unit: WeightUnit): number =>
+  roundToHundredth(BAND_PRESET_STEP[unit] * DEFAULT_PRESET_STEPS);
+
+const DAILY_DAYS = 1;
 const WEEKLY_DAYS = 7;
 const FORTNIGHTLY_DAYS = 14;
 const MONTHLY_DAYS = 30;
-export const CHECKIN_INTERVALS = [WEEKLY_DAYS, FORTNIGHTLY_DAYS, MONTHLY_DAYS] as const;
+// The four cadences people name. Everything between them is typeable.
+export const CHECKIN_PRESETS = [DAILY_DAYS, WEEKLY_DAYS, FORTNIGHTLY_DAYS, MONTHLY_DAYS] as const;
 export const DEFAULT_CHECKIN_INTERVAL_DAYS = WEEKLY_DAYS;
-export const DEFAULT_BAND_KG = 1;
 
 const TENTHS_PER_UNIT = 10;
+const HUNDREDTHS_PER_UNIT = 100;
 const DAYS_PER_WEEK = 7;
 const HOURS_PER_DAY = 24;
 const MS_PER_HOUR = 3_600_000;
@@ -61,6 +92,8 @@ export interface WeightEntry {
 
 export interface WeightView {
   goal: WeightGoal;
+  /** Display unit only. Every figure in this view is kg. */
+  unit: WeightUnit;
   latest: WeightEntry | null;
   /** The reading before `latest`, for the panel's "last change" line only. */
   previous: WeightEntry | null;
@@ -69,6 +102,7 @@ export interface WeightView {
 
 export interface WeightGoalInput {
   mode: WeightGoalMode;
+  unit: WeightUnit;
   currentWeightKg: number;
   targetWeightKg: number | null;
   rateKgPerWeek: number | null;
@@ -107,6 +141,13 @@ export type CheckinCountdown =
 export const roundToTenth = (value: number): number =>
   Math.round(value * TENTHS_PER_UNIT) / TENTHS_PER_UNIT;
 
+export const roundToHundredth = (value: number): number =>
+  Math.round(value * HUNDREDTHS_PER_UNIT) / HUNDREDTHS_PER_UNIT;
+
+/** One decimal in whichever unit is on screen - what a scale reads to. */
+export const displayWeight = (weightKg: number, unit: WeightUnit): number =>
+  roundToTenth(fromKg(weightKg, unit));
+
 const clampShare = (share: number): number => Math.min(1, Math.max(0, share));
 
 export const isValidWeightKg = (weightKg: number): boolean =>
@@ -114,18 +155,37 @@ export const isValidWeightKg = (weightKg: number): boolean =>
 
 // A comma is the decimal separator on the keyboards this app is used on, and
 // the nutrition parser already treats it as one.
-const parseWeightDraft = (draft: string): number => Number(draft.trim().replace(",", "."));
+export const parseDecimalDraft = (draft: string): number => {
+  const trimmed = draft.trim();
+  return trimmed === "" ? Number.NaN : Number(trimmed.replace(",", "."));
+};
 
-export const isUnusableWeightDraft = (draft: string): boolean =>
-  !isValidWeightKg(parseWeightDraft(draft));
+// Rounds in the unit the user typed, then stores kg at the column's
+// precision: rounding the kilogram value instead would move a pound reading
+// to a pound it was not.
+export const draftToKg = (draft: string, unit: WeightUnit): number =>
+  roundToHundredth(toKg(roundToTenth(parseDecimalDraft(draft)), unit));
+
+export const isUnusableWeightDraft = (draft: string, unit: WeightUnit): boolean =>
+  !isValidWeightKg(draftToKg(draft, unit));
 
 // Runs on blur, never per keystroke: rounding mid-typing rewrites "7" into a
 // value the next digit lands after, so the reading is never typeable.
-export const commitWeightDraft = (draft: string, currentKg: number): number =>
-  isUnusableWeightDraft(draft) ? currentKg : roundToTenth(parseWeightDraft(draft));
+export const commitWeightDraft = (draft: string, unit: WeightUnit, currentKg: number): number =>
+  isUnusableWeightDraft(draft, unit) ? currentKg : draftToKg(draft, unit);
+
+// A rate or a band is a distance, not a point on the scale, so it converts
+// on the same factor with no offset - but it has its own range.
+export const draftToRangedKg = (draft: string, unit: WeightUnit): number =>
+  roundToHundredth(toKg(parseDecimalDraft(draft), unit));
 
 const inRange = (value: number, min: number, max: number): boolean =>
   Number.isFinite(value) && value >= min && value <= max;
+
+// Whole days only: half a day is not a cadence the calendar arithmetic can
+// carry, and addCalendarDays would silently floor it.
+export const isValidCheckinInterval = (days: number): boolean =>
+  Number.isInteger(days) && inRange(days, MIN_CHECKIN_INTERVAL_DAYS, MAX_CHECKIN_INTERVAL_DAYS);
 
 const targetGoalError = (input: WeightGoalInput): InvalidGoalReason | null => {
   if (input.targetWeightKg === null || !isValidWeightKg(input.targetWeightKg)) return "target";
@@ -150,13 +210,13 @@ const holdGoalError = (input: WeightGoalInput): InvalidGoalReason | null => {
 // "no reason to reject", not a swallowed failure.
 export const weightGoalInputError = (input: WeightGoalInput): InvalidGoalReason | null => {
   if (!isValidWeightKg(input.currentWeightKg)) return "weight";
-  if (!CHECKIN_INTERVALS.includes(input.checkinIntervalDays as (typeof CHECKIN_INTERVALS)[number])) return "cadence";
+  if (!isValidCheckinInterval(input.checkinIntervalDays)) return "cadence";
   return input.mode === "target" ? targetGoalError(input) : holdGoalError(input);
 };
 
 const holdProgress = (goal: WeightGoal, currentKg: number): WeightProgress => {
   const centerKg = goal.startWeightKg;
-  const bandKg = goal.holdBandKg ?? DEFAULT_BAND_KG;
+  const bandKg = goal.holdBandKg ?? 0;
   const low = centerKg - bandKg;
   const high = centerKg + bandKg;
   const outsideKg = currentKg > high ? currentKg - high : Math.min(0, currentKg - low);
@@ -165,7 +225,7 @@ const holdProgress = (goal: WeightGoal, currentKg: number): WeightProgress => {
     currentKg,
     centerKg,
     bandKg,
-    outsideByKg: roundToTenth(outsideKg),
+    outsideByKg: outsideKg,
     railShare: clampShare((currentKg - low) / (high - low)),
     fillShare: 0,
   };
@@ -184,7 +244,7 @@ const targetProgress = (goal: WeightGoal, currentKg: number): WeightProgress => 
   return {
     kind: span > 0 ? "gaining" : "losing",
     currentKg,
-    remainingKg: roundToTenth(Math.abs(targetKg - currentKg)),
+    remainingKg: Math.abs(targetKg - currentKg),
     ...position,
   };
 };
@@ -226,5 +286,7 @@ export const projectedTargetDate = (goal: WeightGoal, currentKg: number, today: 
   return addCalendarDays(today, Math.ceil((remainingKg / goal.rateKgPerWeek) * DAYS_PER_WEEK));
 };
 
+// Exact kg. Every figure here is rounded once, at the copy layer, in the unit
+// it is printed in.
 export const weightChange = (latest: WeightEntry, previous: WeightEntry | null): number | null =>
-  previous === null ? null : roundToTenth(latest.weightKg - previous.weightKg);
+  previous === null ? null : latest.weightKg - previous.weightKg;

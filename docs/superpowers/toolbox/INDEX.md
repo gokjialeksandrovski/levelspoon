@@ -143,7 +143,12 @@ Action body. This file must never import from `features/goals/` and must never
 compute, mention or return a calorie figure — the weight goal carries no
 arithmetic to or from `daily_calorie_goal`. A new progress shape adds a variant
 to `WeightProgress`, not a second progress function.
-Added by: 2026-09-21-weight-goal.md
+RULE: every stored figure is kg. `toKg`/`fromKg`/`displayWeight` are the only
+conversions, and a figure is rounded **once**, at the copy layer, in the unit
+it prints in — rounding in kg first moves a pound reading to a pound nobody
+typed. A new preset row is a step constant plus `presetsFrom`, so each unit
+gets its own round numbers; never convert the kilogram row.
+Added by: 2026-09-21-weight-goal.md (units and free ranges 2026-09-21)
 
 ### weight_goals / weight_entries
 `app/src/lib/db/schema/weight.ts`
@@ -151,17 +156,25 @@ One goal row per user; one weight reading per user per local calendar day.
 RULE: readings are keyed by the user's **local** day, derived server-side from
 a browser timezone — never a server UTC day, never a client-supplied date. The
 unique index is the one-reading-per-day rule: re-logging a day replaces it,
-never appends. Deleting a goal leaves the readings. Both CHECK constraints on
-`weight_goals` are load-bearing; a mode's fields are all-or-nothing.
-Added by: 2026-09-21-weight-goal.md
+never appends. Deleting a goal leaves the readings. All three CHECK constraints
+on `weight_goals` are load-bearing; a mode's fields are all-or-nothing and a
+cadence is at least one day.
+RULE: weight columns are `numeric` at two decimals and hold kg, whatever unit
+the user chose. The display unit is `users.weight_unit` — one field, no
+cross-field invariant, so it is a column on `user` and not a table.
+Added by: 2026-09-21-weight-goal.md (units and free ranges 2026-09-21)
 
 ### WeightRow / weight-row.utils.ts
 `app/src/app/(app)/day/[date]/weight-row.tsx`, `...weight-row.utils.ts`
 The home page's weight line, its rail, its expanded panel and its weigh-in
 prompt, plus the pure copy builders behind them.
 RULE: one line plus one rail at rest, quieter than `DayMacros`, and no accent
-or `danger` colour inside the block. Copy comes from the spec's copy table via
-these builders — never format a weight figure inline. No line may state a
-verdict on the user's pace. Shown on today only.
-Added by: 2026-09-21-weight-goal.md
+colour inside the block. Copy comes from the spec's copy table via these
+builders — never format a weight figure inline, and every builder takes the
+display unit. No line may state a verdict on the user's pace. Shown on today
+only.
+RULE: `danger` appears on exactly one control — the armed `Delete` in the
+expanded panel, and only while armed. Arming fires no request and `Cancel`
+un-arms it. The setup sheet carries no destructive control.
+Added by: 2026-09-21-weight-goal.md (delete moved out of the sheet 2026-09-21)
 

@@ -5,21 +5,25 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
-import { weightEntries, weightGoals } from "@/lib/db/schema";
+import { users, weightEntries, weightGoals } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { InvalidWeightError, InvalidWeightGoalError } from "./weight.errors";
 import {
   isValidWeightKg,
   nextCheckinDate,
-  roundToTenth,
+  roundToHundredth,
   weightGoalInputError,
   type InvalidGoalReason,
   type WeightEntry,
   type WeightGoal,
   type WeightGoalInput,
+  type WeightUnit,
   type WeightView,
 } from "./weight.utils";
+
+// numeric(6,2) / numeric(4,2): the scale every stored kg figure is written at.
+const STORED_DECIMALS = 2;
 
 // Two rows: the reading on screen and the one before it, which is all the
 // panel's "last change" line needs. A trend needs more; there is no trend yet.
@@ -33,6 +37,7 @@ export type LogWeightResult = { kind: "logged"; view: WeightView } | { kind: "in
 
 interface GoalRow {
   mode: "target" | "hold";
+  unit: WeightUnit;
   startWeightKg: string;
   startDate: string;
   targetWeightKg: string | null;
@@ -72,8 +77,12 @@ export const fetchWeightView = async (userId: string): Promise<WeightView | null
       rateKgPerWeek: weightGoals.rateKgPerWeek,
       holdBandKg: weightGoals.holdBandKg,
       checkinIntervalDays: weightGoals.checkinIntervalDays,
+      unit: users.weightUnit,
     })
     .from(weightGoals)
+    // The display unit lives on the user row; joining it here keeps the view
+    // one round trip, which is what lets it ride getDayLog's Promise.all.
+    .innerJoin(users, eq(users.id, weightGoals.userId))
     .where(eq(weightGoals.userId, userId));
 
   if (!goalRow) return null;
@@ -90,6 +99,7 @@ export const fetchWeightView = async (userId: string): Promise<WeightView | null
   const latest = latestRow ? toEntry(latestRow) : null;
   return {
     goal,
+    unit: goalRow.unit,
     latest,
     previous: previousRow ? toEntry(previousRow) : null,
     nextCheckinDate: nextCheckinDate(goal, latest),
@@ -97,7 +107,7 @@ export const fetchWeightView = async (userId: string): Promise<WeightView | null
 };
 
 const upsertEntry = async (userId: string, measuredOn: string, weightKg: number): Promise<void> => {
-  const value = roundToTenth(weightKg).toFixed(1);
+  const value = roundToHundredth(weightKg).toFixed(STORED_DECIMALS);
   await db
     .insert(weightEntries)
     .values({ userId, measuredOn, weightKg: value })
@@ -121,20 +131,25 @@ export const saveWeightGoal = async (
     const reason = weightGoalInputError(input);
     if (reason) throw new InvalidWeightGoalError(reason);
 
-    const startWeightKg = roundToTenth(input.currentWeightKg);
+    const startWeightKg = roundToHundredth(input.currentWeightKg);
+    const stored = (value: number | null): string | null =>
+      value === null ? null : roundToHundredth(value).toFixed(STORED_DECIMALS);
     const row = {
       userId,
       mode: input.mode,
-      startWeightKg: startWeightKg.toFixed(1),
+      startWeightKg: startWeightKg.toFixed(STORED_DECIMALS),
       startDate: today,
-      targetWeightKg: input.targetWeightKg === null ? null : roundToTenth(input.targetWeightKg).toFixed(1),
-      rateKgPerWeek: input.rateKgPerWeek === null ? null : input.rateKgPerWeek.toFixed(2),
-      holdBandKg: input.holdBandKg === null ? null : input.holdBandKg.toFixed(1),
+      targetWeightKg: stored(input.targetWeightKg),
+      rateKgPerWeek: stored(input.rateKgPerWeek),
+      holdBandKg: stored(input.holdBandKg),
       checkinIntervalDays: input.checkinIntervalDays,
       updatedAt: new Date(),
     };
     // A re-save replaces the goal in place: one goal per user, and the new
     // origin is the weight just entered.
+    // The unit is a user preference, so it survives the goal being deleted
+    // and still names the unit the surviving readings are read in.
+    await db.update(users).set({ weightUnit: input.unit }).where(eq(users.id, userId));
     await db.insert(weightGoals).values(row).onConflictDoUpdate({ target: weightGoals.userId, set: row });
     await upsertEntry(userId, today, startWeightKg);
 

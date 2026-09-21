@@ -34,7 +34,7 @@ describe("getDayLog weight", () => {
 
   it("carries the view on today", async () => {
     await saveWeightGoal(
-      { mode: "target", currentWeightKg: 84.8, targetWeightKg: 72, rateKgPerWeek: 0.5, holdBandKg: null, checkinIntervalDays: 7 },
+      { mode: "target", unit: "kg", currentWeightKg: 84.8, targetWeightKg: 72, rateKgPerWeek: 0.5, holdBandKg: null, checkinIntervalDays: 7 },
       TIMEZONE,
     );
     const log = await getDayLog(todayLocalDateString(TIMEZONE), TIMEZONE);

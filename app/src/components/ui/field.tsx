@@ -20,7 +20,11 @@ interface FieldProps {
   // In-field trailing control (password reveal, unit picker). Overlaid on the
   // input rather than placed beside it so the box stays one visual control.
   trailing?: React.ReactNode;
+  /** Right padding reserved for `trailing`. Default fits one 44px control. */
+  trailingReserveClass?: string;
 }
+
+const DEFAULT_TRAILING_RESERVE = "pr-14";
 
 // py-3 matches Button's 4pt-scale correction so a Field and adjacent Button
 // land on the same height.
@@ -92,6 +96,7 @@ export const Field = ({
   required = false, minLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
   readOnly = false,
   trailing,
+  trailingReserveClass = DEFAULT_TRAILING_RESERVE,
 }: FieldProps) => (
   <div className="flex flex-col gap-1.5">
     <label htmlFor={name} className="text-xs font-medium text-text-muted">
@@ -116,7 +121,7 @@ export const Field = ({
         minLength={minLength}
         aria-invalid={flagged || Boolean(error)}
         aria-describedby={describedById(name, helperText, error)}
-        className={`${fieldInputClassName(flagged, error, readOnly)} ${trailing ? "pr-14" : ""}`}
+        className={`${fieldInputClassName(flagged, error, readOnly)} ${trailing ? trailingReserveClass : ""}`}
       />
       {/* pr-1 keeps the 44px control's own ring clear of the input's border. */}
       {trailing && <div className="absolute inset-y-0 right-0 flex items-center pr-1">{trailing}</div>}

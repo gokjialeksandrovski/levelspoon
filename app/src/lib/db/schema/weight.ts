@@ -5,18 +5,22 @@ import { users } from "./auth";
 
 export const weightGoalModeEnum = pgEnum("weight_goal_mode", ["target", "hold"]);
 
-// One decimal is the precision a bathroom scale reads to; a stored 78.43 would
-// be a figure no scale showed. 5 digits total holds 999.9 kg, past any reading
-// the app accepts.
-const WEIGHT_COLUMN_PRECISION = 5;
-const WEIGHT_COLUMN_SCALE = 1;
+// Every weight is stored in kg whatever unit the user types in, so the column
+// carries two decimals even though a scale reads one: 0.1 lb is 0.045 kg, and
+// at one decimal a pound reading would snap to a different pound reading on
+// the way back out (172.7 lb stored, 172.6 lb redisplayed). Six digits hold
+// 9999.99, past any reading the app accepts.
+const WEIGHT_COLUMN_PRECISION = 6;
+const WEIGHT_COLUMN_SCALE = 2;
 
-// kg/week, two decimals: the 0.25 chip needs the second one.
-const RATE_COLUMN_PRECISION = 3;
+// kg/week. Four digits, not three: the pace is a typed figure now, and 9.99
+// was a ceiling nobody chose.
+const RATE_COLUMN_PRECISION = 4;
 const RATE_COLUMN_SCALE = 2;
 
-const BAND_COLUMN_PRECISION = 3;
-const BAND_COLUMN_SCALE = 1;
+// Two decimals for the same pound round-trip reason as the weight columns.
+const BAND_COLUMN_PRECISION = 4;
+const BAND_COLUMN_SCALE = 2;
 
 const weightColumn = (columnName: string) =>
   numeric(columnName, { precision: WEIGHT_COLUMN_PRECISION, scale: WEIGHT_COLUMN_SCALE });
@@ -54,6 +58,9 @@ export const weightGoals = pgTable(
       sql`(${table.mode} = 'target' AND ${table.targetWeightKg} IS NOT NULL AND ${table.rateKgPerWeek} IS NOT NULL AND ${table.holdBandKg} IS NULL)
        OR (${table.mode} = 'hold' AND ${table.holdBandKg} IS NOT NULL AND ${table.targetWeightKg} IS NULL AND ${table.rateKgPerWeek} IS NULL)`,
     ),
+    // Zero days is not a cadence: the next check-in would be the day it was
+    // set, forever. The ceiling is the app's, not this column's.
+    check("weight_goals_checkin_interval_positive", sql`${table.checkinIntervalDays} >= 1`),
     // A target equal to the start weight is a hold. Stored as a target it
     // makes a zero-length rail and a projection that never arrives.
     check(

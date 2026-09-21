@@ -113,6 +113,13 @@
       "when": 1789948444119,
       "tag": "0015_add-weight-goal",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789955545287,
+      "tag": "0016_weight-unit-and-free-cadence",
+      "breakpoints": true
     }
   ]
 }

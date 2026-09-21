@@ -43,7 +43,7 @@ describe("weight_goals constraints", () => {
       checkinIntervalDays: 7,
     });
     const [row] = await db.select().from(weightGoals).where(eq(weightGoals.userId, userId));
-    expect(row.targetWeightKg).toBe("72.0");
+    expect(row.targetWeightKg).toBe("72.00");
     expect(row.holdBandKg).toBeNull();
     await db.delete(weightGoals).where(eq(weightGoals.userId, userId));
   });
@@ -93,6 +93,33 @@ describe("weight_goals constraints", () => {
         })
       ),
     ).toBe("weight_goals_target_differs");
+  });
+
+  it("refuses a cadence of zero days", async () => {
+    expect(
+      await violatedConstraint(
+        db.insert(weightGoals).values({
+          userId,
+          mode: "target",
+          startWeightKg: "84.8",
+          startDate: "2026-09-01",
+          targetWeightKg: "72.0",
+          rateKgPerWeek: "0.50",
+          checkinIntervalDays: 0,
+        })
+      ),
+    ).toBe("weight_goals_checkin_interval_positive");
+  });
+
+  it("keeps a pound reading's own precision", async () => {
+    // 172.7 lb is 78.33 kg. At the column's old single decimal it stored 78.3
+    // and read back as 172.6 lb - a figure the user never typed.
+    await db.insert(weightEntries).values({ userId, measuredOn: "2026-09-19", weightKg: "78.33" });
+    const [row] = await db
+      .select({ weightKg: weightEntries.weightKg })
+      .from(weightEntries)
+      .where(eq(weightEntries.userId, userId));
+    expect(row.weightKg).toBe("78.33");
   });
 });
 
