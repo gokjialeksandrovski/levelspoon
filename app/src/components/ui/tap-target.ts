@@ -6,8 +6,13 @@
 // Branded focus-visible ring (2px outline, theme text color) shared by
 // Button/Field, centralised so every interactive surface agrees. For
 // box-shaped controls only - see TEXT_LINK_RING for inline links.
-export const FOCUS_RING =
-  "rounded-(--radius-control) focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text";
+// Split from FOCUS_RING so a pill-shaped control can pair the same outline
+// with its own radius - an outline follows the element's border-radius, and a
+// rounded-control ring around a rounded-full segment reads as a second shape.
+export const FOCUS_OUTLINE =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text";
+
+export const FOCUS_RING = `rounded-(--radius-control) ${FOCUS_OUTLINE}`;
 
 // Ring drawn on the child <span>, not the 44px hit box: the hit box may
 // overlap neighbours invisibly, but a ring on it would collide with the
