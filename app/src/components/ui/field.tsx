@@ -1,5 +1,7 @@
 interface FieldProps {
-  label: string;
+  // ReactNode so a caller can append an aria-hidden marker, such as a
+  // required "*", that stays out of the accessible name.
+  label: React.ReactNode;
   name: string;
   type?: string;
   defaultValue?: string;

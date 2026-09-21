@@ -31,7 +31,7 @@ import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
-import { CheckboxRow, ChoiceGroup, type ChoiceOption } from "./intake-choices";
+import { CheckboxRow, ChoiceGroup, RequiredMark, type ChoiceOption } from "./intake-choices";
 import {
   barStateOf,
   convertUnit,
@@ -78,11 +78,15 @@ const ACTIVITY_OPTIONS: ChoiceOption<ActivityLevel>[] = [
 ];
 
 const GOAL_OPTIONS: ChoiceOption<PrimaryGoal>[] = [
-  { value: "lose_fat", label: "Lose fat" },
+  { value: "lose_fat", label: "Lose weight" },
   { value: "maintain", label: "Maintain" },
-  { value: "gain_muscle", label: "Gain muscle" },
-  { value: "recomp", label: "Recomp", description: "Lose fat and build muscle at the same time. Eat around maintenance." },
+  { value: "gain_muscle", label: "Gain weight" },
+  { value: "recomp", label: "Recomp" },
 ];
+
+// Under the grid, not inside a card: a description in one card made it twice
+// the height of its row-mates. Shown only once Recomp is picked.
+const RECOMP_NOTE = "Lose fat and build muscle at the same time, eating around maintenance.";
 
 const STAGE_LABEL: Record<BodyFatStage, string> = {
   abs: "Visible abs",
@@ -139,7 +143,13 @@ interface SectionProps {
 const HeightFields = ({ draft, update, errorFor }: SectionProps) =>
   draft.unit === "kg" ? (
     <Field
-      label="Height"
+      label={
+        <>
+          Height
+          <RequiredMark />
+        </>
+      }
+      required
       name="height-cm"
       inputMode="decimal"
       value={draft.heightCmDraft}
@@ -150,7 +160,13 @@ const HeightFields = ({ draft, update, errorFor }: SectionProps) =>
   ) : (
     <div className="grid grid-cols-2 gap-3">
       <Field
-        label="Height, feet"
+        label={
+          <>
+            Height, feet
+            <RequiredMark />
+          </>
+        }
+        required
         name="height-ft"
         inputMode="numeric"
         value={draft.heightFtDraft}
@@ -170,53 +186,76 @@ const HeightFields = ({ draft, update, errorFor }: SectionProps) =>
   );
 
 const AboutYou = ({ draft, update, errorFor }: SectionProps) => (
-  <section aria-labelledby="about-you" className="flex flex-col gap-5">
-    <h2 id="about-you" className="font-display text-lg font-semibold">
-      About you
-    </h2>
-    <ChoiceGroup
-      legend="Sex for calculations"
-      name="sex"
-      layout="grid"
-      options={SEX_OPTIONS}
-      value={draft.sex}
-      helperText="The formulas differ by sex. Prefer not to say averages both and widens the range."
-      onChange={(sex) => update({ sex })}
-    />
-    <Field
-      label="Birth year"
-      name="birth-year"
-      inputMode="numeric"
-      value={draft.birthYearDraft}
-      error={errorFor("birth_year")}
-      onChange={(event) => update({ birthYearDraft: event.target.value })}
-    />
-    <HeightFields draft={draft} update={update} errorFor={errorFor} />
-    <Field
-      label="Current weight"
-      name="current-weight"
-      inputMode="decimal"
-      value={draft.weightDraft}
-      error={errorFor("weight")}
-      onChange={(event) => update({ weightDraft: event.target.value })}
-      trailing={<UnitToggle unit={draft.unit} onChange={(unit) => update(convertUnit(draft, unit))} />}
-      trailingReserveClass="pr-24"
-    />
-    <ChoiceGroup
-      legend="Activity level"
-      name="activity"
-      options={ACTIVITY_OPTIONS}
-      value={draft.activityLevel}
-      onChange={(activityLevel) => update({ activityLevel })}
-    />
-    <ChoiceGroup
-      legend="Primary goal"
-      name="goal"
-      layout="grid"
-      options={GOAL_OPTIONS}
-      value={draft.primaryGoal}
-      onChange={(primaryGoal) => update({ primaryGoal })}
-    />
+  <section aria-labelledby="about-you" className="flex flex-col gap-4">
+    <div className="flex flex-col gap-1">
+      <h2 id="about-you" className="font-display text-lg font-semibold">
+        About you
+      </h2>
+      <p className="text-xs text-text-muted">
+        <span aria-hidden="true">* </span>Needed for an estimate.
+      </p>
+    </div>
+    <div className="flex flex-col gap-6">
+      <ChoiceGroup
+        legend="Sex for calculations"
+        name="sex"
+        layout="grid"
+        required
+        options={SEX_OPTIONS}
+        value={draft.sex}
+        helperText="The formulas differ by sex. Prefer not to say averages both and widens the range."
+        onChange={(sex) => update({ sex })}
+      />
+      <Field
+        label={
+          <>
+            Birth year
+            <RequiredMark />
+          </>
+        }
+        required
+        name="birth-year"
+        inputMode="numeric"
+        value={draft.birthYearDraft}
+        error={errorFor("birth_year")}
+        onChange={(event) => update({ birthYearDraft: event.target.value })}
+      />
+      <HeightFields draft={draft} update={update} errorFor={errorFor} />
+      <Field
+        label={
+          <>
+            Current weight
+            <RequiredMark />
+          </>
+        }
+        required
+        name="current-weight"
+        inputMode="decimal"
+        value={draft.weightDraft}
+        error={errorFor("weight")}
+        onChange={(event) => update({ weightDraft: event.target.value })}
+        trailing={<UnitToggle unit={draft.unit} onChange={(unit) => update(convertUnit(draft, unit))} />}
+        trailingReserveClass="pr-24"
+      />
+      <ChoiceGroup
+        legend="Activity level"
+        name="activity"
+        required
+        options={ACTIVITY_OPTIONS}
+        value={draft.activityLevel}
+        onChange={(activityLevel) => update({ activityLevel })}
+      />
+      <ChoiceGroup
+        legend="Primary goal"
+        name="goal"
+        layout="grid"
+        required
+        options={GOAL_OPTIONS}
+        value={draft.primaryGoal}
+        note={draft.primaryGoal === "recomp" ? RECOMP_NOTE : undefined}
+        onChange={(primaryGoal) => update({ primaryGoal })}
+      />
+    </div>
   </section>
 );
 
@@ -229,36 +268,38 @@ interface YourGoalProps extends SectionProps {
 const YourGoal = ({ draft, update, errorFor, paceHelper }: YourGoalProps) => {
   if (!hasDirection(draft.primaryGoal)) return null;
   return (
-    <section aria-labelledby="your-goal" className="flex flex-col gap-5">
+    <section aria-labelledby="your-goal" className="flex flex-col gap-4">
       <h2 id="your-goal" className="font-display text-lg font-semibold">
         Your goal
       </h2>
-      <Field
-        label="Goal weight"
-        name="goal-weight"
-        inputMode="decimal"
-        value={draft.goalWeightDraft}
-        error={errorFor("goal_weight") ?? errorFor("goal_direction")}
-        onChange={(event) => update({ goalWeightDraft: event.target.value })}
-        trailing={<UnitSuffix>{draft.unit}</UnitSuffix>}
-      />
-      <PresetField
-        label="Pace"
-        name="pace"
-        suffix={`${draft.unit}/wk`}
-        value={draft.paceDraft}
-        presets={pacePresets(draft.unit)}
-        helperText={errorFor("pace") ?? paceHelper}
-        onChange={(paceDraft) => update({ paceDraft })}
-      />
-      {draft.goalWeightDraft.trim() !== "" && (
-        <CheckboxRow
-          name="track-weight-goal"
-          label="Also track as my weight goal"
-          checked={draft.trackAsWeightGoal}
-          onChange={(trackAsWeightGoal) => update({ trackAsWeightGoal })}
+      <div className="flex flex-col gap-6">
+        <Field
+          label="Goal weight"
+          name="goal-weight"
+          inputMode="decimal"
+          value={draft.goalWeightDraft}
+          error={errorFor("goal_weight") ?? errorFor("goal_direction")}
+          onChange={(event) => update({ goalWeightDraft: event.target.value })}
+          trailing={<UnitSuffix>{draft.unit}</UnitSuffix>}
         />
-      )}
+        <PresetField
+          label="Pace"
+          name="pace"
+          suffix={`${draft.unit}/wk`}
+          value={draft.paceDraft}
+          presets={pacePresets(draft.unit)}
+          helperText={errorFor("pace") ?? paceHelper}
+          onChange={(paceDraft) => update({ paceDraft })}
+        />
+        {draft.goalWeightDraft.trim() !== "" && (
+          <CheckboxRow
+            name="track-weight-goal"
+            label="Also track as my weight goal"
+            checked={draft.trackAsWeightGoal}
+            onChange={(trackAsWeightGoal) => update({ trackAsWeightGoal })}
+          />
+        )}
+      </div>
     </section>
   );
 };
@@ -320,7 +361,7 @@ const BodyFatFields = ({ draft, update, errorFor }: SectionProps) => (
 );
 
 const TrainingFields = ({ draft, update, errorFor }: SectionProps) => (
-  <div className="flex flex-col gap-5">
+  <div className="flex flex-col gap-6">
     <ChoiceGroup
       legend="Training"
       name="training-style"
@@ -349,8 +390,8 @@ const TrainingFields = ({ draft, update, errorFor }: SectionProps) => (
 );
 
 const SharpenFields = (props: SectionProps) => (
-  <div className="flex flex-col gap-6 pt-3">
-    <p className="text-xs text-text-muted">Each answer narrows the range.</p>
+  <div className="flex flex-col gap-6 pt-4">
+    <p className="text-xs text-text-muted">Optional. Each answer narrows the range.</p>
     <BodyFatFields {...props} />
     <TrainingFields {...props} />
     <ChoiceGroup
@@ -373,7 +414,9 @@ const SharpenFields = (props: SectionProps) => (
   </div>
 );
 
-// Arming fires no request; Cancel leaves with nothing changed (Rule 21).
+// Arming fires no request; Cancel or Escape leaves with nothing changed
+// (Rule 21). The resting row names what is stored, so the button is not a
+// bare link floating under the consent box.
 const ForgetAnswers = ({ onForgotten }: { onForgotten: () => void }) => {
   const [isArmed, setIsArmed] = useState(false);
   const [isForgetting, setIsForgetting] = useState(false);
@@ -390,19 +433,32 @@ const ForgetAnswers = ({ onForgotten }: { onForgotten: () => void }) => {
 
   if (!isArmed) {
     return (
-      <Button variant="ghost" link className="self-start" onClick={() => setIsArmed(true)}>
-        Forget these details
-      </Button>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-text-muted">Your answers from last time are saved.</p>
+        <Button variant="ghost" className="shrink-0" onClick={() => setIsArmed(true)}>
+          Forget these details
+        </Button>
+      </div>
     );
   }
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm text-text">Forget your answers? Your calorie goal stays.</p>
+    <div
+      role="group"
+      aria-labelledby="forget-prompt"
+      className="flex flex-col gap-3"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setIsArmed(false);
+      }}
+    >
+      <p id="forget-prompt" className="text-sm text-text">
+        Delete your saved answers? Your calorie goal stays.
+      </p>
       <div className="flex gap-2">
         <Button variant="danger" className="flex-1" pending={isForgetting} onClick={forget}>
           Forget
         </Button>
-        <Button variant="ghost" className="flex-1" onClick={() => setIsArmed(false)}>
+        {/* Focus lands on the safe answer: the button that armed this is gone. */}
+        <Button variant="ghost" className="flex-1" autoFocus onClick={() => setIsArmed(false)}>
           Cancel
         </Button>
       </div>
@@ -410,6 +466,34 @@ const ForgetAnswers = ({ onForgotten }: { onForgotten: () => void }) => {
     </div>
   );
 };
+
+type StoredAnswers = "saved" | "forgotten" | "none";
+
+interface SavedAnswersProps {
+  draft: IntakeDraft;
+  stored: StoredAnswers;
+  update: (patch: Partial<IntakeDraft>) => void;
+  onForgotten: () => void;
+}
+
+// Consent and forget sit together: both are about what this page keeps.
+const SavedAnswers = ({ draft, stored, update, onForgotten }: SavedAnswersProps) => (
+  <section aria-label="Saving your answers" className="flex flex-col gap-4 border-t border-border pt-6">
+    <CheckboxRow
+      name="save-answers"
+      label={CONSENT_LABEL}
+      helperText={CONSENT_HELPER}
+      checked={draft.saveAnswers}
+      onChange={(saveAnswers) => update({ saveAnswers })}
+    />
+    {stored === "saved" && <ForgetAnswers onForgotten={onForgotten} />}
+    {stored === "forgotten" && (
+      <p role="status" className="text-sm text-text-muted">
+        Your saved answers are deleted.
+      </p>
+    )}
+  </section>
+);
 
 // The client ran the same checks before Use was on screen, so a refusal or a
 // bad field here means client and server disagree - reported as a failed save,
@@ -453,7 +537,7 @@ const paceHelperOf = (bar: BarState, draft: IntakeDraft): string | undefined =>
 
 export const IntakeForm = ({ prefill }: { prefill: IntakePrefill }) => {
   const [draft, setDraft] = useState(() => initialDraft(prefill));
-  const [hasStoredAnswers, setHasStoredAnswers] = useState(prefill.profile !== null);
+  const [stored, setStored] = useState<StoredAnswers>(prefill.profile === null ? "none" : "saved");
   const today = todayLocalDateString(browserTimezone());
   const bar = barStateOf(draft, yearOf(today));
   const { isSaving, hasError, save } = useSaveIntake(today);
@@ -477,21 +561,15 @@ export const IntakeForm = ({ prefill }: { prefill: IntakePrefill }) => {
         <Disclosure label="Sharpen the estimate" defaultOpen={hasSharpenAnswers(draft)}>
           <SharpenFields {...sections} />
         </Disclosure>
-        <CheckboxRow
-          name="save-answers"
-          label={CONSENT_LABEL}
-          helperText={CONSENT_HELPER}
-          checked={draft.saveAnswers}
-          onChange={(saveAnswers) => update({ saveAnswers })}
+        <SavedAnswers
+          draft={draft}
+          stored={stored}
+          update={update}
+          onForgotten={() => {
+            setStored("forgotten");
+            update({ saveAnswers: false });
+          }}
         />
-        {hasStoredAnswers && (
-          <ForgetAnswers
-            onForgotten={() => {
-              setHasStoredAnswers(false);
-              update({ saveAnswers: false });
-            }}
-          />
-        )}
       </main>
       <ResultBar
         state={bar}
