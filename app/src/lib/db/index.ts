@@ -15,3 +15,7 @@ if (!connectionString) {
 const pool = new Pool({ connectionString });
 
 export const db = drizzle(pool, { schema });
+
+// The handle a db.transaction callback receives. Store helpers take it instead
+// of `db`, so a caller composing writes from two features runs all or none.
+export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

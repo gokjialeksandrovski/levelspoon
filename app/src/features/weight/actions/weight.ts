@@ -9,10 +9,10 @@ import { users, weightEntries, weightGoals } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { InvalidWeightError, InvalidWeightGoalError } from "./weight.errors";
+import { upsertWeightEntry, writeWeightGoal } from "./weight.store";
 import {
   isValidWeightKg,
   nextCheckinDate,
-  roundToHundredth,
   weightGoalInputError,
   type InvalidGoalReason,
   type WeightEntry,
@@ -21,9 +21,6 @@ import {
   type WeightUnit,
   type WeightView,
 } from "./weight.utils";
-
-// numeric(6,2) / numeric(4,2): the scale every stored kg figure is written at.
-const STORED_DECIMALS = 2;
 
 // Two rows: the reading on screen and the one before it, which is all the
 // panel's "last change" line needs. A trend needs more; there is no trend yet.
@@ -106,17 +103,6 @@ export const fetchWeightView = async (userId: string): Promise<WeightView | null
   };
 };
 
-const upsertEntry = async (userId: string, measuredOn: string, weightKg: number): Promise<void> => {
-  const value = roundToHundredth(weightKg).toFixed(STORED_DECIMALS);
-  await db
-    .insert(weightEntries)
-    .values({ userId, measuredOn, weightKg: value })
-    .onConflictDoUpdate({
-      target: [weightEntries.userId, weightEntries.measuredOn],
-      set: { weightKg: value },
-    });
-};
-
 // The thrown classes never leave this module: a Server Action's error reaches a
 // client component as a plain Error with its subclass and message stripped, so
 // the refusal travels as a result union instead. Same shape as
@@ -131,27 +117,12 @@ export const saveWeightGoal = async (
     const reason = weightGoalInputError(input);
     if (reason) throw new InvalidWeightGoalError(reason);
 
-    const startWeightKg = roundToHundredth(input.currentWeightKg);
-    const stored = (value: number | null): string | null =>
-      value === null ? null : roundToHundredth(value).toFixed(STORED_DECIMALS);
-    const row = {
-      userId,
-      mode: input.mode,
-      startWeightKg: startWeightKg.toFixed(STORED_DECIMALS),
-      startDate: today,
-      targetWeightKg: stored(input.targetWeightKg),
-      rateKgPerWeek: stored(input.rateKgPerWeek),
-      holdBandKg: stored(input.holdBandKg),
-      checkinIntervalDays: input.checkinIntervalDays,
-      updatedAt: new Date(),
-    };
-    // A re-save replaces the goal in place: one goal per user, and the new
-    // origin is the weight just entered.
-    // The unit is a user preference, so it survives the goal being deleted
-    // and still names the unit the surviving readings are read in.
-    await db.update(users).set({ weightUnit: input.unit }).where(eq(users.id, userId));
-    await db.insert(weightGoals).values(row).onConflictDoUpdate({ target: weightGoals.userId, set: row });
-    await upsertEntry(userId, today, startWeightKg);
+    // One transaction: a goal without the reading it started from would open
+    // in no-entries state, and a unit change without its goal is a half-save.
+    await db.transaction(async (tx) => {
+      await writeWeightGoal(tx, userId, input, today);
+      await upsertWeightEntry(tx, userId, today, input.currentWeightKg);
+    });
 
     const view = await fetchWeightView(userId);
     if (!view) throw new InvalidWeightGoalError("weight");
@@ -168,7 +139,7 @@ export const logWeight = async (weightKg: number, timezone: string): Promise<Log
   const userId = await requireUserId();
   try {
     if (!isValidWeightKg(weightKg)) throw new InvalidWeightError(weightKg);
-    await upsertEntry(userId, todayLocalDateString(timezone), weightKg);
+    await db.transaction((tx) => upsertWeightEntry(tx, userId, todayLocalDateString(timezone), weightKg));
     const view = await fetchWeightView(userId);
     if (!view) throw new InvalidWeightError(weightKg);
     return { kind: "logged", view };
