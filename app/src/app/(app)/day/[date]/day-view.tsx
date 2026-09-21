@@ -22,6 +22,7 @@ import { DayActionBar } from "./day-action-bar";
 import { DayEmptyState } from "./day-empty-state";
 import { DayMacros } from "./day-macros";
 import { MealList } from "./meal-list";
+import { WeightRow } from "./weight-row";
 
 interface DayViewProps {
   date: string;
@@ -149,6 +150,9 @@ const DayViewReady = ({ log, isToday, deleted }: DayViewReadyProps) => (
   <>
     <CalorieHero consumedKcal={log.dayTotal.energyKcal} initialGoal={log.calorieGoal} />
     <DayMacros total={log.dayTotal} />
+    {/* Today only, and outside DayMacros' zero-macro early return: a weight
+        goal is about weeks and does not disappear on a day with no meals. */}
+    {isToday && <WeightRow initialView={log.weight} today={todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone)} />}
     <DeletedMealNotice deleted={deleted} />
     {log.meals.length === 0 ? <DayEmptyState isToday={isToday} /> : <MealList meals={log.meals} />}
   </>

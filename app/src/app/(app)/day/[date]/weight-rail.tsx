@@ -1,0 +1,47 @@
+// app/src/app/(app)/day/[date]/weight-rail.tsx
+"use client";
+
+import { motion, useReducedMotion } from "motion/react";
+
+import { slideTransition } from "@/lib/motion/step-transition";
+
+// h-1, matching DayMacros' segmented rule rather than CalorieBar's h-2: this
+// block sits one emphasis tier below the macros, not level with the hero.
+//
+// No accent colour anywhere - the four accents each own one semantic role, and
+// danger means over the kcal goal. bg-text on bg-border is CalorieBar's pair.
+//
+// role="presentation": every figure the rail encodes is printed in the line
+// above it, so the rail is redundant by construction.
+const MARKER_SIZE_CLASS = "size-2.5";
+const PERCENT = 100;
+
+interface WeightRailProps {
+  railShare: number;
+  fillShare: number;
+}
+
+export const WeightRail = ({ railShare, fillShare }: WeightRailProps) => {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <div className="relative mt-2 h-1 w-full rounded-full bg-border" role="presentation">
+      {/* scaleX, not width: a new reading reads as motion rather than a
+          layout change, the same move CalorieBar makes. */}
+      <motion.div
+        className="h-full origin-left rounded-full bg-text"
+        initial={false}
+        animate={{ scaleX: fillShare }}
+        transition={slideTransition(reduceMotion)}
+      />
+      {/* The marker is what a hold goal has instead of a fill, and what a
+          target goal gains at the head of its fill. */}
+      <motion.div
+        className={`absolute top-1/2 ${MARKER_SIZE_CLASS} -translate-1/2  rounded-full bg-text ring-2 ring-bg`}
+        initial={false}
+        animate={{ left: `${railShare * PERCENT}%` }}
+        transition={slideTransition(reduceMotion)}
+      />
+    </div>
+  );
+};
