@@ -127,7 +127,7 @@ const ACTIVITY_FACTOR: Record<ActivityLevel, number> = {
 
 // PUBLISHED - Wishnofsky 1958's 3500 kcal/lb, in kg. Overstates long-run loss
 // (Hall KD, Int J Obes 2008;32:573), which the timeline copy says out loud.
-const KCAL_PER_KG = 7700;
+export const KCAL_PER_KG = 7700;
 const DAYS_PER_WEEK = 7;
 const MONTHS_PER_YEAR = 12;
 const WEEKS_PER_YEAR = 52;
