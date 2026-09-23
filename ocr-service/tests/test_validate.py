@@ -76,3 +76,36 @@ def test_flags_are_sorted_and_deduplicated():
 
 def dataclasses_replace(**changes) -> NutritionValues:
     return dataclasses.replace(GOLDEN, **changes)
+
+
+def test_absent_fibre_is_not_flagged_as_missing():
+    """None means the label printed no fibre row - legal, not a misread."""
+    values = dataclasses_replace(fibre_g=None)
+    assert "fibre_g" not in validate(values)
+
+
+def test_flags_negative_fibre():
+    values = dataclasses_replace(fibre_g=-1.0)
+    assert "fibre_g" in validate(values)
+
+
+def test_component_total_counts_known_fibre():
+    """Fibre sits outside the EU carbohydrate figure, so it adds to the sum."""
+    values = dataclasses_replace(fat_g=30.0, carbohydrate_g=40.0, protein_g=25.0, salt_g=1.0, fibre_g=30.0)
+    flags = validate(values)
+    assert "fibre_g" in flags
+    assert "carbohydrate_g" in flags
+
+
+def test_component_total_ignores_absent_fibre():
+    """energy_kcal set to match Atwater so only the component-total rule is under test."""
+    values = dataclasses_replace(
+        energy_kcal=530.0, fat_g=30.0, carbohydrate_g=40.0, protein_g=25.0, salt_g=1.0, fibre_g=None
+    )
+    assert validate(values) == ()
+
+
+def test_fibre_above_carbohydrate_is_not_flagged():
+    """EU convention puts fibre outside carbohydrate, so bran is legal."""
+    values = dataclasses_replace(carbohydrate_g=20.0, fibre_g=40.0, fat_g=5.0, protein_g=15.0, salt_g=0.5)
+    assert "fibre_g" not in validate(values)

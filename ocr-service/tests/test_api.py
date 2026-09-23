@@ -65,7 +65,7 @@ def test_nutrition_endpoint_returns_the_spec_contract(client_with):
     assert body["flags"] == []
     assert set(body["per_100g"]) == {
         "energy_kcal", "fat_g", "saturates_g", "carbohydrate_g",
-        "sugars_g", "protein_g", "salt_g",
+        "sugars_g", "protein_g", "salt_g", "fibre_g",
     }
 
 

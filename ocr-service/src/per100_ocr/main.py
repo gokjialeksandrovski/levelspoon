@@ -105,7 +105,10 @@ async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get
 
 
 class NutritionValuesRequest(BaseModel):
-    """Wire shape for /validate - the same 7 snake_case fields as everywhere else."""
+    """Wire shape for /validate - the same snake_case fields as everywhere else.
+
+    `fibre_g` defaults to None so a client that has no figure simply omits it.
+    """
 
     energy_kcal: float
     fat_g: float
@@ -114,6 +117,7 @@ class NutritionValuesRequest(BaseModel):
     sugars_g: float
     protein_g: float
     salt_g: float
+    fibre_g: float | None = None
 
 
 class ValidateRequest(BaseModel):
