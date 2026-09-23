@@ -4,6 +4,7 @@ import {
   barStateOf,
   convertUnit,
   detailLines,
+  DISCLAIMER_TEXT,
   draftToInput,
   initialDraft,
   missingRequiredCount,
@@ -200,7 +201,7 @@ describe("copy", () => {
   });
 
   it("states the working without a verdict", () => {
-    expect(detailLines(readyEstimate(caseA), "kg")).toEqual([
+    expect(detailLines(readyEstimate(caseA), "kg", null)).toEqual([
       "BMR 1,780 kcal · maintenance 2,760 kcal",
       "−440 kcal a day for 0.4 kg/week (suggested)",
       "BMI 24.7",
@@ -212,5 +213,69 @@ describe("copy", () => {
     expect(timelineText(estimate, "2026-09-21")).toBe(
       "About 20 weeks, around 8 February, if the pace holds. Real progress usually slows.",
     );
+  });
+});
+
+describe("detailLines with a measured burn", () => {
+  const ready = {
+    kind: "ready" as const,
+    bmrKcal: 1780,
+    maintenanceKcal: 2410,
+    isMeasured: true,
+    formulaMaintenanceKcal: 2320,
+    adjustmentKcal: 0,
+    pointKcal: 2410,
+    lowKcal: 2290,
+    highKcal: 2530,
+    floorKcal: 1780,
+    isFloored: false,
+    isMaintenanceOnly: false,
+    paceKgPerWeek: null,
+    isPaceSuggested: false,
+    isPaceOverCap: false,
+    paceCapSharePerWeek: null,
+    bmi: 24.7,
+    leanMassKg: null,
+    ffmi: null,
+    weeksToGoal: null,
+  };
+
+  it("states the window and the formula figure it replaced", () => {
+    const lines = detailLines(ready, "kg", {
+      kind: "measured",
+      kcal: 2410,
+      sigma: 120,
+      windowDays: 26,
+      loggedDays: 23,
+    });
+
+    expect(lines).toContain("Maintenance 2,410 kcal");
+    expect(lines).toContain("from 23 logged days of the last 26");
+    expect(lines).toContain("Formula said 2,320.");
+  });
+
+  it("states both counts when there is not enough data", () => {
+    const formulaReady = { ...ready, isMeasured: false, maintenanceKcal: 2320 };
+
+    const lines = detailLines(formulaReady, "kg", { kind: "insufficient", loggedDays: 9, readings: 4 });
+
+    expect(lines).toContain("Measured burn needs a few weeks of logged meals and weigh-ins.");
+    expect(lines).toContain("You have 9 logged days and 4 weigh-ins in the last 56.");
+    // The formula line it already shipped with is untouched.
+    expect(lines.some((line) => line.startsWith("BMR "))).toBe(true);
+  });
+
+  it("says nothing extra before the browser's timezone has arrived", () => {
+    const formulaReady = { ...ready, isMeasured: false, maintenanceKcal: 2320 };
+
+    const lines = detailLines(formulaReady, "kg", null);
+
+    expect(lines.some((line) => line.includes("Measured burn"))).toBe(false);
+    expect(lines.some((line) => line.startsWith("BMR "))).toBe(true);
+  });
+
+  it("no longer promises a figure in two weeks", () => {
+    expect(DISCLAIMER_TEXT).toContain("for a few weeks");
+    expect(DISCLAIMER_TEXT).not.toContain("2 weeks");
   });
 });

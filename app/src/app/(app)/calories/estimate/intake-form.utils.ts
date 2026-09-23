@@ -18,6 +18,7 @@ import {
   type TrainingStyle,
   type TrainingYears,
 } from "@/features/intake/actions/intake.utils";
+import { MAX_WINDOW_DAYS, type MeasuredBurn } from "@/features/intake/actions/measured-burn.utils";
 import {
   bandPresets,
   convertedPreset,
@@ -406,10 +407,12 @@ export const REFUSAL_TEXT: Record<RefusalReason, string> = {
     "This estimate doesn't cover pregnancy or breastfeeding. Your midwife or doctor can give you a figure.",
 };
 
-// The last sentence promises the learn-from-real-data estimate, which is not
-// built yet. It is a release blocker: this copy must not ship without it.
+// The last sentence describes the measured burn (spec 2026-09-23). It used to
+// say "about 2 weeks", which that spec's §4.7 shows is not enough for most
+// users to clear the error ceiling - the copy was corrected rather than the
+// ceiling loosened.
 export const DISCLAIMER_TEXT =
-  "An estimate from published formulas, not medical advice. Real needs can differ by 10% or more. Log your meals and weight for about 2 weeks and the app will work out your real calorie burn from them.";
+  "An estimate from published formulas, not medical advice. Real needs can differ by 10% or more. Log your meals and weight for a few weeks and the app will work out your real calorie burn from them.";
 
 export const CONDITION_DISCLAIMER_TEXT =
   "With a condition that affects metabolism, check this figure with your doctor.";
@@ -467,15 +470,32 @@ const bodyLine = (estimate: IntakeReady, unit: WeightUnit): string => {
   return `${bmi} · lean mass ${displayWeight(estimate.leanMassKg, unit)} ${unit} · FFMI ${roundToTenth(estimate.ffmi)}`;
 };
 
+// The measured path replaces the BMR line rather than sitting beside it: BMR
+// is still computed for the floor, but it is not what produced this figure,
+// and two maintenance lines would read as two answers.
+const maintenanceLines = (estimate: IntakeReady, measured: MeasuredBurn | null): string[] => {
+  if (measured?.kind === "measured" && estimate.isMeasured) {
+    return [
+      `Maintenance ${kcalText(estimate.maintenanceKcal)} kcal`,
+      `from ${measured.loggedDays} logged days of the last ${measured.windowDays}`,
+      `Formula said ${kcalText(estimate.formulaMaintenanceKcal)}.`,
+    ];
+  }
+  const formulaLine = `BMR ${kcalText(estimate.bmrKcal)} kcal · maintenance ${kcalText(estimate.maintenanceKcal)} kcal`;
+  if (measured?.kind !== "insufficient") return [formulaLine];
+  return [
+    formulaLine,
+    "Measured burn needs a few weeks of logged meals and weigh-ins.",
+    `You have ${measured.loggedDays} logged days and ${measured.readings} weigh-ins in the last ${MAX_WINDOW_DAYS}.`,
+  ];
+};
+
 export const detailLines = (
   estimate: IntakeReady,
   unit: WeightUnit,
+  measured: MeasuredBurn | null,
 ): string[] =>
-  [
-    `BMR ${kcalText(estimate.bmrKcal)} kcal · maintenance ${kcalText(estimate.maintenanceKcal)} kcal`,
-    paceLine(estimate, unit),
-    bodyLine(estimate, unit),
-  ].filter(isLine);
+  [...maintenanceLines(estimate, measured), paceLine(estimate, unit), bodyLine(estimate, unit)].filter(isLine);
 
 const weeksText = (weeks: number): string =>
   weeks === 1 ? "1 week" : `${weeks} weeks`;
