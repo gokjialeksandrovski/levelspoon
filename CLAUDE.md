@@ -442,6 +442,37 @@ Optional page at `/calories/estimate`, reached only from `GoalSheet`'s
 - Refusals cross as `SaveIntakeResult`, never thrown classes.
 - Spec: `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
 
+### Measured burn
+
+Maintenance worked out from user own logged meals and weight readings, in
+place of formula figure. Only surface is `/calories/estimate` Details — no
+day-view row, no goal-sheet line. PRODUCT.md say app advise intake in exactly
+one place; that sentence is why.
+
+- Maths pure in `features/intake/actions/measured-burn.utils.ts`. Least
+  squares over every reading in window. Slope standard error and intake mean
+  standard error add in quadrature; that sigma is both the range width and the
+  refusal threshold, so neither is magic number.
+- **Every logged day count, unjudged.** Forgotten dinner stay in. No
+  plausibility floor, no "day complete" tick, no exclusion list. Judging a day
+  is app deciding what user meant — same move DECISIONS.md refuse on weigh-in
+  dismissal back-off. Under-logging bias figure low; existing deficit floor
+  `max(BMR, 1200 F / 1500 M)` catch that downstream.
+- Coverage floor require data **exist**, not judge its contents. Unlogged days
+  bias the mean, not only widen it.
+- Window grow from 14 to 56 days, shortest qualifying one win. Past cap →
+  `insufficient`, carrying logged-day count **and** weigh-in count: either can
+  be blocker, they fail independent.
+- **Nothing stored.** Derived figure, recomputed each read, same rule
+  `intake_profiles` follow.
+- Measured figure bypass activity factor, body-fat stage and metabolism
+  correction — measured burn already contain what they model. BMR still
+  computed: deficit floor read it. Every §7 rail still apply.
+- Imports: `intake → meals` allowed now, beside `intake → weight`. Reader is
+  `features/meals/actions/meals.store.ts`, userId-taking, no `"use server"` —
+  same reason `weight.store.ts` carry none.
+- Spec: `docs/superpowers/specs/2026-09-23-measured-burn-design.md`.
+
 ## Daily goals: kcal goal and macro targets
 
 One sheet (`goal-sheet.tsx`, titled "Daily goals") holds both, and both are
@@ -621,10 +652,14 @@ arithmetic in either direction, by design.
 The calorie estimate shipped 2026-09-21
 (`docs/superpowers/plans/2026-09-21-intake-estimate.md`): an optional form
 that works out a daily kcal range and sets the goal on request — see "Intake
-estimate" above. Before launch (M4) it needs the adaptive burn estimate its
-disclaimer promises, the lawyer-reviewed consent copy, the app-wide privacy
-policy and terms, and consent for `weight_entries`, which already holds
-health data (spec §13.3).
+estimate" above.
+
+The measured burn shipped 2026-09-23
+(`docs/superpowers/plans/2026-09-23-measured-burn.md`): the estimate now works
+maintenance out from user own logs and weigh-ins when data support it — see
+"Measured burn" above. Before launch (M4) estimate still need lawyer-reviewed
+consent copy, app-wide privacy policy and terms, and consent for
+`weight_entries`, which already hold health data (spec §13.3).
 
 Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
 cloud — next, not started.**

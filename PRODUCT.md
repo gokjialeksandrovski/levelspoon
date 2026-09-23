@@ -57,9 +57,12 @@ reach. Weeks-scale review happens on `/history`.
   target weight goal; Maintain's band saves a hold goal, optionally with
   Recomp. Answers stored only with explicit consent (`intake_profiles`). See
   `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
-- Adaptive calorie burn from logged meals and weigh-ins: **not built, release
-  blocker.** The estimate's disclaimer already promises it; it ships before
-  M4, or that sentence is cut first.
+- Measured calorie burn: shipped 2026-09-23. When a user has logged meals and
+  weighed in for long enough, the estimate works their maintenance out from
+  those rows by energy balance instead of from the formula, and says so. Too
+  little or too noisy data and it says that instead of guessing. Shown only in
+  the estimate's Details; nothing is stored. See
+  `docs/superpowers/specs/2026-09-23-measured-burn-design.md`.
 - Amounts: grams, millilitres, learned label servings, curated portion classes
   (a slice, an egg grade, a cup where density is genuinely known), and recent
   amounts per product.
