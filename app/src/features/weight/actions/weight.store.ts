@@ -2,7 +2,7 @@
 // would let a browser write any user's rows. Only "use server" modules import
 // this file (CLAUDE.md, "Server/client boundary"); they resolve the user
 // themselves and hand it in.
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 
 import { startRecompProtein } from "@/features/goals/actions/macro-targets.store";
 import { db, type DbTransaction } from "@/lib/db";
@@ -73,4 +73,25 @@ export const fetchLatestWeightKg = async (userId: string): Promise<number | null
     .orderBy(desc(weightEntries.measuredOn))
     .limit(1);
   return row ? Number(row.weightKg) : null;
+};
+
+/** Every reading from `from` to `to` inclusive, oldest first. */
+export const fetchWeightReadings = async (
+  userId: string,
+  from: string,
+  to: string,
+): Promise<{ date: string; weightKg: number }[]> => {
+  const rows = await db
+    .select({ measuredOn: weightEntries.measuredOn, weightKg: weightEntries.weightKg })
+    .from(weightEntries)
+    .where(
+      and(
+        eq(weightEntries.userId, userId),
+        gte(weightEntries.measuredOn, from),
+        lte(weightEntries.measuredOn, to),
+      ),
+    )
+    .orderBy(weightEntries.measuredOn);
+  // numeric arrives as a string; this is the point of arithmetic.
+  return rows.map((row) => ({ date: row.measuredOn, weightKg: Number(row.weightKg) }));
 };
