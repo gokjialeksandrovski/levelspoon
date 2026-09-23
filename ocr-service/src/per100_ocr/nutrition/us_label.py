@@ -45,9 +45,16 @@ ROW_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("saturates_g", re.compile(r"saturated fat\b", re.IGNORECASE)),
     ("sodium_g", re.compile(r"sodium\b", re.IGNORECASE)),
     ("carbohydrate_g", re.compile(r"total carbohydrate\b", re.IGNORECASE)),
+    ("fibre_g", re.compile(r"dietary fib(?:er|re)\b", re.IGNORECASE)),
     ("sugars_g", re.compile(r"total sugars\b", re.IGNORECASE)),
     ("protein_g", re.compile(r"protein\b", re.IGNORECASE)),
 )
+
+# The one marker whose absence is not a failure. The FDA mandates printing
+# dietary fibre, but an obscured or pre-2016 label must not start failing
+# outright where it used to read - it degrades to "fibre not known", which
+# every reader downstream already handles.
+OPTIONAL_ROW_FIELDS = frozenset({"fibre_g"})
 
 SERVING_SIZE_MARKER = re.compile(r"serving size", re.IGNORECASE)
 
@@ -148,6 +155,8 @@ def _marker_boxes(boxes: tuple[Box, ...]) -> dict[str, Box]:
     for field, marker in ROW_MARKERS + ((SERVING_SIZE_FIELD, SERVING_SIZE_MARKER),):
         box = _topmost(boxes, marker)
         if box is None:
+            if field in OPTIONAL_ROW_FIELDS:
+                continue
             raise NormalizationError(f"No box found for marker: {marker.pattern!r}")
         found[field] = box
     return found
@@ -161,7 +170,9 @@ def _self_contained_values(marker_boxes: dict[str, Box]) -> dict[str, float]:
     """
     values: dict[str, float] = {}
     for field, marker in ROW_MARKERS:
-        box = marker_boxes[field]
+        box = marker_boxes.get(field)
+        if box is None:
+            continue
         match = marker.search(box.text)
         figure = None if match is None else _figure_after(box.text, match.end())
         if figure is not None:
@@ -246,18 +257,34 @@ def _servings_per_container(boxes: tuple[Box, ...]) -> float | None:
     return None
 
 
+# A US label's "Total Carbohydrate" includes dietary fibre; the EU figure this
+# service reports excludes it (Reg 1169/2011 Annex I vs 21 CFR 101.9(c)(6)(i)).
+# One normalisation, the shape SODIUM_TO_SALT_FACTOR already set, so the shared
+# product table carries one meaning per column. A misread fibre larger than the
+# carbohydrate row leaves a negative figure for validate()'s negative rule to
+# flag - deliberately not clamped, because a clamp would hide the misread.
+def _eu_convention_carbohydrate(readings: dict[str, float]) -> dict[str, float]:
+    fibre_g = readings.get("fibre_g")
+    if fibre_g is None:
+        return readings
+    return {**readings, "carbohydrate_g": readings["carbohydrate_g"] - fibre_g}
+
+
 def _build_reading(
     readings: dict[str, float], serving_size_text: str | None, servings_per_container: float | None
 ) -> UsLabelReading:
     for field, marker in ROW_MARKERS:
-        if field not in readings:
+        if field not in readings and field not in OPTIONAL_ROW_FIELDS:
             raise NormalizationError(f"No value found for marker: {marker.pattern!r}")
     if serving_size_text is None:
         raise NormalizationError("No serving measure found on US label")
 
     sodium_g = readings.pop("sodium_g")
     return UsLabelReading(
-        per_serving=NutritionValues(salt_g=sodium_g * SODIUM_TO_SALT_FACTOR, **readings),
+        per_serving=NutritionValues(
+            salt_g=sodium_g * SODIUM_TO_SALT_FACTOR,
+            **_eu_convention_carbohydrate(readings),
+        ),
         serving_size_text=serving_size_text,
         serving_grams=_serving_grams(serving_size_text),
         servings_per_container=servings_per_container,

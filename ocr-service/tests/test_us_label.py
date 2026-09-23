@@ -3,6 +3,7 @@ import pytest
 from per100_ocr.boxes import Box, OcrResult
 from per100_ocr.nutrition.normalize import NormalizationError
 from per100_ocr.nutrition.us_label import is_us_label, read_us_label
+from per100_ocr.nutrition.validate import validate
 
 
 def _box(text: str, y: float, x: float = 100.0) -> Box:
@@ -16,8 +17,19 @@ def _box(text: str, y: float, x: float = 100.0) -> Box:
 ROW_PITCH = 70.0
 
 
-def _us_label(serving_size_text: str) -> OcrResult:
-    boxes = (
+def us_label_boxes(
+    *,
+    serving_size_text: str = "2 Tbsp (30g)",
+    total_carbohydrate: str = "18g 6%",
+    dietary_fiber: str | None = None,
+) -> OcrResult:
+    """The same synthetic linear label `_us_label` built, generalised for the
+    fibre tests: the carbohydrate row's figure and an optional fibre row can
+    be overridden. `dietary_fiber` omits its row entirely when None, matching
+    a label that never prints it - never an empty box, which would
+    misrepresent what a real missing row looks like.
+    """
+    boxes = [
         _box("Nutrition Facts", ROW_PITCH * 1),
         _box(f"Serving Size {serving_size_text}", ROW_PITCH * 2),
         _box("Amount Per Serving", ROW_PITCH * 3),
@@ -25,13 +37,21 @@ def _us_label(serving_size_text: str) -> OcrResult:
         _box("Total Fat 8g 10%", ROW_PITCH * 5),
         _box("Saturated Fat 1g 5%", ROW_PITCH * 6),
         _box("Sodium 180mg 8%", ROW_PITCH * 7),
-        _box("Total Carbohydrate 18g 6%", ROW_PITCH * 8),
+        _box(f"Total Carbohydrate {total_carbohydrate}", ROW_PITCH * 8),
+    ]
+    if dietary_fiber is not None:
+        boxes.append(_box(f"Dietary Fiber {dietary_fiber}", ROW_PITCH * 8.5))
+    boxes += [
         _box("Total Sugars 9g", ROW_PITCH * 9),
         _box("Includes 2g Added Sugars", ROW_PITCH * 10),
         _box("Protein 3g", ROW_PITCH * 11),
         _box("% Daily Value", ROW_PITCH * 12),
-    )
-    return OcrResult(boxes=boxes, image_width=1000, image_height=1600)
+    ]
+    return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1600)
+
+
+def _us_label(serving_size_text: str) -> OcrResult:
+    return us_label_boxes(serving_size_text=serving_size_text)
 
 
 def test_is_us_label_true_for_nutrition_facts_marker():
@@ -130,7 +150,9 @@ def test_reads_calories_and_serving_size_when_ocr_splits_them_from_their_labels(
     for the app's resolveGrams normalization - not just the bare label."""
     reading = read_us_label(_real_split_calories_and_serving_label())
     assert reading.per_serving.fat_g == pytest.approx(12.0)
-    assert reading.per_serving.carbohydrate_g == pytest.approx(23.0)
+    # Printed Total Carbohydrate is 23g; label also prints Dietary Fiber 1g,
+    # so the EU-convention figure this service reports is 23 - 1 = 22.
+    assert reading.per_serving.carbohydrate_g == pytest.approx(22.0)
     assert "2 Tablespoon" in reading.serving_size_text
     assert reading.serving_grams is None
 
@@ -246,7 +268,9 @@ def test_reads_every_field_off_the_linear_two_column_label():
     reading = read_us_label(_snickers_linear_label())
     assert reading.per_serving.fat_g == pytest.approx(12.0)
     assert reading.per_serving.saturates_g == pytest.approx(4.5)
-    assert reading.per_serving.carbohydrate_g == pytest.approx(32.0)
+    # Printed Total Carbohydrate is 32g; label also prints Dietary Fiber 1g,
+    # so the EU-convention figure this service reports is 32 - 1 = 31.
+    assert reading.per_serving.carbohydrate_g == pytest.approx(31.0)
     assert reading.per_serving.sugars_g == pytest.approx(28.0)
     assert reading.per_serving.protein_g == pytest.approx(4.0)
     # 125 mg sodium -> 0.125 g -> x2.5 -> 0.3125 g salt
@@ -344,7 +368,9 @@ def test_reads_every_field_off_the_stacked_label():
     assert reading.per_serving.energy_kcal == pytest.approx(220.0)
     assert reading.per_serving.fat_g == pytest.approx(11.0)
     assert reading.per_serving.saturates_g == pytest.approx(4.0)
-    assert reading.per_serving.carbohydrate_g == pytest.approx(29.0)
+    # Printed Total Carbohydrate is 29g; label also prints Dietary Fiber 1g,
+    # so the EU-convention figure this service reports is 29 - 1 = 28.
+    assert reading.per_serving.carbohydrate_g == pytest.approx(28.0)
     assert reading.per_serving.sugars_g == pytest.approx(25.0)
     assert reading.per_serving.protein_g == pytest.approx(4.0)
     # 115 mg sodium -> 0.115 g -> x2.5 -> 0.2875 g salt
@@ -405,3 +431,28 @@ def test_raises_when_a_marker_resolves_to_no_figure_at_all():
     result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)
     with pytest.raises(NormalizationError, match="protein"):
         read_us_label(result)
+
+
+def test_total_carbohydrate_is_reported_without_its_fibre():
+    """21 CFR 101.9(c)(6)(i) counts fibre inside Total Carbohydrate; the EU
+    figure this service reports excludes it, same normalisation sodium gets.
+    """
+    reading = read_us_label(us_label_boxes(total_carbohydrate="25g", dietary_fiber="3g"))
+    assert reading.per_serving.carbohydrate_g == 22.0
+    assert reading.per_serving.fibre_g == 3.0
+
+
+def test_label_without_a_fibre_row_still_reads():
+    """An obscured or pre-2016 label degrades to unknown fibre, never a raise."""
+    reading = read_us_label(us_label_boxes(total_carbohydrate="25g", dietary_fiber=None))
+    assert reading.per_serving.fibre_g is None
+    assert reading.per_serving.carbohydrate_g == 25.0
+
+
+def test_fibre_larger_than_carbohydrate_leaves_a_negative_for_the_rules_to_flag():
+    """A misread fibre must surface, not be clamped away. validate()'s
+    negative rule is what shows it to the user on the confirm step.
+    """
+    reading = read_us_label(us_label_boxes(total_carbohydrate="3g", dietary_fiber="25g"))
+    assert reading.per_serving.carbohydrate_g == -22.0
+    assert "carbohydrate_g" in validate(reading.per_serving)
