@@ -1,9 +1,10 @@
 "use client";
 
+import { CaretRightIcon, MinusCircleIcon, PlusCircleIcon, type Icon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useId, useState } from "react";
 
-import { setCalorieGoal } from "@/features/goals/actions/goals";
+import { saveDailyGoals } from "@/features/goals/actions/goals";
 import {
   commitGoalDraft,
   DEFAULT_CALORIE_GOAL,
@@ -11,9 +12,12 @@ import {
   isValidCalorieGoal,
   nudgeCalorieGoal,
 } from "@/features/goals/actions/goals.utils";
-import { Button, buttonClassName } from "@/components/ui/button";
+import type { MacroTargets, MacroTargetUnit } from "@/features/goals/actions/macro-targets.utils";
+import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
+
+import { MacroTargetsFields, useMacroTargetsDraft, type MacroTargetsDraftState } from "./macro-targets-fields";
 
 const SMALL_NUDGE = 100;
 const LARGE_NUDGE = 500;
@@ -103,23 +107,25 @@ const GoalChips = ({ goal, onChange }: GoalChipsProps) => (
   </div>
 );
 
-interface SaveCalorieGoal {
+type OnGoalsSaved = (goal: number | null, targets: MacroTargets | null) => void;
+
+interface SaveDailyGoals {
   isSaving: boolean;
   hasError: boolean;
-  save: (goal: number) => void;
+  save: (goal: number | null, targets: MacroTargets | null) => void;
 }
 
 // Isolates the pending/error dance so GoalSheet itself stays a plain layout.
-const useSaveCalorieGoal = (onSaved: (goal: number) => void, onClose: () => void): SaveCalorieGoal => {
+const useSaveDailyGoals = (onSaved: OnGoalsSaved, onClose: () => void): SaveDailyGoals => {
   const [isSaving, setIsSaving] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  const save = (goal: number): void => {
+  const save = (goal: number | null, targets: MacroTargets | null): void => {
     setIsSaving(true);
     setHasError(false);
-    setCalorieGoal(goal)
+    saveDailyGoals(goal, targets)
       .then(() => {
-        onSaved(goal);
+        onSaved(goal, targets);
         onClose();
       })
       .catch(() => setHasError(true))
@@ -172,36 +178,136 @@ const useGoalDraft = (initialGoal: number): GoalDraft => {
   return { goal, draft, wasRejected, setGoal, type, commit };
 };
 
+// The one way into the estimate (spec §2): the moment a user is holding a
+// number they cannot fill. A row that says who it is for, not a bare link:
+// "Not sure?" alone gave no reason to leave a half-set goal. Outlined rather
+// than filled so it cannot be mistaken for a fifth nudge chip.
+const EstimateLink = () => (
+  <Link
+    href="/calories/estimate"
+    className="group flex items-center gap-3 rounded-control p-4 text-left ring-1 ring-inset ring-border transition-colors hover:bg-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+  >
+    <span className="flex flex-col gap-1">
+      <span className="text-sm font-semibold text-text">Work out the numbers</span>
+      <span className="text-sm text-text-muted">
+        New to tracking, or want a second opinion on how much you eat? Enter your body stats and activity to see a daily
+        range, and how it was worked out.
+      </span>
+    </span>
+    <CaretRightIcon
+      aria-hidden
+      weight="bold"
+      className="shrink-0 text-text-muted transition-transform group-hover:text-text motion-safe:group-hover:translate-x-0.5"
+    />
+  </Link>
+);
+
+interface GoalPresence {
+  hasGoal: boolean;
+  remove: () => void;
+  restore: () => void;
+}
+
+// Shares need a kcal goal and grams do not, so the targets' unit follows the
+// goal: removing it turns shares into grams, restoring it turns grams back
+// into shares of the figure the field still holds. The field keeps that
+// figure while hidden, so "Set a calorie goal" brings back what was there.
+const useGoalPresence = (initialHasGoal: boolean, goalDraft: GoalDraft, targetsDraft: MacroTargetsDraftState): GoalPresence => {
+  const [hasGoal, setHasGoal] = useState(initialHasGoal);
+
+  const remove = (): void => {
+    setHasGoal(false);
+    targetsDraft.convertTo("g", goalDraft.goal);
+  };
+
+  const restore = (): void => {
+    setHasGoal(true);
+    targetsDraft.convertTo("pct", goalDraft.goal);
+  };
+
+  return { hasGoal, remove, restore };
+};
+
+interface GoalPresenceButtonProps {
+  icon: Icon;
+  label: string;
+  onClick: () => void;
+}
+
+// Unfilled, where the nudge chips right above are filled, so it cannot read as
+// a fifth step; the icon says remove/add without an underline. Raw button:
+// Button's ghost recipe paints the chips' fill. min-h-11 is the tap floor.
+const GoalPresenceButton = ({ icon: GlyphIcon, label, onClick }: GoalPresenceButtonProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="inline-flex min-h-11 items-center gap-1.5 self-center rounded-full px-4 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+  >
+    <GlyphIcon aria-hidden weight="bold" className="size-4" />
+    {label}
+  </button>
+);
+
+interface GoalFieldGroupProps {
+  goalDraft: GoalDraft;
+  openingGoal: number;
+  onRemove: () => void;
+  onSubmit: () => void;
+}
+
+// gap-3 inside the group: the chips are a control for the number directly
+// above them, and one flat gap spaced them as far from it as from the save
+// action.
+const GoalFieldGroup = ({ goalDraft, openingGoal, onRemove, onSubmit }: GoalFieldGroupProps) => (
+  <div className="flex flex-col gap-3">
+    <GoalNumberInput
+      draft={goalDraft.draft}
+      openingGoal={openingGoal}
+      hasMoved={goalDraft.goal !== openingGoal}
+      onType={goalDraft.type}
+      onCommit={goalDraft.commit}
+      onSubmit={onSubmit}
+    />
+    <GoalChips goal={goalDraft.goal} onChange={goalDraft.setGoal} />
+    <GoalPresenceButton icon={MinusCircleIcon} label="No calorie goal" onClick={onRemove} />
+  </div>
+);
+
+// Stated, not pleaded: the day view shows what was eaten without a target,
+// and the way back is one tap.
+const NoGoalNotice = ({ onRestore }: { onRestore: () => void }) => (
+  <div className="flex flex-col items-center gap-1 text-center">
+    <p className="font-display text-2xl font-semibold text-text">No calorie goal</p>
+    <p className="text-sm text-text-muted">The day shows what you ate, with no kcal target.</p>
+    <GoalPresenceButton icon={PlusCircleIcon} label="Set a calorie goal" onClick={onRestore} />
+  </div>
+);
+
 interface GoalSheetBodyProps {
   goalDraft: GoalDraft;
+  targetsDraft: MacroTargetsDraftState;
+  presence: GoalPresence;
   openingGoal: number;
   hasError: boolean;
   onSubmit: () => void;
 }
 
-// gap-3 inside the group, gap-6 out to the messages: the chips are a control
-// for the number directly above them, and one flat gap spaced them as far from
-// it as from the save action.
-const GoalSheetBody = ({ goalDraft, openingGoal, hasError, onSubmit }: GoalSheetBodyProps) => (
+const GoalSheetBody = ({ goalDraft, targetsDraft, presence, openingGoal, hasError, onSubmit }: GoalSheetBodyProps) => (
   <div className="flex flex-col gap-6">
-    <div className="flex flex-col gap-3">
-      <GoalNumberInput
-        draft={goalDraft.draft}
-        openingGoal={openingGoal}
-        hasMoved={goalDraft.goal !== openingGoal}
-        onType={goalDraft.type}
-        onCommit={goalDraft.commit}
-        onSubmit={onSubmit}
-      />
-      <GoalChips goal={goalDraft.goal} onChange={goalDraft.setGoal} />
-    </div>
-    {/* The one way into the estimate (spec §2): the moment a user is holding
-        a number they cannot fill. */}
-    <Link href="/calories/estimate" className={buttonClassName("ghost", "self-center", true)}>
-      Not sure? Work it out
-    </Link>
+    {presence.hasGoal ? (
+      <GoalFieldGroup goalDraft={goalDraft} openingGoal={openingGoal} onRemove={presence.remove} onSubmit={onSubmit} />
+    ) : (
+      <NoGoalNotice onRestore={presence.restore} />
+    )}
+    <MacroTargetsFields targetsDraft={targetsDraft} calorieGoal={presence.hasGoal ? goalDraft.goal : null} />
+    <EstimateLink />
     {goalDraft.wasRejected && (
       <InlineMessage tone="info">That was not a number we could read, so the goal above is unchanged.</InlineMessage>
+    )}
+    {targetsDraft.wasBlocked && (
+      <InlineMessage tone="error">
+        Fix the macro targets above before saving, or clear them to save the rest.
+      </InlineMessage>
     )}
     {hasError && <InlineMessage tone="error">Could not save. Please try again.</InlineMessage>}
   </div>
@@ -210,37 +316,72 @@ const GoalSheetBody = ({ goalDraft, openingGoal, hasError, onSubmit }: GoalSheet
 interface GoalSheetProps {
   open: boolean;
   initialGoal: number | null;
+  initialTargets: MacroTargets | null;
   onClose: () => void;
-  onSaved: (goal: number) => void;
+  onSaved: OnGoalsSaved;
 }
+
+// First open (nothing set) shows the kcal field; a saved "no goal" is only
+// ever one with macro targets beside it, so that is the one state that opens
+// without the field.
+const opensWithGoal = (initialGoal: number | null, initialTargets: MacroTargets | null): boolean =>
+  initialGoal !== null || initialTargets === null;
+
+// New targets start in the unit the goal allows; saved ones keep theirs. Grams
+// beside a goal are valid, and are what the estimate leaves after setting one.
+const opensWithUnit = (hasGoal: boolean, initialTargets: MacroTargets | null): MacroTargetUnit =>
+  initialTargets?.unit ?? (hasGoal ? "pct" : "g");
 
 // No effect resyncing tempGoal on reopen: CalorieHero remounts this whole
 // component (a fresh `key` per open) instead, so state just starts clean.
-export const GoalSheet = ({ open, initialGoal, onClose, onSaved }: GoalSheetProps) => {
+export const GoalSheet = ({ open, initialGoal, initialTargets, onClose, onSaved }: GoalSheetProps) => {
   const openingGoal = initialGoal ?? DEFAULT_CALORIE_GOAL;
+  const initialHasGoal = opensWithGoal(initialGoal, initialTargets);
   const goalDraft = useGoalDraft(openingGoal);
-  const { isSaving, hasError, save } = useSaveCalorieGoal(onSaved, onClose);
+  const targetsDraft = useMacroTargetsDraft(initialTargets, opensWithUnit(initialHasGoal, initialTargets));
+  const presence = useGoalPresence(initialHasGoal, goalDraft, targetsDraft);
+  const { isSaving, hasError, save } = useSaveDailyGoals(onSaved, onClose);
 
   // Commits the draft rather than reading state: a tap on Save blurs the field
   // first, but the resulting state update is not visible to this handler yet -
   // which is also why the unusable-draft check reads the pre-blur text. Saving
   // is skipped in that case so the sheet stays open to say so, rather than
   // closing on a value the user did not type.
-  const submit = () => {
+  const commitGoal = (): number | null | "unusable" => {
+    if (!presence.hasGoal) return null;
     const next = goalDraft.commit();
-    if (isUnusableGoalDraft(goalDraft.draft)) return;
-    save(next);
+    return isUnusableGoalDraft(goalDraft.draft) ? "unusable" : next;
+  };
+
+  // Targets that do not read block the whole save for the same reason:
+  // storing the goal alone would drop the targets the user was visibly editing.
+  const submit = () => {
+    const goal = commitGoal();
+    if (goal === "unusable") return;
+    const { reading } = targetsDraft;
+    if (reading.kind === "off" || reading.kind === "unreadable") {
+      targetsDraft.block();
+      return;
+    }
+    save(goal, reading.kind === "ready" ? reading.targets : null);
   };
 
   const footer = (
     <Button variant="primary" className="w-full" pending={isSaving} onClick={submit}>
-      Save goal
+      Save goals
     </Button>
   );
 
   return (
-    <Sheet open={open} onClose={onClose} title="Daily calorie goal" footer={footer}>
-      <GoalSheetBody goalDraft={goalDraft} openingGoal={openingGoal} hasError={hasError} onSubmit={submit} />
+    <Sheet open={open} onClose={onClose} title="Daily goals" footer={footer}>
+      <GoalSheetBody
+        goalDraft={goalDraft}
+        targetsDraft={targetsDraft}
+        presence={presence}
+        openingGoal={openingGoal}
+        hasError={hasError}
+        onSubmit={submit}
+      />
     </Sheet>
   );
 };

@@ -30,9 +30,12 @@ beforeAll(async () => {
   await db.insert(users).values({ id: userId, email: `weight-actions-${userId}@test.local` });
 });
 
+const NO_TARGETS = { macroTargetUnit: null, macroProtein: null, macroCarbs: null, macroFat: null };
+
 beforeEach(async () => {
   await db.delete(weightEntries).where(eq(weightEntries.userId, userId));
   await db.delete(weightGoals).where(eq(weightGoals.userId, userId));
+  await db.update(users).set(NO_TARGETS).where(eq(users.id, userId));
 });
 
 afterAll(async () => {
@@ -84,6 +87,18 @@ describe("saveWeightGoal", () => {
     expect(result.view.goal.holdBandKg).toBe(1);
     expect(result.view.goal.recomp).toBe(true);
     expect(result.view.goal.rateKgPerWeek).toBeNull();
+  });
+
+  // 78 kg at 1.8 g/kg. Grams, so the target stands with or without a kcal goal.
+  it("starts a protein target from recomp, and leaves targets the user already set", async () => {
+    await saveWeightGoal({ mode: "hold" as const, unit: "kg" as const, currentWeightKg: 78, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1, recomp: true, checkinIntervalDays: 14 }, TIMEZONE);
+    const [started] = await db.select().from(users).where(eq(users.id, userId));
+    expect(started).toMatchObject({ macroTargetUnit: "g", macroProtein: 140, macroCarbs: null });
+
+    await db.update(users).set({ macroTargetUnit: "g", macroProtein: 200 }).where(eq(users.id, userId));
+    await saveWeightGoal({ mode: "hold" as const, unit: "kg" as const, currentWeightKg: 78, targetWeightKg: null, rateKgPerWeek: null, holdBandKg: 1, recomp: true, checkinIntervalDays: 14 }, TIMEZONE);
+    const [kept] = await db.select().from(users).where(eq(users.id, userId));
+    expect(kept.macroProtein).toBe(200);
   });
 });
 

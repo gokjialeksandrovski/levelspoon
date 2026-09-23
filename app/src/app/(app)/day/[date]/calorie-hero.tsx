@@ -5,16 +5,27 @@ import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 
 import { calorieRemaining } from "@/features/goals/actions/goals.utils";
+import { gramTargets, type MacroTargets } from "@/features/goals/actions/macro-targets.utils";
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { slideTransition } from "@/lib/motion/step-transition";
+import type { NutritionValues } from "@/types/nutrition";
 
+import { DayMacros } from "./day-macros";
 import { GoalSheet } from "./goal-sheet";
 
 interface GoalPillProps {
   goal: number | null;
+  hasTargets: boolean;
   onOpen: () => void;
 }
+
+// "Set goal" would misread for someone who chose macro targets and no kcal
+// goal: they have goals, just not that one.
+const pillLabel = (goal: number | null, hasTargets: boolean): string => {
+  if (goal !== null) return `Goal: ${goal.toLocaleString()}`;
+  return hasTargets ? "Goals" : "Set goal";
+};
 
 // Sized to the pill's text-sm line; the 22px provider default would outgrow the pill.
 const PILL_ICON_SIZE = 16;
@@ -26,10 +37,10 @@ const PILL_ICON_SIZE = 16;
 // than that is a slipped keystroke - nothing rejects it, so the pill truncates
 // rather than shoving the headline figure off screen. The ring draws on the
 // pill, not the invisible hit box.
-const GoalPill = ({ goal, onOpen }: GoalPillProps) => (
+const GoalPill = ({ goal, hasTargets, onOpen }: GoalPillProps) => (
   <button type="button" onClick={onOpen} className="group -my-2 min-w-0 shrink py-2 focus-visible:outline-none">
     <span className="flex items-center gap-1 overflow-hidden rounded-full bg-surface-raised px-2.5 py-1.5 text-sm font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
-      <span className="truncate">{goal === null ? "Set goal" : `Goal: ${goal.toLocaleString()}`}</span>
+      <span className="truncate">{pillLabel(goal, hasTargets)}</span>
       <PencilSimpleIcon size={PILL_ICON_SIZE} className="shrink-0" />
     </span>
   </button>
@@ -74,17 +85,19 @@ const CalorieGoalProgress = ({ consumedKcal, goal, isOver, reduceMotion }: Calor
 
 interface GoalSheetState {
   goal: number | null;
+  targets: MacroTargets | null;
   sheetOpen: boolean;
   openToken: number;
   openSheet: () => void;
   closeSheet: () => void;
-  setGoal: (goal: number) => void;
+  setGoals: (goal: number | null, targets: MacroTargets | null) => void;
 }
 
 // openToken is bumped on every open so GoalSheet remounts fresh each time
 // (see its own comment) instead of resyncing stale edits via an effect.
-const useGoalSheetState = (initialGoal: number | null): GoalSheetState => {
+const useGoalSheetState = (initialGoal: number | null, initialTargets: MacroTargets | null): GoalSheetState => {
   const [goal, setGoal] = useState(initialGoal);
+  const [targets, setTargets] = useState(initialTargets);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [openToken, setOpenToken] = useState(0);
 
@@ -93,18 +106,27 @@ const useGoalSheetState = (initialGoal: number | null): GoalSheetState => {
     setSheetOpen(true);
   };
 
-  return { goal, sheetOpen, openToken, openSheet, closeSheet: () => setSheetOpen(false), setGoal };
+  const setGoals = (nextGoal: number | null, nextTargets: MacroTargets | null): void => {
+    setGoal(nextGoal);
+    setTargets(nextTargets);
+  };
+
+  return { goal, targets, sheetOpen, openToken, openSheet, closeSheet: () => setSheetOpen(false), setGoals };
 };
 
 interface CalorieHeroProps {
-  consumedKcal: number;
+  total: NutritionValues;
   initialGoal: number | null;
+  initialTargets: MacroTargets | null;
 }
 
-// Owns the goal locally (seeded from the server-fetched value) so saving in
-// the sheet updates the hero immediately, with no full day refetch.
-export const CalorieHero = ({ consumedKcal, initialGoal }: CalorieHeroProps) => {
-  const { goal, sheetOpen, openToken, openSheet, closeSheet, setGoal } = useGoalSheetState(initialGoal);
+// Owns the goal and targets locally (seeded from the server-fetched values) so
+// saving in the sheet updates the hero immediately, with no full day refetch.
+// Renders DayMacros too: a share-of-kcal target needs the kcal goal to become
+// grams, and both live here.
+export const CalorieHero = ({ total, initialGoal, initialTargets }: CalorieHeroProps) => {
+  const { goal, targets, sheetOpen, openToken, openSheet, closeSheet, setGoals } = useGoalSheetState(initialGoal, initialTargets);
+  const consumedKcal = total.energyKcal;
   const reduceMotion = useReducedMotion();
   const remaining = calorieRemaining(goal, consumedKcal);
 
@@ -113,12 +135,20 @@ export const CalorieHero = ({ consumedKcal, initialGoal }: CalorieHeroProps) => 
       {/* Pill sits beside the number in every state, so setting a goal only adds lines below and nothing moves sideways. */}
       <div className="flex items-center justify-between gap-2">
         <DayCalorieStat consumedKcal={consumedKcal} remaining={remaining} reduceMotion={reduceMotion} />
-        <GoalPill goal={goal} onOpen={openSheet} />
+        <GoalPill goal={goal} hasTargets={targets !== null} onOpen={openSheet} />
       </div>
       {goal !== null && (
         <CalorieGoalProgress consumedKcal={consumedKcal} goal={goal} isOver={remaining.status === "over"} reduceMotion={reduceMotion} />
       )}
-      <GoalSheet key={openToken} open={sheetOpen} initialGoal={goal} onClose={closeSheet} onSaved={setGoal} />
+      <DayMacros total={total} targets={targets === null ? null : gramTargets(targets, goal)} />
+      <GoalSheet
+        key={openToken}
+        open={sheetOpen}
+        initialGoal={goal}
+        initialTargets={targets}
+        onClose={closeSheet}
+        onSaved={setGoals}
+      />
     </div>
   );
 };

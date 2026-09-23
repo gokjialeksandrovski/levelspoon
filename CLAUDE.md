@@ -348,14 +348,25 @@ Optional. App fully usable without one — nothing gates on it, nothing nags.
   converting it to kcal would make it the app's advice, which is the one thing
   `goal-sheet.tsx`'s no-reset-chip rule exists to refuse. The arithmetic this
   refuses lives in `features/intake/` (see "Intake estimate"), which may import
-  `features/weight/`; the reverse stays banned. One sentence is the exception:
-  `RecompCheckbox`'s helper states a published protein range (Morton 2018),
-  asked for by the user — copy only, no figure computed or stored (see
-  `DECISIONS.md`). Nothing else joins it.
+  `features/weight/`; the reverse stays banned. Recomp is the one exception,
+  and it stays in grams of body weight: `RecompCheckbox`'s helper states a
+  published protein range (Morton 2018), and `weight.store.ts`'s
+  `writeWeightGoal` calls `startRecompProtein`
+  (`features/goals/actions/macro-targets.store.ts`) when a goal saves with
+  recomp on. No kcal figure crosses, in either direction. Nothing else joins
+  it.
 - **Recomp is a tick on holding steady, not a mode.** `weight_goals.recomp`,
   shown as `RecompCheckbox` under the band on the sheet's Hold steady and on
-  the estimate's Maintain. Switching to a target drops it. It changes no
-  figure.
+  the estimate's Maintain. Switching to a target drops it. The one figure it
+  sets is the protein target below; it changes no weight figure.
+- **Saving recomp starts a protein target, never overwrites one.**
+  `startRecompProtein` writes `RECOMP_PROTEIN_G_PER_KG` (1.8, inside Morton
+  2018's 1.6-2.2) times body weight, in **grams**, and only when
+  `macro_target_unit` is null. Grams because the copy promises grams per kg,
+  and because a gram target is valid with or without a kcal goal. Both save
+  paths reach it through `writeWeightGoal`, so a third caller of that function
+  gets the behaviour too. The helper copy says the figure and says Set goal
+  changes it - keep the two in step.
 - All maths pure in `features/weight/actions/weight.utils.ts`. `weightProgress`
   is the only progress function; `nextCheckinDate` and `checkinCountdown` the
   only cadence ones. A rail share is clamped 0–1 and the text beside it states
@@ -398,7 +409,7 @@ Optional. App fully usable without one — nothing gates on it, nothing nags.
 ## Intake estimate
 
 Optional page at `/calories/estimate`, reached only from `GoalSheet`'s
-`Not sure? Work it out` link. Nothing on the day view points at it.
+`Work out the numbers` row. Nothing on the day view points at it.
 
 - All maths pure in `features/intake/actions/intake.utils.ts`, run by the form
   for the live range and again by `saveIntakeEstimate`, which never trusts a
@@ -413,6 +424,8 @@ Optional page at `/calories/estimate`, reached only from `GoalSheet`'s
   in the weight tables), and any derived figure (BMI, FFMI, lean mass,
   timeline, the estimate itself). The one output kept is
   `users.daily_calorie_goal`.
+- The Primary goal group says macros exist and where to set them: nothing
+  else in this form mentions them, and it only ever sets calories.
 - **The goal fields are the weight goal.** A goal weight saves a target goal;
   Maintain's band saves a hold goal (with recomp). No opt-in box. An
   unchanged goal writes nothing, so recalculating never resets its start; a
@@ -428,6 +441,35 @@ Optional page at `/calories/estimate`, reached only from `GoalSheet`'s
   let a browser write any user's rows.
 - Refusals cross as `SaveIntakeResult`, never thrown classes.
 - Spec: `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
+
+## Daily goals: kcal goal and macro targets
+
+One sheet (`goal-sheet.tsx`, titled "Daily goals") holds both, and both are
+optional and independent. `No calorie goal` removes the kcal goal
+(`daily_calorie_goal` null); `Set a calorie goal` brings it back.
+
+- **Macro targets are per macro, each optional.** A blank field is an
+  untracked macro, never a zero. Behind an `Add macro targets` row; no
+  preset, no default, same reasoning as the no-2000 chip. Recomp is the one
+  thing that fills a target unasked - see "Weight goal".
+- **Unit follows the kcal goal.** A share of kcal (`pct`) when there is one,
+  grams when there is not. Removing or restoring the goal in the sheet
+  converts the figures field by field (`convertTargetsDraft`), never wipes
+  them. Stored grams beside a goal stay grams - the estimate can set a goal
+  under existing gram targets and that row stays valid.
+- Columns `users.macro_target_unit` + `macro_protein/carbs/fat` (smallint),
+  four CHECKs: unit set exactly when a macro is; nothing negative; shares fit
+  in 100 and three shares make exactly 100; a share needs a kcal goal. They
+  use `num_nonnulls` and `::int` on purpose - a CHECK that evaluates to NULL
+  passes, and Postgres need not short-circuit the OR.
+- Maths pure in `features/goals/actions/macro-targets.utils.ts`. kcal and
+  grams bridge only through `KCAL_PER_GRAM` (Atwater 4/4/9, published).
+  `gramTargets` is the one place a share becomes grams.
+- Day view: no targets, the gram-share composition bar as before; targets,
+  one column per macro with "of Xg" and a rail, "no target" for an untracked
+  one, shown on an empty day too. No danger colour past a target.
+- Targets that do not read block the whole Save, goal included.
+  `saveDailyGoals(goal | null, targets | null)` writes everything in one UPDATE.
 
 ## Time
 

@@ -48,6 +48,9 @@ reach. Weeks-scale review happens on `/history`.
 - Daily calorie goal: optional, hand-set, per user (`users.daily_calorie_goal`,
   null until set). App offers no default and no reset-to-2000 chip — a flat
   number on a button would be the app recommending an intake.
+- Macro targets: optional, per macro, hand-set on the goal sheet, no preset.
+  A share of daily kcal when a kcal goal is set, grams when not; the kcal
+  goal itself can be removed. Shown on the day view as gram targets.
 - Calorie estimate: shipped 2026-09-21. Optional form reached only from the
   goal sheet; Mifflin-St Jeor or Katch-McArdle, standard activity factors,
   shown as a range that narrows with each answer. A goal weight saves a

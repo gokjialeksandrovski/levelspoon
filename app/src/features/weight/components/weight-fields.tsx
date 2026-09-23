@@ -123,10 +123,11 @@ export const BAND_HELPER = "How far above or below your current weight still cou
 
 // PUBLISHED - Morton RW et al., Br J Sports Med 2018;52:376: protein's effect
 // on lean mass gains plateaus near 1.6 g/kg/day, upper 95% CI 2.2. The pound
-// row is the same range divided by 2.2046, rounded to what a person would say.
+// row is the same range divided by 2.2046, rounded to what a person would say,
+// and 0.8 g per lb is the stored RECOMP_PROTEIN_G_PER_KG read in pounds.
 const RECOMP_HELPER: Record<WeightUnit, string> = {
-  kg: "Build muscle and lose fat while your weight stays about the same. It takes regular strength training and more protein than usual, about 1.6 to 2.2 g per kg of body weight a day.",
-  lb: "Build muscle and lose fat while your weight stays about the same. It takes regular strength training and more protein than usual, about 0.7 to 1 g per lb of body weight a day.",
+  kg: "Build muscle and lose fat while your weight stays about the same. Needs strength training and 1.6 to 2.2 g of protein per kg a day. Saving starts protein at 1.8 g per kg unless you set macro targets yourself. Change it any time under Set goal on the main page.",
+  lb: "Build muscle and lose fat while your weight stays about the same. Needs strength training and 0.7 to 1 g of protein per lb a day. Saving starts protein at 0.8 g per lb unless you set macro targets yourself. Change it any time under Set goal on the main page.",
 };
 
 interface RecompCheckboxProps {

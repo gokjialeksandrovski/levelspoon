@@ -226,7 +226,7 @@ interface SavePlan {
 const commitSave = (plan: SavePlan): Promise<void> =>
   db.transaction(async (tx) => {
     // The calorie goal is written here rather than through goals.ts's
-    // setCalorieGoal so it joins this transaction; goals.ts owns no rule this
+    // saveDailyGoals so it joins this transaction; goals.ts owns no rule this
     // skips - its only check is the storage bound a rounded estimate meets.
     await tx
       .update(users)

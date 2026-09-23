@@ -4,6 +4,7 @@
 // themselves and hand it in.
 import { desc, eq } from "drizzle-orm";
 
+import { startRecompProtein } from "@/features/goals/actions/macro-targets.store";
 import { db, type DbTransaction } from "@/lib/db";
 import { users, weightEntries, weightGoals } from "@/lib/db/schema";
 
@@ -58,6 +59,10 @@ export const writeWeightGoal = async (
   // still names the unit the surviving readings are read in.
   await tx.update(users).set({ weightUnit: input.unit }).where(eq(users.id, userId));
   await tx.insert(weightGoals).values(row).onConflictDoUpdate({ target: weightGoals.userId, set: row });
+  // The one figure this feature hands to goals, and it travels in grams of
+  // body weight, never in calories: recomp is the one goal that asks for a
+  // protein target, and both save paths for it pass through here.
+  if (input.recomp) await startRecompProtein(tx, userId, input.currentWeightKg);
 };
 
 export const fetchLatestWeightKg = async (userId: string): Promise<number | null> => {

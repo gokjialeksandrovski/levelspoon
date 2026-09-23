@@ -26,3 +26,11 @@ export const macroGramShares = (total: MacroGrams): MacroShares => {
     fat: total.fatG / totalG,
   };
 };
+
+// How far a macro's rail fills toward its target, clamped to the rail. The
+// figure printed beside it is the real one, over or not. A 0g target (a 0%
+// share) fills the moment anything is eaten against it.
+export const targetShare = (eatenG: number, targetG: number): number => {
+  if (targetG <= 0) return eatenG > 0 ? 1 : 0;
+  return Math.min(1, eatenG / targetG);
+};

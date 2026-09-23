@@ -85,6 +85,10 @@ const ACTIVITY_OPTIONS: ChoiceOption<ActivityLevel>[] = [
   },
 ];
 
+// Said here because this form only ever sets calories, and nothing else in it
+// mentions that protein, carbs and fat have targets of their own.
+const MACROS_NOTE = "This works out your calories. You can set protein, carbs and fat too, under Set goal on the main page.";
+
 const GOAL_OPTIONS: ChoiceOption<PrimaryGoal>[] = [
   { value: "lose_fat", label: "Lose weight" },
   { value: "maintain", label: "Maintain" },
@@ -249,6 +253,7 @@ const AboutYou = ({ draft, update, errorFor }: SectionProps) => (
         legend="Primary goal"
         name="goal"
         required
+        helperText={MACROS_NOTE}
         options={GOAL_OPTIONS}
         value={draft.primaryGoal}
         onChange={(primaryGoal) => update({ primaryGoal })}

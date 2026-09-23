@@ -69,13 +69,16 @@ const SheetBody = ({ titleId, title, children, footer, onClose }: Pick<SheetProp
         </span>
       </button>
     </div>
-    {/* -mx-1 px-1: overflow-y-auto also clips horizontally, which shaves the
-        sides off any offset focus outline inside. The gutter gives them room
-        without moving the content.
-        scrollbar-thin: html's scrollbar-color is inherited here, but the
-        default `auto` width draws a 15px chrome gutter down the inside edge of
-        a rounded sheet, which reads as a seam rather than as a scrollbar. */}
-    <div tabIndex={footer ? 0 : undefined} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 scrollbar-thin">
+    {/* -m-1 p-1: overflow-y-auto clips on every side, which shaved the top
+        edge off a first-row control's offset focus outline (2px + 2px offset).
+        The gutter gives it room without moving the content.
+        No scrollbar at all: even thin, it drew a chrome seam down the inside
+        edge of a rounded sheet. Touch, wheel and the focusable body still
+        scroll it. */}
+    <div
+      tabIndex={footer ? 0 : undefined}
+      className="-m-1 min-h-0 flex-1 overflow-y-auto p-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
+    >
       {children}
     </div>
     {footer && <div className="shrink-0 pt-3">{footer}</div>}

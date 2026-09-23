@@ -12,7 +12,7 @@ const birthYearAged = (age: number): string => String(new Date().getFullYear() -
 const openEstimate = async (page: Page): Promise<void> => {
   await page.goto(`/day/${localToday()}`);
   await page.getByRole("button", { name: "Set goal" }).click();
-  await page.getByRole("link", { name: "Not sure? Work it out" }).click();
+  await page.getByRole("link", { name: /Work out the numbers/ }).click();
   await expect(page.getByRole("heading", { name: "Work out your calories" })).toBeVisible();
 };
 

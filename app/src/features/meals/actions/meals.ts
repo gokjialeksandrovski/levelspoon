@@ -13,7 +13,8 @@ import { resolvePortions } from "@/lib/measures/resolve-portions";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { NotAuthorizedError } from "./meals.errors";
-import { fetchCalorieGoal } from "@/features/goals/actions/goals";
+import { fetchCalorieGoal, fetchMacroTargets } from "@/features/goals/actions/goals";
+import type { MacroTargets } from "@/features/goals/actions/macro-targets.utils";
 import { fetchWeightView } from "@/features/weight/actions/weight";
 import type { WeightView } from "@/features/weight/actions/weight.utils";
 import { calorieRemaining, type CalorieRemaining } from "@/features/goals/actions/goals.utils";
@@ -137,6 +138,7 @@ export interface DayLog {
   dayTotal: NutritionValues;
   calorieGoal: number | null;
   calorieRemaining: CalorieRemaining;
+  macroTargets: MacroTargets | null;
   // Today only: a past day's weight is not today's weight, and a check-in
   // prompt on a day that has passed asks for a reading nobody can take.
   weight: WeightView | null;
@@ -249,9 +251,10 @@ export const getDayLog = async (date: string, timezone: string): Promise<DayLog>
   const userId = await requireUserId();
   const bounds = dayBoundsInTimezone(date, timezone);
   const isToday = date === todayLocalDateString(timezone);
-  const [rows, calorieGoal, weight] = await Promise.all([
+  const [rows, calorieGoal, macroTargets, weight] = await Promise.all([
     fetchDayMealIngredientRows(userId, bounds),
     fetchCalorieGoal(userId),
+    fetchMacroTargets(userId),
     isToday ? fetchWeightView(userId) : Promise.resolve(null),
   ]);
   const dayMeals = toDayMealSummaries(rows);
@@ -261,6 +264,7 @@ export const getDayLog = async (date: string, timezone: string): Promise<DayLog>
     dayTotal,
     calorieGoal,
     calorieRemaining: calorieRemaining(calorieGoal, dayTotal.energyKcal),
+    macroTargets,
     weight,
   };
 };

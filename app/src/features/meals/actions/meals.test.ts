@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
-import { setCalorieGoal } from "@/features/goals/actions/goals";
+import { saveDailyGoals } from "@/features/goals/actions/goals";
 import { saveNutritionOverride } from "@/features/products/actions/products";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
@@ -723,7 +723,7 @@ describe("getDayHistory", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { mealId } = await createMeal();
     await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
-    await setCalorieGoal(2400);
+    await saveDailyGoals(2400, null);
 
     const page = await getDayHistory("UTC");
 
