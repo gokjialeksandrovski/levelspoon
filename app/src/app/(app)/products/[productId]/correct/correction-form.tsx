@@ -325,7 +325,7 @@ interface RevertControlProps {
 }
 
 // The way back to the label-photo figures, which the override never destroyed -
-// reverting is one DELETE, not a re-entry of seven numbers.
+// reverting is one DELETE, not a re-entry of eight numbers.
 const RevertControl = ({ onRevert, isReverting }: RevertControlProps) => (
   <Button variant="ghost" link pending={isReverting} onClick={onRevert}>
     Use the original values

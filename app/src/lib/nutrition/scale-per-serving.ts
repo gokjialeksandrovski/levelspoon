@@ -10,6 +10,7 @@ export const scaleNutrition = (values: NutritionValues, factor: number): Nutriti
   sugarsG: values.sugarsG * factor,
   proteinG: values.proteinG * factor,
   saltG: values.saltG * factor,
+  fibreG: values.fibreG === null ? null : values.fibreG * factor,
 });
 
 export const scalePerServingToPer100g = (perServing: NutritionValues, grams: number): NutritionValues =>

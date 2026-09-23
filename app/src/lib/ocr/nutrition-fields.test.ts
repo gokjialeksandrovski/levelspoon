@@ -6,7 +6,7 @@ import type { FieldValues } from "./nutrition-fields";
 describe("toFieldValues", () => {
   it("stringifies numbers and renders null as an empty string", () => {
     const result = toFieldValues({
-      energyKcal: 70, fatG: null, saturatesG: 1.2, carbohydrateG: 4, sugarsG: 4, proteinG: 9, saltG: 0.18,
+      energyKcal: 70, fatG: null, saturatesG: 1.2, carbohydrateG: 4, sugarsG: 4, proteinG: 9, saltG: 0.18, fibreG: null,
     });
     expect(result.energyKcal).toBe("70");
     expect(result.fatG).toBe("");
@@ -17,7 +17,7 @@ describe("toFieldValues", () => {
     // the display must reproduce it, not round away a digit the label
     // author printed on purpose.
     const result = toFieldValues({
-      energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null,
     });
     expect(result.saltG).toBe("0.18");
   });
@@ -32,7 +32,7 @@ describe("toFieldValues", () => {
       carbohydrateG: 62.16216216216216,
       sugarsG: 56.75675675675676,
       proteinG: 5.405405405405405,
-      saltG: 0.10135135135135134,
+      saltG: 0.10135135135135134, fibreG: null,
     });
     expect(result.energyKcal).toBe("540.54");
     expect(result.fatG).toBe("32.43");
@@ -43,7 +43,7 @@ describe("toFieldValues", () => {
 describe("toNutritionValues", () => {
   it("parses string field values back into numbers", () => {
     const result = toNutritionValues({
-      energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0", sugarsG: "4.0", proteinG: "9.0", saltG: "0.18",
+      energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0", sugarsG: "4.0", proteinG: "9.0", saltG: "0.18", fibreG: "",
     });
     expect(result.energyKcal).toBe(70);
     expect(result.fatG).toBe(2.0);
@@ -61,13 +61,14 @@ describe("NUTRITION_FIELD_GROUPS", () => {
       ["energyKcal"],
       ["fatG", "saturatesG"],
       ["carbohydrateG", "sugarsG"],
+      ["fibreG"],
       ["proteinG", "saltG"],
     ]);
   });
 });
 
 const LABEL_VALUES: FieldValues = {
-  energyKcal: "70", fatG: "2", saturatesG: "1.2", carbohydrateG: "4", sugarsG: "4", proteinG: "9", saltG: "0.18",
+  energyKcal: "70", fatG: "2", saturatesG: "1.2", carbohydrateG: "4", sugarsG: "4", proteinG: "9", saltG: "0.18", fibreG: "",
 };
 
 describe("changedNutritionFields", () => {

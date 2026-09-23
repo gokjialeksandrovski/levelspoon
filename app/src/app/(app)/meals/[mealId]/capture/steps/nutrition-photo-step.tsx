@@ -17,6 +17,8 @@ interface NutritionPhotoStepProps {
   dispatch: (action: WizardAction) => void;
 }
 
+// No fibre_g: a flag says "this field needs your attention before Save", and a
+// blank fibre is a legitimate answer rather than something to fix.
 const ALL_NUTRITION_FLAGS = [
   "energy_kcal",
   "fat_g",
@@ -35,6 +37,7 @@ const ALL_NULL_NUTRITION = {
   sugarsG: null,
   proteinG: null,
   saltG: null,
+  fibreG: null,
 };
 
 const MANUAL_ENTRY_BASIS_UNIT = "g";

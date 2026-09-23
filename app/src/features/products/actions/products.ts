@@ -95,6 +95,7 @@ export type CandidateRow = {
   sugars_g: string;
   protein_g: string;
   salt_g: string;
+  fibre_g: string | null;
   nutrition_photo_key: string | null;
   density_g_ml: string | null;
   serving_unit: string | null;
@@ -113,6 +114,7 @@ type SnakeNutritionRow = {
   sugars_g: string;
   protein_g: string;
   salt_g: string;
+  fibre_g: string | null;
 };
 
 const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
@@ -123,6 +125,8 @@ const nutritionFromSnakeRow = (row: SnakeNutritionRow): NutritionValues => ({
   sugarsG: Number(row.sugars_g),
   proteinG: Number(row.protein_g),
   saltG: Number(row.salt_g),
+  // Number(null) is 0, which would file every unknown fibre as a confident zero.
+  fibreG: row.fibre_g === null ? null : Number(row.fibre_g),
 });
 
 export const toProductCandidate = async (row: Omit<CandidateRow, "score">): Promise<ProductCandidate> => {
@@ -166,6 +170,10 @@ export const topTwoScores = async (rows: CandidateRow[]): Promise<{ top1: number
   return { top1: Number(rows[0].score), top2: rows.length > 1 ? Number(rows[1].score) : 0 };
 };
 
+// Seven, not eight: fibre is nullable, and a null on either side would make
+// hasSameFigures reject a genuine duplicate whenever one label omitted it.
+// `satisfies keyof NutritionValues[]` does not force the eighth in, so this
+// comment is the only thing stopping the next reader from adding it.
 const NUTRITION_FIELDS = [
   "energyKcal",
   "fatG",
@@ -259,6 +267,7 @@ const findSameFigures = async (
   >(sql`
     SELECT p.id, p.name, (${visibleToUser(userId)}) AS visible,
            p.energy_kcal, p.fat_g, p.saturates_g, p.carbohydrate_g, p.sugars_g, p.protein_g, p.salt_g,
+           p.fibre_g,
            p.nutrition_basis_unit, p.nutrition_basis_quantity,
            similarity(p.name_search, ${toSearchText(input.name)}) AS score
     FROM products p
@@ -482,10 +491,12 @@ const toNutritionColumns = (values: NutritionValues) => ({
   sugarsG: String(values.sugarsG),
   proteinG: String(values.proteinG),
   saltG: String(values.saltG),
+  // String(null) is the text "null", which a numeric column would reject.
+  fibreG: values.fibreG === null ? null : String(values.fibreG),
 });
 
 // Drizzle's numeric columns round-trip as strings: stringified going in,
-// parsed coming out - same treatment the seven nutrition columns get.
+// parsed coming out - same treatment the eight nutrition columns get.
 const toLearnedColumns = (learned: LearnedMeasures) => ({
   densityGMl: learned.densityGMl === null ? null : String(learned.densityGMl),
   servingUnit: learned.servingUnit,
@@ -500,6 +511,7 @@ const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValue
   sugarsG: Number(row.sugarsG),
   proteinG: Number(row.proteinG),
   saltG: Number(row.saltG),
+  fibreG: row.fibreG === null ? null : Number(row.fibreG),
 });
 
 const DEFAULT_NUTRITION_BASIS_UNIT = "g";
@@ -978,6 +990,7 @@ const fetchOverrideRow = async (userId: string, productId: string): Promise<Over
       sugars_g: productOverrides.sugarsG,
       protein_g: productOverrides.proteinG,
       salt_g: productOverrides.saltG,
+      fibre_g: productOverrides.fibreG,
       nutrition_photo_key: productOverrides.nutritionPhotoKey,
     })
     .from(productOverrides)
@@ -1124,7 +1137,7 @@ const fetchStandardFoodRows = async (
   const categoryFilter = category ? sql`AND standard_category = ${category}` : sql``;
   const result = await db.execute<StandardFoodRow>(sql`
     SELECT id, standard_slug, name, name_search, standard_category,
-           energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g,
+           energy_kcal, fat_g, saturates_g, carbohydrate_g, sugars_g, protein_g, salt_g, fibre_g,
            serving_unit, serving_grams, density_g_ml, nutrition_basis_unit,
            nutrition_basis_quantity, score,
            ${portionOverridesJson("ranked", userId)}

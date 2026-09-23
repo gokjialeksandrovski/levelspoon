@@ -92,7 +92,7 @@ describe("HttpOcrProvider.validate", () => {
     const fetchMock = stubFetchJson({ flags: ["fat_g"] });
 
     const result = await new HttpOcrProvider().validate(
-      { energyKcal: 70, fatG: 2.0, saturatesG: 5.0, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18 },
+      { energyKcal: 70, fatG: 2.0, saturatesG: 5.0, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null },
       295,
     );
 
@@ -101,7 +101,7 @@ describe("HttpOcrProvider.validate", () => {
     expect(JSON.parse(requestInit.body as string)).toEqual({
       values: {
         energy_kcal: 70, fat_g: 2.0, saturates_g: 5.0, carbohydrate_g: 4.0,
-        sugars_g: 4.0, protein_g: 9.0, salt_g: 0.18,
+        sugars_g: 4.0, protein_g: 9.0, salt_g: 0.18, fibre_g: null,
       },
       energy_kj: 295,
     });

@@ -90,8 +90,12 @@ type FigureReview =
   | { kind: "matches"; values: FieldValues }
   | { kind: "differs"; values: FieldValues; changes: NutritionFieldChange[]; flagged: boolean };
 
+// fibreG is exempt: a label that prints no fibre row is a complete read, not a
+// half-read one, so a blank there must not turn the photo away.
 const hasEveryFigure = (values: FieldValues): boolean =>
-  Object.values(values).every((value) => value !== "");
+  (Object.entries(values) as [keyof FieldValues, string][]).every(
+    ([field, value]) => field === "fibreG" || value !== "",
+  );
 
 // Exported for its own test: this is where a photo that OCR only half-read is
 // turned away, before its blanks can be saved as zeroes onto the shared row.

@@ -3,14 +3,18 @@ import { sql, type SQL } from "drizzle-orm";
 import { productOverrides, products } from "./schema";
 
 /**
- * What a given user should see for a product's seven nutrition figures: their
+ * What a given user should see for a product's eight nutrition figures: their
  * own correction if they have one, the canonical label-photo row otherwise.
+ *
+ * Fibre is the one nullable figure, and coalesce reads a null override as "no
+ * override": a user can correct an unknown fibre to a figure, but cannot
+ * correct a figure back to unknown.
  *
  * Lives here, in one place, because seven read sites need it - three meal
  * reads, two candidate searches, the barcode lookup and the correction
- * screen - and seven hand-written coalesces per site is how they drift apart.
+ * screen - and eight hand-written coalesces per site is how they drift apart.
  * The day-history total joins through overrideJoinSql but writes its own
- * coalesce inline: it selects one summed column, not the seven.
+ * coalesce inline: it selects one summed column, not the eight.
  *
  * Two shapes because the call sites are two shapes: meals.ts builds typed
  * Drizzle selections, products.ts and barcode.ts write raw SQL against
@@ -24,6 +28,7 @@ export const effectiveNutritionSelection = () => ({
   sugarsG: sql<string>`coalesce(${productOverrides.sugarsG}, ${products.sugarsG})`,
   proteinG: sql<string>`coalesce(${productOverrides.proteinG}, ${products.proteinG})`,
   saltG: sql<string>`coalesce(${productOverrides.saltG}, ${products.saltG})`,
+  fibreG: sql<string | null>`coalesce(${productOverrides.fibreG}, ${products.fibreG})`,
 });
 
 const NUTRITION_COLUMN_NAMES = [
@@ -34,6 +39,7 @@ const NUTRITION_COLUMN_NAMES = [
   "sugars_g",
   "protein_g",
   "salt_g",
+  "fibre_g",
 ] as const;
 
 // Aliases are identifiers, not values, so they cannot be bound as parameters.

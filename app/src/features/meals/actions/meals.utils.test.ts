@@ -14,7 +14,7 @@ const PER_100G: NutritionValues = {
   carbohydrateG: 20,
   sugarsG: 8,
   proteinG: 30,
-  saltG: 1,
+  saltG: 1, fibreG: null,
 };
 
 const GRAMS_CONTEXT: MeasureContext = {

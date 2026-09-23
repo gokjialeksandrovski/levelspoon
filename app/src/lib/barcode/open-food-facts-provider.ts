@@ -24,6 +24,7 @@ interface OffNutriments {
   sugars_100g?: number;
   proteins_100g?: number;
   salt_100g?: number;
+  fiber_100g?: number;
 }
 
 interface OffProduct {
@@ -54,6 +55,8 @@ const toNutritionValues = (nutriments: OffNutriments = {}): NutritionValues => (
   sugarsG: nutriments.sugars_100g ?? MISSING_NUTRIENT_VALUE,
   proteinG: nutriments.proteins_100g ?? MISSING_NUTRIENT_VALUE,
   saltG: nutriments.salt_100g ?? MISSING_NUTRIENT_VALUE,
+  // Not MISSING_NUTRIENT_VALUE: an absent fibre figure is unknown, not zero.
+  fibreG: nutriments.fiber_100g ?? null,
 });
 
 const toExternalMatch = (product: OffProduct): ExternalBarcodeMatch => ({

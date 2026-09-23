@@ -10,6 +10,8 @@ const MOCK_NUTRITION: NullableNutritionValues = {
   sugarsG: 4.0,
   proteinG: 9.0,
   saltG: 0.18,
+  // The yogurt this fixture is modelled on prints no fibre row.
+  fibreG: null,
 };
 
 const PRODUCT_NAME_BY_MARKER: Record<string, string> = {
@@ -38,6 +40,7 @@ const PER_UNIT_NUTRITION_TABLE: NutritionTableRead = {
     sugarsG: 20,
     proteinG: 2,
     saltG: 0.04,
+    fibreG: 1.5,
   },
   servingSizeText: "2 Tablespoon",
   servingGrams: null,

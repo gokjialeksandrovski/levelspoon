@@ -403,7 +403,7 @@ describe("createProduct", () => {
         carbohydrateG: 4.8,
         sugarsG: 4.8,
         proteinG: 3.2,
-        saltG: 0.1,
+        saltG: 0.1, fibreG: null,
       },
       photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
     });
@@ -421,7 +421,7 @@ describe("createProduct", () => {
     const { productId } = await createdProduct({
       name: "Fresh Milk 3.2%",
       nutritionPer100g: {
-        energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
+        energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1, fibreG: null,
       },
       photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
     });
@@ -438,7 +438,7 @@ describe("createProduct", () => {
     const { productId } = await createdProduct({
       name: "Nutella Hazelnut Spread",
       nutritionPer100g: {
-        energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225,
+        energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225, fibreG: null,
       },
       photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
       nutritionBasisUnit: "tbsp",
@@ -463,7 +463,7 @@ describe("createProduct", () => {
           carbohydrateG: 4.8,
           sugarsG: 4.8,
           proteinG: 3.2,
-          saltG: 0.1,
+          saltG: 0.1, fibreG: null,
         },
         photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
       }),
@@ -478,7 +478,7 @@ describe("createProduct", () => {
       name: "Loose Banana",
       nutritionPer100g: {
         energyKcal: 89, fatG: 0.33, saturatesG: 0.11, carbohydrateG: 22.84,
-        sugarsG: 12.23, proteinG: 1.09, saltG: 0,
+        sugarsG: 12.23, proteinG: 1.09, saltG: 0, fibreG: null,
       },
     });
 
@@ -493,7 +493,7 @@ describe("createProduct", () => {
     const { productId } = await createdProduct({
       name: "Fresh Milk 3.2%",
       nutritionPer100g: {
-        energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
+        energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1, fibreG: null,
       },
       photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
     });
@@ -509,7 +509,7 @@ describe("createProduct", () => {
     const { productId } = await createdProduct({
       name: "Test Cereal",
       nutritionPer100g: {
-        energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
+        energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1, fibreG: null,
       },
       nutritionOrigin: "open_food_facts",
       barcode: "5901234123457",
@@ -531,7 +531,7 @@ describe("createProduct", () => {
       createProduct({
         name: "Bad Barcode Product",
         nutritionPer100g: {
-          energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
+          energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1, fibreG: null,
         },
         photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
         barcode: "5901234123458",
@@ -545,7 +545,7 @@ describe("createProduct", () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const nutritionPer100g = {
-      energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1,
+      energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1, fibreG: null,
     };
     await createdProduct({ name: "First Owner", nutritionPer100g, barcode: "0012345678905" });
 
@@ -565,7 +565,7 @@ describe("createProduct", () => {
   // Same figures the earlier tests in this block already use inline - not a
   // new fixture, just a name so this test and the next can share one.
   const CREATED = {
-    energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1,
+    energyKcal: 61, fatG: 3.2, saturatesG: 2.0, carbohydrateG: 4.8, sugarsG: 4.8, proteinG: 3.2, saltG: 0.1, fibreG: null,
   };
 
   it("refuses a second product carrying the first product's label photo, naming the owner", async () => {
@@ -736,7 +736,7 @@ describe("createProduct", () => {
     const result = await createProduct({
       name: "Snickers",
       nutritionPer100g: {
-        energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+        energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null,
       },
     });
 
@@ -858,7 +858,7 @@ describe("getProductForCorrection", () => {
     const { productId } = await createdProduct({
       name: "Nutella Hazelnut Spread 2",
       nutritionPer100g: {
-        energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225,
+        energyKcal: 95, fatG: 8, saturatesG: 1.5, carbohydrateG: 3.5, sugarsG: 3, proteinG: 4, saltG: 0.0225, fibreG: null,
       },
       photo: new Blob([Buffer.from("fake-jpeg-bytes")], { type: "image/jpeg" }),
       nutritionBasisUnit: "tbsp",
@@ -938,13 +938,59 @@ describe("standard-source product rows", () => {
 
 const LEARNED_TEST_NUTRITION = {
   energyKcal: 480.8, fatG: 23.1, saturatesG: 8.7, carbohydrateG: 61.5,
-  sugarsG: 53.8, proteinG: 7.7, saltG: 0.6,
+  sugarsG: 53.8, proteinG: 7.7, saltG: 0.6, fibreG: null,
 };
 
 // A fresh UUID per call, not a fixed literal: a content-addressed key means
 // two calls with identical bytes collide on the same UNIQUE column, and some
 // tests below call this twice to create two distinct products.
 const testPhoto = () => new Blob([crypto.randomUUID()], { type: "image/jpeg" });
+
+describe("createProduct — fibre", () => {
+  // The nullable column's whole point: String(null) writes the text "null" and
+  // Number(null) reads 0, so a missed guard fails loudly right here.
+  const FIGURES = { ...LEARNED_TEST_NUTRITION };
+
+  it("stores a typed fibre figure and reads it back", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createdProduct({
+      name: "Zzq Fibre Typed",
+      nutritionPer100g: { ...FIGURES, fibreG: 2.6 },
+      photo: testPhoto(),
+    });
+
+    const stored = await getProductForCorrection(productId);
+    expect(stored?.nutritionPer100g.fibreG).toBe(2.6);
+  });
+
+  it("stores an unknown fibre as null, never as zero", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    const { productId } = await createdProduct({
+      name: "Zzq Fibre Unknown",
+      nutritionPer100g: { ...FIGURES, fibreG: null },
+      photo: testPhoto(),
+    });
+
+    const stored = await getProductForCorrection(productId);
+    expect(stored?.nutritionPer100g.fibreG).toBeNull();
+  });
+
+  it("saves a fibre correction as an override", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const productId = await seedProduct(userId, "Zzq Fibre Corrected");
+
+    await saveNutritionOverride(productId, { ...FIGURES, fibreG: 4 });
+
+    const corrected = await getProductForCorrection(productId);
+    expect(corrected?.nutritionPer100g.fibreG).toBe(4);
+    expect(corrected?.originalNutritionPer100g.fibreG).toBeNull();
+  });
+});
 
 describe("createProduct — learned measures", () => {
   it("stores a learned density on the new product row", async () => {
@@ -1149,7 +1195,7 @@ describe("private products", () => {
       name: "Six Eggs From The Market",
       nutritionPer100g: {
         energyKcal: 70, fatG: 2, saturatesG: 1.2, carbohydrateG: 4,
-        sugarsG: 4, proteinG: 9, saltG: 0.18,
+        sugarsG: 4, proteinG: 9, saltG: 0.18, fibreG: null,
       },
     });
 
@@ -1171,6 +1217,7 @@ describe("topTwoScores", () => {
     sugars_g: "0",
     protein_g: "0",
     salt_g: "0",
+    fibre_g: null,
     nutrition_photo_key: "key",
     density_g_ml: null,
     serving_unit: null,
@@ -1196,7 +1243,7 @@ describe("topTwoScores", () => {
 
 const CORRECTED = {
   energyKcal: 99, fatG: 3, saturatesG: 1.5, carbohydrateG: 5,
-  sugarsG: 5, proteinG: 10, saltG: 0.2,
+  sugarsG: 5, proteinG: 10, saltG: 0.2, fibreG: null,
 };
 const CORRECTED_AGAIN = { ...CORRECTED, energyKcal: 101 };
 
@@ -1544,7 +1591,7 @@ describe("portions on product DTOs", () => {
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const { productId } = await createdProduct({
       name: "Zito Bread Toast",
-      nutritionPer100g: { energyKcal: 270, fatG: 3.3, saturatesG: 0.7, carbohydrateG: 49, sugarsG: 5, proteinG: 8.8, saltG: 1.2 },
+      nutritionPer100g: { energyKcal: 270, fatG: 3.3, saturatesG: 0.7, carbohydrateG: 49, sugarsG: 5, proteinG: 8.8, saltG: 1.2, fibreG: null },
     });
 
     const candidates = await searchUserProducts("zito bread");

@@ -9,7 +9,9 @@ const MOCK_MATCH: ExternalBarcodeMatch = {
   nameGuess: "Mock Product",
   nutritionPer100g: {
     energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30,
-    sugarsG: 12, proteinG: 6, saltG: 0.5,
+    // null, not a figure: OFF routinely has no fiber_100g, so the canned hit
+    // is the shape the real provider returns most often.
+    sugarsG: 12, proteinG: 6, saltG: 0.5, fibreG: null,
   },
   nutritionBasisUnit: "g",
   netWeightText: "250 g",

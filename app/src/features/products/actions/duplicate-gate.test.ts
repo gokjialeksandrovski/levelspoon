@@ -13,6 +13,7 @@ const FIGURES = {
   sugarsG: 48.6,
   proteinG: 7.9,
   saltG: 0.6,
+  fibreG: null,
 };
 
 const GRAM_BASIS = { basisUnit: "g", basisQuantity: 100 };
@@ -62,6 +63,16 @@ describe("decideDuplicate", () => {
       { nutrition: FIGURES, ...GRAM_BASIS },
     );
     expect(verdict).toEqual({ kind: "insert" });
+  });
+
+  it("treats two rows differing only in fibre as the same figures", async () => {
+    // The gate compares the seven mandatory figures. A nullable eighth would
+    // let a real duplicate through whenever one side's label omitted fibre.
+    const verdict = await decideDuplicate(
+      { nutrition: { ...FIGURES, fibreG: 3 }, ...GRAM_BASIS, nameSimilarity: UNLIKE_NAME },
+      { nutrition: { ...FIGURES, fibreG: null }, ...GRAM_BASIS },
+    );
+    expect(verdict).toEqual({ kind: "same-figures" });
   });
 
   it("treats the ambiguous floor itself as a name match", async () => {

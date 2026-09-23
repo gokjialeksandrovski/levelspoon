@@ -250,7 +250,7 @@ interface NutritionFieldsProps {
   onFieldBlur: () => void;
 }
 
-// gap-8 between blocks against gap-3 within: seven identical boxes in one
+// gap-8 between blocks against gap-3 within: eight identical boxes in one
 // even stack give the eye nowhere to rest while it checks them off a label.
 const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: NutritionFieldsProps) => (
   <div className="flex flex-col gap-8">

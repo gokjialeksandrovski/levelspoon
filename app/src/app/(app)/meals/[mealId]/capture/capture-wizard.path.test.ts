@@ -25,7 +25,7 @@ const AMOUNT_STEP = {
 // Same seven fields the other reducer test files use for opaque nutrition
 // figures - these tests assert routing, not arithmetic.
 const EXTERNAL_FIGURES = {
-  energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5,
+  energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5, fibreG: null,
 };
 
 // A ProductCandidate-shaped fixture, matching what applyBarcodeScanned's

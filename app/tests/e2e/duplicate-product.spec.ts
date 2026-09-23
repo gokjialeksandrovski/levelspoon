@@ -8,7 +8,7 @@ import { enterNutritionManually, signUp, startCapture, truncateAll } from "./sup
 // not interchangeable (per task-6-brief.md's fixture note).
 const FIGURES = {
   energyKcal: "484", fatG: "24.1", saturatesG: "9", carbohydrateG: "59.8",
-  sugarsG: "48.6", proteinG: "7.9", saltG: "0.6",
+  sugarsG: "48.6", proteinG: "7.9", saltG: "0.6", fibreG: "",
 };
 
 test.beforeEach(truncateAll);

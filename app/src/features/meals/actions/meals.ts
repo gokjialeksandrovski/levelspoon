@@ -135,6 +135,20 @@ const ZERO_NUTRITION: NutritionValues = {
   sugarsG: 0,
   proteinG: 0,
   saltG: 0,
+  fibreG: null,
+};
+
+// A sum of what is known. null only when neither side had a figure, so an
+// ingredient whose label omitted fibre lowers the coverage count without
+// dragging the total down as if it contained none.
+const addFibre = (left: number | null, right: number | null): number | null => {
+  if (left === null) {
+    return right;
+  }
+  if (right === null) {
+    return left;
+  }
+  return left + right;
 };
 
 const addNutrition = (a: NutritionValues, b: NutritionValues): NutritionValues => ({
@@ -145,6 +159,7 @@ const addNutrition = (a: NutritionValues, b: NutritionValues): NutritionValues =
   sugarsG: a.sugarsG + b.sugarsG,
   proteinG: a.proteinG + b.proteinG,
   saltG: a.saltG + b.saltG,
+  fibreG: addFibre(a.fibreG, b.fibreG),
 });
 
 export interface DayMealSummary {
@@ -172,6 +187,7 @@ interface ProductNutritionRow {
   sugarsG: string;
   proteinG: string;
   saltG: string;
+  fibreG: string | null;
 }
 
 const productRowToNutritionValues = (product: ProductNutritionRow): NutritionValues => ({
@@ -182,6 +198,8 @@ const productRowToNutritionValues = (product: ProductNutritionRow): NutritionVal
   sugarsG: Number(product.sugarsG),
   proteinG: Number(product.proteinG),
   saltG: Number(product.saltG),
+  // Number(null) is 0, which would file every unknown fibre as a confident zero.
+  fibreG: product.fibreG === null ? null : Number(product.fibreG),
 });
 
 interface DayMealIngredientRow {

@@ -35,7 +35,7 @@ describe("OpenFoodFactsProvider.lookup", () => {
         nameGuess: "Test Cereal",
         nutritionPer100g: {
           energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70,
-          sugarsG: 20, proteinG: 8, saltG: 1.1,
+          sugarsG: 20, proteinG: 8, saltG: 1.1, fibreG: null,
         },
         nutritionBasisUnit: "g",
         netWeightText: "375 g",

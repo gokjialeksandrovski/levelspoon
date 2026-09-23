@@ -38,7 +38,7 @@ import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { fromResolvedServing, needsServingSizeRead, ocrNutritionTable, ocrProductName, resolveServingSize, validateNutrition } from "./ocr";
 
 const PER_SERVING_VALUES = {
-  energyKcal: 190, fatG: 16, saturatesG: 3, carbohydrateG: 7, sugarsG: 3, proteinG: 8, saltG: 0.45,
+  energyKcal: 190, fatG: 16, saturatesG: 3, carbohydrateG: 7, sugarsG: 3, proteinG: 8, saltG: 0.45, fibreG: null,
 };
 
 describe("ocrProductName", () => {
@@ -407,7 +407,7 @@ describe("validateNutrition", () => {
   it("flags saturates exceeding fat via the mock provider", async () => {
     vi.stubEnv("OCR_PROVIDER", "mock");
     const result = await validateNutrition({
-      energyKcal: 70, fatG: 2.0, saturatesG: 5.0, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      energyKcal: 70, fatG: 2.0, saturatesG: 5.0, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null,
     });
     expect(result.flags).toEqual(["fat_g", "saturates_g"]);
   });
@@ -415,7 +415,7 @@ describe("validateNutrition", () => {
   it("returns no flags for values that pass", async () => {
     vi.stubEnv("OCR_PROVIDER", "mock");
     const result = await validateNutrition({
-      energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null,
     });
     expect(result.flags).toEqual([]);
   });

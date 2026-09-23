@@ -20,7 +20,7 @@ describe("summariseIngredients", () => {
 
 const meal = (ingredientNames: string[]): DayMealSummary => ({
   id: "meal-1",
-  total: { energyKcal: 0, fatG: 0, saturatesG: 0, carbohydrateG: 0, sugarsG: 0, proteinG: 0, saltG: 0 },
+  total: { energyKcal: 0, fatG: 0, saturatesG: 0, carbohydrateG: 0, sugarsG: 0, proteinG: 0, saltG: 0, fibreG: null },
   ingredientNames,
 });
 

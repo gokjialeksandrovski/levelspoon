@@ -9,4 +9,7 @@ export interface NutritionValues {
   sugarsG: number;
   proteinG: number;
   saltG: number;
+  // The one figure a label may legally omit (EU Reg 1169/2011 makes fibre
+  // optional, FDA 21 CFR 101.9 mandatory). null is "not printed", never 0.
+  fibreG: number | null;
 }

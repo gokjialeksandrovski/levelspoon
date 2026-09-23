@@ -16,11 +16,11 @@ import { NOTHING_LEARNED } from "@/lib/measures/learn";
 import { decideBarcodeOutcome, proofOptions, reviewLabelRead } from "./proof-disclosure";
 
 const TYPED: FieldValues = {
-  energyKcal: "240", fatG: "9", saturatesG: "2", carbohydrateG: "30", sugarsG: "5", proteinG: "8", saltG: "0.5",
+  energyKcal: "240", fatG: "9", saturatesG: "2", carbohydrateG: "30", sugarsG: "5", proteinG: "8", saltG: "0.5", fibreG: "",
 };
 
 const LABEL_VALUES = {
-  energyKcal: 240, fatG: 12, saturatesG: 2, carbohydrateG: 30, sugarsG: 5, proteinG: 8, saltG: 0.5,
+  energyKcal: 240, fatG: 12, saturatesG: 2, carbohydrateG: 30, sugarsG: 5, proteinG: 8, saltG: 0.5, fibreG: null,
 };
 
 const per100gRead = (values: typeof LABEL_VALUES, flags: string[] = []): NutritionRead => ({

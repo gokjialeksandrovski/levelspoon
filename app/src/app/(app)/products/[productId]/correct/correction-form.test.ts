@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 const NUTRITION = {
-  energyKcal: 250, fatG: 10, saturatesG: 2, carbohydrateG: 30, sugarsG: 5, proteinG: 8, saltG: 0.5,
+  energyKcal: 250, fatG: 10, saturatesG: 2, carbohydrateG: 30, sugarsG: 5, proteinG: 8, saltG: 0.5, fibreG: null,
 };
 
 const PRODUCT = {
@@ -49,7 +49,7 @@ const PRODUCT = {
 };
 
 const VALUES = {
-  energyKcal: "260", fatG: "10", saturatesG: "2", carbohydrateG: "30", sugarsG: "5", proteinG: "8", saltG: "0.5",
+  energyKcal: "260", fatG: "10", saturatesG: "2", carbohydrateG: "30", sugarsG: "5", proteinG: "8", saltG: "0.5", fibreG: "",
 };
 
 const makeCallbacks = () => ({

@@ -31,6 +31,7 @@ interface RawNutritionValues {
   sugars_g: number | null;
   protein_g: number | null;
   salt_g: number | null;
+  fibre_g: number | null;
 }
 
 interface RawNutritionTableResponse {
@@ -56,6 +57,7 @@ const toNullableNutritionValues = (raw: RawNutritionValues): NullableNutritionVa
   sugarsG: raw.sugars_g,
   proteinG: raw.protein_g,
   saltG: raw.salt_g,
+  fibreG: raw.fibre_g,
 });
 
 // A US per-serving block is guaranteed complete: read_us_label raises rather
@@ -68,6 +70,9 @@ const toPerServingValues = (raw: RawNutritionValues): NutritionValues => ({
   sugarsG: Number(raw.sugars_g),
   proteinG: Number(raw.protein_g),
   saltG: Number(raw.salt_g),
+  // Not Number(): fibre is the one field read_us_label may report as null,
+  // and Number(null) is 0.
+  fibreG: raw.fibre_g,
 });
 
 const toNutritionTableRead = (raw: RawNutritionTableResponse): NutritionTableRead => {
@@ -97,6 +102,7 @@ const toRawNutritionValues = (values: NutritionValues): RawNutritionValues => ({
   sugars_g: values.sugarsG,
   protein_g: values.proteinG,
   salt_g: values.saltG,
+  fibre_g: values.fibreG,
 });
 
 const ocrServiceUrl = (): string => {

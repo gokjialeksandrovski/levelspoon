@@ -8,6 +8,7 @@ export const FIELD_LABELS: Record<keyof NullableNutritionValues, string> = {
   saturatesG: "Saturates (g)",
   carbohydrateG: "Carbohydrate (g)",
   sugarsG: "Sugars (g)",
+  fibreG: "Fibre (g)",
   proteinG: "Protein (g)",
   saltG: "Salt (g)",
 };
@@ -20,6 +21,9 @@ export const NUTRITION_FIELD_GROUPS: (keyof NullableNutritionValues)[][] = [
   ["energyKcal"],
   ["fatG", "saturatesG"],
   ["carbohydrateG", "sugarsG"],
+  // Its own group: the EU label prints fibre under carbohydrate but not
+  // indented beneath it, because fibre sits outside the carbohydrate figure.
+  ["fibreG"],
   ["proteinG", "saltG"],
 ];
 
@@ -60,6 +64,9 @@ export const toNutritionValues = (values: FieldValues): NutritionValues => ({
   sugarsG: Number(values.sugarsG),
   proteinG: Number(values.proteinG),
   saltG: Number(values.saltG),
+  // The only field a user may leave blank: blank is "the label printed none",
+  // and Number("") would file that as a confident 0.
+  fibreG: values.fibreG.trim() === "" ? null : Number(values.fibreG),
 });
 
 export interface NutritionFieldChange {

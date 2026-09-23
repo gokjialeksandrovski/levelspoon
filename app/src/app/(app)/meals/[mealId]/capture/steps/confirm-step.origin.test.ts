@@ -13,12 +13,12 @@ import { resolveNutritionOrigin } from "./confirm-step";
 
 const PARSED: NullableNutritionValues = {
   energyKcal: 70, fatG: 2, saturatesG: 1.2, carbohydrateG: 4,
-  sugarsG: 4, proteinG: 9, saltG: 0.18,
+  sugarsG: 4, proteinG: 9, saltG: 0.18, fibreG: null,
 };
 
 const ALL_NULL: NullableNutritionValues = {
   energyKcal: null, fatG: null, saturatesG: null, carbohydrateG: null,
-  sugarsG: null, proteinG: null, saltG: null,
+  sugarsG: null, proteinG: null, saltG: null, fibreG: null,
 };
 
 describe("resolveNutritionOrigin", () => {

@@ -74,7 +74,7 @@ describe("lookupBarcode", () => {
       kind: "external_match",
       barcode: EXTERNAL_HIT_BARCODE,
       nameGuess: "Mock Product",
-      nutritionPer100g: { energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5 },
+      nutritionPer100g: { energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5, fibreG: null },
       nutritionBasisUnit: "g",
       netWeightText: "250 g",
       flags: [],

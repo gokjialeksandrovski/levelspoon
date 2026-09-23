@@ -74,7 +74,7 @@ beforeEach(async () => {
 describe("computeContribution", () => {
   it("scales per-100g values by quantity/basisQuantity", () => {
     const contribution = computeContribution(
-      { energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18 },
+      { energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null },
       150,
       100,
     );
@@ -86,7 +86,7 @@ describe("computeContribution", () => {
 
   it("scales a per-unit basis (e.g. per 1 tbsp) by quantity/basisQuantity", () => {
     const contribution = computeContribution(
-      { energyKcal: 100, fatG: 9, saturatesG: 1.5, carbohydrateG: 3, sugarsG: 2, proteinG: 0, saltG: 0 },
+      { energyKcal: 100, fatG: 9, saturatesG: 1.5, carbohydrateG: 3, sugarsG: 2, proteinG: 0, saltG: 0, fibreG: null },
       2,
       1,
     );
@@ -417,7 +417,7 @@ describe("getDayLog", () => {
     const { mealId } = await createMeal(TODAY, "UTC");
     await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
     await saveNutritionOverride(productId, {
-      energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null,
     });
 
     const corrected = await getDayLog(todayLocalDateString("UTC"), "UTC");
@@ -430,6 +430,26 @@ describe("getDayLog", () => {
 
     const canonical = await getDayLog(todayLocalDateString("UTC"), "UTC");
     expect(canonical.dayTotal.energyKcal).toBeCloseTo(140, 5);
+  });
+
+  it("reads a user's fibre override for a product whose label had none", async () => {
+    // coalesce(override, product) must surface the override, and the day total
+    // must then count that ingredient as known rather than unknown.
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal(TODAY, "UTC");
+    await saveMealIngredient({ mealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
+
+    const before = await getDayLog(TODAY, "UTC");
+    expect(before.dayTotal.fibreG).toBeNull();
+
+    await saveNutritionOverride(productId, {
+      energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: 4,
+    });
+
+    const corrected = await getDayLog(TODAY, "UTC");
+    expect(corrected.dayTotal.fibreG).toBe(4);
   });
 
   it("excludes a meal that has no ingredients", async () => {
@@ -723,7 +743,7 @@ describe("getDayHistory", () => {
     const { mealId } = await createMeal(TODAY, "UTC");
     await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
     await saveNutritionOverride(productId, {
-      energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
+      energyKcal: 140, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: null,
     });
 
     const corrected = await getDayHistory();

@@ -193,6 +193,7 @@ describe("wizardReducer", () => {
       sugarsG: null,
       proteinG: null,
       saltG: null,
+      fibreG: null,
     };
     const flags = ["energy_kcal", "fat_g", "saturates_g", "carbohydrate_g", "sugars_g", "protein_g", "salt_g"];
     const photo = new Blob(["fake-photo-bytes"]);
@@ -310,7 +311,7 @@ describe("wizardReducer — whole food search", () => {
 
 const PER_SERVING = {
   energyKcal: 250, fatG: 12, saturatesG: 4.5, carbohydrateG: 32,
-  sugarsG: 28, proteinG: 4, saltG: 0.3125,
+  sugarsG: 28, proteinG: 4, saltG: 0.3125, fibreG: null,
 };
 
 const LEARNED_BAR = { densityGMl: null, servingUnit: "bas", servingGrams: 52 };
@@ -379,7 +380,7 @@ describe("wizardReducer — serving size", () => {
 });
 
 const MOCK_NUTRITION = {
-  energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5,
+  energyKcal: 250, fatG: 10, saturatesG: 3, carbohydrateG: 30, sugarsG: 12, proteinG: 6, saltG: 0.5, fibreG: null,
 };
 
 describe("wizardReducer — barcode scan", () => {
