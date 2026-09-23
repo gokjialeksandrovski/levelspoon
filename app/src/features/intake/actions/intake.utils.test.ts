@@ -248,3 +248,54 @@ describe("small helpers", () => {
     expect(yearOf("2026-09-21")).toBe(2026);
   });
 });
+
+describe("estimateIntake - measured burn", () => {
+
+  it("uses a measured maintenance in place of BMR times activity", () => {
+    const measured = {
+      kind: "measured" as const,
+      kcal: 2410,
+      sigma: 120,
+      windowDays: 26,
+      loggedDays: 23,
+    };
+
+    const estimate = estimateIntake({ ...base, primaryGoal: "maintain" }, CURRENT_YEAR, measured);
+
+    expect(estimate.kind).toBe("ready");
+    if (estimate.kind !== "ready") throw new Error("expected a ready estimate");
+    expect(estimate.maintenanceKcal).toBe(2410);
+    expect(estimate.isMeasured).toBe(true);
+    // The formula figure is still computed, so Details can state both.
+    expect(estimate.formulaMaintenanceKcal).toBeCloseTo(estimate.bmrKcal * 1.55, 6);
+    // Sigma replaces the Mifflin width band entirely.
+    expect(estimate.highKcal - estimate.pointKcal).toBeCloseTo(120, 6);
+  });
+
+  it("falls back to the formula when the burn is insufficient", () => {
+    const insufficient = { kind: "insufficient" as const, loggedDays: 9, readings: 4 };
+
+    const measuredEstimate = estimateIntake({ ...base, primaryGoal: "maintain" }, CURRENT_YEAR, insufficient);
+    const plainEstimate = estimateIntake({ ...base, primaryGoal: "maintain" }, CURRENT_YEAR);
+
+    expect(measuredEstimate).toEqual(plainEstimate);
+    expect(plainEstimate.kind).toBe("ready");
+    if (plainEstimate.kind !== "ready") throw new Error("expected a ready estimate");
+    expect(plainEstimate.isMeasured).toBe(false);
+  });
+
+  it("keeps the safety rails on a measured maintenance", () => {
+    // A measured burn far below the floor must still floor. Under-logging
+    // biases the measured figure low, and this rail is what catches it.
+    const measured = { kind: "measured" as const, kcal: 900, sigma: 50, windowDays: 30, loggedDays: 28 };
+
+    const estimate = estimateIntake(base, CURRENT_YEAR, measured);
+
+    expect(estimate.kind).toBe("ready");
+    if (estimate.kind !== "ready") throw new Error("expected a ready estimate");
+    // Never above maintenance: the floor stops a deficit, it does not tell
+    // someone to eat more than they burn.
+    expect(estimate.pointKcal).toBe(900);
+    expect(estimate.isFloored).toBe(true);
+  });
+});

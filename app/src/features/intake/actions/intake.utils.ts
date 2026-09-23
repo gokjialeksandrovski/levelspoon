@@ -13,6 +13,8 @@ import {
   MIN_RATE_KG_PER_WEEK,
 } from "@/features/weight/actions/weight.utils";
 
+import type { MeasuredBurn } from "./measured-burn.utils";
+
 export type IntakeSex = "male" | "female" | "unspecified";
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "very" | "extreme";
 export type PrimaryGoal = "lose_fat" | "maintain" | "gain_muscle";
@@ -76,6 +78,10 @@ export interface IntakeReady {
   kind: "ready";
   bmrKcal: number;
   maintenanceKcal: number;
+  /** True when maintenanceKcal came from the user's own logs, not the formula. */
+  isMeasured: boolean;
+  /** BMR x activity, always computed, so Details can state both figures. */
+  formulaMaintenanceKcal: number;
   /** Before the floor: what the pace asks for, so the details line states the
    * user's own arithmetic even when the floor overrides it. */
   adjustmentKcal: number;
@@ -367,9 +373,17 @@ const weeksToGoal = (input: IntakeInput, pace: number | null, isMaintenanceOnly:
   return Math.abs(input.weightKg - input.goalWeightKg) / pace;
 };
 
-const readyEstimate = (input: IntakeInput, age: number): IntakeReady => {
+const readyEstimate = (input: IntakeInput, age: number, measured: MeasuredBurn | null): IntakeReady => {
+  // BMR is still computed when a measured figure wins: the §7 floor reads it,
+  // and the metabolism factor inside it keeps that floor from sitting above a
+  // down-regulated maintenance. What the measured path drops is the activity
+  // product and the Mifflin width band - a measured burn already contains
+  // whatever the user's activity and condition do to it, so applying either
+  // correction on top would count it twice.
   const bmr = bmrKcal(input, age);
-  const maintenance = bmr * ACTIVITY_FACTOR[input.activityLevel];
+  const formulaMaintenance = bmr * ACTIVITY_FACTOR[input.activityLevel];
+  const isMeasured = measured?.kind === "measured";
+  const maintenance = isMeasured ? measured.kcal : formulaMaintenance;
   const bmi = input.weightKg / heightSquaredM(input.heightCm);
   const isMaintenanceOnly = input.primaryGoal === "lose_fat" && bmi < UNDERWEIGHT_BMI;
   const pace = resolvePace(input);
@@ -382,13 +396,15 @@ const readyEstimate = (input: IntakeInput, age: number): IntakeReady => {
   const floor = Math.min(maintenance, Math.max(bmr, KCAL_FLOOR[input.sex]));
   const raw = maintenance + adjustment;
   const point = Math.max(raw, floor);
-  const width = rangeWidthKcal(input, point);
+  const width = isMeasured ? measured.sigma : rangeWidthKcal(input, point);
   const lean = leanMassKg(input);
 
   return {
     kind: "ready",
     bmrKcal: bmr,
     maintenanceKcal: maintenance,
+    isMeasured,
+    formulaMaintenanceKcal: formulaMaintenance,
     adjustmentKcal: adjustment,
     pointKcal: point,
     lowKcal: Math.max(floor, point - width),
@@ -412,9 +428,15 @@ const refusal = (input: IntakeInput, age: number): RefusalReason | null => {
   return input.pregnantOrBreastfeeding ? "pregnancy" : null;
 };
 
-// Assumes intakeInputError(input, currentYear) returned null.
-export const estimateIntake = (input: IntakeInput, currentYear: number): IntakeEstimate => {
+// Assumes intakeInputError(input, currentYear) returned null. `measured`
+// defaults to null so every existing caller keeps working while the browser's
+// timezone is still in flight.
+export const estimateIntake = (
+  input: IntakeInput,
+  currentYear: number,
+  measured: MeasuredBurn | null = null,
+): IntakeEstimate => {
   const age = ageIn(input.birthYear, currentYear);
   const refused = refusal(input, age);
-  return refused ? { kind: "refused", reason: refused } : readyEstimate(input, age);
+  return refused ? { kind: "refused", reason: refused } : readyEstimate(input, age, measured);
 };
