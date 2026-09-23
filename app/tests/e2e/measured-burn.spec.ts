@@ -21,22 +21,21 @@ const userIdFor = async (email: string): Promise<string> => {
   return row.id;
 };
 
-// Backdates rows by hand: there is no UI path to a meal logged three weeks ago.
+// Seeds weeks of days at once; the UI can log any one of them, just not fifty
+// in a test's patience.
 const seedHistory = async (userId: string, days: number): Promise<void> => {
   const today = localToday();
   const product = await seedProductFor(userId, "Measured Burn Staple");
   const quantity = String((DAILY_KCAL / Number(product.energyKcal)) * Number(product.nutritionBasisQuantity));
   for (let back = 0; back < days; back += 1) {
     const date = addCalendarDays(today, -back);
-    const loggedAt = new Date(`${date}T12:00:00`);
-    const [meal] = await db.insert(meals).values({ userId, createdAt: loggedAt }).returning();
+    const [meal] = await db.insert(meals).values({ userId, logDate: date }).returning();
     await db.insert(mealIngredients).values({
       mealId: meal.id,
       productId: product.id,
       quantity,
       quantityUnit: "g",
       quantitySource: "manual",
-      createdAt: loggedAt,
     });
     await db.insert(weightEntries).values({ userId, measuredOn: date, weightKg: FLAT_KG });
   }

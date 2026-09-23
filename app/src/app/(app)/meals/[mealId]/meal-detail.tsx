@@ -38,8 +38,7 @@ const useMealDetail = (mealId: string, reloadCounter: number): MealDetailState =
   const [state, setState] = useState<MealDetailState>({ status: "loading" });
 
   const load = useCallback(() => {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    getMealDetail(mealId, timezone)
+    getMealDetail(mealId)
       .then((meal) => setState(meal ? { status: "ready", meal } : { status: "not-found" }))
       .catch(() => setState({ status: "error" }));
   }, [mealId]);

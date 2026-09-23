@@ -25,7 +25,8 @@ const TodayEmptyState = () => (
   </div>
 );
 
-// No way to log into the past, so plain text with no CTA.
+// No CTA: the day view's own sticky bar already says which day its button
+// writes to, and repeating it here would put two of them on an empty screen.
 const PastEmptyState = () => (
   <p className="mt-10 text-text-muted">Nothing was logged on this day.</p>
 );

@@ -5,7 +5,7 @@ import { db } from "../../src/lib/db";
 import { mealIngredients, meals, products, users } from "../../src/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "../../src/lib/date/day-bounds";
 
-import { freshEmail, signUp, truncateAll } from "./support";
+import { freshEmail, seedConfidentProduct, signUp, truncateAll } from "./support";
 
 const localToday = () => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
@@ -40,7 +40,7 @@ test("a seeded single-ingredient meal renders as its ingredient's name, with its
       sugarsG: "4", proteinG: "9", saltG: "0.1", nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`, createdByUserId: user.id,
     })
     .returning();
-  const [meal] = await db.insert(meals).values({ userId: user.id }).returning();
+  const [meal] = await db.insert(meals).values({ userId: user.id, logDate: localToday() }).returning();
   await db.insert(mealIngredients).values({
     mealId: meal.id, productId: product.id, quantity: "200", quantitySource: "manual",
   });
@@ -78,16 +78,40 @@ test("the date label on a past day returns to today, and a future day redirects 
   await page.waitForURL(`**/day/${today}`);
 });
 
-test("the entry point shows today and is absent on a past day", async ({ page }) => {
+test("the entry point names the day it writes to, on today and on a past day", async ({ page }) => {
   await signUp(page);
   await page.goto(`/day/${localToday()}`);
-  await expect(page.getByRole("button", { name: "New meal" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New meal", exact: true })).toBeVisible();
 
   await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
   await expect(page.getByText(/nothing was logged/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: "New meal" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Back to today" }).click();
+  await expect(page.getByRole("button", { name: "New meal for yesterday" })).toBeVisible();
+  await page.getByRole("link", { name: /go to today/ }).click();
   await page.waitForURL(`**/day/${localToday()}`);
+});
+
+// The point of the whole log_date column: somebody who went to bed without
+// logging dinner can still put it on the day they ate it.
+test("a meal started on yesterday is logged against yesterday, not today", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  const yesterday = addCalendarDays(localToday(), -1);
+
+  await page.goto(`/day/${yesterday}`);
+  await page.getByRole("button", { name: "New meal for yesterday" }).click();
+  await page.getByLabel("Product photo", { exact: true }).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
+  await page.getByLabel("Amount", { exact: true }).fill("200");
+  await page.getByRole("button", { name: /save/i }).click();
+  await page.getByRole("button", { name: /done/i }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+
+  // Back from the meal lands on the day it belongs to, and today is untouched.
+  await page.getByRole("link", { name: "Back" }).click();
+  await page.waitForURL(`**/day/${yesterday}`);
+  await expect(page.getByRole("link", { name: /140/ })).toBeVisible();
+
+  await page.goto(`/day/${localToday()}`);
+  await expect(page.getByText(/a clean page for today/i)).toBeVisible();
 });
 
 test("home redirects to today", async ({ page }) => {

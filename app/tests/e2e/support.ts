@@ -46,7 +46,8 @@ export const seedAmbiguousVariants = async () => {
 };
 
 // A product owned by an already-signed-up user, for tests that then build a
-// backdated meal against it by hand (there is no UI path to one).
+// meal on some earlier day against it by hand, rather than walking the day bar
+// back to it.
 export const seedProductFor = async (userId: string, name = "Test Product") => {
   const [product] = await db
     .insert(products)

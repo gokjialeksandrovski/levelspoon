@@ -16,7 +16,7 @@ export const measuredBurnFor = async (userId: string, timezone: string): Promise
   const today = todayLocalDateString(timezone);
   const from = addCalendarDays(today, -(MAX_WINDOW_DAYS - 1));
   const [logged, readings] = await Promise.all([
-    dailyKcalTotals(userId, from, today, timezone),
+    dailyKcalTotals(userId, from, today),
     fetchWeightReadings(userId, from, today),
   ]);
   return measuredBurn(logged, readings, today);

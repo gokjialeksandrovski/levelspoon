@@ -3,9 +3,8 @@
 // this file (CLAUDE.md, "Server/client boundary"); they resolve the user
 // themselves and hand it in. Reads take no DbTransaction, matching
 // fetchLatestWeightKg in features/weight/actions/weight.store.ts.
-import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 
-import { dayBoundsInTimezone, localDateStringOf } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
 
@@ -21,23 +20,20 @@ export interface DailyKcal {
  * needs to tell an unlogged day from a zero-calorie one, and a zero row would
  * hide that difference.
  *
- * Bucketing happens here in JS rather than in a SQL GROUP BY: the local day of
- * a row is a timezone question, and day-bounds.ts already answers it for every
- * other read in the app. Only the energy column is selected, since this is the
- * one figure the measured burn needs; meals.store.test.ts pins the result
- * against getDayLog's own total so the two scalings cannot drift apart.
+ * Bucketing happens here in JS rather than in a SQL GROUP BY, because summing
+ * has to happen after each row is scaled and a scaled row is not a column.
+ * Only the energy column is selected, since this is the one figure the
+ * measured burn needs; meals.store.test.ts pins the result against getDayLog's
+ * own total so the two scalings cannot drift apart.
  */
 export const dailyKcalTotals = async (
   userId: string,
   from: string,
   to: string,
-  timezone: string,
 ): Promise<DailyKcal[]> => {
-  const { start } = dayBoundsInTimezone(from, timezone);
-  const { end } = dayBoundsInTimezone(to, timezone);
   const rows = await db
     .select({
-      loggedAt: mealIngredients.createdAt,
+      logDate: meals.logDate,
       quantity: mealIngredients.quantity,
       basisQuantity: products.nutritionBasisQuantity,
       // The day total is this user's day, so it reads this user's corrections.
@@ -55,16 +51,15 @@ export const dailyKcalTotals = async (
         eq(meals.userId, userId),
         isNull(meals.deletedAt),
         isNull(mealIngredients.deletedAt),
-        gte(mealIngredients.createdAt, start),
-        lt(mealIngredients.createdAt, end),
+        gte(meals.logDate, from),
+        lte(meals.logDate, to),
       ),
     );
 
   const byDate = new Map<string, number>();
   for (const row of rows) {
-    const date = localDateStringOf(row.loggedAt, timezone);
     const kcal = (Number(row.energyKcal) * Number(row.quantity)) / Number(row.basisQuantity);
-    byDate.set(date, (byDate.get(date) ?? 0) + kcal);
+    byDate.set(row.logDate, (byDate.get(row.logDate) ?? 0) + kcal);
   }
   return [...byDate].map(([date, kcal]) => ({ date, kcal }));
 };

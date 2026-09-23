@@ -25,8 +25,8 @@ const ZERO_DAY_BACK = 3;
 
 let productId: string;
 
-const insertMeal = async (deletedAt: Date | null = null, createdAt = new Date()): Promise<string> => {
-  const [meal] = await db.insert(meals).values({ userId, deletedAt, createdAt }).returning();
+const insertMeal = async (deletedAt: Date | null = null, logDate = today): Promise<string> => {
+  const [meal] = await db.insert(meals).values({ userId, deletedAt, logDate }).returning();
   return meal.id;
 };
 
@@ -34,7 +34,6 @@ const insertIngredient = async (
   mealId: string,
   quantity = QUANTITY_G,
   deletedAt: Date | null = null,
-  createdAt = new Date(),
 ): Promise<void> => {
   await db.insert(mealIngredients).values({
     mealId,
@@ -43,7 +42,6 @@ const insertIngredient = async (
     quantityUnit: "g",
     quantitySource: "manual",
     deletedAt,
-    createdAt,
   });
 };
 
@@ -89,7 +87,7 @@ describe("dailyKcalTotals", () => {
     await insertIngredient(mealId);
     await insertIngredient(mealId);
 
-    const totals = await dailyKcalTotals(userId, today, today, TIMEZONE);
+    const totals = await dailyKcalTotals(userId, today, today);
 
     expect(totals).toEqual([{ date: today, kcal: EXPECTED_KCAL * 2 }]);
   });
@@ -97,12 +95,13 @@ describe("dailyKcalTotals", () => {
   it("counts a zero-calorie day as a logged day", async () => {
     // Its own day, not today: every other case here piles onto today, so a
     // row asserted there would be defined whatever this reader does with a
-    // zero. Backdating also exercises the local-day bucketing.
+    // zero. Its meal is filed against that day, which is also what a user
+    // filling in a past day writes.
     const date = addCalendarDays(today, -ZERO_DAY_BACK);
-    const mealId = await insertMeal(null, new Date(`${date}T12:00:00`));
-    await insertIngredient(mealId, "0", null, new Date(`${date}T12:00:00`));
+    const mealId = await insertMeal(null, date);
+    await insertIngredient(mealId, "0");
 
-    const totals = await dailyKcalTotals(userId, date, date, TIMEZONE);
+    const totals = await dailyKcalTotals(userId, date, date);
 
     // A real logged day with nothing in it. It must appear with kcal 0, not
     // vanish - spec section 5 refuses to judge a day by its contents.
@@ -115,10 +114,10 @@ describe("dailyKcalTotals", () => {
     const liveMealId = await insertMeal();
     await insertIngredient(liveMealId, QUANTITY_G, new Date());
 
-    const before = await dailyKcalTotals(userId, today, today, TIMEZONE);
+    const before = await dailyKcalTotals(userId, today, today);
     const liveMeal2 = await insertMeal();
     await insertIngredient(liveMeal2);
-    const after = await dailyKcalTotals(userId, today, today, TIMEZONE);
+    const after = await dailyKcalTotals(userId, today, today);
 
     const total = (rows: { date: string; kcal: number }[]): number =>
       rows.find((row) => row.date === today)?.kcal ?? 0;
@@ -127,7 +126,7 @@ describe("dailyKcalTotals", () => {
   });
 
   it("returns no row for a day with no meal", async () => {
-    const totals = await dailyKcalTotals(userId, "2020-01-01", "2020-01-07", TIMEZONE);
+    const totals = await dailyKcalTotals(userId, "2020-01-01", "2020-01-07");
 
     expect(totals).toEqual([]);
   });

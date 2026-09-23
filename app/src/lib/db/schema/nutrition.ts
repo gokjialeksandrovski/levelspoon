@@ -1,4 +1,4 @@
-import { index, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, index, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
 
@@ -158,6 +158,13 @@ export const meals = pgTable("meals", {
     .notNull()
     .references(() => users.id),
   name: text("name"),
+  // The local calendar day this meal counts towards, as the browser read it
+  // when the meal was started - not derived from createdAt, so a meal logged
+  // after midnight for the evening before lands on the day the user means.
+  // notNull with no default, same reasoning as products.nameSearch: a
+  // forgotten insert fails at compile time rather than filing a meal on the
+  // server's UTC day.
+  logDate: date("log_date").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   // Soft delete, so "Delete meal" can offer undo; purged by createMeal's sweep.
   deletedAt: timestamp("deleted_at"),

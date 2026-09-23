@@ -332,6 +332,27 @@ Re-run `cd app && npm run check:portion-classes` after touching `PortionClass`,
 `fixtures/standard-foods.json`. It must exit 0 — a conflict is a portion chip
 about to appear on a food nobody measures that way.
 
+## History
+
+One row per day user logged, newest first, paged at `HISTORY_PAGE_SIZE`.
+`history.utils.ts` shape rows; query stay one row per logged day.
+
+- **Days between two loaded rows put back client-side** (`withUnloggedDays`),
+  never by query. Up to `MAX_GAP_FILL_DAYS` blank days list one row each and
+  link to that day — a missed day is somewhere to go, not a hole. Longer
+  stretch collapse to one non-linking row. Nothing filled above newest row or
+  below oldest: first is day user came from, second may be next page.
+- Rows group by month (`toHistoryMonths`), heading sticky, year dropped inside
+  current year.
+- Rail on a logged row is day hero `CalorieBar` pair one tier quieter (`h-1`,
+  `bg-border` track, `bg-text` fill, `danger` at or past goal). Drawn only with
+  a kcal goal, `role="presentation"` — every figure it encode printed above it.
+  No accent colour: four accents each own a macro, a day kcal is not one.
+- **Today row say `so far`, never "under goal"** — day still being eaten is not
+  a day under its goal. `recentAverage` leave today out, same reason, and say
+  "logged days" because average of days you logged is not average of days that
+  passed.
+
 ## Weight goal
 
 Optional. App fully usable without one — nothing gates on it, nothing nags.
@@ -511,6 +532,24 @@ optional and independent. `No calorie goal` removes the kcal goal
 Day boundaries are user's **local** calendar day (browser IANA timezone,
 per request), never server's UTC day.
 
+**`meals.log_date` is day a meal counts towards.** Browser's local calendar
+date when meal started, stored, never derived from `created_at`. Every day read
+filter on it: `getDayLog`, `getDayHistory`, `dailyKcalTotals`, meal numbering.
+`created_at` now mean only "when row written" — ordering inside a day,
+`recentAmounts`, soft-delete sweep.
+
+Stored, not derived, because meal eaten yesterday can be entered today and a
+timestamp cannot tell two apart. Falls out of that: a day read same wherever
+reader is, so flying between zones no longer move meal to day before.
+
+`createMeal(logDate, timezone)` refuse future date (`InvalidLogDateError`),
+never refuse past one. Screen that start a meal pass day on screen.
+
+**Every day user can reach is loggable.** Day view bottom bar middle slot
+always `NewMealButton`; label name day when not today ("New meal for
+yesterday"). Way back to today is header day label, which say which day open in
+same breath — no separate "Back to today" control.
+
 ## App conventions
 
 - **Prefer framework/project components over raw HTML equivalents (CLAUDE.md
@@ -657,6 +696,12 @@ The calorie estimate shipped 2026-09-21
 (`docs/superpowers/plans/2026-09-21-intake-estimate.md`): an optional form
 that works out a daily kcal range and sets the goal on request — see "Intake
 estimate" above.
+
+Logging for an earlier day shipped 2026-09-23: `meals.log_date` (migration
+`0022`) replace the ingredient-timestamp derivation, every day read filter on
+it, and day view bottom bar log to whichever day is open — see "Time" above.
+History page redesigned same day: month groups, goal rail per row, days with
+nothing logged listed as their own rows — see "History" above.
 
 The measured burn shipped 2026-09-23
 (`docs/superpowers/plans/2026-09-23-measured-burn.md`): the estimate now works

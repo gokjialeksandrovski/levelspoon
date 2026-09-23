@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 import { eq } from "drizzle-orm";
 
 import { db } from "../../src/lib/db";
-import { localDateStringOf } from "../../src/lib/date/day-bounds";
 import { mealIngredients, meals, users } from "../../src/lib/db/schema";
 
 import { freshEmail, logOneIngredient, seedConfidentProduct, seedProductFor, seedStandardFood, signUp, truncateAll } from "./support";
@@ -123,19 +122,18 @@ test("deleting the meal returns to the day view, which offers Undo", async ({ pa
 
 // Fixed (not Date.now()-relative) so the seeded meal's local day never
 // depends on when this suite happens to run.
-const PAST_MEAL_CREATED_AT = "2020-06-15T12:00:00.000Z";
+const PAST_MEAL_DATE = "2020-06-15";
 
-// Seeds a product and a meal backdated to PAST_MEAL_CREATED_AT for the
-// already-signed-up user with this email, mirroring history.spec.ts's
-// direct-insert pattern (there is no UI path to a backdated meal).
+// Seeds a product and a meal logged for PAST_MEAL_DATE against the
+// already-signed-up user with this email. Inserted directly rather than
+// through the UI only because walking six years of the day bar would be slow.
 const seedBackdatedMeal = async (email: string): Promise<string> => {
   const [user] = await db.select().from(users).where(eq(users.email, email));
   const product = await seedProductFor(user.id);
 
-  const createdAt = new Date(PAST_MEAL_CREATED_AT);
-  const [meal] = await db.insert(meals).values({ userId: user.id, createdAt }).returning();
+  const [meal] = await db.insert(meals).values({ userId: user.id, logDate: PAST_MEAL_DATE }).returning();
   await db.insert(mealIngredients).values({
-    mealId: meal.id, productId: product.id, quantity: "100", quantitySource: "manual", createdAt,
+    mealId: meal.id, productId: product.id, quantity: "100", quantitySource: "manual",
   });
   return meal.id;
 };
@@ -145,8 +143,6 @@ const seedBackdatedMeal = async (email: string): Promise<string> => {
 test("back from a meal on a past day returns to that meal's own day", async ({ page }) => {
   const email = await signUp(page, freshEmail("e2e-meal-detail-past"));
   const mealId = await seedBackdatedMeal(email);
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const expectedDate = localDateStringOf(new Date(PAST_MEAL_CREATED_AT), timezone);
 
   await page.goto(`/meals/${mealId}`);
   // meal-detail.tsx fetches asynchronously on mount and only swaps
@@ -155,7 +151,7 @@ test("back from a meal on a past day returns to that meal's own day", async ({ p
   // isn't racing the fetch.
   await expect(page.getByText("Test Product")).toBeVisible();
   await page.getByRole("link", { name: "Back" }).click();
-  await page.waitForURL(new RegExp(`/day/${expectedDate}$`));
+  await page.waitForURL(new RegExp(`/day/${PAST_MEAL_DATE}$`));
 });
 
 test("the cooking-fat control is optional and adds nothing until used", async ({ page }) => {

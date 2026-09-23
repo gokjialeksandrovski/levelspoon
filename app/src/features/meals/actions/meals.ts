@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
-import { dayBoundsInTimezone, localDateStringOf, todayLocalDateString, type DayBounds } from "@/lib/date/day-bounds";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { portionOverridesSelection } from "@/lib/db/portion-overrides-sql";
 import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective-nutrition";
@@ -12,7 +12,7 @@ import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
-import { NotAuthorizedError } from "./meals.errors";
+import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 import { fetchCalorieGoal, fetchMacroTargets } from "@/features/goals/actions/goals";
 import type { MacroTargets } from "@/features/goals/actions/macro-targets.utils";
 import { fetchWeightView } from "@/features/weight/actions/weight";
@@ -100,10 +100,30 @@ const sweepEmptyMeals = async (userId: string): Promise<void> => {
   }
 };
 
-export const createMeal = async (): Promise<{ mealId: string }> => {
+const LOG_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// The browser picks the day, so the day is checked here rather than trusted:
+// a future date would file a meal on a day the user cannot have eaten yet, and
+// no screen offers one. Past dates are unbounded on purpose - somebody filling
+// in last week is doing exactly what this exists for.
+const assertLoggableDate = (logDate: string, timezone: string): void => {
+  if (!LOG_DATE_PATTERN.test(logDate) || logDate > todayLocalDateString(timezone)) {
+    throw new InvalidLogDateError(logDate);
+  }
+};
+
+/**
+ * Starts a meal on `logDate`, the user's own local calendar day.
+ *
+ * The day is an argument rather than `now()`: the whole point is that a meal
+ * eaten yesterday can be entered today, and a day read from a clock at insert
+ * time files it under whichever day the machine is having.
+ */
+export const createMeal = async (logDate: string, timezone: string): Promise<{ mealId: string }> => {
   const userId = await requireUserId();
+  assertLoggableDate(logDate, timezone);
   await sweepEmptyMeals(userId);
-  const [row] = await db.insert(meals).values({ userId }).returning({ id: meals.id });
+  const [row] = await db.insert(meals).values({ userId, logDate }).returning({ id: meals.id });
   return { mealId: row.id };
 };
 
@@ -184,7 +204,7 @@ const dayMealIngredientSelection = () => ({
 
 const fetchDayMealIngredientRows = async (
   userId: string,
-  bounds: DayBounds,
+  logDate: string,
 ): Promise<DayMealIngredientRow[]> =>
   db
     .select(dayMealIngredientSelection())
@@ -199,10 +219,9 @@ const fetchDayMealIngredientRows = async (
     .where(
       and(
         eq(meals.userId, userId),
+        eq(meals.logDate, logDate),
         isNull(meals.deletedAt),
         isNull(mealIngredients.deletedAt),
-        gte(mealIngredients.createdAt, bounds.start),
-        lt(mealIngredients.createdAt, bounds.end),
       ),
     )
     .orderBy(meals.createdAt, mealIngredients.createdAt);
@@ -249,10 +268,9 @@ const toDayMealSummaries = (rows: DayMealIngredientRow[]): DayMealSummary[] =>
 
 export const getDayLog = async (date: string, timezone: string): Promise<DayLog> => {
   const userId = await requireUserId();
-  const bounds = dayBoundsInTimezone(date, timezone);
   const isToday = date === todayLocalDateString(timezone);
   const [rows, calorieGoal, macroTargets, weight] = await Promise.all([
-    fetchDayMealIngredientRows(userId, bounds),
+    fetchDayMealIngredientRows(userId, date),
     fetchCalorieGoal(userId),
     fetchMacroTargets(userId),
     isToday ? fetchWeightView(userId) : Promise.resolve(null),
@@ -400,18 +418,16 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
 const mealNumberInLocalDay = async (
   userId: string,
   mealId: string,
-  localDate: string,
-  timezone: string,
+  logDate: string,
 ): Promise<number> => {
-  const { start } = dayBoundsInTimezone(localDate, timezone);
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(meals)
     .where(
       and(
         eq(meals.userId, userId),
+        eq(meals.logDate, logDate),
         isNull(meals.deletedAt),
-        gte(meals.createdAt, start),
         sql`${meals.createdAt} <= (select target.created_at from meals target where target.id = ${mealId})`,
       ),
     );
@@ -422,21 +438,20 @@ const mealNumberInLocalDay = async (
 // meal's kcal that day, not just this one.
 const fetchDayCalorieRemaining = async (
   userId: string,
-  localDate: string,
-  timezone: string,
+  logDate: string,
 ): Promise<CalorieRemaining> => {
   const [dayRows, calorieGoal] = await Promise.all([
-    fetchDayMealIngredientRows(userId, dayBoundsInTimezone(localDate, timezone)),
+    fetchDayMealIngredientRows(userId, logDate),
     fetchCalorieGoal(userId),
   ]);
   const dayTotalKcal = toDayMealSummaries(dayRows).reduce((sum, summary) => sum + summary.total.energyKcal, 0);
   return calorieRemaining(calorieGoal, dayTotalKcal);
 };
 
-export const getMealDetail = async (mealId: string, timezone: string): Promise<MealDetail | null> => {
+export const getMealDetail = async (mealId: string): Promise<MealDetail | null> => {
   const userId = await requireUserId();
   const [meal] = await db
-    .select({ id: meals.id, createdAt: meals.createdAt })
+    .select({ id: meals.id, logDate: meals.logDate })
     .from(meals)
     .where(and(eq(meals.id, mealId), eq(meals.userId, userId), isNull(meals.deletedAt)));
   if (!meal) {
@@ -446,15 +461,14 @@ export const getMealDetail = async (mealId: string, timezone: string): Promise<M
   const rows = await fetchMealIngredientRows(userId, mealId);
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
-  const localDate = localDateStringOf(meal.createdAt, timezone);
   const [mealNumber, dayCalorieRemaining] = await Promise.all([
-    mealNumberInLocalDay(userId, meal.id, localDate, timezone),
-    fetchDayCalorieRemaining(userId, localDate, timezone),
+    mealNumberInLocalDay(userId, meal.id, meal.logDate),
+    fetchDayCalorieRemaining(userId, meal.logDate),
   ]);
   return {
     id: meal.id,
     mealNumber,
-    date: localDate,
+    date: meal.logDate,
     ingredients,
     total,
     dayCalorieRemaining,
@@ -605,11 +619,10 @@ const toLocalDateString = (value: string | Date): string =>
 // what they are stated per.
 const fetchDayHistoryRows = async (
   userId: string,
-  timezone: string,
   offset: number,
 ): Promise<DayHistoryRow[]> => {
   const result = await db.execute<DayHistoryRow>(sql`
-    SELECT date_trunc('day', mi.created_at AT TIME ZONE 'UTC' AT TIME ZONE ${timezone})::date AS local_date,
+    SELECT m.log_date AS local_date,
            SUM(coalesce(o.energy_kcal, p.energy_kcal) * (mi.quantity / p.nutrition_basis_quantity)) AS total_kcal
     FROM meal_ingredients mi
     JOIN meals m ON m.id = mi.meal_id
@@ -618,17 +631,17 @@ const fetchDayHistoryRows = async (
     WHERE m.user_id = ${userId}
       AND m.deleted_at IS NULL
       AND mi.deleted_at IS NULL
-    GROUP BY local_date
-    ORDER BY local_date DESC
+    GROUP BY m.log_date
+    ORDER BY m.log_date DESC
     LIMIT ${HISTORY_PAGE_SIZE} OFFSET ${offset}
   `);
   return result.rows;
 };
 
-export const getDayHistory = async (timezone: string, offset: number = 0): Promise<DayHistoryPage> => {
+export const getDayHistory = async (offset: number = 0): Promise<DayHistoryPage> => {
   const userId = await requireUserId();
   const [rows, calorieGoal] = await Promise.all([
-    fetchDayHistoryRows(userId, timezone, offset),
+    fetchDayHistoryRows(userId, offset),
     fetchCalorieGoal(userId),
   ]);
   const entries = rows.map((row) => ({

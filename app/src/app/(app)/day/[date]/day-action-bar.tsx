@@ -6,21 +6,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createMeal } from "@/features/meals/actions/meals";
-import { Button, buttonClassName } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { ICON_ROW_EDGE_PULL_LEFT, ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 import { addCalendarDays } from "@/lib/date/day-bounds";
+import { formatDayLabel } from "@/lib/date/format";
 
 interface StartMealCallbacks {
   onBusyChange: (isBusy: boolean) => void;
   onError: (hasError: boolean) => void;
 }
 
-const startMeal = async (router: ReturnType<typeof useRouter>, callbacks: StartMealCallbacks): Promise<void> => {
+const startMeal = async (
+  router: ReturnType<typeof useRouter>,
+  date: string,
+  callbacks: StartMealCallbacks,
+): Promise<void> => {
   callbacks.onBusyChange(true);
   callbacks.onError(false);
   try {
-    const { mealId } = await createMeal();
+    const { mealId } = await createMeal(date, Intl.DateTimeFormat().resolvedOptions().timeZone);
     router.push(`/meals/${mealId}/capture`);
   } catch {
     callbacks.onError(true);
@@ -28,9 +33,18 @@ const startMeal = async (router: ReturnType<typeof useRouter>, callbacks: StartM
   }
 };
 
+// The label names the day it writes to, because the same button on the same
+// spot writes to a different day depending on which one is on screen, and
+// "New meal" alone would make that depend on the header the thumb covers.
+const newMealLabel = (date: string, today: string): string => {
+  if (date === today) return "New meal";
+  if (date === addCalendarDays(today, -1)) return "New meal for yesterday";
+  return `New meal for ${formatDayLabel(date)}`;
+};
+
 // Single entry point deliberately: a separate "Quick log" button only
 // duplicated tapping Done on the first ingredient.
-const NewMealButton = () => {
+const NewMealButton = ({ date, today }: { date: string; today: string }) => {
   const router = useRouter();
   const [hasError, setHasError] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -39,19 +53,12 @@ const NewMealButton = () => {
   return (
     <div className="flex flex-1 flex-col gap-2">
       {hasError && <InlineMessage tone="error">Could not start. Please try again.</InlineMessage>}
-      <Button variant="primary" className="w-full" pending={isBusy} onClick={() => void startMeal(router, callbacks)}>
-        New meal
+      <Button variant="primary" className="w-full" pending={isBusy} onClick={() => void startMeal(router, date, callbacks)}>
+        {newMealLabel(date, today)}
       </Button>
     </div>
   );
 };
-
-// A past day has nothing to log, so the middle slot is the way back instead.
-const BackToTodayLink = ({ today }: { today: string }) => (
-  <Link href={`/day/${today}`} className={buttonClassName("ghost", "flex-1 text-center")}>
-    Back to today
-  </Link>
-);
 
 // Dimmed and inert rather than removed, so the middle slot never changes width on the day it becomes today.
 const NextDayControl = ({ date, isToday }: { date: string; isToday: boolean }) =>
@@ -82,7 +89,10 @@ export const DayActionBar = ({ date, today }: DayActionBarProps) => {
       <Link href={`/day/${addCalendarDays(date, -1)}`} aria-label="Previous day" className={`${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_LEFT}`}>
         <CaretLeftIcon />
       </Link>
-      {isToday ? <NewMealButton /> : <BackToTodayLink today={today} />}
+      {/* Every day the bar can reach is loggable, so the middle slot never
+          changes what it does. The way back to today is the header's day
+          label, which says which day is open in the same breath. */}
+      <NewMealButton date={date} today={today} />
       <NextDayControl date={date} isToday={isToday} />
     </nav>
   );
