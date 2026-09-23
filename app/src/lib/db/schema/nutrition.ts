@@ -48,6 +48,13 @@ export const products = pgTable(
     sugarsG: nutritionColumn("sugars_g"),
     proteinG: nutritionColumn("protein_g"),
     saltG: nutritionColumn("salt_g"),
+    // Nullable, unlike the seven above: EU Reg 1169/2011 makes fibre optional,
+    // so null means the label printed none. A 0 here would be a figure nobody
+    // wrote down, in a table every user reads.
+    fibreG: numeric("fibre_g", {
+      precision: NUTRITION_COLUMN_PRECISION,
+      scale: NUTRITION_COLUMN_SCALE,
+    }),
     // Generalizes "per 100g": every nutrition column above means "per
     // nutritionBasisQuantity of nutritionBasisUnit." Defaults preserve
     // today's meaning for every existing row - a free migration, no backfill.
@@ -110,6 +117,10 @@ export const productOverrides = pgTable(
     sugarsG: nutritionColumn("sugars_g"),
     proteinG: nutritionColumn("protein_g"),
     saltG: nutritionColumn("salt_g"),
+    fibreG: numeric("fibre_g", {
+      precision: NUTRITION_COLUMN_PRECISION,
+      scale: NUTRITION_COLUMN_SCALE,
+    }),
     // A photo of a label the user says has been reformulated. A claim, not
     // proof: nobody has checked it, so it never touches products.nutrition_
     // photo_key, which is what the correction screen compares against and what
