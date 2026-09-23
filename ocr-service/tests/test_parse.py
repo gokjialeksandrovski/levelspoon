@@ -183,3 +183,35 @@ def test_an_unreadable_photo_still_raises_column_detection_error():
     result = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
     with pytest.raises(ColumnDetectionError):
         parse_nutrition(result)
+
+
+def test_seven_value_rows_read_fibre_and_keep_protein_and_salt():
+    """EU order prints fibre between sugars and protein (Reg 1169/2011).
+
+    Before this fix the extra row shifted protein into salt_g and dropped
+    salt - a silent one-field shift, the same class split_energy_row exists
+    to prevent.
+    """
+    result = _label("1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "6 g", "8 g", "1,2 g")
+    reading = parse_nutrition(result)
+    assert reading.per_100g.fibre_g == 6.0
+    assert reading.per_100g.protein_g == 8.0
+    assert reading.per_100g.salt_g == 1.2
+
+
+def test_six_value_rows_leave_fibre_unknown():
+    result = _label("1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "8 g", "1,2 g")
+    reading = parse_nutrition(result)
+    assert reading.per_100g.fibre_g is None
+    assert reading.per_100g.protein_g == 8.0
+    assert reading.per_100g.salt_g == 1.2
+
+
+def test_more_than_seven_rows_keep_todays_mapping():
+    """Polyols or starch beside fibre put the count past seven, and nothing
+    in a count says which optional row ran. Guessing would invent a mapping;
+    this keeps the behaviour the six-row order already had.
+    """
+    result = _label("1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "6 g", "3 g", "8 g", "1,2 g")
+    reading = parse_nutrition(result)
+    assert reading.per_100g.fibre_g is None

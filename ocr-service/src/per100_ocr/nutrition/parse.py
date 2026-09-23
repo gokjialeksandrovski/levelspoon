@@ -16,21 +16,38 @@ from .us_label import is_us_label, read_us_label
 
 # Fixed by EU Regulation 1169/2011; never inferred from adjacent label text
 # because the value column drifts out of alignment on curved packaging.
-NUTRITION_ROW_ORDER = (
+# Fibre is optional in that regulation and prints between sugars and protein,
+# so a label carrying it yields one more value row than one that does not.
+EU_ROW_ORDER = (
     "fat_g", "saturates_g", "carbohydrate_g", "sugars_g", "protein_g", "salt_g",
+)
+EU_ROW_ORDER_WITH_FIBRE = (
+    "fat_g", "saturates_g", "carbohydrate_g", "sugars_g", "fibre_g", "protein_g", "salt_g",
 )
 
 MISSING_VALUE = math.nan
 
 
+def _row_order(value_count: int) -> tuple[str, ...]:
+    """Which printed row order this label used, decided by count alone.
+
+    Only an exact seven means fibre. More than that means another optional
+    row (polyols, starch) is present too, and a count cannot say which - so
+    that case keeps the six-row mapping rather than guessing a new one.
+    """
+    if value_count == len(EU_ROW_ORDER_WITH_FIBRE):
+        return EU_ROW_ORDER_WITH_FIBRE
+    return EU_ROW_ORDER
+
+
 def _candidates_by_field(
     value_texts: list[str],
 ) -> tuple[dict[str, tuple[float, ...]], list[str]]:
-    """Map the fixed row order onto whatever values were detected."""
+    """Map the printed row order onto whatever values were detected."""
     candidates: dict[str, tuple[float, ...]] = {}
     missing: list[str] = []
 
-    for index, field in enumerate(NUTRITION_ROW_ORDER):
+    for index, field in enumerate(_row_order(len(value_texts))):
         if index >= len(value_texts):
             candidates[field] = (MISSING_VALUE,)
             missing.append(field)

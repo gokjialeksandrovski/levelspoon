@@ -17,10 +17,11 @@ from .normalize import ENERGY_FIGURE
 
 PER_100G_HEADER = re.compile(r"/?\s*100\s*g", re.IGNORECASE)
 
-# Kept in sync with parse.py's NUTRITION_ROW_ORDER (fat/saturates/
+# Kept in sync with parse.py's EU_ROW_ORDER (fat/saturates/
 # carbohydrate/sugars/protein/salt - EU Reg 1169/2011's fixed six-row
-# block). Duplicated rather than imported: parse.py already imports this
-# module, so the reverse import would be circular.
+# block, before an optional fibre row extends it to seven). Duplicated
+# rather than imported: parse.py already imports this module, so the
+# reverse import would be circular.
 CORE_NUTRIENT_ROWS = 6
 
 # A row-to-row gap this many times the label's own median row spacing
