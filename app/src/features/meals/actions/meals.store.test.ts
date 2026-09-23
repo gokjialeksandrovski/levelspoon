@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { toSearchText } from "@/lib/db/search-text";
-import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { dailyKcalTotals } from "./meals.store";
 
@@ -20,11 +20,13 @@ const PRODUCT_ENERGY_KCAL = "200";
 const BASIS_QUANTITY = "100";
 const QUANTITY_G = "250";
 const EXPECTED_KCAL = 500;
+// Far enough back that no other case in this file touches the same day.
+const ZERO_DAY_BACK = 3;
 
 let productId: string;
 
-const insertMeal = async (deletedAt: Date | null = null): Promise<string> => {
-  const [meal] = await db.insert(meals).values({ userId, deletedAt }).returning();
+const insertMeal = async (deletedAt: Date | null = null, createdAt = new Date()): Promise<string> => {
+  const [meal] = await db.insert(meals).values({ userId, deletedAt, createdAt }).returning();
   return meal.id;
 };
 
@@ -32,6 +34,7 @@ const insertIngredient = async (
   mealId: string,
   quantity = QUANTITY_G,
   deletedAt: Date | null = null,
+  createdAt = new Date(),
 ): Promise<void> => {
   await db.insert(mealIngredients).values({
     mealId,
@@ -40,6 +43,7 @@ const insertIngredient = async (
     quantityUnit: "g",
     quantitySource: "manual",
     deletedAt,
+    createdAt,
   });
 };
 
@@ -91,15 +95,18 @@ describe("dailyKcalTotals", () => {
   });
 
   it("counts a zero-calorie day as a logged day", async () => {
-    const mealId = await insertMeal();
-    await insertIngredient(mealId, "0");
+    // Its own day, not today: every other case here piles onto today, so a
+    // row asserted there would be defined whatever this reader does with a
+    // zero. Backdating also exercises the local-day bucketing.
+    const date = addCalendarDays(today, -ZERO_DAY_BACK);
+    const mealId = await insertMeal(null, new Date(`${date}T12:00:00`));
+    await insertIngredient(mealId, "0", null, new Date(`${date}T12:00:00`));
 
-    const totals = await dailyKcalTotals(userId, today, today, TIMEZONE);
+    const totals = await dailyKcalTotals(userId, date, date, TIMEZONE);
 
     // A real logged day with nothing in it. It must appear with kcal 0, not
     // vanish - spec section 5 refuses to judge a day by its contents.
-    const row = totals.find((total) => total.date === today);
-    expect(row).toBeDefined();
+    expect(totals).toEqual([{ date, kcal: 0 }]);
   });
 
   it("ignores soft-deleted meals and soft-deleted ingredients", async () => {

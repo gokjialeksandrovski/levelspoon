@@ -382,8 +382,15 @@ const readyEstimate = (input: IntakeInput, age: number, measured: MeasuredBurn |
   // correction on top would count it twice.
   const bmr = bmrKcal(input, age);
   const formulaMaintenance = bmr * ACTIVITY_FACTOR[input.activityLevel];
-  const isMeasured = measured?.kind === "measured";
-  const maintenance = isMeasured ? measured.kcal : formulaMaintenance;
+  // A maintenance below the user's own BMR is not something a body does - it
+  // is what under-logging looks like. The deficit floor cannot catch it: the
+  // floor is clamped to maintenance so as never to suggest eating more than
+  // you burn, so it would follow the bad figure down and then print it as the
+  // floor. The fit is refused here instead, which judges the measurement and
+  // not the user's days (spec §5).
+  const usable = measured?.kind === "measured" && measured.kcal >= bmr ? measured : null;
+  const isMeasured = usable !== null;
+  const maintenance = isMeasured ? usable.kcal : formulaMaintenance;
   const bmi = input.weightKg / heightSquaredM(input.heightCm);
   const isMaintenanceOnly = input.primaryGoal === "lose_fat" && bmi < UNDERWEIGHT_BMI;
   const pace = resolvePace(input);
@@ -396,7 +403,7 @@ const readyEstimate = (input: IntakeInput, age: number, measured: MeasuredBurn |
   const floor = Math.min(maintenance, Math.max(bmr, KCAL_FLOOR[input.sex]));
   const raw = maintenance + adjustment;
   const point = Math.max(raw, floor);
-  const width = isMeasured ? measured.sigma : rangeWidthKcal(input, point);
+  const width = usable ? usable.sigma : rangeWidthKcal(input, point);
   const lean = leanMassKg(input);
 
   return {

@@ -284,18 +284,38 @@ describe("estimateIntake - measured burn", () => {
     expect(plainEstimate.isMeasured).toBe(false);
   });
 
-  it("keeps the safety rails on a measured maintenance", () => {
-    // A measured burn far below the floor must still floor. Under-logging
-    // biases the measured figure low, and this rail is what catches it.
-    const measured = { kind: "measured" as const, kcal: 900, sigma: 50, windowDays: 30, loggedDays: 28 };
+  it("refuses a measured maintenance below the user's own BMR", () => {
+    // What under-logging looks like: a figure the body could not run on. The
+    // deficit floor cannot catch it, because the floor is clamped to
+    // maintenance so as never to suggest eating more than you burn - so the
+    // clamp would follow the bad figure down and then print it as the floor.
+    const measured = { kind: "measured" as const, kcal: 1224, sigma: 96, windowDays: 28, loggedDays: 28 };
 
     const estimate = estimateIntake(base, CURRENT_YEAR, measured);
 
     expect(estimate.kind).toBe("ready");
     if (estimate.kind !== "ready") throw new Error("expected a ready estimate");
-    // Never above maintenance: the floor stops a deficit, it does not tell
-    // someone to eat more than they burn.
-    expect(estimate.pointKcal).toBe(900);
+    expect(estimate.isMeasured).toBe(false);
+    expect(estimate.maintenanceKcal).toBe(estimate.formulaMaintenanceKcal);
+    // The rail is back where it belongs: max(BMR, 1500) for a male.
+    expect(estimate.floorKcal).toBeCloseTo(estimate.bmrKcal, 6);
+    expect(estimate.pointKcal).toBeGreaterThanOrEqual(estimate.bmrKcal);
+  });
+
+  it("keeps the safety rails on a measured maintenance it accepts", () => {
+    // Above BMR, so the measurement stands - and the floor still stops the
+    // pace's deficit from cutting below it.
+    const measured = { kind: "measured" as const, kcal: 2000, sigma: 90, windowDays: 30, loggedDays: 28 };
+
+    const estimate = estimateIntake(base, CURRENT_YEAR, measured);
+
+    expect(estimate.kind).toBe("ready");
+    if (estimate.kind !== "ready") throw new Error("expected a ready estimate");
+    expect(estimate.isMeasured).toBe(true);
+    expect(estimate.maintenanceKcal).toBe(2000);
+    // Never above maintenance, never below max(BMR, 1500).
+    expect(estimate.floorKcal).toBeCloseTo(estimate.bmrKcal, 6);
+    expect(estimate.pointKcal).toBe(estimate.floorKcal);
     expect(estimate.isFloored).toBe(true);
   });
 });

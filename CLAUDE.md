@@ -430,15 +430,16 @@ Optional page at `/calories/estimate`, reached only from `GoalSheet`'s
   Maintain's band saves a hold goal (with recomp). No opt-in box. An
   unchanged goal writes nothing, so recalculating never resets its start; a
   band of 0 leaves any goal alone.
-- **The disclaimer promises an adaptive burn estimate that is not built.**
-  Release blocker before M4. If it slips, cut the sentence first.
+- **The disclaimer describes the measured burn, which shipped 2026-09-23.**
+  See "Measured burn" below. Sentence is true only while that path stay wired:
+  remove feature, cut sentence with it.
 - Rails: no estimate under 18 or in pregnancy/breastfeeding; maintenance only
   below BMI 18.5; a deficit floors at `max(BMR, 1200 F / 1500 M)` and never
   above maintenance. A typed pace past the cap is stated, not refused.
-- Imports: `intake → weight` only. Weight writes it needs go through
-  `features/weight/actions/weight.store.ts`, which takes a `DbTransaction` and
-  has no `"use server"` — it takes a userId, so exposing it as an action would
-  let a browser write any user's rows.
+- Imports: `intake → weight` and `intake → meals` only. Weight writes it needs
+  go through `features/weight/actions/weight.store.ts`, which takes a
+  `DbTransaction` and has no `"use server"` — it takes a userId, so exposing it
+  as an action would let a browser write any user's rows.
 - Refusals cross as `SaveIntakeResult`, never thrown classes.
 - Spec: `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
 
@@ -456,8 +457,11 @@ one place; that sentence is why.
 - **Every logged day count, unjudged.** Forgotten dinner stay in. No
   plausibility floor, no "day complete" tick, no exclusion list. Judging a day
   is app deciding what user meant — same move DECISIONS.md refuse on weigh-in
-  dismissal back-off. Under-logging bias figure low; existing deficit floor
-  `max(BMR, 1200 F / 1500 M)` catch that downstream.
+  dismissal back-off. Under-logging bias figure low, and deficit floor alone
+  **not** catch it: floor clamp to maintenance (never suggest eating more than
+  you burn), so it follow bad figure down. So `readyEstimate` refuse measured
+  figure below user own BMR and formula stand — judge the measurement, never
+  the days. Above BMR, `max(BMR, 1200 F / 1500 M)` floor apply as ever.
 - Coverage floor require data **exist**, not judge its contents. Unlogged days
   bias the mean, not only widen it.
 - Window grow from 14 to 56 days, shortest qualifying one win. Past cap →
