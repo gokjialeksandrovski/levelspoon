@@ -274,6 +274,21 @@ describe("detailLines with a measured burn", () => {
     expect(lines.some((line) => line.startsWith("BMR "))).toBe(true);
   });
 
+  it("hands a measured burn to the estimate behind the bar", () => {
+    const state = barStateOf(caseA, CURRENT_YEAR, {
+      kind: "measured",
+      kcal: 2410,
+      sigma: 120,
+      windowDays: 26,
+      loggedDays: 23,
+    });
+
+    expect(state.kind).toBe("ready");
+    if (state.kind !== "ready") throw new Error("expected a ready state");
+    expect(state.estimate.maintenanceKcal).toBe(2410);
+    expect(state.estimate.isMeasured).toBe(true);
+  });
+
   it("no longer promises a figure in two weeks", () => {
     expect(DISCLAIMER_TEXT).toContain("for a few weeks");
     expect(DISCLAIMER_TEXT).not.toContain("2 weeks");

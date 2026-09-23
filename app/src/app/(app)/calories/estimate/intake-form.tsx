@@ -1,15 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   forgetIntakeProfile,
+  getMeasuredBurn,
   saveIntakeEstimate,
   type IntakePrefill,
   type IntakeSaveInput,
   type SaveIntakeResult,
 } from "@/features/intake/actions/intake";
+import type { MeasuredBurn } from "@/features/intake/actions/measured-burn.utils";
 import {
   BODY_FAT_STAGES,
   yearOf,
@@ -557,6 +559,21 @@ const useSaveIntake = (today: string) => {
   return { isSaving, hasError, save };
 };
 
+// Null until the fetch lands. The formula figure is a valid answer in the
+// meantime, so there is no loading state - the range simply sharpens if a
+// measured figure arrives.
+const useMeasuredBurn = (): MeasuredBurn | null => {
+  const [measured, setMeasured] = useState<MeasuredBurn | null>(null);
+
+  useEffect(() => {
+    getMeasuredBurn(browserTimezone())
+      .then(setMeasured)
+      .catch(() => setMeasured(null));
+  }, []);
+
+  return measured;
+};
+
 const paceHelperOf = (bar: BarState, draft: IntakeDraft): string | undefined =>
   bar.kind === "ready" && draft.paceDraft.trim() === "" ? suggestedPaceText(bar.estimate, draft.unit) : undefined;
 
@@ -564,7 +581,8 @@ export const IntakeForm = ({ prefill }: { prefill: IntakePrefill }) => {
   const [draft, setDraft] = useState(() => initialDraft(prefill));
   const [stored, setStored] = useState<StoredAnswers>(prefill.profile === null ? "none" : "saved");
   const today = todayLocalDateString(browserTimezone());
-  const bar = barStateOf(draft, yearOf(today));
+  const measured = useMeasuredBurn();
+  const bar = barStateOf(draft, yearOf(today), measured);
   const { isSaving, hasError, save } = useSaveIntake(today);
 
   const update = (patch: Partial<IntakeDraft>): void => setDraft((current) => ({ ...current, ...patch }));
@@ -598,6 +616,7 @@ export const IntakeForm = ({ prefill }: { prefill: IntakePrefill }) => {
       </main>
       <ResultBar
         state={bar}
+        measured={measured}
         unit={draft.unit}
         today={today}
         hasCondition={draft.metabolismCondition}

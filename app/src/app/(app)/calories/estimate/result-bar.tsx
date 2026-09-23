@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { IntakeReady } from "@/features/intake/actions/intake.utils";
+import type { MeasuredBurn } from "@/features/intake/actions/measured-burn.utils";
 import type { WeightUnit } from "@/features/weight/actions/weight.utils";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -39,6 +40,7 @@ const useSettledText = (text: string): string => {
 
 interface ReadyBodyProps {
   estimate: IntakeReady;
+  measured: MeasuredBurn | null;
   unit: WeightUnit;
   today: string;
   hasCondition: boolean;
@@ -48,7 +50,7 @@ interface ReadyBodyProps {
 
 // The range is the headline, not the point: the figure looks like an estimate
 // because it is shown as one (spec direction contract).
-const ReadyBody = ({ estimate, unit, today, hasCondition, isSaving, onUse }: ReadyBodyProps) => {
+const ReadyBody = ({ estimate, measured, unit, today, hasCondition, isSaving, onUse }: ReadyBodyProps) => {
   const timeline = timelineText(estimate, today);
 
   return (
@@ -68,7 +70,7 @@ const ReadyBody = ({ estimate, unit, today, hasCondition, isSaving, onUse }: Rea
       {hasCondition && <p className="text-xs text-text-muted">{CONDITION_DISCLAIMER_TEXT}</p>}
       <Disclosure label="Details">
         <div className="flex flex-col gap-1 pt-1 text-xs tabular-nums text-text-muted">
-          {detailLines(estimate, unit).map((line) => (
+          {detailLines(estimate, unit, measured).map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
@@ -79,6 +81,7 @@ const ReadyBody = ({ estimate, unit, today, hasCondition, isSaving, onUse }: Rea
 
 interface ResultBarProps {
   state: BarState;
+  measured: MeasuredBurn | null;
   unit: WeightUnit;
   today: string;
   hasCondition: boolean;

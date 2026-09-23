@@ -347,16 +347,19 @@ export const draftToInput = (draft: IntakeDraft): IntakeSaveInput | null => {
   };
 };
 
+// `measured` defaults to null so the bar reads the same before the browser's
+// measured burn has arrived as it does when there is none.
 export const barStateOf = (
   draft: IntakeDraft,
   currentYear: number,
+  measured: MeasuredBurn | null = null,
 ): BarState => {
   const input = draftToInput(draft);
   if (input === null)
     return { kind: "incomplete", missing: missingRequiredCount(draft) };
   const field = intakeInputError(input, currentYear);
   if (field) return { kind: "invalid", field };
-  const estimate = estimateIntake(input, currentYear);
+  const estimate = estimateIntake(input, currentYear, measured);
   return estimate.kind === "refused"
     ? { kind: "refused", reason: estimate.reason }
     : { kind: "ready", estimate };

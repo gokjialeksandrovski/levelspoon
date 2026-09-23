@@ -32,6 +32,7 @@ export default defineConfig({
     "weight-goal.spec.ts",
     "intake-estimate.spec.ts",
     "macro-targets.spec.ts",
+    "measured-burn.spec.ts",
   ],
   fullyParallel: false,
   // Every spec file's `beforeEach` truncates the same shared Postgres tables,

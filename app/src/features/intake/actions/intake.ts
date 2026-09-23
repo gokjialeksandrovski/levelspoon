@@ -19,6 +19,8 @@ import { db, type DbTransaction } from "@/lib/db";
 import { intakeProfiles, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
+import { measuredBurnFor } from "./measured-burn.store";
+import type { MeasuredBurn } from "./measured-burn.utils";
 import {
   CONSENT_VERSION,
   estimateIntake,
@@ -244,8 +246,9 @@ export const saveIntakeEstimate = async (input: IntakeSaveInput, timezone: strin
 
   const field = intakeInputError(input, currentYear);
   if (field) return { kind: "invalid", field };
-  // Recomputed here, never read from the browser.
-  const estimate = estimateIntake(input, currentYear);
+  // Both recomputed here, never read from the browser.
+  const measured = await measuredBurnFor(userId, timezone);
+  const estimate = estimateIntake(input, currentYear, measured);
   if (estimate.kind === "refused") return { kind: "refused", reason: estimate.reason };
 
   const [view, latestKg] = await Promise.all([fetchWeightView(userId), fetchLatestWeightKg(userId)]);
@@ -272,4 +275,11 @@ export const saveIntakeEstimate = async (input: IntakeSaveInput, timezone: strin
 export const forgetIntakeProfile = async (): Promise<void> => {
   const userId = await requireUserId();
   await db.delete(intakeProfiles).where(eq(intakeProfiles.userId, userId));
+};
+
+// The browser's IANA timezone decides which local day each row belongs to, and
+// the server cannot know it. Same hand-off day-view.tsx makes for getDayLog.
+export const getMeasuredBurn = async (timezone: string): Promise<MeasuredBurn> => {
+  const userId = await requireUserId();
+  return measuredBurnFor(userId, timezone);
 };
