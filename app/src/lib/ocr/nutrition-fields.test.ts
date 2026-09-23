@@ -40,13 +40,25 @@ describe("toFieldValues", () => {
   });
 });
 
+const FILLED_FIELDS: FieldValues = {
+  energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0", sugarsG: "4.0", proteinG: "9.0", saltG: "0.18", fibreG: "",
+};
+
 describe("toNutritionValues", () => {
   it("parses string field values back into numbers", () => {
-    const result = toNutritionValues({
-      energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0", sugarsG: "4.0", proteinG: "9.0", saltG: "0.18", fibreG: "",
-    });
+    const result = toNutritionValues(FILLED_FIELDS);
     expect(result.energyKcal).toBe(70);
     expect(result.fatG).toBe(2.0);
+  });
+
+  it("reads a blank fibre field as unknown, not zero", () => {
+    const values = toNutritionValues({ ...FILLED_FIELDS, fibreG: "" });
+    expect(values.fibreG).toBeNull();
+  });
+
+  it("reads a typed fibre field as a figure", () => {
+    const values = toNutritionValues({ ...FILLED_FIELDS, fibreG: "2.6" });
+    expect(values.fibreG).toBe(2.6);
   });
 });
 
@@ -95,6 +107,10 @@ describe("flaggedFieldSet", () => {
   it("maps ocr-service's snake_case flags to camelCase field names", () => {
     const result = flaggedFieldSet(["saturates_g", "fat_g"]);
     expect(result).toEqual(new Set(["saturatesG", "fatG"]));
+  });
+
+  it("maps the validator's fibre_g flag, which a component-total overrun emits", () => {
+    expect(flaggedFieldSet(["fibre_g"])).toEqual(new Set(["fibreG"]));
   });
 
   it("ignores an unrecognized flag rather than throwing", () => {

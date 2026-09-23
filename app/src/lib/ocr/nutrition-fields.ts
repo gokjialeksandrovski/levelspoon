@@ -28,7 +28,10 @@ export const NUTRITION_FIELD_GROUPS: (keyof NullableNutritionValues)[][] = [
 ];
 
 // Matches ocr-service's validate.py flag naming (snake_case field names),
-// confirmed directly against its source during planning.
+// confirmed directly against its source. fibre_g is one of them: _component_total
+// adds it when a known fibre figure pushes the total past 100g, and
+// _negative_flags yields it for a negative figure. A flag with no entry here is
+// dropped by flaggedFieldSet, so the field would never be highlighted.
 export const FLAG_TO_FIELD: Record<string, keyof NullableNutritionValues> = {
   energy_kcal: "energyKcal",
   fat_g: "fatG",
@@ -37,6 +40,7 @@ export const FLAG_TO_FIELD: Record<string, keyof NullableNutritionValues> = {
   sugars_g: "sugarsG",
   protein_g: "proteinG",
   salt_g: "saltG",
+  fibre_g: "fibreG",
 };
 
 export type FieldValues = Record<keyof NullableNutritionValues, string>;
