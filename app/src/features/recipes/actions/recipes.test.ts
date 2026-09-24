@@ -17,9 +17,13 @@ import {
   saveMealAsRecipe,
   saveRecipeEdit,
 } from "./recipes";
-import type { AmountRow } from "./recipes.store";
+import { fetchMealItems, fetchRecipeItems, type AmountRow } from "./recipes.store";
 
-const TODAY = todayLocalDateString("UTC");
+// Every earlierMealsFromRecipe/saveRecipeEdit call in this file passes this -
+// the same zone TODAY/YESTERDAY are computed in, so "today" here always means
+// the day those two constants mean.
+const TIMEZONE = "UTC";
+const TODAY = todayLocalDateString(TIMEZONE);
 const YESTERDAY = addCalendarDays(TODAY, -1);
 
 const seedUser = async (): Promise<string> => {
@@ -579,7 +583,7 @@ describe("earlierMealsFromRecipe", () => {
     const open = await seedMeal(userId);
     await enterRecipe(open, recipeId);
 
-    const earlier = await earlierMealsFromRecipe(open);
+    const earlier = await earlierMealsFromRecipe(open, TIMEZONE);
     expect(earlier.map((meal) => meal.mealId).sort()).toEqual([edited, untouched].sort());
     expect(earlier.find((meal) => meal.mealId === untouched)?.matches).toBe(true);
     expect(earlier.find((meal) => meal.mealId === edited)?.matches).toBe(false);
@@ -595,7 +599,7 @@ describe("earlierMealsFromRecipe", () => {
     const open = await seedMeal(userId);
     await enterRecipe(open, recipeId);
 
-    const [earlier] = await earlierMealsFromRecipe(open);
+    const [earlier] = await earlierMealsFromRecipe(open, TIMEZONE);
     expect(earlier.currentKcal).toBeCloseTo(140);
   });
 
@@ -613,7 +617,7 @@ describe("earlierMealsFromRecipe", () => {
     const open = await seedMeal(userId);
     await enterRecipe(open, recipeId);
 
-    const [earlier] = await earlierMealsFromRecipe(open);
+    const [earlier] = await earlierMealsFromRecipe(open, TIMEZONE);
     expect(earlier.mealNumber).toBe(2);
   });
 
@@ -628,7 +632,7 @@ describe("earlierMealsFromRecipe", () => {
     const open = await seedMeal(userId);
     await enterRecipe(open, recipeId);
 
-    expect(await earlierMealsFromRecipe(open)).toHaveLength(0);
+    expect(await earlierMealsFromRecipe(open, TIMEZONE)).toHaveLength(0);
   });
 
   it("returns nothing for an unlinked meal", async () => {
@@ -638,7 +642,7 @@ describe("earlierMealsFromRecipe", () => {
     const mealId = await seedMeal(userId);
     await addIngredient(mealId, productId, 200);
 
-    expect(await earlierMealsFromRecipe(mealId)).toHaveLength(0);
+    expect(await earlierMealsFromRecipe(mealId, TIMEZONE)).toHaveLength(0);
   });
 
   // The spec draws no line between a meal a recipe was saved from and one it
@@ -658,18 +662,37 @@ describe("earlierMealsFromRecipe", () => {
     const open = await seedMeal(userId);
     await enterRecipe(open, saved.recipeId);
 
-    const earlier = await earlierMealsFromRecipe(open);
+    const earlier = await earlierMealsFromRecipe(open, TIMEZONE);
     expect(earlier).toHaveLength(1);
     expect(earlier[0].mealId).toBe(origin);
     expect(earlier[0].matches).toBe(true);
 
-    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], {
-      kind: "overwrite",
-      alsoUpdateMealIds: [origin],
-    });
+    const result = await saveRecipeEdit(
+      open,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [origin] },
+      TIMEZONE,
+    );
     if (result.kind !== "saved") throw new Error(result.kind);
     expect(result.updatedMealNumbers).toHaveLength(1);
     expect((await liveRows(origin)).map((row) => Number(row.quantity))).toEqual([250]);
+  });
+
+  // [Critical] The meal page has no day guard - a linked meal logged for
+  // yesterday is reachable by id today, same as one logged today. Nothing
+  // here may be offered: the prompt's own copy says "earlier today", and
+  // yesterday's total is a figure the user already read and closed out.
+  it("never offers anything when the open meal is itself not on today", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const yesterdayOpen = await seedMeal(userId, YESTERDAY);
+    await enterRecipe(yesterdayOpen, recipeId);
+    const yesterdaySibling = await seedMeal(userId, YESTERDAY);
+    await enterRecipe(yesterdaySibling, recipeId);
+
+    expect(await earlierMealsFromRecipe(yesterdayOpen, TIMEZONE)).toEqual([]);
   });
 });
 
@@ -687,7 +710,12 @@ describe("saveRecipeEdit", () => {
     const productId = await seedProduct(userId);
     const { recipeId, open } = await linkedMeal(userId, productId);
 
-    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "overwrite", alsoUpdateMealIds: [] });
+    const result = await saveRecipeEdit(
+      open,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [] },
+      TIMEZONE,
+    );
     expect(result.kind).toBe("saved");
 
     const items = await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId));
@@ -706,10 +734,12 @@ describe("saveRecipeEdit", () => {
     const openAgain = await seedMeal(userId);
     await enterRecipe(openAgain, recipeId);
 
-    const result = await saveRecipeEdit(openAgain, [draftItem(productId, 250)], {
-      kind: "overwrite",
-      alsoUpdateMealIds: [earlier],
-    });
+    const result = await saveRecipeEdit(
+      openAgain,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [earlier] },
+      TIMEZONE,
+    );
     if (result.kind !== "saved") throw new Error(result.kind);
 
     expect((await liveRows(earlier)).map((row) => Number(row.quantity))).toEqual([250]);
@@ -717,6 +747,30 @@ describe("saveRecipeEdit", () => {
     expect(result.skippedMealNumbers).toHaveLength(0);
     // `open` was not ticked, so it keeps what it had.
     expect((await liveRows(open)).map((row) => Number(row.quantity))).toEqual([200]);
+  });
+
+  // Duplicated ids in the tick list must not double-rewrite a meal or double
+  // count it into updatedMealNumbers - the server never trusts the client
+  // anywhere else in this feature, and a client-sent duplicate is no
+  // different from any other unchecked input.
+  it("dedupes a duplicated ticked id instead of rewriting it twice", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+    const dupTarget = await seedMeal(userId);
+    await enterRecipe(dupTarget, recipeId);
+
+    const result = await saveRecipeEdit(
+      open,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [dupTarget, dupTarget] },
+      TIMEZONE,
+    );
+    if (result.kind !== "saved") throw new Error(result.kind);
+
+    expect(result.updatedMealNumbers).toHaveLength(1);
+    expect((await liveRows(dupTarget)).map((row) => Number(row.quantity))).toEqual([250]);
   });
 
   // The server re-checks; it does not trust the tick. The prompt was rendered
@@ -730,10 +784,12 @@ describe("saveRecipeEdit", () => {
     await enterRecipe(earlier, recipeId);
     await db.update(mealIngredients).set({ quantity: "111.00" }).where(eq(mealIngredients.mealId, earlier));
 
-    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], {
-      kind: "overwrite",
-      alsoUpdateMealIds: [earlier],
-    });
+    const result = await saveRecipeEdit(
+      open,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [earlier] },
+      TIMEZONE,
+    );
     if (result.kind !== "saved") throw new Error(result.kind);
 
     expect((await liveRows(earlier)).map((row) => Number(row.quantity))).toEqual([111]);
@@ -749,12 +805,47 @@ describe("saveRecipeEdit", () => {
     const yesterdayMeal = await seedMeal(userId, YESTERDAY);
     await enterRecipe(yesterdayMeal, recipeId);
 
-    await saveRecipeEdit(open, [draftItem(productId, 250)], {
-      kind: "overwrite",
-      alsoUpdateMealIds: [yesterdayMeal],
-    });
+    await saveRecipeEdit(
+      open,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [yesterdayMeal] },
+      TIMEZONE,
+    );
 
     expect((await liveRows(yesterdayMeal)).map((row) => Number(row.quantity))).toEqual([200]);
+  });
+
+  // [Critical] The predicate above only pins the cross-day case where the
+  // *open* meal is on today. The case that actually decides the rule is an
+  // open meal that is itself not on today: nothing may be offered or
+  // retro-updated, but the recipe edit itself - the open meal's own rows,
+  // and the recipe row - still saves normally. Nothing is named as skipped
+  // either, since nothing was offered in the first place.
+  it("still saves the recipe edit but retro-updates nothing when the open meal is on a past day", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const yesterdayOpen = await seedMeal(userId, YESTERDAY);
+    await enterRecipe(yesterdayOpen, recipeId);
+    const yesterdaySibling = await seedMeal(userId, YESTERDAY);
+    await enterRecipe(yesterdaySibling, recipeId);
+
+    const result = await saveRecipeEdit(
+      yesterdayOpen,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [yesterdaySibling] },
+      TIMEZONE,
+    );
+    if (result.kind !== "saved") throw new Error(result.kind);
+
+    expect(result.updatedMealNumbers).toHaveLength(0);
+    expect(result.skippedMealNumbers).toHaveLength(0);
+    expect((await liveRows(yesterdaySibling)).map((row) => Number(row.quantity))).toEqual([200]);
+    // The recipe edit itself still saves - only the retro-update is withheld.
+    expect((await liveRows(yesterdayOpen)).map((row) => Number(row.quantity))).toEqual([250]);
+    const items = await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId));
+    expect(items.map((item) => Number(item.quantity))).toEqual([250]);
   });
 
   it("new files a second recipe and leaves the source byte-identical", async () => {
@@ -764,7 +855,12 @@ describe("saveRecipeEdit", () => {
     const { recipeId, open } = await linkedMeal(userId, productId);
     const before = await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId));
 
-    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "new", name: "Bigger yogurt" });
+    const result = await saveRecipeEdit(
+      open,
+      [draftItem(productId, 250)],
+      { kind: "new", name: "Bigger yogurt" },
+      TIMEZONE,
+    );
     if (result.kind !== "saved") throw new Error(result.kind);
 
     expect(result.recipeId).not.toBe(recipeId);
@@ -784,7 +880,12 @@ describe("saveRecipeEdit", () => {
     const openAgain = await seedMeal(userId);
     await enterRecipe(openAgain, recipeId);
 
-    await saveRecipeEdit(openAgain, [draftItem(productId, 250)], { kind: "new", name: "Bigger yogurt" });
+    await saveRecipeEdit(
+      openAgain,
+      [draftItem(productId, 250)],
+      { kind: "new", name: "Bigger yogurt" },
+      TIMEZONE,
+    );
 
     expect((await liveRows(earlier)).map((row) => Number(row.quantity))).toEqual([200]);
   });
@@ -795,9 +896,9 @@ describe("saveRecipeEdit", () => {
     const productId = await seedProduct(userId);
     const { open } = await linkedMeal(userId, productId);
 
-    expect(await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "new", name: " " })).toEqual({
-      kind: "invalid_name",
-    });
+    expect(
+      await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "new", name: " " }, TIMEZONE),
+    ).toEqual({ kind: "invalid_name" });
     expect(await db.select().from(recipes)).toHaveLength(1);
     expect((await liveRows(open)).map((row) => Number(row.quantity))).toEqual([200]);
   });
@@ -809,7 +910,9 @@ describe("saveRecipeEdit", () => {
     const productId = await seedProduct(userId);
     const { recipeId, open } = await linkedMeal(userId, productId);
 
-    expect(await saveRecipeEdit(open, [], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({ kind: "empty_draft" });
+    expect(
+      await saveRecipeEdit(open, [], { kind: "overwrite", alsoUpdateMealIds: [] }, TIMEZONE),
+    ).toEqual({ kind: "empty_draft" });
     expect(await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId))).toHaveLength(1);
     expect(await liveRows(open)).toHaveLength(1);
   });
@@ -820,9 +923,14 @@ describe("saveRecipeEdit", () => {
     const productId = await seedProduct(userId);
     const { open } = await linkedMeal(userId, productId);
 
-    expect(await saveRecipeEdit(open, [draftItem(productId, 0)], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({
-      kind: "empty_draft",
-    });
+    expect(
+      await saveRecipeEdit(
+        open,
+        [draftItem(productId, 0)],
+        { kind: "overwrite", alsoUpdateMealIds: [] },
+        TIMEZONE,
+      ),
+    ).toEqual({ kind: "empty_draft" });
   });
 
   it("overwrite refuses an unlinked meal", async () => {
@@ -832,9 +940,14 @@ describe("saveRecipeEdit", () => {
     const mealId = await seedMeal(userId);
     await addIngredient(mealId, productId, 200);
 
-    expect(await saveRecipeEdit(mealId, [draftItem(productId, 250)], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({
-      kind: "recipe_missing",
-    });
+    expect(
+      await saveRecipeEdit(
+        mealId,
+        [draftItem(productId, 250)],
+        { kind: "overwrite", alsoUpdateMealIds: [] },
+        TIMEZONE,
+      ),
+    ).toEqual({ kind: "recipe_missing" });
   });
 
   it("refuses another user's meal", async () => {
@@ -845,30 +958,54 @@ describe("saveRecipeEdit", () => {
     const { open } = await linkedMeal(owner, productId);
 
     signedInAs(intruder);
-    expect(await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({
-      kind: "meal_missing",
-    });
+    expect(
+      await saveRecipeEdit(
+        open,
+        [draftItem(productId, 250)],
+        { kind: "overwrite", alsoUpdateMealIds: [] },
+        TIMEZONE,
+      ),
+    ).toEqual({ kind: "meal_missing" });
   });
 
-  // [RF-2b] Postgres hands `quantity` back as "250.00". A comparison that
-  // forgets Number() reports every meal as diverged, which silently kills the
-  // tick - the retro-update would appear to do nothing and say nothing.
-  it("treats a meal written at the column's own scale as still matching", async () => {
+  // [RF-2b] Postgres hands `quantity` back as a string ("250.00"), not the
+  // number every downstream comparison needs. A "same figure, written at a
+  // different scale" scenario cannot discriminate a forgotten Number() here:
+  // meal_ingredients.quantity and recipe_items.quantity are both
+  // numeric(10,2), and Postgres always canonicalizes to that fixed scale on
+  // read regardless of the precision written - confirmed directly against
+  // this database: `'200.5'::numeric(10,2)::text` and
+  // `'200.500001'::numeric(10,2)::text` both come back "200.50". So two
+  // equal values always round-trip to byte-identical text, and a broken
+  // implementation that compared those raw strings would coincidentally
+  // still agree with a correct one. What actually discriminates a forgotten
+  // Number() is asserting the conversion itself happened: `toAmountRow`
+  // (recipes.store.ts) is the one place a numeric column's string is turned
+  // into the number everything downstream assumes, and removing that call
+  // would either make `.quantity` a string (this assertion catches it
+  // directly) or crash `mealMatchesRecipe`'s `.toFixed(2)` (a string has no
+  // such method) - this test pins the former without relying on the latter.
+  it("returns quantity as a number, not the numeric column's raw string", async () => {
     const userId = await seedUser();
     signedInAs(userId);
     const productId = await seedProduct(userId);
-    const { recipeId, open: _open } = await linkedMeal(userId, productId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
     const earlier = await seedMeal(userId);
     await enterRecipe(earlier, recipeId);
-    // Same figure, restated at full scale - a no-op rewrite, not an edit.
-    await db.update(mealIngredients).set({ quantity: "200.00" }).where(eq(mealIngredients.mealId, earlier));
+
+    const [mealItem] = await fetchMealItems(earlier);
+    const [recipeItem] = await fetchRecipeItems(recipeId);
+    expect(typeof mealItem.quantity).toBe("number");
+    expect(typeof recipeItem.quantity).toBe("number");
+    // And the retro-update this conversion exists for genuinely still works.
     const openAgain = await seedMeal(userId);
     await enterRecipe(openAgain, recipeId);
-
-    const result = await saveRecipeEdit(openAgain, [draftItem(productId, 250)], {
-      kind: "overwrite",
-      alsoUpdateMealIds: [earlier],
-    });
+    const result = await saveRecipeEdit(
+      openAgain,
+      [draftItem(productId, 250)],
+      { kind: "overwrite", alsoUpdateMealIds: [earlier] },
+      TIMEZONE,
+    );
     if (result.kind !== "saved") throw new Error(result.kind);
     expect(result.updatedMealNumbers).toHaveLength(1);
   });

@@ -2,6 +2,7 @@
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db, type DbTransaction } from "@/lib/db";
+import { todayLocalDateString } from "@/lib/date/day-bounds";
 
 import { isValidRecipeName, mealMatchesRecipe } from "./recipes.utils";
 import type { EarlierMeal } from "./recipes.utils";
@@ -157,11 +158,21 @@ export const deleteRecipe = async (recipeId: string): Promise<DeleteRecipeResult
  * and left alone, never silently excluded and never silently overwritten.
  * The kcal each would move is computed by the caller against its own draft -
  * this states what each meal totals now, which is the measured half.
+ *
+ * `fetchSiblingMealIds`' own `logDate` filter matches the *open* meal's day,
+ * whatever day that is - it takes the day it's given and has no timezone of
+ * its own. Genuinely-today is enforced here, where the timezone lives: a
+ * linked meal is reachable by id regardless of its day, and the prompt this
+ * feeds says "earlier today" verbatim, so a meal logged for yesterday must
+ * offer nothing at all, before any sibling read.
  */
-export const earlierMealsFromRecipe = async (mealId: string): Promise<EarlierMeal[]> => {
+export const earlierMealsFromRecipe = async (mealId: string, timezone: string): Promise<EarlierMeal[]> => {
   const userId = await requireUserId();
   const meal = await fetchOwnedMeal(userId, mealId);
   if (!meal?.recipeId) {
+    return [];
+  }
+  if (meal.logDate !== todayLocalDateString(timezone)) {
     return [];
   }
   const siblingIds = await fetchSiblingMealIds(userId, meal);
@@ -209,9 +220,12 @@ const partitionTickedMeals = async (
   recipeItemRows: readonly AmountRow[],
 ): Promise<{ updatable: string[]; skipped: string[] }> => {
   const siblingIds = await fetchSiblingMealIds(userId, meal);
-  // An id the prompt never offered - another day's meal, another user's, or
-  // one invented by hand - is not skipped, it is not there at all.
-  const eligible = tickedIds.filter((id) => siblingIds.includes(id));
+  // Deduped first: a client-sent duplicate must not rewrite a meal twice or
+  // count it twice into updatedMealNumbers - the server never trusts the
+  // client anywhere else in this feature. An id the prompt never offered -
+  // another day's meal, another user's, or one invented by hand - is not
+  // skipped, it is not there at all.
+  const eligible = [...new Set(tickedIds)].filter((id) => siblingIds.includes(id));
   const rows = await Promise.all(eligible.map((id) => fetchMealItems(id)));
   return eligible.reduce<{ updatable: string[]; skipped: string[] }>(
     (split, id, index) => {
@@ -298,16 +312,26 @@ const mapSaveRecipeEditError = (error: unknown): SaveRecipeEditResult => {
  * rewrites the earlier meals that survived the re-check. One transaction: a
  * recipe that moved without its meal, or a meal rewritten against a recipe
  * that then failed to save, are both half-states nothing here can explain.
+ *
+ * The retro-update is withheld outright when the open meal is not on today
+ * (by `timezone`'s reckoning) - same reasoning as `earlierMealsFromRecipe`:
+ * nothing was ever offered for a past day, so nothing here may be ticked
+ * either, no matter what the caller sends. The recipe edit itself - the open
+ * meal's own rows, and the recipe row - still saves normally; only the
+ * retro-update is skipped, and silently, since naming meals that were never
+ * offered would be noise.
  */
 export const saveRecipeEdit = async (
   mealId: string,
   draft: AmountRow[],
   mode: SaveRecipeEditMode,
+  timezone: string,
 ): Promise<SaveRecipeEditResult> => {
   const userId = await requireUserId();
   try {
     assertEditableDraft(draft, mode);
     const { meal, existingName } = await resolveEditTarget(userId, mealId, mode);
+    const isToday = meal.logDate === todayLocalDateString(timezone);
 
     // Read the recipe's own current items before anything overwrites them -
     // partitionTickedMeals re-checks every ticked meal against these, and once
@@ -315,7 +339,7 @@ export const saveRecipeEdit = async (
     // re-check done afterwards would silently pass every meal.
     const oldItems = meal.recipeId ? await fetchRecipeItems(meal.recipeId) : [];
     const { updatable, skipped } =
-      mode.kind === "overwrite"
+      mode.kind === "overwrite" && isToday
         ? await partitionTickedMeals(userId, meal, mode.alsoUpdateMealIds, oldItems)
         : { updatable: [], skipped: [] };
     const numbers = await fetchMealNumbers(userId, meal.logDate);
