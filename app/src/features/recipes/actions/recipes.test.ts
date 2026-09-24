@@ -315,8 +315,18 @@ describe("listRecipes", () => {
   });
 });
 
-const savedRecipeFrom = async (userId: string, name: string, amounts: [string, number][]): Promise<string> => {
-  const mealId = await seedMeal(userId);
+// Defaults the origin meal to a day other than TODAY: saveMealAsRecipe does
+// not care about log_date, and a caller testing "today's other meals from
+// this recipe" almost never means to count the meal the recipe was itself
+// filed from among them. A test that genuinely wants that meal on today
+// passes TODAY explicitly.
+const savedRecipeFrom = async (
+  userId: string,
+  name: string,
+  amounts: [string, number][],
+  logDate = YESTERDAY,
+): Promise<string> => {
+  const mealId = await seedMeal(userId, logDate);
   for (const [productId, quantity] of amounts) {
     await addIngredient(mealId, productId, quantity);
   }
@@ -594,13 +604,16 @@ describe("earlierMealsFromRecipe", () => {
     signedInAs(userId);
     const productId = await seedProduct(userId);
     const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    // Unrelated to the recipe - occupies today's meal-number 1, so the
+    // asserted 2 below cannot be mistaken for the siblings array's own index
+    // (which is 0 either way).
+    await seedMeal(userId);
     const first = await seedMeal(userId);
     await enterRecipe(first, recipeId);
     const open = await seedMeal(userId);
     await enterRecipe(open, recipeId);
 
     const [earlier] = await earlierMealsFromRecipe(open);
-    // savedRecipeFrom created meal 1, so the first entered meal is meal 2.
     expect(earlier.mealNumber).toBe(2);
   });
 
@@ -626,6 +639,37 @@ describe("earlierMealsFromRecipe", () => {
     await addIngredient(mealId, productId, 200);
 
     expect(await earlierMealsFromRecipe(mealId)).toHaveLength(0);
+  });
+
+  // The spec draws no line between a meal a recipe was saved from and one it
+  // was later entered into - both are "linked" (design doc: "saved from, or
+  // entered from, a recipe") - so a still-matching origin meal on today must
+  // be offered and retro-updated exactly like any other. Built from the raw
+  // primitives, not savedRecipeFrom, because the test needs the origin
+  // meal's own id, which that helper does not return.
+  it("offers and retro-updates the meal a recipe was itself saved from", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const origin = await seedMeal(userId);
+    await addIngredient(origin, productId, 200);
+    const saved = await saveMealAsRecipe(origin, "Yogurt");
+    if (saved.kind !== "saved") throw new Error(saved.kind);
+    const open = await seedMeal(userId);
+    await enterRecipe(open, saved.recipeId);
+
+    const earlier = await earlierMealsFromRecipe(open);
+    expect(earlier).toHaveLength(1);
+    expect(earlier[0].mealId).toBe(origin);
+    expect(earlier[0].matches).toBe(true);
+
+    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], {
+      kind: "overwrite",
+      alsoUpdateMealIds: [origin],
+    });
+    if (result.kind !== "saved") throw new Error(result.kind);
+    expect(result.updatedMealNumbers).toHaveLength(1);
+    expect((await liveRows(origin)).map((row) => Number(row.quantity))).toEqual([250]);
   });
 });
 

@@ -2,7 +2,7 @@
 // would let a browser read or write any user's recipes. Only "use server"
 // modules import this file (CLAUDE.md, "Server/client boundary"); they resolve
 // the user themselves and hand it in. Same rule as weight.store.ts.
-import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { db, type DbTransaction } from "@/lib/db";
 import { effectiveNutritionSelection } from "@/lib/db/effective-nutrition";
@@ -292,18 +292,7 @@ export const fetchMealKcals = async (userId: string, mealIds: readonly string[])
 
 /** The user's other live meals on the same local day, from the same recipe.
  * The day filter is the rule, not a convenience: a closed day's total is a
- * figure the user already read.
- *
- * Also excludes the recipe's own origin meal - "Save as recipe" links that
- * meal to the recipe in the same transaction the recipe row is inserted, so
- * that meal's createdAt is always earlier than the recipe's own. Every meal
- * later entered into an already-existing recipe is created at or after that
- * point, which the `createdAt > recipes.createdAt` join tells apart with no
- * extra column. A meal created before the recipe existed and only entered
- * into it afterward would be wrongly excluded here too - unreachable through
- * the shipped UI (a recipe can only be entered into the meal being actively
- * built), so left as a known ceiling rather than added tracking for it.
- */
+ * figure the user already read. */
 export const fetchSiblingMealIds = async (userId: string, meal: OwnedMeal): Promise<string[]> => {
   if (meal.recipeId === null) {
     return [];
@@ -311,7 +300,6 @@ export const fetchSiblingMealIds = async (userId: string, meal: OwnedMeal): Prom
   const rows = await db
     .select({ id: meals.id })
     .from(meals)
-    .innerJoin(recipes, eq(recipes.id, meals.recipeId))
     .where(
       and(
         eq(meals.userId, userId),
@@ -319,7 +307,6 @@ export const fetchSiblingMealIds = async (userId: string, meal: OwnedMeal): Prom
         eq(meals.recipeId, meal.recipeId),
         isNull(meals.deletedAt),
         ne(meals.id, meal.id),
-        gt(meals.createdAt, recipes.createdAt),
       ),
     )
     .orderBy(asc(meals.createdAt));
