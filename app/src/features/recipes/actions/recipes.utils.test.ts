@@ -39,9 +39,14 @@ describe("mealMatchesRecipe", () => {
   // [RF-1] A meal can hold two rows of the same product - the user logged
   // olive oil twice, or entered this very recipe into the meal a second time.
   // Comparing sets instead of multisets would call the doubled meal
-  // "matching" and let a wholesale retro-update silently halve it.
+  // "matching" and let a wholesale retro-update silently halve it. The
+  // second expect is the one that actually pins multiset vs. set: lengths
+  // are equal (2 vs 2) here, so the length guard cannot mask a set-based
+  // comparison, which would see only the distinct key "chicken:180.00",
+  // find it present in the recipe, and wrongly call this a match.
   it("does not match a meal holding the same product twice", () => {
     expect(mealMatchesRecipe([amount("chicken", 180), amount("chicken", 180), amount("rice", 200)], recipe)).toBe(false);
+    expect(mealMatchesRecipe([amount("chicken", 180), amount("chicken", 180)], recipe)).toBe(false);
   });
 
   it("matches a recipe that itself lists one product twice", () => {
