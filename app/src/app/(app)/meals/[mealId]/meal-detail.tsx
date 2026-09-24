@@ -250,9 +250,10 @@ interface MealReadyBodyProps {
   mealId: string;
   removals: UseRemovalsResult;
   onIngredientChanged: () => void;
+  onAnnounce: (message: string) => void;
 }
 
-type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId">;
+type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId" | "onAnnounce">;
 
 const IngredientsSection = ({ meal, removals, onIngredientChanged }: IngredientsSectionProps) => {
   const entries = listEntries(meal.ingredients, removals.removals);
@@ -271,14 +272,15 @@ interface MealActionsProps {
   mealId: string;
   mealDate: string;
   recipe: MealRecipeLink | null;
-  hasIngredients: boolean;
+  ingredients: MealIngredientDetail[];
   onIngredientChanged: () => void;
+  onAnnounce: (message: string) => void;
 }
 
 // Two adding actions sit together; deleting the meal is a different kind of
 // act and gets a gap wide enough that a thumb reaching for "Add" never finds
 // it by accident.
-const MealActions = ({ mealId, mealDate, recipe, hasIngredients, onIngredientChanged }: MealActionsProps) => (
+const MealActions = ({ mealId, mealDate, recipe, ingredients, onIngredientChanged, onAnnounce }: MealActionsProps) => (
   <div className="mt-8 flex flex-col gap-10">
     <div className="flex flex-col gap-3">
       {/*
@@ -294,13 +296,13 @@ const MealActions = ({ mealId, mealDate, recipe, hasIngredients, onIngredientCha
         Add ingredient
       </Link>
       <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
-      <RecipeControl mealId={mealId} recipe={recipe} hasIngredients={hasIngredients} onChanged={onIngredientChanged} />
+      <RecipeControl mealId={mealId} recipe={recipe} ingredients={ingredients} onChanged={onIngredientChanged} onAnnounce={onAnnounce} />
     </div>
     <DeleteMeal mealId={mealId} mealDate={mealDate} />
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged }: MealReadyBodyProps) => (
+const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged, onAnnounce }: MealReadyBodyProps) => (
   <>
     <div className="mb-4 flex flex-col gap-2">
       <RecipeDivergence recipe={meal.recipe} />
@@ -311,8 +313,9 @@ const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged }: MealRead
       mealId={mealId}
       mealDate={meal.date}
       recipe={meal.recipe}
-      hasIngredients={meal.ingredients.length > 0}
+      ingredients={meal.ingredients}
       onIngredientChanged={onIngredientChanged}
+      onAnnounce={onAnnounce}
     />
   </>
 );
@@ -343,13 +346,14 @@ interface MealDetailBodyProps {
   mealId: string;
   removals: UseRemovalsResult;
   onIngredientChanged: () => void;
+  onAnnounce: (message: string) => void;
 }
 
 interface MealDetailContentProps extends Omit<MealDetailBodyProps, "state"> {
   state: Exclude<MealDetailState, { status: "loading" }>;
 }
 
-const MealDetailContent = ({ state, mealId, removals, onIngredientChanged }: MealDetailContentProps) => {
+const MealDetailContent = ({ state, mealId, removals, onIngredientChanged, onAnnounce }: MealDetailContentProps) => {
   if (state.status === "error") {
     return <p className="text-sm text-danger">Couldn&apos;t load this meal. Try again.</p>;
   }
@@ -357,12 +361,14 @@ const MealDetailContent = ({ state, mealId, removals, onIngredientChanged }: Mea
     return <MealNotFound />;
   }
 
-  return <MealReadyBody meal={state.meal} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} />;
+  return (
+    <MealReadyBody meal={state.meal} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} onAnnounce={onAnnounce} />
+  );
 };
 
 // Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody, so
 // a fast fetch doesn't flash a placeholder then jump-cut to content.
-const MealDetailBody = ({ state, mealId, removals, onIngredientChanged }: MealDetailBodyProps) => {
+const MealDetailBody = ({ state, mealId, removals, onIngredientChanged, onAnnounce }: MealDetailBodyProps) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");
 
@@ -376,13 +382,14 @@ const MealDetailBody = ({ state, mealId, removals, onIngredientChanged }: MealDe
       animate={{ opacity: 1 }}
       transition={contentFadeTransition(reduceMotion)}
     >
-      <MealDetailContent state={state} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} />
+      <MealDetailContent state={state} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} onAnnounce={onAnnounce} />
     </motion.div>
   );
 };
 
 export const MealDetail = ({ mealId }: MealDetailProps) => {
   const [reloadCounter, setReloadCounter] = useState(0);
+  const [recipeAnnouncement, setRecipeAnnouncement] = useState("");
   const bumpReload = () => setReloadCounter((count) => count + 1);
   const state = useMealDetail(mealId, reloadCounter);
   const removals = useRemovals(bumpReload);
@@ -393,9 +400,11 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
       <AppHeader variant="back" title={mealDetailTitle(state)} backHref={mealDetailBackHref(state, today)} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
         {/* Also covers the in-place refetch after an ingredient edit, which
-            rewrites the whole body with no navigation to announce it. */}
-        <LiveStatus message={removals.announcement || (state.status === "ready" ? "Meal loaded" : "")} />
-        <MealDetailBody state={state} mealId={mealId} removals={removals} onIngredientChanged={bumpReload} />
+            rewrites the whole body with no navigation to announce it. A
+            recipe save takes priority: a removal's Undo announcement is
+            about a control that's already gone once a different sheet saves. */}
+        <LiveStatus message={recipeAnnouncement || removals.announcement || (state.status === "ready" ? "Meal loaded" : "")} />
+        <MealDetailBody state={state} mealId={mealId} removals={removals} onIngredientChanged={bumpReload} onAnnounce={setRecipeAnnouncement} />
       </main>
     </>
   );

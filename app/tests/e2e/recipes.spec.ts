@@ -69,7 +69,10 @@ test("a meal edited after saving carries the red divergence line", async ({ page
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("From your saved recipes: Chicken rice bowl")).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit" }).click();
+  // Linking the meal to a recipe adds its own "Edit this recipe" control,
+  // which also matches "Edit" by substring - .first() picks the ingredient
+  // row's own Edit button, which sits earlier in the DOM (Task 9).
+  await page.getByRole("button", { name: "Edit" }).first().click();
   await page.getByLabel("Amount", { exact: true }).fill("100");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
@@ -198,4 +201,158 @@ test("deleting from the picker arms first and empties the list", async ({ page }
   await page.getByRole("button", { name: "Delete for good" }).click();
   await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toHaveCount(0);
   await expect(page.getByText("No recipes left")).toBeVisible();
+});
+
+const enterSavedRecipe = async (page: import("@playwright/test").Page, name: string) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Use one of your recipes" }).click();
+  await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+  await page.waitForURL(/\/meals\/[^/]+$/);
+};
+
+test("a linked meal offers Edit this recipe instead of Save as recipe", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  await expect(page.getByRole("button", { name: "Edit this recipe" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save as recipe" })).toHaveCount(0);
+});
+
+test("cancelling either pane leaves the meal untouched and fires no request", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") requests.push(request.url());
+  });
+
+  // Scoped to the dialog: the ingredient row behind it has its own "Edit
+  // Olympus Greek Yogurt 2% Fat amount" control, an unrelated background
+  // match for the same substring that a page-wide getByLabel also finds.
+  const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("999");
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText(/200 ?g/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  // The draft reopens from the meal, not from the abandoned edit.
+  await expect(sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount")).toHaveValue("200");
+  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText(/200 ?g/)).toBeVisible();
+
+  // One read fires when earlierMealsFromRecipe runs on Continue; nothing else.
+  expect(requests.length).toBeLessThanOrEqual(1);
+});
+
+test("Back returns from the fork to the amounts pane", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
+  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("button", { name: "Back" }).click();
+
+  await expect(sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount")).toHaveValue("250");
+});
+
+test("removing every row disables Save with a reason", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  // Scoped for the same reason as above: the ingredient row behind the sheet
+  // has its own "Remove Olympus Greek Yogurt 2% Fat" button too.
+  const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await sheet.getByRole("button", { name: "Remove Olympus Greek Yogurt 2% Fat" }).click();
+
+  await expect(page.getByText("A recipe needs at least one ingredient.")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Continue" })).toBeDisabled();
+});
+
+test("overwrite updates a matching earlier meal and leaves a diverged one named", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  // Meal 2: entered and then hand-edited, so it diverges.
+  await enterSavedRecipe(page, "Chicken rice bowl");
+  await page.getByRole("button", { name: "Edit" }).first().click();
+  await page.getByLabel("Amount", { exact: true }).fill("150");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "no longer matches" })).toBeVisible();
+
+  // Meal 3: entered and left alone, so it still matches.
+  await enterSavedRecipe(page, "Chicken rice bowl");
+  // Meal 4: the one being edited.
+  await enterSavedRecipe(page, "Chicken rice bowl");
+
+  const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
+  await sheet.getByRole("button", { name: "Continue" }).click();
+
+  const tick = sheet.getByRole("checkbox", { name: /Also update the meal/ });
+  await expect(tick).toBeVisible();
+  await expect(page.getByText(/Meal 1 and Meal 3 were changed|Meal 2 was changed/)).toBeVisible();
+  await tick.check();
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+
+  await expect(page.getByText(/250 ?g/)).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "no longer matches" })).toHaveCount(0);
+});
+
+test("saving as a new recipe relinks this meal and leaves the original alone", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+  await enterSavedRecipe(page, "Chicken rice bowl");
+
+  const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
+  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("radio", { name: "Save as a new recipe" }).check();
+  await sheet.getByLabel("New recipe name").fill("Bigger bowl");
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+
+  await expect(page.getByText("From your saved recipes: Bigger bowl")).toBeVisible();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Use one of your recipes" }).click();
+  // ^-anchored: unanchored also catches this row's own "Rename"/"Delete"
+  // controls, same reason the picker's other tests already anchor this.
+  await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Bigger bowl/ })).toBeVisible();
+});
+
+test("the fork shows no earlier-meals block when there are none", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("checkbox", { name: /Also update/ })).toHaveCount(0);
+  await expect(page.getByText(/was changed after you logged it/)).toHaveCount(0);
 });
