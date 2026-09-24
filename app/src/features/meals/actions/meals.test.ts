@@ -67,7 +67,9 @@ const seedProduct = async (
 };
 
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE products, product_overrides, meal_ingredients, meals, "user" CASCADE`);
+  await db.execute(
+    sql`TRUNCATE TABLE recipe_items, recipes, products, product_overrides, meal_ingredients, meals, "user" CASCADE`,
+  );
   mockAuth.mockReset();
 });
 

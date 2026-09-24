@@ -176,6 +176,15 @@ export const meals = pgTable("meals", {
   // forgotten insert fails at compile time rather than filing a meal on the
   // server's UTC day.
   logDate: date("log_date").notNull(),
+  // FK declared in migration 0024, not with references(): schema/recipes.ts
+  // imports `products` from this file, so pointing back at `recipes` here
+  // would make the two modules import each other.
+  //
+  // Nullable, no cascade: null is an ordinary meal. deleteRecipe sets this
+  // null rather than deleting the meal, so nutrition already logged never
+  // moves because a recipe went away. "Latest wins" - a second recipe picked
+  // into one meal replaces this.
+  recipeId: uuid("recipe_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   // Soft delete, so "Delete meal" can offer undo; purged by createMeal's sweep.
   deletedAt: timestamp("deleted_at"),

@@ -14,7 +14,7 @@ export const localToday = () =>
   todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 export const truncateAll = () =>
-  db.execute(sql`TRUNCATE TABLE products, meal_ingredients, meals, "user" CASCADE`);
+  db.execute(sql`TRUNCATE TABLE recipe_items, recipes, products, meal_ingredients, meals, "user" CASCADE`);
 
 export const BASE_NUTRITION = {
   energyKcal: "70", fatG: "2.0", saturatesG: "1.2", carbohydrateG: "4.0",
