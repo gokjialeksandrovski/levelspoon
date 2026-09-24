@@ -548,10 +548,12 @@ time, the picker is the only surface.
 - **Divergence is computed, never stored.** `mealMatchesRecipe`
   (`features/recipes/actions/recipes.utils.ts`) compares a meal's live rows
   against `recipe_items` as a **multiset** - a meal can hold two rows of one
-  product - with a tolerance below `numeric(10,2)`'s own scale. One
-  comparison answers both questions the UI asks: may this meal be
-  retro-updated, and does it carry its red line. A stored boolean would have
-  to be cleared and set by every ingredient write path.
+  product - with a tolerance below `numeric(10,2)`'s own scale. Retro-update
+  eligibility uses `mealMatchesRecipe` alone: exact multiset equality. The red
+  divergence line additionally requires `recipeIsSubsetOfMeal` to be false,
+  suppressing it when a recipe is picked into a meal that already held other
+  food. A stored boolean would have to be cleared and set by every ingredient
+  write path.
 - **Retro-update is wholesale, today only, and only ever offered where that
   is harmless.** Today-only is enforced in the **action**, not the store:
   the guard is `meal.logDate !== todayLocalDateString(timezone)`, the same
