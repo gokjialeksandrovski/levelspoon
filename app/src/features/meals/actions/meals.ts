@@ -16,6 +16,8 @@ import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 import { fetchCalorieGoal, fetchMacroTargets } from "@/features/goals/actions/goals";
 import type { MacroTargets } from "@/features/goals/actions/macro-targets.utils";
+import { fetchMealItems, fetchOwnedRecipe, fetchRecipeItems } from "@/features/recipes/actions/recipes.store";
+import { mealMatchesRecipe } from "@/features/recipes/actions/recipes.utils";
 import { fetchWeightView } from "@/features/weight/actions/weight";
 import type { WeightView } from "@/features/weight/actions/weight.utils";
 import { calorieRemaining, type CalorieRemaining } from "@/features/goals/actions/goals.utils";
@@ -268,6 +270,16 @@ export interface MealIngredientDetail {
   portions: readonly Portion[];
 }
 
+export interface MealRecipeLink {
+  id: string;
+  name: string;
+  /** Whether this meal's live rows still equal the recipe's items. Computed,
+   * never stored: "the user edited this meal" and "the recipe moved under it"
+   * are the same fact, and a stored flag would have to be cleared and set by
+   * every ingredient write path. */
+  matches: boolean;
+}
+
 export interface MealDetail {
   id: string;
   mealNumber: number; // 1-based position among the user's meals in the meal's own local day
@@ -277,6 +289,9 @@ export interface MealDetail {
   // Goal minus the FULL local day's total (all meals, not just this one) -
   // same number the home hero shows for that day.
   dayCalorieRemaining: CalorieRemaining;
+  /** Null for an ordinary meal, and for a meal whose recipe was deleted - the
+   * food stays, the link does not. */
+  recipe: MealRecipeLink | null;
 }
 
 interface ProductMeasureColumns {
@@ -409,10 +424,28 @@ const fetchDayCalorieRemaining = async (
   return calorieRemaining(calorieGoal, dayTotalKcal);
 };
 
+const fetchMealRecipeLink = async (
+  userId: string,
+  mealId: string,
+  recipeId: string | null,
+): Promise<MealRecipeLink | null> => {
+  if (recipeId === null) {
+    return null;
+  }
+  const recipe = await fetchOwnedRecipe(userId, recipeId);
+  // A soft-deleted recipe reads as no recipe: deleteRecipe nulls the column
+  // too, so this covers only the window between the two writes.
+  if (!recipe) {
+    return null;
+  }
+  const [mealRows, recipeItemRows] = await Promise.all([fetchMealItems(mealId), fetchRecipeItems(recipeId)]);
+  return { id: recipe.id, name: recipe.name, matches: mealMatchesRecipe(mealRows, recipeItemRows) };
+};
+
 export const getMealDetail = async (mealId: string): Promise<MealDetail | null> => {
   const userId = await requireUserId();
   const [meal] = await db
-    .select({ id: meals.id, logDate: meals.logDate })
+    .select({ id: meals.id, logDate: meals.logDate, recipeId: meals.recipeId })
     .from(meals)
     .where(and(eq(meals.id, mealId), eq(meals.userId, userId), isNull(meals.deletedAt)));
   if (!meal) {
@@ -422,9 +455,10 @@ export const getMealDetail = async (mealId: string): Promise<MealDetail | null> 
   const rows = await fetchMealIngredientRows(userId, mealId);
   const ingredients = rows.map(toMealIngredientDetail);
   const total = ingredients.reduce((sum, ingredient) => addNutrition(sum, ingredient.contribution), ZERO_NUTRITION);
-  const [mealNumber, dayCalorieRemaining] = await Promise.all([
+  const [mealNumber, dayCalorieRemaining, recipe] = await Promise.all([
     mealNumberInLocalDay(userId, meal.id, meal.logDate),
     fetchDayCalorieRemaining(userId, meal.logDate),
+    fetchMealRecipeLink(userId, meal.id, meal.recipeId),
   ]);
   return {
     id: meal.id,
@@ -433,6 +467,7 @@ export const getMealDetail = async (mealId: string): Promise<MealDetail | null> 
     ingredients,
     total,
     dayCalorieRemaining,
+    recipe,
   };
 };
 

@@ -6,6 +6,7 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
 import { saveDailyGoals } from "@/features/goals/actions/goals";
 import { saveNutritionOverride } from "@/features/products/actions/products";
+import { deleteRecipe, saveMealAsRecipe } from "@/features/recipes/actions/recipes";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
@@ -53,7 +54,7 @@ const seedProduct = async (
       sugarsG: "4.0",
       proteinG: "9.0",
       saltG: "0.18",
-      nutritionPhotoKey: "test/placeholder.jpg",
+      nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`,
       createdByUserId: userId,
       servingUnit: overrides.servingUnit ?? null,
       servingGrams:
@@ -980,5 +981,76 @@ describe("recentAmounts", () => {
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
     expect(await recentAmounts(productId)).toEqual([]);
+  });
+});
+
+describe("getMealDetail recipe link", () => {
+  it("is null for an ordinary meal", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const productId = await seedProduct(userId);
+    const { mealId } = await createMeal(TODAY, "UTC");
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
+
+    const meal = await getMealDetail(mealId);
+    expect(meal?.recipe).toBeNull();
+  });
+
+  it("names the recipe and reports a match for a meal that still equals it", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const productId = await seedProduct(userId);
+    const { mealId } = await createMeal(TODAY, "UTC");
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
+    const saved = await saveMealAsRecipe(mealId, "Yogurt");
+    if (saved.kind !== "saved") throw new Error(saved.kind);
+
+    const meal = await getMealDetail(mealId);
+    expect(meal?.recipe).toEqual({ id: saved.recipeId, name: "Yogurt", matches: true });
+  });
+
+  it("reports no match once an ingredient is edited", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const productId = await seedProduct(userId);
+    const { mealId } = await createMeal(TODAY, "UTC");
+    const { mealIngredientId } = await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
+    await saveMealAsRecipe(mealId, "Yogurt");
+
+    await updateMealIngredientQuantity(mealIngredientId, 250, "g", 250, "g");
+
+    const meal = await getMealDetail(mealId);
+    expect(meal?.recipe?.matches).toBe(false);
+  });
+
+  it("reports no match once an ingredient is added", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const productId = await seedProduct(userId);
+    const other = await seedProduct(userId);
+    const { mealId } = await createMeal(TODAY, "UTC");
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
+    await saveMealAsRecipe(mealId, "Yogurt");
+
+    await saveMealIngredient({ mealId, productId: other, quantity: 10, quantityUnit: "g", quantitySource: "manual", entryCount: 10, entryUnit: "g" });
+
+    const meal = await getMealDetail(mealId);
+    expect(meal?.recipe?.matches).toBe(false);
+  });
+
+  it("is null again once the recipe is deleted, with the food kept", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const productId = await seedProduct(userId);
+    const { mealId } = await createMeal(TODAY, "UTC");
+    await saveMealIngredient({ mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
+    const saved = await saveMealAsRecipe(mealId, "Yogurt");
+    if (saved.kind !== "saved") throw new Error(saved.kind);
+
+    await deleteRecipe(saved.recipeId);
+
+    const meal = await getMealDetail(mealId);
+    expect(meal?.recipe).toBeNull();
+    expect(meal?.ingredients).toHaveLength(1);
   });
 });
