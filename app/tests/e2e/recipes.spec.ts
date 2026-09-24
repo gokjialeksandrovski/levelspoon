@@ -91,3 +91,110 @@ test("a meal with no ingredients offers no recipe control", async ({ page }) => 
   await expect(page.getByText("No ingredients yet.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save as recipe" })).toHaveCount(0);
 });
+
+const saveCurrentMealAsRecipe = async (page: import("@playwright/test").Page, name: string) => {
+  await page.getByRole("button", { name: "Save as recipe" }).click();
+  // exact: true - cooking-fat-control's always-mounted "Food name" field is a
+  // substring match on "Name" otherwise (strict-mode violation), same reason
+  // this file's own first test already scopes this field.
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(`From your saved recipes: ${name}`)).toBeVisible();
+};
+
+test("a user with no recipes sees the Add meals section with both rows locked", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+
+  await expect(page.getByText("Add meals")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use one of your recipes" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Lazy track" })).toBeDisabled();
+});
+
+test("a saved recipe unlocks the row and enters into a fresh meal", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+
+  const recipeRow = page.getByRole("button", { name: "Use one of your recipes" });
+  await expect(recipeRow).toBeEnabled();
+  await recipeRow.click();
+
+  // The picker prices each recipe, so a row is distinguishable from a
+  // same-named sibling by its figures alone.
+  // ^-anchored: an unanchored match also catches "Rename Chicken rice bowl"
+  // and "Delete Chicken rice bowl", which both contain the recipe's name too.
+  await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toContainText("140 kcal");
+  await page.getByRole("button", { name: /^Chicken rice bowl/ }).click();
+
+  await page.waitForURL(/\/meals\/[^/]+$/);
+  await expect(page.getByText("From your saved recipes: Chicken rice bowl")).toBeVisible();
+  await expect(page.getByText(/200 ?g/)).toBeVisible();
+});
+
+test("leaving the picker writes nothing", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Use one of your recipes" }).click();
+  await page.getByRole("button", { name: "Choose a different way" }).click();
+
+  // "Scan the barcode" is the row's visible title, not any element's
+  // accessible name - the row is a <label>, and its file input's own
+  // accessible name is its distinct inputLabel ("Barcode photo").
+  await expect(page.getByLabel("Barcode photo")).toBeVisible();
+});
+
+test("renaming from the picker keeps the row and cancels cleanly", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Use one of your recipes" }).click();
+
+  await page.getByRole("button", { name: "Rename Chicken rice bowl" }).click();
+  await page.getByLabel("Recipe name").fill("Nope");
+  await page.getByRole("button", { name: "Cancel rename" }).click();
+  await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Rename Chicken rice bowl" }).click();
+  await page.getByLabel("Recipe name").fill("Bowl");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByRole("button", { name: /^Bowl/ })).toBeVisible();
+});
+
+test("deleting from the picker arms first and empties the list", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Use one of your recipes" }).click();
+
+  await page.getByRole("button", { name: "Delete Chicken rice bowl" }).click();
+  await page.getByRole("button", { name: "Keep it" }).click();
+  await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete Chicken rice bowl" }).click();
+  await page.getByRole("button", { name: "Delete for good" }).click();
+  await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toHaveCount(0);
+});

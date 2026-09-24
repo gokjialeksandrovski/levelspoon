@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, useState } from "react";
 
-import { BarcodeIcon, CameraIcon, CarrotIcon, PencilSimpleIcon, type Icon } from "@phosphor-icons/react";
+import { BarcodeIcon, BookmarkSimpleIcon, CameraIcon, CarrotIcon, FeatherIcon, PencilSimpleIcon, type Icon } from "@phosphor-icons/react";
 
 import { ocrProductName } from "@/features/products/actions/ocr";
 import { matchProduct, searchUserProducts } from "@/features/products/actions/products";
@@ -19,6 +19,7 @@ import { BACK_TO_OPTIONS_LABEL, type WizardAction } from "../capture-wizard.type
 
 interface ProductNameStepProps {
   pendingBarcode: string | null;
+  hasRecipes: boolean;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -252,10 +253,12 @@ interface PhotoNameEntryProps {
   busyLabel: string | null;
   error: string | null;
   previewUrl: string | null;
+  hasRecipes: boolean;
   onSelectName: (photo: File) => void;
   onSelectBarcode: (photo: File) => void;
   onManualEntry: () => void;
   onWholeFood: () => void;
+  onPickRecipe: () => void;
 }
 
 interface BarcodeAndPhotoRowsProps {
@@ -314,30 +317,75 @@ const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: Manua
   </>
 );
 
+const ADD_MEALS_TITLE = "Add meals";
+const RECIPE_ROW_LOCKED_DESCRIPTION = "Save a meal as a recipe first, and it lands here.";
+const RECIPE_ROW_DESCRIPTION = "Re-add a meal you already saved, in one tap.";
+// Named, not inline: the row is the whole feature this cycle, and the copy is
+// what tells the user it is coming rather than broken.
+const LAZY_TRACK_DESCRIPTION = "Coming soon — describe a meal and get a rough estimate.";
+
+const OPTION_GROUP_TITLE_CLASS = "px-1 pb-1 pt-4 text-xs font-medium uppercase tracking-wide text-text-muted";
+
+interface AddMealsRowsProps {
+  hasRecipes: boolean;
+  isLoading: boolean;
+  onPickRecipe: () => void;
+}
+
+const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe }: AddMealsRowsProps) => (
+  <>
+    <EntryOptionRow
+      icon={BookmarkSimpleIcon}
+      title="Use one of your recipes"
+      description={hasRecipes ? RECIPE_ROW_DESCRIPTION : RECIPE_ROW_LOCKED_DESCRIPTION}
+      onClick={onPickRecipe}
+      disabled={isLoading || !hasRecipes}
+    />
+    {/* Placeholder only this cycle: no action, no step, no handler. */}
+    <EntryOptionRow
+      icon={FeatherIcon}
+      title="Lazy track"
+      description={LAZY_TRACK_DESCRIPTION}
+      onClick={() => undefined}
+      disabled
+    />
+  </>
+);
+
 interface EntryOptionListProps extends Omit<PhotoNameEntryProps, "busyLabel" | "error" | "previewUrl"> {
   isLoading: boolean;
 }
 
-const EntryOptionList = ({ isLoading, onSelectName, onSelectBarcode, onManualEntry, onWholeFood }: EntryOptionListProps) => (
-  <div className="flex flex-col divide-y divide-border">
-    <BarcodeAndPhotoRows isLoading={isLoading} onSelectName={onSelectName} onSelectBarcode={onSelectBarcode} />
-    <ManualAndWholeFoodRows isLoading={isLoading} onManualEntry={onManualEntry} onWholeFood={onWholeFood} />
+// Two labelled groups over one divide-y list: the rows are still one list to
+// scan, and the headings say which of the two things the user is adding.
+const EntryOptionList = ({ isLoading, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe }: EntryOptionListProps) => (
+  <div className="flex flex-col">
+    <div className="flex flex-col divide-y divide-border">
+      <BarcodeAndPhotoRows isLoading={isLoading} onSelectName={onSelectName} onSelectBarcode={onSelectBarcode} />
+      <ManualAndWholeFoodRows isLoading={isLoading} onManualEntry={onManualEntry} onWholeFood={onWholeFood} />
+    </div>
+    <h3 className={OPTION_GROUP_TITLE_CLASS}>{ADD_MEALS_TITLE}</h3>
+    <div className="flex flex-col divide-y divide-border">
+      <AddMealsRows hasRecipes={hasRecipes} isLoading={isLoading} onPickRecipe={onPickRecipe} />
+    </div>
   </div>
 );
 
 // The option rows are all disabled while the photo is read, so showing the
 // photo beats four dead rows and a 12px spinner. The caption names the wait
 // the tapped row started - reading a name, reading a code, looking one up.
-const PhotoEntryBody = ({ busyLabel, previewUrl, onSelectName, onSelectBarcode, onManualEntry, onWholeFood }: Omit<PhotoNameEntryProps, "error">) =>
+const PhotoEntryBody = ({ busyLabel, previewUrl, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe }: Omit<PhotoNameEntryProps, "error">) =>
   busyLabel && previewUrl ? (
     <PhotoPreview previewUrl={previewUrl} scanningLabel={busyLabel} />
   ) : (
     <EntryOptionList
       isLoading={busyLabel !== null}
+      hasRecipes={hasRecipes}
       onSelectName={onSelectName}
       onSelectBarcode={onSelectBarcode}
       onManualEntry={onManualEntry}
       onWholeFood={onWholeFood}
+      onPickRecipe={onPickRecipe}
     />
   );
 
@@ -352,7 +400,7 @@ const PhotoNameEntry = ({ error, ...body }: PhotoNameEntryProps) => (
   </div>
 );
 
-export const ProductNameStep = ({ pendingBarcode, dispatch }: ProductNameStepProps) => {
+export const ProductNameStep = ({ pendingBarcode, hasRecipes, dispatch }: ProductNameStepProps) => {
   const { error, busyLabel, callbacks } = useStepRequest(pendingBarcode, dispatch);
   const { previewUrl, showPreview } = usePreviewUrl();
 
@@ -361,6 +409,7 @@ export const ProductNameStep = ({ pendingBarcode, dispatch }: ProductNameStepPro
       busyLabel={busyLabel}
       error={error}
       previewUrl={previewUrl}
+      hasRecipes={hasRecipes}
       onSelectName={(photo) => {
         showPreview(photo);
         void handlePhotoName(photo, callbacks);
@@ -371,6 +420,7 @@ export const ProductNameStep = ({ pendingBarcode, dispatch }: ProductNameStepPro
       }}
       onManualEntry={() => dispatch({ type: "MANUAL_NAME_ENTRY", pendingBarcode })}
       onWholeFood={() => dispatch({ type: "WHOLE_FOOD_SEARCH" })}
+      onPickRecipe={() => dispatch({ type: "RECIPE_PICK_OPENED" })}
     />
   );
 };

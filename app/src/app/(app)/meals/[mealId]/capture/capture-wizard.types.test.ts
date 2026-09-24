@@ -447,3 +447,21 @@ describe("wizardReducer — barcode scan", () => {
     expect(next).toEqual({ kind: "product-photo", pendingBarcode: "0000000000000" });
   });
 });
+
+describe("RECIPE_PICK_OPENED", () => {
+  it("moves to the picker from the entry options", () => {
+    expect(wizardReducer({ kind: "product-photo", pendingBarcode: null }, { type: "RECIPE_PICK_OPENED" })).toEqual({
+      kind: "recipe-pick",
+    });
+  });
+
+  // Entering a recipe leaves the wizard by navigation, so there is no action
+  // for it and no step it lands on. "saved" means "product saved, add
+  // another", which is not what happened.
+  it("has no transition out of the picker in the reducer", () => {
+    expect(wizardReducer({ kind: "recipe-pick" }, { type: "ADD_ANOTHER" })).toEqual({
+      kind: "product-photo",
+      pendingBarcode: null,
+    });
+  });
+});

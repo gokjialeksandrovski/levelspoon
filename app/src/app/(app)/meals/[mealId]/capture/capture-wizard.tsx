@@ -8,6 +8,8 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import { discardEmptyMeal, getDayLog } from "@/features/meals/actions/meals";
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
+import { listRecipes } from "@/features/recipes/actions/recipes";
+import type { RecipeSummary } from "@/features/recipes/actions/recipes.store";
 import { Button } from "@/components/ui/button";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
@@ -19,6 +21,7 @@ import { ConfirmStep } from "./steps/confirm-step";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
 import { ManualNameStep, ProductNameStep } from "./steps/product-name-step";
+import { RecipePickStep } from "./steps/recipe-pick-step";
 import { ServingSizeStep } from "./steps/serving-size-step";
 import { StandardFoodSearchStep } from "./steps/standard-food-search-step";
 import { WizardShell } from "./wizard-shell";
@@ -29,6 +32,7 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Product name",
   "product-manual": "Product name",
   "standard-food-search": "Whole food",
+  "recipe-pick": "Your recipes",
   "match-result": "Which product?",
   "nutrition-photo": "Nutrition label",
   "serving-size": "Serving size",
@@ -44,6 +48,7 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "product-photo": 0.2,
   "product-manual": 0.2,
   "standard-food-search": 0.3,
+  "recipe-pick": 0.3,
   "match-result": 0.4,
   "nutrition-photo": 0.5,
   "serving-size": 0.6,
@@ -81,6 +86,31 @@ const useTodaySnapshots = (today: string, savedCount: number): DaySnapshot[] => 
   }, [today, savedCount]);
 
   return snapshots;
+};
+
+// One request, both jobs: the length decides whether the `Add meals` row is
+// greyed, and the list itself is handed to the picker, so tapping opens
+// instantly instead of spinning. `reloadCounter` re-runs it after a rename or
+// a delete.
+const useRecipes = (reloadCounter: number): { recipes: RecipeSummary[]; isLoading: boolean } => {
+  const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    listRecipes()
+      .then((list) => {
+        setRecipes(list);
+        setIsLoading(false);
+      })
+      // Harmless: the row stays greyed, which is what a user with no recipes
+      // sees anyway - never a picker that opens onto nothing.
+      .catch((error) => {
+        console.error("Loading recipes failed", error);
+        setIsLoading(false);
+      });
+  }, [reloadCounter]);
+
+  return { recipes, isLoading };
 };
 
 const SAVE_PULSE_SCALE = 1.04;
@@ -142,8 +172,27 @@ const SavedStep = ({ moment, dispatch, onDone }: SavedStepProps) => (
 
 const renderProductPhotoStep = (
   step: Extract<WizardStep, { kind: "product-photo" }>,
+  hasRecipes: boolean,
   dispatch: (action: PathAction) => void,
-) => <ProductNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
+) => <ProductNameStep pendingBarcode={step.pendingBarcode} hasRecipes={hasRecipes} dispatch={dispatch} />;
+
+const renderRecipePickStep = (
+  mealId: string,
+  recipes: RecipeSummary[],
+  isLoading: boolean,
+  onRecipesChanged: () => void,
+  onEntered: () => void,
+  dispatch: (action: PathAction) => void,
+) => (
+  <RecipePickStep
+    mealId={mealId}
+    recipes={recipes}
+    isLoading={isLoading}
+    onRecipesChanged={onRecipesChanged}
+    onEntered={onEntered}
+    dispatch={dispatch}
+  />
+);
 
 const renderManualNameStep = (
   step: Extract<WizardStep, { kind: "product-manual" }>,
@@ -240,6 +289,10 @@ interface StepViewProps {
   step: WizardStep;
   mealId: string;
   moment: SavedMoment;
+  recipes: RecipeSummary[];
+  isRecipesLoading: boolean;
+  onRecipesChanged: () => void;
+  onRecipeEntered: () => void;
   dispatch: (action: PathAction) => void;
   onSaved: () => void;
   onDone: () => void;
@@ -252,11 +305,15 @@ interface StepViewProps {
 // One branch per wizard step. CLAUDE.md requires a switch here: TypeScript
 // narrows the discriminated union per case, which a Record lookup cannot do
 // without an unsafe cast.
-const StepView = ({ step, mealId, moment, dispatch, onSaved, onDone }: StepViewProps) => {
+const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
-    case "product-photo": return renderProductPhotoStep(step, dispatch);
+    case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
+    // default, not a tenth `case`: every other kind already has its own case
+    // above, so TypeScript still narrows step to exactly "recipe-pick" here -
+    // and ESLint's complexity rule (unlike SwitchCase) doesn't count default.
+    default: return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch);
     case "match-result": return renderMatchResultStep(step, dispatch);
     case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);
     case "serving-size": return renderServingSizeStep(step, dispatch);
@@ -366,12 +423,30 @@ const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
 
 export const CaptureWizard = ({ mealId }: { mealId: string }) => {
   const reduceMotion = useReducedMotion();
+  const router = useRouter();
+  const [recipesReload, setRecipesReload] = useState(0);
+  const { recipes, isLoading: isRecipesLoading } = useRecipes(recipesReload);
   const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId);
 
   return (
     <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack} exits={backExits}>
       <AnimatedStep stepKind={step.kind} reduceMotion={reduceMotion}>
-        <StepView step={step} mealId={mealId} moment={moment} dispatch={dispatch} onSaved={markSaved} onDone={finish} />
+        <StepView
+          step={step}
+          mealId={mealId}
+          moment={moment}
+          recipes={recipes}
+          isRecipesLoading={isRecipesLoading}
+          onRecipesChanged={() => setRecipesReload((count) => count + 1)}
+          // Entering a recipe is already written, so this leaves the wizard
+          // for the meal page rather than landing on the "saved" step - that
+          // step means "product saved, add another", which is not what
+          // happened.
+          onRecipeEntered={() => router.push(`/meals/${mealId}`)}
+          dispatch={dispatch}
+          onSaved={markSaved}
+          onDone={finish}
+        />
       </AnimatedStep>
     </WizardShell>
   );

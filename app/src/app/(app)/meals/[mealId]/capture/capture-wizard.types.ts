@@ -32,6 +32,9 @@ export type WizardStep =
    * wizard entirely. */
   | { kind: "product-manual"; pendingBarcode: string | null }
   | { kind: "standard-food-search" }
+  /** The recipe list. Picking one writes immediately and navigates to the
+   * meal page, so nothing transitions out of here inside the reducer. */
+  | { kind: "recipe-pick" }
   | {
       kind: "match-result";
       nameGuess: string;
@@ -130,6 +133,7 @@ export type WizardAction =
   | { type: "ADD_ANOTHER" }
   | { type: "CHANGE_MATCH"; nameGuess: string; candidates: SelectedProduct[]; pendingBarcode: string | null }
   | { type: "WHOLE_FOOD_SEARCH" }
+  | { type: "RECIPE_PICK_OPENED" }
   | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct }
   | { type: "MANUAL_NAME_ENTRY"; pendingBarcode: string | null }
   | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> }
@@ -259,6 +263,7 @@ export const wizardReducer = (state: WizardStep, action: WizardAction): WizardSt
     case "ADD_ANOTHER": return { kind: "product-photo", pendingBarcode: null };
     case "CHANGE_MATCH": return applyChangeMatch(action);
     case "WHOLE_FOOD_SEARCH": return { kind: "standard-food-search" };
+    case "RECIPE_PICK_OPENED": return { kind: "recipe-pick" };
     case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [], pendingBarcode: null };
     case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);

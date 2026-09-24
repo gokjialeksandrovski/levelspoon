@@ -129,3 +129,11 @@ describe("pathReducer", () => {
     expect(pathReducer(saved, { type: "BACK" })).toEqual([{ kind: "saved" }]);
   });
 });
+
+describe("recipe-pick on the path", () => {
+  it("stacks like any forward step and pops on BACK", () => {
+    const opened = pathReducer([INITIAL_WIZARD_STEP], { type: "RECIPE_PICK_OPENED" });
+    expect(opened.map((step) => step.kind)).toEqual(["product-photo", "recipe-pick"]);
+    expect(pathReducer(opened, { type: "BACK" }).map((step) => step.kind)).toEqual(["product-photo"]);
+  });
+});
