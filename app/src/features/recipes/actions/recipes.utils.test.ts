@@ -83,7 +83,7 @@ const draftRow = (overrides: Partial<DraftRow> = {}): DraftRow => ({
   mealIngredientId: crypto.randomUUID(),
   productId: "chicken",
   productName: "Chicken breast",
-  quantity: 180,
+  quantity: "180",
   quantityUnit: "g",
   entryCount: 180,
   entryUnit: "g",
@@ -93,7 +93,7 @@ const draftRow = (overrides: Partial<DraftRow> = {}): DraftRow => ({
 
 describe("draftKcal", () => {
   it("prices every row at its own per-unit figure", () => {
-    expect(draftKcal([draftRow({ quantity: 180, kcalPerUnit: 1 }), draftRow({ quantity: 200, kcalPerUnit: 0.7 })])).toBe(320);
+    expect(draftKcal([draftRow({ quantity: "180", kcalPerUnit: 1 }), draftRow({ quantity: "200", kcalPerUnit: 0.7 })])).toBe(320);
   });
 });
 
@@ -103,7 +103,14 @@ describe("draftIsSaveable", () => {
   });
 
   it("refuses a row with a non-positive amount", () => {
-    expect(draftIsSaveable([draftRow({ quantity: 0 })])).toBe(false);
+    expect(draftIsSaveable([draftRow({ quantity: "0" })])).toBe(false);
+  });
+
+  // A field mid-typing ("2.") or just cleared ("") is not yet a valid
+  // amount, not a thrown error - the input holds raw text (see DraftRow).
+  it("refuses a row with a blank or non-numeric amount", () => {
+    expect(draftIsSaveable([draftRow({ quantity: "" })])).toBe(false);
+    expect(draftIsSaveable([draftRow({ quantity: "abc" })])).toBe(false);
   });
 
   it("accepts a draft whose rows all carry an amount", () => {

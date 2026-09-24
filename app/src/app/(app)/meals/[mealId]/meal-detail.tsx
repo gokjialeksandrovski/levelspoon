@@ -387,6 +387,11 @@ const MealDetailBody = ({ state, mealId, removals, onIngredientChanged, onAnnoun
   );
 };
 
+// Long enough for a screen reader to finish a save/retro-update sentence.
+// Judgment call, not a measured value - see RECIPE_ANNOUNCEMENT_CLEAR_MS's
+// use below for why it must expire at all.
+const RECIPE_ANNOUNCEMENT_CLEAR_MS = 4000;
+
 export const MealDetail = ({ mealId }: MealDetailProps) => {
   const [reloadCounter, setReloadCounter] = useState(0);
   const [recipeAnnouncement, setRecipeAnnouncement] = useState("");
@@ -395,14 +400,24 @@ export const MealDetail = ({ mealId }: MealDetailProps) => {
   const removals = useRemovals(bumpReload);
   const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
+  // A recipe save's announcement takes priority for a moment, never forever:
+  // left unset-once-set it would permanently outrank every later removal/
+  // undo announcement, silencing this page's live region for the rest of its
+  // life (WCAG 4.1.3). Clearing it lets the `||` chain fall through again.
+  useEffect(() => {
+    if (!recipeAnnouncement) return;
+    const timer = window.setTimeout(() => setRecipeAnnouncement(""), RECIPE_ANNOUNCEMENT_CLEAR_MS);
+    return () => window.clearTimeout(timer);
+  }, [recipeAnnouncement]);
+
   return (
     <>
       <AppHeader variant="back" title={mealDetailTitle(state)} backHref={mealDetailBackHref(state, today)} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
         {/* Also covers the in-place refetch after an ingredient edit, which
             rewrites the whole body with no navigation to announce it. A
-            recipe save takes priority: a removal's Undo announcement is
-            about a control that's already gone once a different sheet saves. */}
+            recipe save takes priority over a removal's own announcement,
+            but only for as long as RECIPE_ANNOUNCEMENT_CLEAR_MS above. */}
         <LiveStatus message={recipeAnnouncement || removals.announcement || (state.status === "ready" ? "Meal loaded" : "")} />
         <MealDetailBody state={state} mealId={mealId} removals={removals} onIngredientChanged={bumpReload} onAnnounce={setRecipeAnnouncement} />
       </main>

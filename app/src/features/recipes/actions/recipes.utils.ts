@@ -59,12 +59,21 @@ export const kcalPerUnit = (contributionKcal: number, quantity: number): number 
   quantity > 0 ? contributionKcal / quantity : 0;
 
 /** One row of the edit sheet's first pane - the open meal's own rows, which
- * is what an overwrite files. */
+ * is what an overwrite files.
+ *
+ * `quantity` is the raw typed text, not a parsed number - same reason
+ * ingredient-row.tsx's own amount editor holds a string: a controlled input
+ * fed back through `Number()` on every keystroke can never hold "2." long
+ * enough for the next digit, so a decimal amount would be untypable.
+ * `draftKcal`/`draftIsSaveable` parse it themselves; `Number("")` and
+ * `Number("abc")` both fail their `> 0` checks the same way `Number("0")`
+ * does, so a blank or invalid field reads as "not yet a valid amount", never
+ * a thrown error. */
 export interface DraftRow {
   mealIngredientId: string;
   productId: string;
   productName: string;
-  quantity: number;
+  quantity: string;
   quantityUnit: string;
   entryCount: number | null;
   entryUnit: string | null;
@@ -72,12 +81,12 @@ export interface DraftRow {
 }
 
 export const draftKcal = (rows: readonly DraftRow[]): number =>
-  rows.reduce((total, row) => total + row.quantity * row.kcalPerUnit, 0);
+  rows.reduce((total, row) => total + Number(row.quantity) * row.kcalPerUnit, 0);
 
 /** A recipe with no ingredients is one the picker cannot price and nobody can
  * use, so Save stays off until every remaining row carries an amount. */
 export const draftIsSaveable = (rows: readonly DraftRow[]): boolean =>
-  rows.length > 0 && rows.every((row) => row.quantity > 0);
+  rows.length > 0 && rows.every((row) => Number(row.quantity) > 0);
 
 export const isValidRecipeName = (name: string): boolean => name.trim().length > 0;
 

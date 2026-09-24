@@ -25,6 +25,10 @@ import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
 
 const EMPTY_DRAFT_HINT = "A recipe needs at least one ingredient.";
+// Distinct from EMPTY_DRAFT_HINT: a row can be sitting right there on screen
+// with a blank or zero amount, which is not the same problem as no rows at
+// all and shouldn't tell the user to add an ingredient they already added.
+const INVALID_AMOUNT_HINT = "Give every ingredient an amount above zero.";
 
 const FAILURE_COPY: Record<Exclude<SaveRecipeEditResult["kind"], "saved" | "meal_missing">, string> = {
   invalid_name: "Give the new recipe a name.",
@@ -37,7 +41,7 @@ const toDraftRow = (ingredient: MealIngredientDetail): DraftRow => ({
   mealIngredientId: ingredient.id,
   productId: ingredient.productId,
   productName: ingredient.productName,
-  quantity: ingredient.quantity,
+  quantity: String(ingredient.quantity),
   quantityUnit: ingredient.quantityUnit,
   entryCount: ingredient.entryCount,
   entryUnit: ingredient.entryUnit,
@@ -48,11 +52,11 @@ const toDraftRow = (ingredient: MealIngredientDetail): DraftRow => ({
 
 const toAmountRow = (row: DraftRow): AmountRow => ({
   productId: row.productId,
-  quantity: row.quantity,
+  quantity: Number(row.quantity),
   quantityUnit: row.quantityUnit,
   // The echo follows the typed amount when the unit is the stored one, and is
   // dropped when it cannot: "1 slice" restated as 60 g is no longer 1 slice.
-  entryCount: row.entryUnit === row.quantityUnit ? row.quantity : null,
+  entryCount: row.entryUnit === row.quantityUnit ? Number(row.quantity) : null,
   entryUnit: row.entryUnit === row.quantityUnit ? row.entryUnit : null,
 });
 
@@ -75,9 +79,12 @@ const AmountPane = ({ rows, onChange, onContinue, onCancel }: AmountPaneProps) =
               label={`${row.productName} amount`}
               name={`draft-${row.mealIngredientId}`}
               inputMode="decimal"
-              value={String(row.quantity)}
+              // Holds the raw typed text, not a parsed number - see DraftRow.
+              // Round-tripping through Number() on every keystroke is what
+              // made "2." collapse back to "2" before the "." could land.
+              value={row.quantity}
               onChange={(event) =>
-                onChange(rows.map((current, position) => (position === index ? { ...current, quantity: Number(event.target.value) } : current)))
+                onChange(rows.map((current, position) => (position === index ? { ...current, quantity: event.target.value } : current)))
               }
             />
           </div>
@@ -93,7 +100,9 @@ const AmountPane = ({ rows, onChange, onContinue, onCancel }: AmountPaneProps) =
         </div>
       ))}
     </div>
-    {!draftIsSaveable(rows) && <InlineMessage tone="warning">{EMPTY_DRAFT_HINT}</InlineMessage>}
+    {!draftIsSaveable(rows) && (
+      <InlineMessage tone="warning">{rows.length === 0 ? EMPTY_DRAFT_HINT : INVALID_AMOUNT_HINT}</InlineMessage>
+    )}
     <div className="flex gap-2">
       <Button className="flex-1" disabled={!draftIsSaveable(rows)} onClick={onContinue}>
         Continue

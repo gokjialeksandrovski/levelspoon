@@ -70,9 +70,10 @@ test("a meal edited after saving carries the red divergence line", async ({ page
   await expect(page.getByText("From your saved recipes: Chicken rice bowl")).toBeVisible();
 
   // Linking the meal to a recipe adds its own "Edit this recipe" control,
-  // which also matches "Edit" by substring - .first() picks the ingredient
-  // row's own Edit button, which sits earlier in the DOM (Task 9).
-  await page.getByRole("button", { name: "Edit" }).first().click();
+  // which also matches "Edit" by substring. Neither name is literally "Edit"
+  // (aria-label is "Edit {product} amount"), so exact:true can't disambiguate
+  // either - the suffix is what's unique to the ingredient row's own button.
+  await page.getByRole("button", { name: /amount$/ }).click();
   await page.getByLabel("Amount", { exact: true }).fill("100");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
@@ -222,6 +223,25 @@ test("a linked meal offers Edit this recipe instead of Save as recipe", async ({
   await expect(page.getByRole("button", { name: "Save as recipe" })).toHaveCount(0);
 });
 
+test("opening the sheet after an inline edit shows the new amount, not a stale draft", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+
+  // The sheet stays mounted across this in-place reload (Task 9 review,
+  // Critical): without a fresh key per open, its draft would still read the
+  // 200 g it was first mounted with, and Save would silently revert this edit.
+  await page.getByRole("button", { name: /amount$/ }).click();
+  await page.getByLabel("Amount", { exact: true }).fill("150");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(/150 ?g/)).toBeVisible();
+
+  const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
+  await page.getByRole("button", { name: "Edit this recipe" }).click();
+  await expect(sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount")).toHaveValue("150");
+});
+
 test("cancelling either pane leaves the meal untouched and fires no request", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
@@ -249,8 +269,10 @@ test("cancelling either pane leaves the meal untouched and fires no request", as
   await sheet.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByText(/200 ?g/)).toBeVisible();
 
-  // One read fires when earlierMealsFromRecipe runs on Continue; nothing else.
-  expect(requests.length).toBeLessThanOrEqual(1);
+  // Exactly one read fires, from earlierMealsFromRecipe on Continue - not
+  // "at most one", which would also pass if that read never fired at all
+  // and a Cancel fired something instead.
+  expect(requests.length).toBe(1);
 });
 
 test("Back returns from the fork to the amounts pane", async ({ page }) => {
@@ -290,15 +312,19 @@ test("overwrite updates a matching earlier meal and leaves a diverged one named"
   await logOneIngredient(page);
   await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
 
-  // Meal 2: entered and then hand-edited, so it diverges.
+  // Meal 2: entered and then hand-edited, so it diverges. Suffix-matched for
+  // the same reason as the divergence test above: this meal is also linked,
+  // so "Edit this recipe" is a second substring match for "Edit".
   await enterSavedRecipe(page, "Chicken rice bowl");
-  await page.getByRole("button", { name: "Edit" }).first().click();
+  const meal2Url = page.url();
+  await page.getByRole("button", { name: /amount$/ }).click();
   await page.getByLabel("Amount", { exact: true }).fill("150");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "no longer matches" })).toBeVisible();
 
   // Meal 3: entered and left alone, so it still matches.
   await enterSavedRecipe(page, "Chicken rice bowl");
+  const meal3Url = page.url();
   // Meal 4: the one being edited.
   await enterSavedRecipe(page, "Chicken rice bowl");
 
@@ -307,14 +333,27 @@ test("overwrite updates a matching earlier meal and leaves a diverged one named"
   await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
   await sheet.getByRole("button", { name: "Continue" }).click();
 
-  const tick = sheet.getByRole("checkbox", { name: /Also update the meal/ });
+  // Exact copy, not an alternation: a partition that came back backwards
+  // (offering the hand-edited Meal 2, excusing the two matching meals) would
+  // fail both of these, where the old alternation would have passed either way.
+  const tick = sheet.getByRole("checkbox", {
+    name: "Also update the meals you ate from it earlier today (Meal 1, Meal 3) — +70 kcal",
+  });
   await expect(tick).toBeVisible();
-  await expect(page.getByText(/Meal 1 and Meal 3 were changed|Meal 2 was changed/)).toBeVisible();
+  await expect(page.getByText("Meal 2 was changed after you logged it, so it is left as it is.")).toBeVisible();
   await tick.check();
   await sheet.getByRole("button", { name: "Save", exact: true }).click();
 
   await expect(page.getByText(/250 ?g/)).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "no longer matches" })).toHaveCount(0);
+
+  // The retro-update actually reached Meal 3 (ticked, matched) and left
+  // Meal 2 (diverged, excluded) at its own hand-edited amount - checked on
+  // their own pages, not inferred from Meal 4's.
+  await page.goto(meal3Url);
+  await expect(page.getByText(/250 ?g/)).toBeVisible();
+  await page.goto(meal2Url);
+  await expect(page.getByText(/150 ?g/)).toBeVisible();
 });
 
 test("saving as a new recipe relinks this meal and leaves the original alone", async ({ page }) => {

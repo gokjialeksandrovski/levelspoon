@@ -34,19 +34,33 @@ interface RecipeControlProps {
 // and none to edit.
 export const RecipeControl = ({ mealId, recipe, ingredients, onChanged, onAnnounce }: RecipeControlProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  // Bumped on every open, then handed to EditRecipeSheet as `key`. That sheet
+  // stays mounted across a reload (useMealDetail never unmounts the ready
+  // subtree, so bumpReload alone does not remount it), and its draft is
+  // seeded once at mount from the `ingredients` prop - so without a fresh key
+  // per open, editing or removing an ingredient and then reopening the sheet
+  // would show the stale pre-edit draft, and Save would silently overwrite
+  // the edit right back (found in review).
+  const [openKey, setOpenKey] = useState(0);
 
   if (ingredients.length === 0) {
     return null;
   }
 
+  const open = () => {
+    setOpenKey((key) => key + 1);
+    setIsOpen(true);
+  };
+
   if (recipe) {
     return (
       <>
-        <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={() => setIsOpen(true)}>
+        <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={open}>
           <BookmarkSimpleIcon size={20} />
           Edit this recipe
         </Button>
         <EditRecipeSheet
+          key={openKey}
           mealId={mealId}
           recipeName={recipe.name}
           ingredients={ingredients}
@@ -64,7 +78,7 @@ export const RecipeControl = ({ mealId, recipe, ingredients, onChanged, onAnnoun
 
   return (
     <>
-      <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={() => setIsOpen(true)}>
+      <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={open}>
         <BookmarkSimpleIcon size={20} />
         Save as recipe
       </Button>
