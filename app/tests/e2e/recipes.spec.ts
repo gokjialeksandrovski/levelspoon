@@ -197,4 +197,5 @@ test("deleting from the picker arms first and empties the list", async ({ page }
   await page.getByRole("button", { name: "Delete Chicken rice bowl" }).click();
   await page.getByRole("button", { name: "Delete for good" }).click();
   await expect(page.getByRole("button", { name: /^Chicken rice bowl/ })).toHaveCount(0);
+  await expect(page.getByText("No recipes left")).toBeVisible();
 });

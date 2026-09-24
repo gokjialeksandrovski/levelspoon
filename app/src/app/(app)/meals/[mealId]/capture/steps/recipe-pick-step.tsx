@@ -21,6 +21,13 @@ const RECIPE_ROW_CLASS =
 const macroLine = (recipe: RecipeSummary): string =>
   `${Math.round(recipe.total.energyKcal)} kcal · P ${Math.round(recipe.total.proteinG)}g · C ${Math.round(recipe.total.carbohydrateG)}g · F ${Math.round(recipe.total.fatG)}g`;
 
+// Escape is the keyboard half of the exit for both inline row modes below
+// (Rule 21). Neither is overlay-shaped, so there is no backdrop to pair it
+// with - Escape alone closes the gap.
+const handleEscape = (onCancel: () => void) => (event: React.KeyboardEvent) => {
+  if (event.key === "Escape") onCancel();
+};
+
 interface RenameEditorProps {
   recipe: RecipeSummary;
   onDone: () => void;
@@ -47,7 +54,7 @@ const RenameEditor = ({ recipe, onDone, onRenamed }: RenameEditorProps) => {
   };
 
   return (
-    <div className="flex flex-col gap-2 py-3">
+    <div className="flex flex-col gap-2 py-3" onKeyDown={handleEscape(onDone)}>
       <Field label="Recipe name" name={`rename-${recipe.id}`} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <div className="flex gap-2">
@@ -80,7 +87,7 @@ const DeleteControl = ({ recipe, onDeleted }: DeleteControlProps) => {
     );
   }
   return (
-    <span className="flex gap-2">
+    <span className="flex gap-2" onKeyDown={handleEscape(() => setIsArmed(false))}>
       <Button
         variant="danger"
         link
@@ -140,6 +147,8 @@ const PickerSkeleton = () => (
   </div>
 );
 
+const NO_RECIPES_LEFT_MESSAGE = "No recipes left — save a meal as a recipe to see it here again.";
+
 interface RecipePickStepProps {
   mealId: string;
   recipes: RecipeSummary[];
@@ -149,8 +158,10 @@ interface RecipePickStepProps {
   dispatch: (action: PathAction) => void;
 }
 
-// No empty state: the row that opens this is greyed out until the user has a
-// recipe, so the picker cannot be reached with nothing in it.
+// The picker cannot be *entered* empty - the row that opens it stays greyed
+// out until a recipe exists. It can still empty out while open, though:
+// deleting the last recipe from in here refetches to an empty list, which
+// the branch below states rather than rendering nothing under the heading.
 export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, onEntered, dispatch }: RecipePickStepProps) => {
   const [enteringId, setEnteringId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +188,8 @@ export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, o
       <h2 className="text-lg font-semibold">Your recipes</h2>
       {isLoading ? (
         <PickerSkeleton />
+      ) : recipes.length === 0 ? (
+        <p className="text-sm text-text-muted">{NO_RECIPES_LEFT_MESSAGE}</p>
       ) : (
         <div className="flex flex-col divide-y divide-border">
           {recipes.map((recipe) => (
