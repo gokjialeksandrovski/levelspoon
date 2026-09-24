@@ -6,11 +6,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
 import { mealIngredients, meals, productOverrides, products, recipeItems, recipes, users } from "@/lib/db/schema";
-import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
 import { toSearchText } from "@/lib/db/search-text";
-import { listRecipes, saveMealAsRecipe } from "./recipes";
+import { deleteRecipe, enterRecipe, listRecipes, renameRecipe, saveMealAsRecipe } from "./recipes";
 
 const TODAY = todayLocalDateString("UTC");
+const YESTERDAY = addCalendarDays(TODAY, -1);
 
 const seedUser = async (): Promise<string> => {
   const [user] = await db.insert(users).values({ email: `r-${crypto.randomUUID()}@example.com` }).returning();
@@ -302,5 +303,230 @@ describe("listRecipes", () => {
     expect(summaries).toHaveLength(2);
     // Same name, told apart by their figures - the stated ceiling.
     expect(new Set(summaries.map((summary) => summary.total.energyKcal)).size).toBe(2);
+  });
+});
+
+const savedRecipeFrom = async (userId: string, name: string, amounts: [string, number][]): Promise<string> => {
+  const mealId = await seedMeal(userId);
+  for (const [productId, quantity] of amounts) {
+    await addIngredient(mealId, productId, quantity);
+  }
+  const result = await saveMealAsRecipe(mealId, name);
+  if (result.kind !== "saved") throw new Error(`seed failed: ${result.kind}`);
+  return result.recipeId;
+};
+
+describe("enterRecipe", () => {
+  it("appends to a meal that already has rows, keeping what was there", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+
+    const target = await seedMeal(userId);
+    await addIngredient(target, productId, 50);
+    const result = await enterRecipe(target, recipeId);
+
+    expect(result).toEqual({ kind: "entered", addedCount: 1 });
+    const rows = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, target));
+    expect(rows.map((row) => Number(row.quantity)).sort((a, b) => a - b)).toEqual([50, 200]);
+  });
+
+  it("writes quantity_source manual and re-reads quantity_unit from the product", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    await db.update(products).set({ nutritionBasisUnit: "ml" }).where(eq(products.id, productId));
+    const recipeId = await savedRecipeFrom(userId, "Milk", [[productId, 250]]);
+    // The stored item still says "g" - the entry must not trust it.
+    await db.update(recipeItems).set({ quantityUnit: "g" }).where(eq(recipeItems.recipeId, recipeId));
+
+    const target = await seedMeal(userId);
+    await enterRecipe(target, recipeId);
+
+    const [row] = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, target));
+    expect(row.quantitySource).toBe("manual");
+    expect(row.quantityUnit).toBe("ml");
+  });
+
+  it("carries the entry echo so \"1 slice\" is still \"1 slice\"", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const bread = await seedProduct(userId, "Bread");
+    const source = await seedMeal(userId);
+    await addIngredient(source, bread, 32, { count: 1, unit: "slice" });
+    const saved = await saveMealAsRecipe(source, "Toast");
+    if (saved.kind !== "saved") throw new Error(saved.kind);
+
+    const target = await seedMeal(userId);
+    await enterRecipe(target, saved.recipeId);
+
+    const [row] = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, target));
+    expect(Number(row.entryCount)).toBe(1);
+    expect(row.entryUnit).toBe("slice");
+  });
+
+  it("links the meal and bumps last_used_at", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    await db.update(recipes).set({ lastUsedAt: new Date(0) }).where(eq(recipes.id, recipeId));
+
+    const target = await seedMeal(userId);
+    await enterRecipe(target, recipeId);
+
+    const [meal] = await db.select().from(meals).where(eq(meals.id, target));
+    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, recipeId));
+    expect(meal.recipeId).toBe(recipeId);
+    expect(recipe.lastUsedAt.getTime()).toBeGreaterThan(0);
+  });
+
+  it("relinks the meal when a second recipe is entered - latest wins", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const first = await savedRecipeFrom(userId, "First", [[productId, 100]]);
+    const second = await savedRecipeFrom(userId, "Second", [[productId, 200]]);
+
+    const target = await seedMeal(userId);
+    await enterRecipe(target, first);
+    await enterRecipe(target, second);
+
+    const [meal] = await db.select().from(meals).where(eq(meals.id, target));
+    expect(meal.recipeId).toBe(second);
+    // The first recipe's rows stay in the meal - an overwrite later files the
+    // whole meal, that recipe's rows included.
+    const rows = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, target));
+    expect(rows).toHaveLength(2);
+  });
+
+  // [RF-4a] A meal reached through History is on a past day. Entering a
+  // recipe into it must write to that meal and leave today alone.
+  it("enters into a past day's meal without touching today", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const yesterdayMeal = await seedMeal(userId, YESTERDAY);
+    const todayMeal = await seedMeal(userId, TODAY);
+
+    await enterRecipe(yesterdayMeal, recipeId);
+
+    const yesterdayRows = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, yesterdayMeal));
+    const todayRows = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, todayMeal));
+    expect(yesterdayRows).toHaveLength(1);
+    expect(todayRows).toHaveLength(0);
+  });
+
+  // [RF-5] The picker's list was fetched once on mount. A recipe deleted in
+  // another tab since then must leave the meal exactly as it was.
+  it("refuses a deleted recipe and writes nothing", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    await deleteRecipe(recipeId);
+
+    const target = await seedMeal(userId);
+    await addIngredient(target, productId, 50);
+    expect(await enterRecipe(target, recipeId)).toEqual({ kind: "recipe_missing" });
+
+    const rows = await db.select().from(mealIngredients).where(eq(mealIngredients.mealId, target));
+    expect(rows).toHaveLength(1);
+    const [meal] = await db.select().from(meals).where(eq(meals.id, target));
+    expect(meal.recipeId).toBeNull();
+  });
+
+  it("refuses another user's recipe", async () => {
+    const owner = await seedUser();
+    const intruder = await seedUser();
+    signedInAs(owner);
+    const productId = await seedProduct(owner);
+    const recipeId = await savedRecipeFrom(owner, "Theirs", [[productId, 200]]);
+
+    signedInAs(intruder);
+    const target = await seedMeal(intruder);
+    expect(await enterRecipe(target, recipeId)).toEqual({ kind: "recipe_missing" });
+  });
+});
+
+describe("renameRecipe", () => {
+  it("rewrites name and name_search together", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Oats", [[productId, 50]]);
+
+    expect(await renameRecipe(recipeId, "Овесна каша")).toEqual({ kind: "renamed", name: "Овесна каша" });
+
+    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, recipeId));
+    expect(recipe.name).toBe("Овесна каша");
+    expect(recipe.nameSearch).toBe(toSearchText("Овесна каша"));
+  });
+
+  it("refuses a blank name and changes nothing", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Oats", [[productId, 50]]);
+
+    expect(await renameRecipe(recipeId, "  ")).toEqual({ kind: "invalid_name" });
+    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, recipeId));
+    expect(recipe.name).toBe("Oats");
+  });
+
+  it("refuses another user's recipe", async () => {
+    const owner = await seedUser();
+    const intruder = await seedUser();
+    signedInAs(owner);
+    const productId = await seedProduct(owner);
+    const recipeId = await savedRecipeFrom(owner, "Theirs", [[productId, 50]]);
+
+    signedInAs(intruder);
+    expect(await renameRecipe(recipeId, "Mine now")).toEqual({ kind: "recipe_missing" });
+  });
+});
+
+describe("deleteRecipe", () => {
+  it("nulls the link on every meal and leaves every ingredient in place", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const second = await seedMeal(userId);
+    await enterRecipe(second, recipeId);
+
+    expect(await deleteRecipe(recipeId)).toEqual({ kind: "deleted" });
+
+    const linked = await db.select().from(meals).where(eq(meals.recipeId, recipeId));
+    expect(linked).toHaveLength(0);
+    expect(await db.select().from(mealIngredients)).toHaveLength(2);
+  });
+
+  it("soft-deletes, so the row survives and listRecipes drops it", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+
+    await deleteRecipe(recipeId);
+
+    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, recipeId));
+    expect(recipe.deletedAt).not.toBeNull();
+    expect(await listRecipes()).toHaveLength(0);
+  });
+
+  it("refuses another user's recipe", async () => {
+    const owner = await seedUser();
+    const intruder = await seedUser();
+    signedInAs(owner);
+    const productId = await seedProduct(owner);
+    const recipeId = await savedRecipeFrom(owner, "Theirs", [[productId, 50]]);
+
+    signedInAs(intruder);
+    expect(await deleteRecipe(recipeId)).toEqual({ kind: "recipe_missing" });
+    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, recipeId));
+    expect(recipe.deletedAt).toBeNull();
   });
 });

@@ -2,7 +2,7 @@
 // would let a browser read or write any user's recipes. Only "use server"
 // modules import this file (CLAUDE.md, "Server/client boundary"); they resolve
 // the user themselves and hand it in. Same rule as weight.store.ts.
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db, type DbTransaction } from "@/lib/db";
 import { effectiveNutritionSelection } from "@/lib/db/effective-nutrition";
@@ -184,4 +184,64 @@ export const setMealRecipe = async (
 
 export const touchRecipe = async (tx: DbTransaction, recipeId: string): Promise<void> => {
   await tx.update(recipes).set({ lastUsedAt: sql`now()` }).where(eq(recipes.id, recipeId));
+};
+
+/**
+ * Appends a recipe's items to a meal as ordinary ingredients.
+ *
+ * `quantity_unit` is re-read from the product rather than copied from the
+ * recipe item: it must always equal the product's nutritionBasisUnit, and
+ * that is enforced at the call site, exactly as saveMealIngredient does it.
+ * A product whose basis unit changed since the recipe was filed would
+ * otherwise scale against the wrong basis, silently.
+ */
+export const appendItemsToMeal = async (
+  tx: DbTransaction,
+  mealId: string,
+  items: readonly AmountRow[],
+): Promise<number> => {
+  if (items.length === 0) {
+    return 0;
+  }
+  const basisUnits = await tx
+    .select({ id: products.id, unit: products.nutritionBasisUnit })
+    .from(products)
+    .where(inArray(products.id, items.map((item) => item.productId)));
+  const unitByProduct = new Map(basisUnits.map((row) => [row.id, row.unit]));
+
+  await tx.insert(mealIngredients).values(
+    items.map((item) => ({
+      mealId,
+      productId: item.productId,
+      quantity: String(item.quantity),
+      quantityUnit: unitByProduct.get(item.productId) ?? item.quantityUnit,
+      entryCount: item.entryCount === null ? null : String(item.entryCount),
+      entryUnit: item.entryUnit,
+      // Nothing in this feature is AI-estimated: the amounts came off a meal
+      // the user already logged.
+      quantitySource: "manual" as const,
+    })),
+  );
+  return items.length;
+};
+
+export const renameRecipeRow = async (tx: DbTransaction, recipeId: string, name: string): Promise<void> => {
+  const trimmed = name.trim();
+  // Both columns in one statement: a name without its search text is a recipe
+  // nobody can find, and two updates are two chances to write only one.
+  await tx.update(recipes).set({ name: trimmed, nameSearch: toSearchText(trimmed) }).where(eq(recipes.id, recipeId));
+};
+
+/** Nulls the link on every meal that carries it, before the recipe row goes
+ * away. Meals keep every ingredient and lose only their subtitle and their
+ * `Edit this recipe` button - nutrition already logged never moves because a
+ * recipe went away. Run before softDeleteRecipe, never after: a caller must
+ * not be able to observe a deleted recipe still linked from a meal. */
+export const unlinkMealsFromRecipe = async (tx: DbTransaction, recipeId: string): Promise<void> => {
+  await tx.update(meals).set({ recipeId: null }).where(eq(meals.recipeId, recipeId));
+};
+
+/** Soft delete only. Call after unlinkMealsFromRecipe. */
+export const softDeleteRecipe = async (tx: DbTransaction, recipeId: string): Promise<void> => {
+  await tx.update(recipes).set({ deletedAt: sql`now()` }).where(eq(recipes.id, recipeId));
 };

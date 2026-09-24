@@ -8,14 +8,22 @@ import {
   EmptyRecipeError,
   InvalidRecipeNameError,
   MealNotFoundError,
+  RecipeNotFoundError,
 } from "./recipes.errors";
 import {
+  appendItemsToMeal,
   fetchMealItems,
   fetchOwnedMeal,
+  fetchOwnedRecipe,
+  fetchRecipeItems,
   fetchRecipeSummaries,
   insertRecipe,
+  renameRecipeRow,
   replaceRecipeItems,
   setMealRecipe,
+  softDeleteRecipe,
+  touchRecipe,
+  unlinkMealsFromRecipe,
   type RecipeSummary,
 } from "./recipes.store";
 
@@ -63,4 +71,73 @@ export const saveMealAsRecipe = async (mealId: string, name: string): Promise<Sa
     if (error instanceof EmptyRecipeError) return { kind: "empty_meal" };
     throw error;
   }
+};
+
+export type EnterRecipeResult =
+  | { kind: "entered"; addedCount: number }
+  | { kind: "recipe_missing" }
+  | { kind: "meal_missing" }
+  | { kind: "failed" };
+
+export type RenameRecipeResult =
+  | { kind: "renamed"; name: string }
+  | { kind: "invalid_name" }
+  | { kind: "recipe_missing" };
+
+export type DeleteRecipeResult = { kind: "deleted" } | { kind: "recipe_missing" };
+
+/** Writes immediately - picking a recipe is the commit, and the meal page it
+ * lands on is where anything about it gets changed. One transaction, so a
+ * meal never ends up half-entered or linked to a recipe it does not hold. */
+export const enterRecipe = async (mealId: string, recipeId: string): Promise<EnterRecipeResult> => {
+  const userId = await requireUserId();
+  try {
+    const meal = await fetchOwnedMeal(userId, mealId);
+    if (!meal) throw new MealNotFoundError();
+    const recipe = await fetchOwnedRecipe(userId, recipeId);
+    if (!recipe) throw new RecipeNotFoundError();
+    const items = await fetchRecipeItems(recipeId);
+
+    const addedCount = await db.transaction(async (tx) => {
+      const count = await appendItemsToMeal(tx, mealId, items);
+      await setMealRecipe(tx, mealId, recipeId);
+      await touchRecipe(tx, recipeId);
+      return count;
+    });
+    return { kind: "entered", addedCount };
+  } catch (error) {
+    if (error instanceof MealNotFoundError) return { kind: "meal_missing" };
+    if (error instanceof RecipeNotFoundError) return { kind: "recipe_missing" };
+    throw error;
+  }
+};
+
+export const renameRecipe = async (recipeId: string, name: string): Promise<RenameRecipeResult> => {
+  const userId = await requireUserId();
+  try {
+    if (!isValidRecipeName(name)) throw new InvalidRecipeNameError();
+    if (!(await fetchOwnedRecipe(userId, recipeId))) throw new RecipeNotFoundError();
+    await db.transaction((tx) => renameRecipeRow(tx, recipeId, name));
+    return { kind: "renamed", name: name.trim() };
+  } catch (error) {
+    if (error instanceof InvalidRecipeNameError) return { kind: "invalid_name" };
+    if (error instanceof RecipeNotFoundError) return { kind: "recipe_missing" };
+    throw error;
+  }
+};
+
+/** Ownership check outside the transaction, same shape as renameRecipe: a
+ * refusal here writes nothing, so there is nothing that needs to be atomic
+ * with it. Unlink before soft-delete - a caller must never observe a
+ * deleted recipe still linked from a meal. */
+export const deleteRecipe = async (recipeId: string): Promise<DeleteRecipeResult> => {
+  const userId = await requireUserId();
+  if (!(await fetchOwnedRecipe(userId, recipeId))) {
+    return { kind: "recipe_missing" };
+  }
+  await db.transaction(async (tx) => {
+    await unlinkMealsFromRecipe(tx, recipeId);
+    await softDeleteRecipe(tx, recipeId);
+  });
+  return { kind: "deleted" };
 };
