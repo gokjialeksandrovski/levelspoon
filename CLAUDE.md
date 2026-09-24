@@ -527,6 +527,79 @@ optional and independent. `No calorie goal` removes the kcal goal
 - Targets that do not read block the whole Save, goal included.
   `saveDailyGoals(goal | null, targets | null)` writes everything in one UPDATE.
 
+## Recipes
+
+A recipe is a meal the user saved to re-add later, private to that user. Two
+surfaces, both existing screens: the meal page (`Save as recipe`, becomes
+`Edit this recipe` once linked) and the capture wizard's options screen (an
+`Add meals` section). **No standalone recipes page** - rejected at design
+time, the picker is the only surface.
+
+- Vocabulary is **recipe** in every line of UI copy, never "saved meal". The
+  section title `Add meals` is the one exception - names what the user is
+  adding, not what is stored.
+- **`recipes` and `recipe_items` hold amounts, never nutrition.** Every total
+  reads live through `effectiveNutrition`, so a corrected label figure or a
+  per-user override moves every recipe with no migration.
+- `app/src/lib/nutrition/totals.ts` holds `ZERO_NUTRITION`, `addNutrition`,
+  `ProductNutritionRow`, `productRowToNutritionValues` - moved out of
+  `meals.ts` so this feature could reach them; `meals.ts` is `"use server"`
+  and may export only async functions.
+- **Divergence is computed, never stored.** `mealMatchesRecipe`
+  (`features/recipes/actions/recipes.utils.ts`) compares a meal's live rows
+  against `recipe_items` as a **multiset** - a meal can hold two rows of one
+  product - with a tolerance below `numeric(10,2)`'s own scale. One
+  comparison answers both questions the UI asks: may this meal be
+  retro-updated, and does it carry its red line. A stored boolean would have
+  to be cleared and set by every ingredient write path.
+- **Retro-update is wholesale, today only, and only ever offered where that
+  is harmless.** Today-only is enforced in the **action**, not the store:
+  the guard is `meal.logDate !== todayLocalDateString(timezone)`, the same
+  helper `createMeal`/`getDayLog` already use. `earlierMealsFromRecipe(mealId,
+  timezone)` and `saveRecipeEdit(mealId, draft, mode, timezone)` both take
+  `timezone` as a **required** trailing param - no default, deliberately: a
+  default would silently reopen the past-day hole this guard closes. Callers
+  pass `Intl.DateTimeFormat().resolvedOptions().timeZone`. Only earlier meals
+  still identical to the old recipe can be ticked, so the rewrite destroys
+  nothing of the user's own - the recipe's own origin meal is offered on the
+  same terms as any other sibling; excluding it was tried and reverted as a
+  silent permanent exclusion of the one meal the user is most likely still
+  eating from. A diverged meal is named in the prompt, left alone, and
+  carries an `InlineMessage tone="error"` on its own page until the user acts
+  on it. **The server re-checks at save time and does not trust the tick.**
+  Merging was considered and rejected 2026-09-24: it has to answer "the
+  recipe changed an amount the user had also changed by hand", and every
+  answer is a guess about what the user meant.
+- `meals.recipe_id` is nullable with no cascade. `deleteRecipe` runs two
+  store functions in one transaction - `unlinkMealsFromRecipe` then
+  `softDeleteRecipe` - nulling the link before soft-deleting the row: the
+  meal keeps every ingredient and loses only its subtitle and its button.
+  **Latest wins** - a second recipe entered into one meal replaces the link.
+- `enterRecipe` writes `quantity_source = 'manual'` and **re-reads
+  `quantity_unit` from the product**, never from `recipe_items` - the same
+  call-site enforcement `saveMealIngredient` makes.
+- The edit sheet's draft amount is typed text: `DraftRow.quantity` is a
+  `string`, parsed at commit - the same pattern `ingredient-row.tsx` uses, so
+  decimals are typable. `AmountRow.quantity` stays a `number` - that is the
+  type that crosses to the actions.
+- No unique constraint on `(user_id, name)`. Two recipes called "Oats" are the
+  user's business, told apart by their kcal and macro line in the picker.
+- Refusals cross as `SaveRecipeResult` / `EnterRecipeResult` /
+  `SaveRecipeEditResult`, never thrown classes - same reasoning as
+  `CreateProductResult`. Each union's `failed` variant is declared but never
+  constructed - the actions map their named errors and rethrow anything
+  else, so a database failure reaches a client component as a bare `Error`;
+  both sheets carry a real `catch`, not just the union arm.
+- Imports: `meals → recipes` (the store and the utils only, never the
+  `"use server"` module) and `recipes → lib` only. `recipes.store.ts` carries
+  no `"use server"`, same reason `weight.store.ts` carries none.
+- **`Lazy track` is a disabled placeholder row.** Building it means Gemini
+  returning nutrition values from a description, which changes the AI usage
+  boundary above. Amend that rule in CLAUDE.md and PRODUCT.md deliberately,
+  with the reasoning recorded in `docs/DECISIONS.md`, before writing any code
+  for it.
+- Spec: `docs/superpowers/specs/2026-09-24-recipes-design.md`.
+
 ## Time
 
 Day boundaries are user's **local** calendar day (browser IANA timezone,
@@ -618,14 +691,17 @@ same breath — no separate "Back to today" control.
 - `StepView` (`capture-wizard.tsx`) use a `switch`, never `Record` lookup —
   TypeScript narrow discriminated union per `switch` case, not through
   object lookup without unsafe cast.
-- `wizardReducer` carry repo's only `eslint-disable-next-line complexity`
-  directive: exhaustive switch over discriminated union score one per case, and
-  splitting table to clear threshold hide state map. Every case needing real
-  work already delegate to named `render*`/`apply*` function. `StepView` carried
-  second until barcode entry stopped being a step of its own (2026-09-19) and it
-  dropped under threshold — don't add second disable back without that argument.
-  Directive must be **last** line before code — justification comment after it
-  disable nothing and report "Unused eslint-disable directive".
+- `wizardReducer` and `StepView` each carry an `eslint-disable-next-line
+  complexity` directive — the repo's only two. Same argument both times:
+  exhaustive switch over a discriminated union scores one per case, every
+  case needing real work already delegates to a named `render*`/`apply*`
+  function, and splitting the table to clear the threshold would hide the
+  state map rather than shrink it. `StepView` dropped under threshold once
+  (2026-09-19, when barcode entry stopped being a step of its own) and
+  picked the directive back up 2026-09-24, when the recipe picker's case
+  pushed it back over — don't add a third without this same argument.
+  Directive must be **last** line before code — justification comment after
+  it disables nothing and reports "Unused eslint-disable directive".
 - `app/AGENTS.md` regenerated by `next dev` — this Next.js differ from
   training data; read `app/node_modules/next/dist/docs/` before using
   Next.js API. Commit block with your work rather than fight it.
@@ -709,6 +785,10 @@ maintenance out from user own logs and weigh-ins when data support it — see
 "Measured burn" above. Before launch (M4) estimate still need lawyer-reviewed
 consent copy, app-wide privacy policy and terms, and consent for
 `weight_entries`, which already hold health data (spec §13.3).
+
+Recipes shipped 2026-09-24 (`docs/superpowers/plans/2026-09-24-recipes.md`):
+save a meal, re-enter it from the wizard's `Add meals` section, edit it with a
+save-new-or-overwrite fork - see "Recipes" above.
 
 Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
 cloud — next, not started.**
