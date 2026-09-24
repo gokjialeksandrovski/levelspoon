@@ -1006,7 +1006,7 @@ describe("getMealDetail recipe link", () => {
     if (saved.kind !== "saved") throw new Error(saved.kind);
 
     const meal = await getMealDetail(mealId);
-    expect(meal?.recipe).toEqual({ id: saved.recipeId, name: "Yogurt", matches: true });
+    expect(meal?.recipe).toEqual({ id: saved.recipeId, name: "Yogurt", matches: true, recipeIsSubset: true });
   });
 
   it("reports no match once an ingredient is edited", async () => {
@@ -1021,9 +1021,14 @@ describe("getMealDetail recipe link", () => {
 
     const meal = await getMealDetail(mealId);
     expect(meal?.recipe?.matches).toBe(false);
+    // Genuine drift, not an addition - a changed amount is not a subset either.
+    expect(meal?.recipe?.recipeIsSubset).toBe(false);
   });
 
-  it("reports no match once an ingredient is added", async () => {
+  // [Finding 3] The recipe survives whole, plus this extra row - the "picked
+  // a recipe into a meal that already held something" shape the divergence
+  // line must not fire on, even though `matches` is still (correctly) false.
+  it("still reports the recipe as a subset once an ingredient is added on top of it", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
     const productId = await seedProduct(userId);
@@ -1036,6 +1041,7 @@ describe("getMealDetail recipe link", () => {
 
     const meal = await getMealDetail(mealId);
     expect(meal?.recipe?.matches).toBe(false);
+    expect(meal?.recipe?.recipeIsSubset).toBe(true);
   });
 
   it("is null again once the recipe is deleted, with the food kept", async () => {

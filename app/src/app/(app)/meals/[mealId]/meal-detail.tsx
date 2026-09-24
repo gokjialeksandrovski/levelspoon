@@ -304,10 +304,12 @@ const MealActions = ({ mealId, mealDate, recipe, ingredients, onIngredientChange
 
 const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged, onAnnounce }: MealReadyBodyProps) => (
   <>
-    <div className="mb-4 flex flex-col gap-2">
-      <RecipeDivergence recipe={meal.recipe} />
-      <RecipeSubtitle recipe={meal.recipe} />
-    </div>
+    {meal.recipe && (
+      <div className="mb-4 flex flex-col gap-2">
+        <RecipeDivergence recipe={meal.recipe} />
+        <RecipeSubtitle recipe={meal.recipe} />
+      </div>
+    )}
     <IngredientsSection meal={meal} removals={removals} onIngredientChanged={onIngredientChanged} />
     <MealActions
       mealId={mealId}

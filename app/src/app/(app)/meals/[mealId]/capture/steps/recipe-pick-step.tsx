@@ -34,6 +34,8 @@ interface RenameEditorProps {
   onRenamed: () => void;
 }
 
+const RENAME_FAILED_MESSAGE = "Couldn't rename it. Try again.";
+
 // Cancel restores the name the editor opened with and fires no request: the
 // draft is local state, and nothing is re-fetched to undo it.
 const RenameEditor = ({ recipe, onDone, onRenamed }: RenameEditorProps) => {
@@ -43,14 +45,20 @@ const RenameEditor = ({ recipe, onDone, onRenamed }: RenameEditorProps) => {
 
   const save = async () => {
     setIsSaving(true);
-    const result = await renameRecipe(recipe.id, draft);
-    setIsSaving(false);
-    if (result.kind === "renamed") {
-      onRenamed();
-      onDone();
-      return;
+    setError(null);
+    try {
+      const result = await renameRecipe(recipe.id, draft);
+      if (result.kind === "renamed") {
+        onRenamed();
+        onDone();
+        return;
+      }
+      setError(result.kind === "invalid_name" ? "Give the recipe a name." : "That recipe is gone.");
+    } catch {
+      setError(RENAME_FAILED_MESSAGE);
+    } finally {
+      setIsSaving(false);
     }
-    setError(result.kind === "invalid_name" ? "Give the recipe a name." : "That recipe is gone.");
   };
 
   return (
@@ -61,7 +69,11 @@ const RenameEditor = ({ recipe, onDone, onRenamed }: RenameEditorProps) => {
         <Button className="flex-1" disabled={!isValidRecipeName(draft)} pending={isSaving} onClick={() => void save()}>
           Save name
         </Button>
-        <Button variant="ghost" className="flex-1" onClick={onDone}>
+        {/* Disabled while saving, not just visually deferred to it - a fast
+         * Save-then-Cancel must not let the rename land after the user backed
+         * out (Rule 21: cancel fires no request, but only if it cannot race one
+         * already in flight). */}
+        <Button variant="ghost" className="flex-1" disabled={isSaving} onClick={onDone}>
           Cancel rename
         </Button>
       </div>
@@ -74,10 +86,13 @@ interface DeleteControlProps {
   onDeleted: () => void;
 }
 
+const DELETE_FAILED_MESSAGE = "Couldn't delete it. Try again.";
+
 // Arms first, and arming fires no request - the same shape the weight goal's
 // delete uses. The resting control is as quiet as Rename beside it.
 const DeleteControl = ({ recipe, onDeleted }: DeleteControlProps) => {
   const [isArmed, setIsArmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isArmed) {
     return (
@@ -86,20 +101,28 @@ const DeleteControl = ({ recipe, onDeleted }: DeleteControlProps) => {
       </Button>
     );
   }
+
+  const remove = async () => {
+    setError(null);
+    try {
+      await deleteRecipe(recipe.id);
+      onDeleted();
+    } catch {
+      setError(DELETE_FAILED_MESSAGE);
+    }
+  };
+
   return (
-    <span className="flex gap-2" onKeyDown={handleEscape(() => setIsArmed(false))}>
-      <Button
-        variant="danger"
-        link
-        onClick={() => {
-          void deleteRecipe(recipe.id).then(onDeleted);
-        }}
-      >
-        Delete for good
-      </Button>
-      <Button variant="ghost" link onClick={() => setIsArmed(false)}>
-        Keep it
-      </Button>
+    <span className="flex flex-col gap-2" onKeyDown={handleEscape(() => setIsArmed(false))}>
+      <span className="flex gap-2">
+        <Button variant="danger" link onClick={() => void remove()}>
+          Delete for good
+        </Button>
+        <Button variant="ghost" link onClick={() => setIsArmed(false)}>
+          Keep it
+        </Button>
+      </span>
+      {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </span>
   );
 };
@@ -148,6 +171,7 @@ const PickerSkeleton = () => (
 );
 
 const NO_RECIPES_LEFT_MESSAGE = "No recipes left — save a meal as a recipe to see it here again.";
+const ADD_FAILED_MESSAGE = "Couldn't add it. Try again.";
 
 interface RecipePickStepProps {
   mealId: string;
@@ -169,18 +193,19 @@ export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, o
   const enter = async (recipeId: string) => {
     setEnteringId(recipeId);
     setError(null);
-    const result = await enterRecipe(mealId, recipeId);
-    if (result.kind === "entered") {
-      onEntered();
-      return;
+    try {
+      const result = await enterRecipe(mealId, recipeId);
+      if (result.kind === "entered") {
+        onEntered();
+        return;
+      }
+      setError(result.kind === "recipe_missing" ? "That recipe is gone. Your meal is unchanged." : ADD_FAILED_MESSAGE);
+      onRecipesChanged();
+    } catch {
+      setError(ADD_FAILED_MESSAGE);
+    } finally {
+      setEnteringId(null);
     }
-    setEnteringId(null);
-    setError(
-      result.kind === "recipe_missing"
-        ? "That recipe is gone. Your meal is unchanged."
-        : "Couldn't add it. Try again.",
-    );
-    onRecipesChanged();
   };
 
   return (

@@ -5,12 +5,12 @@ import { useState } from "react";
 
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
 import { earlierMealsFromRecipe, saveRecipeEdit, type SaveRecipeEditMode, type SaveRecipeEditResult } from "@/features/recipes/actions/recipes";
-import type { AmountRow } from "@/features/recipes/actions/recipes.store";
 import {
   divergedMeals,
   divergedSentence,
   draftIsSaveable,
   draftKcal,
+  draftRowToAmountRow,
   earlierMealsTickLabel,
   isValidRecipeName,
   kcalPerUnit,
@@ -42,22 +42,14 @@ const toDraftRow = (ingredient: MealIngredientDetail): DraftRow => ({
   productId: ingredient.productId,
   productName: ingredient.productName,
   quantity: String(ingredient.quantity),
+  initialQuantity: String(ingredient.quantity),
   quantityUnit: ingredient.quantityUnit,
   entryCount: ingredient.entryCount,
   entryUnit: ingredient.entryUnit,
+  quantitySource: ingredient.quantitySource,
   // Priced from the figures the page already holds, so a retyped amount costs
   // no round trip.
   kcalPerUnit: kcalPerUnit(ingredient.contribution.energyKcal, ingredient.quantity),
-});
-
-const toAmountRow = (row: DraftRow): AmountRow => ({
-  productId: row.productId,
-  quantity: Number(row.quantity),
-  quantityUnit: row.quantityUnit,
-  // The echo follows the typed amount when the unit is the stored one, and is
-  // dropped when it cannot: "1 slice" restated as 60 g is no longer 1 slice.
-  entryCount: row.entryUnit === row.quantityUnit ? Number(row.quantity) : null,
-  entryUnit: row.entryUnit === row.quantityUnit ? row.entryUnit : null,
 });
 
 interface AmountPaneProps {
@@ -256,7 +248,7 @@ export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose
     setIsSaving(true);
     setError(null);
     try {
-      const result = await saveRecipeEdit(mealId, rows.map(toAmountRow), mode, timezone);
+      const result = await saveRecipeEdit(mealId, rows.map(draftRowToAmountRow), mode, timezone);
       if (result.kind === "saved") {
         onSaved(savedAnnouncement(result));
         close();

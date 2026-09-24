@@ -1,3 +1,5 @@
+import type { AmountRow } from "./recipes.store";
+
 /** An amount as either side of the comparison states it: the product, and how
  * much of it, already read out of `numeric` into a JS number. */
 export interface RecipeAmount {
@@ -22,6 +24,14 @@ const toMultiset = (amounts: readonly RecipeAmount[]): Map<string, number> =>
     return counts.set(key, (counts.get(key) ?? 0) + 1);
   }, new Map<string, number>());
 
+// Shared by mealMatchesRecipe and recipeIsSubsetOfMeal - both compare against
+// the column's own scale, never raw floats.
+const roundedToScale = (amounts: readonly RecipeAmount[]): RecipeAmount[] =>
+  amounts.map((amount) => ({
+    productId: amount.productId,
+    quantity: Math.round(amount.quantity / AMOUNT_EPSILON) * AMOUNT_EPSILON,
+  }));
+
 /**
  * Whether a linked meal still equals the recipe it came from.
  *
@@ -41,14 +51,29 @@ export const mealMatchesRecipe = (
   if (mealRows.length !== recipeItems.length) {
     return false;
   }
-  const rounded = (amounts: readonly RecipeAmount[]) =>
-    amounts.map((amount) => ({
-      productId: amount.productId,
-      quantity: Math.round(amount.quantity / AMOUNT_EPSILON) * AMOUNT_EPSILON,
-    }));
-  const left = toMultiset(rounded(mealRows));
-  const right = toMultiset(rounded(recipeItems));
+  const left = toMultiset(roundedToScale(mealRows));
+  const right = toMultiset(roundedToScale(recipeItems));
   return [...left].every(([key, count]) => right.get(key) === count);
+};
+
+/**
+ * Whether every item the recipe lists is present in the meal at least as many
+ * times - the meal may hold extra rows the recipe never had.
+ *
+ * The "picked a recipe into a meal that already held something else" case:
+ * the whole recipe survives, plus extra, which is what the user asked for and
+ * not drift. Used to suppress the divergence line for exactly that shape,
+ * while a genuine change - an amount edited, a row removed - still fails this
+ * the same way it fails mealMatchesRecipe. Multiset-aware for the same reason
+ * that comparison is: a recipe (or a meal) can list one product twice.
+ */
+export const recipeIsSubsetOfMeal = (
+  mealRows: readonly RecipeAmount[],
+  recipeItems: readonly RecipeAmount[],
+): boolean => {
+  const mealCounts = toMultiset(roundedToScale(mealRows));
+  const recipeCounts = toMultiset(roundedToScale(recipeItems));
+  return [...recipeCounts].every(([key, count]) => (mealCounts.get(key) ?? 0) >= count);
 };
 
 /** kcal for one unit of a saved row's own `quantityUnit`, from the figures
@@ -68,20 +93,51 @@ export const kcalPerUnit = (contributionKcal: number, quantity: number): number 
  * `draftKcal`/`draftIsSaveable` parse it themselves; `Number("")` and
  * `Number("abc")` both fail their `> 0` checks the same way `Number("0")`
  * does, so a blank or invalid field reads as "not yet a valid amount", never
- * a thrown error. */
+ * a thrown error.
+ *
+ * `initialQuantity` is `quantity` as seeded, before any typing -
+ * `draftRowToAmountRow` compares the two to tell an untouched row from an
+ * edited one, since `entryUnit === quantityUnit` cannot: a chip-sourced row
+ * ("2 slices") stores entryUnit "slice" against quantityUnit "g" even when
+ * nobody touched it. */
 export interface DraftRow {
   mealIngredientId: string;
   productId: string;
   productName: string;
   quantity: string;
+  initialQuantity: string;
   quantityUnit: string;
   entryCount: number | null;
   entryUnit: string | null;
+  quantitySource: "ai_estimated" | "manual";
   kcalPerUnit: number;
 }
 
 export const draftKcal = (rows: readonly DraftRow[]): number =>
   rows.reduce((total, row) => total + Number(row.quantity) * row.kcalPerUnit, 0);
+
+/**
+ * A draft row as the amount it actually saves.
+ *
+ * The entry echo and quantity_source follow the row only when its amount is
+ * exactly what it was seeded with. Retyping the amount is what invalidates
+ * "2 slices" - and is what CLAUDE.md's manual-entry rule means by "any edit":
+ * an edited row's source becomes "manual", the same as a typed amount
+ * anywhere else in the app. A row nobody touched keeps whatever it already
+ * was, ai_estimated included - editing sibling rows in the same draft must
+ * not relabel this one.
+ */
+export const draftRowToAmountRow = (row: DraftRow): AmountRow => {
+  const isUntouched = row.quantity === row.initialQuantity;
+  return {
+    productId: row.productId,
+    quantity: Number(row.quantity),
+    quantityUnit: row.quantityUnit,
+    entryCount: isUntouched ? row.entryCount : null,
+    entryUnit: isUntouched ? row.entryUnit : null,
+    quantitySource: isUntouched ? row.quantitySource : "manual",
+  };
+};
 
 /** A recipe with no ingredients is one the picker cannot price and nobody can
  * use, so Save stays off until every remaining row carries an amount. */

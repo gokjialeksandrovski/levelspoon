@@ -21,6 +21,11 @@ export interface AmountRow {
   quantityUnit: string;
   entryCount: number | null;
   entryUnit: string | null;
+  /** Preserved from the row's own stored source when the caller has one to
+   * preserve (the edit sheet's untouched rows); omitted when there isn't one
+   * - a recipe item (recipe_items carries no source column) and a freshly
+   * typed amount are both "manual", which appendItemsToMeal defaults to. */
+  quantitySource?: "ai_estimated" | "manual";
 }
 
 export interface RecipeSummary {
@@ -217,9 +222,12 @@ export const appendItemsToMeal = async (
       quantityUnit: unitByProduct.get(item.productId) ?? item.quantityUnit,
       entryCount: item.entryCount === null ? null : String(item.entryCount),
       entryUnit: item.entryUnit,
-      // Nothing in this feature is AI-estimated: the amounts came off a meal
-      // the user already logged.
-      quantitySource: "manual" as const,
+      // "manual" for a recipe item (no source of its own) and for a freshly
+      // typed row alike. An edit sheet's untouched row supplies its own
+      // preserved source instead, so a fresh ai_estimated amount survives a
+      // save the user made no changes to (CLAUDE.md, "Manual gram entry is
+      // first-class").
+      quantitySource: item.quantitySource ?? "manual",
     })),
   );
   return items.length;

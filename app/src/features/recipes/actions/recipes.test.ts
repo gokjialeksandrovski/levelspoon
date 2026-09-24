@@ -18,6 +18,7 @@ import {
   saveRecipeEdit,
 } from "./recipes";
 import { fetchMealItems, fetchRecipeItems, type AmountRow } from "./recipes.store";
+import { draftRowToAmountRow, type DraftRow } from "./recipes.utils";
 
 // Every earlierMealsFromRecipe/saveRecipeEdit call in this file passes this -
 // the same zone TODAY/YESTERDAY are computed in, so "today" here always means
@@ -722,6 +723,69 @@ describe("saveRecipeEdit", () => {
     expect(items.map((item) => Number(item.quantity))).toEqual([250]);
     const rows = await liveRows(open);
     expect(rows.map((row) => Number(row.quantity))).toEqual([250]);
+  });
+
+  // [Finding 1] Built through draftRowToAmountRow, the same conversion the
+  // edit sheet runs on its draft - so this pins the full path, not just the
+  // store's own pass-through. The bread row's amount is retyped to the exact
+  // same digits Number() would parse from 60 either way, so this only proves
+  // the fix if quantity comparison is by string (initialQuantity), not value.
+  it("preserves an untouched row's entry echo and source, and nulls only the edited row's", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const bread = await seedProduct(userId, "Bread");
+    const coffee = await seedProduct(userId, "Coffee");
+    const open = await seedMeal(userId);
+    const breadRowId = await addIngredient(open, bread, 60, { count: 2, unit: "slice" });
+    await db.update(mealIngredients).set({ quantitySource: "ai_estimated" }).where(eq(mealIngredients.id, breadRowId));
+    await addIngredient(open, coffee, 240, { count: 1, unit: "cup" });
+    const saved = await saveMealAsRecipe(open, "Breakfast");
+    if (saved.kind !== "saved") throw new Error(saved.kind);
+
+    const draft: DraftRow[] = [
+      {
+        mealIngredientId: breadRowId,
+        productId: bread,
+        productName: "Bread",
+        quantity: "60",
+        initialQuantity: "60",
+        quantityUnit: "g",
+        entryCount: 2,
+        entryUnit: "slice",
+        quantitySource: "ai_estimated",
+        kcalPerUnit: 1,
+      },
+      {
+        mealIngredientId: crypto.randomUUID(),
+        productId: coffee,
+        productName: "Coffee",
+        quantity: "300",
+        initialQuantity: "240",
+        quantityUnit: "g",
+        entryCount: 1,
+        entryUnit: "cup",
+        quantitySource: "manual",
+        kcalPerUnit: 1,
+      },
+    ];
+
+    const result = await saveRecipeEdit(
+      open,
+      draft.map(draftRowToAmountRow),
+      { kind: "overwrite", alsoUpdateMealIds: [] },
+      TIMEZONE,
+    );
+    if (result.kind !== "saved") throw new Error(result.kind);
+
+    const rows = await liveRows(open);
+    const breadRow = rows.find((row) => row.productId === bread);
+    const coffeeRow = rows.find((row) => row.productId === coffee);
+    expect(Number(breadRow?.entryCount)).toBe(2);
+    expect(breadRow?.entryUnit).toBe("slice");
+    expect(breadRow?.quantitySource).toBe("ai_estimated");
+    expect(coffeeRow?.entryCount).toBeNull();
+    expect(coffeeRow?.entryUnit).toBeNull();
+    expect(coffeeRow?.quantitySource).toBe("manual");
   });
 
   it("overwrite updates a ticked earlier meal from today", async () => {

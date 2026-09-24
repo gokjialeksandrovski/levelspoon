@@ -17,7 +17,7 @@ import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 import { fetchCalorieGoal, fetchMacroTargets } from "@/features/goals/actions/goals";
 import type { MacroTargets } from "@/features/goals/actions/macro-targets.utils";
 import { fetchMealItems, fetchOwnedRecipe, fetchRecipeItems } from "@/features/recipes/actions/recipes.store";
-import { mealMatchesRecipe } from "@/features/recipes/actions/recipes.utils";
+import { mealMatchesRecipe, recipeIsSubsetOfMeal } from "@/features/recipes/actions/recipes.utils";
 import { fetchWeightView } from "@/features/weight/actions/weight";
 import type { WeightView } from "@/features/weight/actions/weight.utils";
 import { calorieRemaining, type CalorieRemaining } from "@/features/goals/actions/goals.utils";
@@ -278,6 +278,15 @@ export interface MealRecipeLink {
    * are the same fact, and a stored flag would have to be cleared and set by
    * every ingredient write path. */
   matches: boolean;
+  /** Whether the recipe's items are all still present, allowing extra rows
+   * the recipe never had - the "picked a recipe into a meal that already
+   * held something" case. Kept separate from `matches` rather than folded
+   * into it: `matches` means exact equality everywhere else it's read (the
+   * retro-update eligibility checks in recipes.ts use mealMatchesRecipe
+   * directly for that reason), so redefining it here would make it lie about
+   * what it says on this one call site. This field exists only to let the
+   * divergence line tell "added to it" apart from genuine drift. */
+  recipeIsSubset: boolean;
 }
 
 export interface MealDetail {
@@ -439,7 +448,12 @@ const fetchMealRecipeLink = async (
     return null;
   }
   const [mealRows, recipeItemRows] = await Promise.all([fetchMealItems(mealId), fetchRecipeItems(recipeId)]);
-  return { id: recipe.id, name: recipe.name, matches: mealMatchesRecipe(mealRows, recipeItemRows) };
+  return {
+    id: recipe.id,
+    name: recipe.name,
+    matches: mealMatchesRecipe(mealRows, recipeItemRows),
+    recipeIsSubset: recipeIsSubsetOfMeal(mealRows, recipeItemRows),
+  };
 };
 
 export const getMealDetail = async (mealId: string): Promise<MealDetail | null> => {

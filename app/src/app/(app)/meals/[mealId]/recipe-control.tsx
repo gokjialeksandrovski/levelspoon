@@ -17,9 +17,16 @@ export const RecipeSubtitle = ({ recipe }: { recipe: MealRecipeLink | null }) =>
   recipe ? <p className="text-sm text-text-muted">From your saved recipes: {recipe.name}</p> : null;
 
 /** Sits in the page flow above the ingredients, red, with nothing to dismiss:
- * it is a standing fact about the meal, so it has no exit and needs none. */
+ * it is a standing fact about the meal, so it has no exit and needs none.
+ *
+ * Suppressed when the recipe is merely a subset of the meal - picking a
+ * recipe into a meal that already held something else is exactly what the
+ * user asked for, not drift, and the line would otherwise fire on that
+ * happy path (found in review). A genuine change - an amount edited, a row
+ * removed - still fails `matches` and is not a subset either, so the line
+ * still fires for it. */
 export const RecipeDivergence = ({ recipe }: { recipe: MealRecipeLink | null }) =>
-  recipe && !recipe.matches ? <InlineMessage tone="error">{divergenceLine(recipe.name)}</InlineMessage> : null;
+  recipe && !recipe.matches && !recipe.recipeIsSubset ? <InlineMessage tone="error">{divergenceLine(recipe.name)}</InlineMessage> : null;
 
 interface RecipeControlProps {
   mealId: string;

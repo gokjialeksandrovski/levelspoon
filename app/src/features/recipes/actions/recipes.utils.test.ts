@@ -5,12 +5,14 @@ import {
   divergenceLine,
   draftIsSaveable,
   draftKcal,
+  draftRowToAmountRow,
   divergedMeals,
   earlierMealsTickLabel,
   isValidRecipeName,
   kcalPerUnit,
   mealMatchesRecipe,
   offerableMeals,
+  recipeIsSubsetOfMeal,
   type DraftRow,
   type EarlierMeal,
 } from "./recipes.utils";
@@ -69,6 +71,34 @@ describe("mealMatchesRecipe", () => {
   });
 });
 
+describe("recipeIsSubsetOfMeal", () => {
+  const recipe = [amount("chicken", 180), amount("rice", 200)];
+
+  it("is true when the meal holds the recipe plus an extra row", () => {
+    expect(recipeIsSubsetOfMeal([...recipe, amount("coffee", 5)], recipe)).toBe(true);
+  });
+
+  it("is true for an exact match, the trivial subset", () => {
+    expect(recipeIsSubsetOfMeal(recipe, recipe)).toBe(true);
+  });
+
+  it("is false when an amount was changed, not just added to", () => {
+    expect(recipeIsSubsetOfMeal([amount("chicken", 250), amount("rice", 200)], recipe)).toBe(false);
+  });
+
+  it("is false when a recipe row is missing from the meal", () => {
+    expect(recipeIsSubsetOfMeal([amount("chicken", 180)], recipe)).toBe(false);
+  });
+
+  // The recipe needs two copies present, not one - a set comparison would
+  // wrongly call one "enough".
+  it("requires the meal to hold as many copies as the recipe lists", () => {
+    const twice = [amount("oil", 10), amount("oil", 10)];
+    expect(recipeIsSubsetOfMeal([amount("oil", 10)], twice)).toBe(false);
+    expect(recipeIsSubsetOfMeal([amount("oil", 10), amount("oil", 10), amount("coffee", 5)], twice)).toBe(true);
+  });
+});
+
 describe("kcalPerUnit", () => {
   it("divides a saved contribution by the amount that produced it", () => {
     expect(kcalPerUnit(140, 200)).toBe(0.7);
@@ -84,9 +114,11 @@ const draftRow = (overrides: Partial<DraftRow> = {}): DraftRow => ({
   productId: "chicken",
   productName: "Chicken breast",
   quantity: "180",
+  initialQuantity: "180",
   quantityUnit: "g",
   entryCount: 180,
   entryUnit: "g",
+  quantitySource: "manual",
   kcalPerUnit: 1,
   ...overrides,
 });
@@ -115,6 +147,49 @@ describe("draftIsSaveable", () => {
 
   it("accepts a draft whose rows all carry an amount", () => {
     expect(draftIsSaveable([draftRow()])).toBe(true);
+  });
+});
+
+describe("draftRowToAmountRow", () => {
+  // The real shape a chip-sourced row carries: entryUnit ("slice") never
+  // equals quantityUnit ("g"), even when the row is untouched - so the old
+  // entryUnit === quantityUnit check nulled the echo on every row like this.
+  it("keeps the entry echo and source on a row the user never touched", () => {
+    const row = draftRow({
+      quantity: "60",
+      initialQuantity: "60",
+      quantityUnit: "g",
+      entryCount: 2,
+      entryUnit: "slice",
+      quantitySource: "ai_estimated",
+    });
+    expect(draftRowToAmountRow(row)).toEqual({
+      productId: "chicken",
+      quantity: 60,
+      quantityUnit: "g",
+      entryCount: 2,
+      entryUnit: "slice",
+      quantitySource: "ai_estimated",
+    });
+  });
+
+  it("drops the echo and relabels the source manual on a row the user retyped", () => {
+    const row = draftRow({
+      quantity: "90",
+      initialQuantity: "60",
+      quantityUnit: "g",
+      entryCount: 2,
+      entryUnit: "slice",
+      quantitySource: "ai_estimated",
+    });
+    expect(draftRowToAmountRow(row)).toEqual({
+      productId: "chicken",
+      quantity: 90,
+      quantityUnit: "g",
+      entryCount: null,
+      entryUnit: null,
+      quantitySource: "manual",
+    });
   });
 });
 
