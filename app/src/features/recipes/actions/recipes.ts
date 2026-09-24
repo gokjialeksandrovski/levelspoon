@@ -1,9 +1,10 @@
 "use server";
 
 import { requireUserId } from "@/lib/auth/require-user";
-import { db } from "@/lib/db";
+import { db, type DbTransaction } from "@/lib/db";
 
-import { isValidRecipeName } from "./recipes.utils";
+import { isValidRecipeName, mealMatchesRecipe } from "./recipes.utils";
+import type { EarlierMeal } from "./recipes.utils";
 import {
   EmptyRecipeError,
   InvalidRecipeNameError,
@@ -13,17 +14,23 @@ import {
 import {
   appendItemsToMeal,
   fetchMealItems,
+  fetchMealKcals,
+  fetchMealNumbers,
   fetchOwnedMeal,
   fetchOwnedRecipe,
   fetchRecipeItems,
   fetchRecipeSummaries,
+  fetchSiblingMealIds,
   insertRecipe,
   renameRecipeRow,
+  replaceMealIngredients,
   replaceRecipeItems,
   setMealRecipe,
   softDeleteRecipe,
   touchRecipe,
   unlinkMealsFromRecipe,
+  type AmountRow,
+  type OwnedMeal,
   type RecipeSummary,
 } from "./recipes.store";
 
@@ -140,4 +147,189 @@ export const deleteRecipe = async (recipeId: string): Promise<DeleteRecipeResult
     await softDeleteRecipe(tx, recipeId);
   });
   return { kind: "deleted" };
+};
+
+/**
+ * Today's other meals from this meal's recipe, split by whether each still
+ * matches it.
+ *
+ * Both halves are returned: a meal that has diverged is named in the prompt
+ * and left alone, never silently excluded and never silently overwritten.
+ * The kcal each would move is computed by the caller against its own draft -
+ * this states what each meal totals now, which is the measured half.
+ */
+export const earlierMealsFromRecipe = async (mealId: string): Promise<EarlierMeal[]> => {
+  const userId = await requireUserId();
+  const meal = await fetchOwnedMeal(userId, mealId);
+  if (!meal?.recipeId) {
+    return [];
+  }
+  const siblingIds = await fetchSiblingMealIds(userId, meal);
+  if (siblingIds.length === 0) {
+    return [];
+  }
+
+  const [recipeItemRows, numbers, kcals] = await Promise.all([
+    fetchRecipeItems(meal.recipeId),
+    fetchMealNumbers(userId, meal.logDate),
+    fetchMealKcals(userId, siblingIds),
+  ]);
+  const siblingRows = await Promise.all(siblingIds.map((id) => fetchMealItems(id)));
+
+  return siblingIds.map((id, index) => ({
+    mealId: id,
+    mealNumber: numbers.get(id) ?? 0,
+    currentKcal: kcals.get(id) ?? 0,
+    matches: mealMatchesRecipe(siblingRows[index], recipeItemRows),
+  }));
+};
+
+export type SaveRecipeEditMode =
+  | { kind: "new"; name: string }
+  | { kind: "overwrite"; alsoUpdateMealIds: string[] };
+
+export type SaveRecipeEditResult =
+  | { kind: "saved"; recipeId: string; name: string; updatedMealNumbers: number[]; skippedMealNumbers: number[] }
+  | { kind: "invalid_name" }
+  | { kind: "empty_draft" }
+  | { kind: "recipe_missing" }
+  | { kind: "meal_missing" }
+  | { kind: "failed" };
+
+const draftIsWritable = (draft: readonly AmountRow[]): boolean =>
+  draft.length > 0 && draft.every((item) => item.quantity > 0);
+
+/** Which ticked meals may actually be rewritten. The tick was rendered from a
+ * read that is now old, so every id is re-checked here against the recipe as
+ * it stands before this save - the server never trusts the tick. */
+const partitionTickedMeals = async (
+  userId: string,
+  meal: OwnedMeal,
+  tickedIds: readonly string[],
+  recipeItemRows: readonly AmountRow[],
+): Promise<{ updatable: string[]; skipped: string[] }> => {
+  const siblingIds = await fetchSiblingMealIds(userId, meal);
+  // An id the prompt never offered - another day's meal, another user's, or
+  // one invented by hand - is not skipped, it is not there at all.
+  const eligible = tickedIds.filter((id) => siblingIds.includes(id));
+  const rows = await Promise.all(eligible.map((id) => fetchMealItems(id)));
+  return eligible.reduce<{ updatable: string[]; skipped: string[] }>(
+    (split, id, index) => {
+      const target = mealMatchesRecipe(rows[index], recipeItemRows) ? split.updatable : split.skipped;
+      target.push(id);
+      return split;
+    },
+    { updatable: [], skipped: [] },
+  );
+};
+
+const numbersFor = (ids: readonly string[], numbers: Map<string, number>): number[] =>
+  ids.map((id) => numbers.get(id) ?? 0);
+
+/**
+ * The transaction body itself, pulled out of saveRecipeEdit so that
+ * function's own cyclomatic complexity stays under the linted threshold with
+ * no eslint-disable. Writes the open meal's rows, then files or overwrites
+ * the recipe, then rewrites the earlier meals that survived the re-check
+ * `saveRecipeEdit` already computed.
+ */
+const writeRecipeEdit = async (
+  tx: DbTransaction,
+  userId: string,
+  mealId: string,
+  draft: AmountRow[],
+  mode: SaveRecipeEditMode,
+  meal: OwnedMeal,
+  updatable: readonly string[],
+): Promise<string> => {
+  await replaceMealIngredients(tx, mealId, draft);
+  if (mode.kind === "new") {
+    const id = await insertRecipe(tx, userId, mode.name);
+    await replaceRecipeItems(tx, id, draft);
+    // Latest wins: the open meal is this new recipe's meal now.
+    await setMealRecipe(tx, mealId, id);
+    return id;
+  }
+  const id = meal.recipeId as string;
+  await replaceRecipeItems(tx, id, draft);
+  await touchRecipe(tx, id);
+  for (const targetId of updatable) {
+    await replaceMealIngredients(tx, targetId, draft);
+  }
+  return id;
+};
+
+/** Refuses a malformed request before any read - an empty or non-positive
+ * draft, or (filing a new recipe) a blank name. */
+const assertEditableDraft = (draft: readonly AmountRow[], mode: SaveRecipeEditMode): void => {
+  if (!draftIsWritable(draft)) throw new EmptyRecipeError();
+  if (mode.kind === "new" && !isValidRecipeName(mode.name)) throw new InvalidRecipeNameError();
+};
+
+/** The owned meal an edit targets, plus (for an overwrite) its owned
+ * recipe's current name - both ownership checks a refusal never names the
+ * row for. */
+const resolveEditTarget = async (
+  userId: string,
+  mealId: string,
+  mode: SaveRecipeEditMode,
+): Promise<{ meal: OwnedMeal; existingName: string | undefined }> => {
+  const meal = await fetchOwnedMeal(userId, mealId);
+  if (!meal) throw new MealNotFoundError();
+  if (mode.kind === "overwrite" && !meal.recipeId) throw new RecipeNotFoundError();
+  const existingName = meal.recipeId ? (await fetchOwnedRecipe(userId, meal.recipeId))?.name : undefined;
+  if (mode.kind === "overwrite" && existingName === undefined) throw new RecipeNotFoundError();
+  return { meal, existingName };
+};
+
+/** Maps a refusal to its result shape; anything else is a real failure and
+ * keeps propagating. Pulled out of saveRecipeEdit for the same complexity
+ * reason writeRecipeEdit was. */
+const mapSaveRecipeEditError = (error: unknown): SaveRecipeEditResult => {
+  if (error instanceof EmptyRecipeError) return { kind: "empty_draft" };
+  if (error instanceof InvalidRecipeNameError) return { kind: "invalid_name" };
+  if (error instanceof MealNotFoundError) return { kind: "meal_missing" };
+  if (error instanceof RecipeNotFoundError) return { kind: "recipe_missing" };
+  throw error;
+};
+
+/**
+ * Writes the open meal's rows, then files or overwrites the recipe, then
+ * rewrites the earlier meals that survived the re-check. One transaction: a
+ * recipe that moved without its meal, or a meal rewritten against a recipe
+ * that then failed to save, are both half-states nothing here can explain.
+ */
+export const saveRecipeEdit = async (
+  mealId: string,
+  draft: AmountRow[],
+  mode: SaveRecipeEditMode,
+): Promise<SaveRecipeEditResult> => {
+  const userId = await requireUserId();
+  try {
+    assertEditableDraft(draft, mode);
+    const { meal, existingName } = await resolveEditTarget(userId, mealId, mode);
+
+    // Read the recipe's own current items before anything overwrites them -
+    // partitionTickedMeals re-checks every ticked meal against these, and once
+    // the recipe is overwritten there is nothing left to compare against: a
+    // re-check done afterwards would silently pass every meal.
+    const oldItems = meal.recipeId ? await fetchRecipeItems(meal.recipeId) : [];
+    const { updatable, skipped } =
+      mode.kind === "overwrite"
+        ? await partitionTickedMeals(userId, meal, mode.alsoUpdateMealIds, oldItems)
+        : { updatable: [], skipped: [] };
+    const numbers = await fetchMealNumbers(userId, meal.logDate);
+
+    const recipeId = await db.transaction((tx) => writeRecipeEdit(tx, userId, mealId, draft, mode, meal, updatable));
+
+    return {
+      kind: "saved",
+      recipeId,
+      name: mode.kind === "new" ? mode.name.trim() : (existingName as string),
+      updatedMealNumbers: numbersFor(updatable, numbers),
+      skippedMealNumbers: numbersFor(skipped, numbers),
+    };
+  } catch (error) {
+    return mapSaveRecipeEditError(error);
+  }
 };

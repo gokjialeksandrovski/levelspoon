@@ -1,14 +1,23 @@
 const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
 import { mealIngredients, meals, productOverrides, products, recipeItems, recipes, users } from "@/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
 import { toSearchText } from "@/lib/db/search-text";
-import { deleteRecipe, enterRecipe, listRecipes, renameRecipe, saveMealAsRecipe } from "./recipes";
+import {
+  deleteRecipe,
+  earlierMealsFromRecipe,
+  enterRecipe,
+  listRecipes,
+  renameRecipe,
+  saveMealAsRecipe,
+  saveRecipeEdit,
+} from "./recipes";
+import type { AmountRow } from "./recipes.store";
 
 const TODAY = todayLocalDateString("UTC");
 const YESTERDAY = addCalendarDays(TODAY, -1);
@@ -528,5 +537,295 @@ describe("deleteRecipe", () => {
     expect(await deleteRecipe(recipeId)).toEqual({ kind: "recipe_missing" });
     const [recipe] = await db.select().from(recipes).where(eq(recipes.id, recipeId));
     expect(recipe.deletedAt).toBeNull();
+  });
+});
+
+const draftItem = (productId: string, quantity: number): AmountRow => ({
+  productId,
+  quantity,
+  quantityUnit: "g",
+  entryCount: quantity,
+  entryUnit: "g",
+});
+
+const liveRows = (mealId: string) =>
+  db.select().from(mealIngredients).where(and(eq(mealIngredients.mealId, mealId), isNull(mealIngredients.deletedAt)));
+
+describe("earlierMealsFromRecipe", () => {
+  it("offers an earlier meal that still matches and names one that does not", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+
+    const untouched = await seedMeal(userId);
+    await enterRecipe(untouched, recipeId);
+    const edited = await seedMeal(userId);
+    await enterRecipe(edited, recipeId);
+    await db
+      .update(mealIngredients)
+      .set({ quantity: "250.00" })
+      .where(eq(mealIngredients.mealId, edited));
+    const open = await seedMeal(userId);
+    await enterRecipe(open, recipeId);
+
+    const earlier = await earlierMealsFromRecipe(open);
+    expect(earlier.map((meal) => meal.mealId).sort()).toEqual([edited, untouched].sort());
+    expect(earlier.find((meal) => meal.mealId === untouched)?.matches).toBe(true);
+    expect(earlier.find((meal) => meal.mealId === edited)?.matches).toBe(false);
+  });
+
+  it("states each meal's current kcal, so the prompt's delta is measured", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const untouched = await seedMeal(userId);
+    await enterRecipe(untouched, recipeId);
+    const open = await seedMeal(userId);
+    await enterRecipe(open, recipeId);
+
+    const [earlier] = await earlierMealsFromRecipe(open);
+    expect(earlier.currentKcal).toBeCloseTo(140);
+  });
+
+  it("numbers meals by their position in the day", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const first = await seedMeal(userId);
+    await enterRecipe(first, recipeId);
+    const open = await seedMeal(userId);
+    await enterRecipe(open, recipeId);
+
+    const [earlier] = await earlierMealsFromRecipe(open);
+    // savedRecipeFrom created meal 1, so the first entered meal is meal 2.
+    expect(earlier.mealNumber).toBe(2);
+  });
+
+  // [RF-4b] A closed day's total is a figure the user already read.
+  it("never offers a meal from another day, matching or not", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const yesterdayMeal = await seedMeal(userId, YESTERDAY);
+    await enterRecipe(yesterdayMeal, recipeId);
+    const open = await seedMeal(userId);
+    await enterRecipe(open, recipeId);
+
+    expect(await earlierMealsFromRecipe(open)).toHaveLength(0);
+  });
+
+  it("returns nothing for an unlinked meal", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const mealId = await seedMeal(userId);
+    await addIngredient(mealId, productId, 200);
+
+    expect(await earlierMealsFromRecipe(mealId)).toHaveLength(0);
+  });
+});
+
+describe("saveRecipeEdit", () => {
+  const linkedMeal = async (userId: string, productId: string) => {
+    const recipeId = await savedRecipeFrom(userId, "Yogurt", [[productId, 200]]);
+    const open = await seedMeal(userId);
+    await enterRecipe(open, recipeId);
+    return { recipeId, open };
+  };
+
+  it("overwrite rewrites the recipe and the open meal from the draft", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+
+    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "overwrite", alsoUpdateMealIds: [] });
+    expect(result.kind).toBe("saved");
+
+    const items = await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId));
+    expect(items.map((item) => Number(item.quantity))).toEqual([250]);
+    const rows = await liveRows(open);
+    expect(rows.map((row) => Number(row.quantity))).toEqual([250]);
+  });
+
+  it("overwrite updates a ticked earlier meal from today", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+    const earlier = await seedMeal(userId);
+    await enterRecipe(earlier, recipeId);
+    const openAgain = await seedMeal(userId);
+    await enterRecipe(openAgain, recipeId);
+
+    const result = await saveRecipeEdit(openAgain, [draftItem(productId, 250)], {
+      kind: "overwrite",
+      alsoUpdateMealIds: [earlier],
+    });
+    if (result.kind !== "saved") throw new Error(result.kind);
+
+    expect((await liveRows(earlier)).map((row) => Number(row.quantity))).toEqual([250]);
+    expect(result.updatedMealNumbers).toHaveLength(1);
+    expect(result.skippedMealNumbers).toHaveLength(0);
+    // `open` was not ticked, so it keeps what it had.
+    expect((await liveRows(open)).map((row) => Number(row.quantity))).toEqual([200]);
+  });
+
+  // The server re-checks; it does not trust the tick. The prompt was rendered
+  // before the user hand-edited that meal in another tab.
+  it("skips a ticked meal that diverged between the prompt and the save", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+    const earlier = await seedMeal(userId);
+    await enterRecipe(earlier, recipeId);
+    await db.update(mealIngredients).set({ quantity: "111.00" }).where(eq(mealIngredients.mealId, earlier));
+
+    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], {
+      kind: "overwrite",
+      alsoUpdateMealIds: [earlier],
+    });
+    if (result.kind !== "saved") throw new Error(result.kind);
+
+    expect((await liveRows(earlier)).map((row) => Number(row.quantity))).toEqual([111]);
+    expect(result.updatedMealNumbers).toHaveLength(0);
+    expect(result.skippedMealNumbers).toHaveLength(1);
+  });
+
+  it("never rewrites a past day's meal even when its id is ticked", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+    const yesterdayMeal = await seedMeal(userId, YESTERDAY);
+    await enterRecipe(yesterdayMeal, recipeId);
+
+    await saveRecipeEdit(open, [draftItem(productId, 250)], {
+      kind: "overwrite",
+      alsoUpdateMealIds: [yesterdayMeal],
+    });
+
+    expect((await liveRows(yesterdayMeal)).map((row) => Number(row.quantity))).toEqual([200]);
+  });
+
+  it("new files a second recipe and leaves the source byte-identical", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+    const before = await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId));
+
+    const result = await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "new", name: "Bigger yogurt" });
+    if (result.kind !== "saved") throw new Error(result.kind);
+
+    expect(result.recipeId).not.toBe(recipeId);
+    expect(await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId))).toEqual(before);
+    // Latest wins: the open meal now points at the new recipe.
+    const [meal] = await db.select().from(meals).where(eq(meals.id, open));
+    expect(meal.recipeId).toBe(result.recipeId);
+  });
+
+  it("new never touches an earlier meal, ticked or not", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open: _open } = await linkedMeal(userId, productId);
+    const earlier = await seedMeal(userId);
+    await enterRecipe(earlier, recipeId);
+    const openAgain = await seedMeal(userId);
+    await enterRecipe(openAgain, recipeId);
+
+    await saveRecipeEdit(openAgain, [draftItem(productId, 250)], { kind: "new", name: "Bigger yogurt" });
+
+    expect((await liveRows(earlier)).map((row) => Number(row.quantity))).toEqual([200]);
+  });
+
+  it("new refuses a blank name and writes nothing", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { open } = await linkedMeal(userId, productId);
+
+    expect(await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "new", name: " " })).toEqual({
+      kind: "invalid_name",
+    });
+    expect(await db.select().from(recipes)).toHaveLength(1);
+    expect((await liveRows(open)).map((row) => Number(row.quantity))).toEqual([200]);
+  });
+
+  // [RF-3] The Save button is disabled client-side, which is not a guard.
+  it("refuses an empty draft and writes nothing", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open } = await linkedMeal(userId, productId);
+
+    expect(await saveRecipeEdit(open, [], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({ kind: "empty_draft" });
+    expect(await db.select().from(recipeItems).where(eq(recipeItems.recipeId, recipeId))).toHaveLength(1);
+    expect(await liveRows(open)).toHaveLength(1);
+  });
+
+  it("refuses a draft row with a non-positive amount", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { open } = await linkedMeal(userId, productId);
+
+    expect(await saveRecipeEdit(open, [draftItem(productId, 0)], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({
+      kind: "empty_draft",
+    });
+  });
+
+  it("overwrite refuses an unlinked meal", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const mealId = await seedMeal(userId);
+    await addIngredient(mealId, productId, 200);
+
+    expect(await saveRecipeEdit(mealId, [draftItem(productId, 250)], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({
+      kind: "recipe_missing",
+    });
+  });
+
+  it("refuses another user's meal", async () => {
+    const owner = await seedUser();
+    const intruder = await seedUser();
+    signedInAs(owner);
+    const productId = await seedProduct(owner);
+    const { open } = await linkedMeal(owner, productId);
+
+    signedInAs(intruder);
+    expect(await saveRecipeEdit(open, [draftItem(productId, 250)], { kind: "overwrite", alsoUpdateMealIds: [] })).toEqual({
+      kind: "meal_missing",
+    });
+  });
+
+  // [RF-2b] Postgres hands `quantity` back as "250.00". A comparison that
+  // forgets Number() reports every meal as diverged, which silently kills the
+  // tick - the retro-update would appear to do nothing and say nothing.
+  it("treats a meal written at the column's own scale as still matching", async () => {
+    const userId = await seedUser();
+    signedInAs(userId);
+    const productId = await seedProduct(userId);
+    const { recipeId, open: _open } = await linkedMeal(userId, productId);
+    const earlier = await seedMeal(userId);
+    await enterRecipe(earlier, recipeId);
+    // Same figure, restated at full scale - a no-op rewrite, not an edit.
+    await db.update(mealIngredients).set({ quantity: "200.00" }).where(eq(mealIngredients.mealId, earlier));
+    const openAgain = await seedMeal(userId);
+    await enterRecipe(openAgain, recipeId);
+
+    const result = await saveRecipeEdit(openAgain, [draftItem(productId, 250)], {
+      kind: "overwrite",
+      alsoUpdateMealIds: [earlier],
+    });
+    if (result.kind !== "saved") throw new Error(result.kind);
+    expect(result.updatedMealNumbers).toHaveLength(1);
   });
 });

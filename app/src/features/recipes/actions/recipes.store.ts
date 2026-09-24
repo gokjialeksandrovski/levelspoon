@@ -2,7 +2,7 @@
 // would let a browser read or write any user's recipes. Only "use server"
 // modules import this file (CLAUDE.md, "Server/client boundary"); they resolve
 // the user themselves and hand it in. Same rule as weight.store.ts.
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { db, type DbTransaction } from "@/lib/db";
 import { effectiveNutritionSelection } from "@/lib/db/effective-nutrition";
@@ -244,4 +244,103 @@ export const unlinkMealsFromRecipe = async (tx: DbTransaction, recipeId: string)
 /** Soft delete only. Call after unlinkMealsFromRecipe. */
 export const softDeleteRecipe = async (tx: DbTransaction, recipeId: string): Promise<void> => {
   await tx.update(recipes).set({ deletedAt: sql`now()` }).where(eq(recipes.id, recipeId));
+};
+
+/**
+ * Every meal in one local day, numbered by position.
+ *
+ * Same definition mealNumberInLocalDay uses in meals.ts - count of the user's
+ * live meals on that day created at or before this one - expressed once for
+ * the whole day, because the prompt names several meals at a time and one
+ * round trip per meal is one too many.
+ */
+export const fetchMealNumbers = async (userId: string, logDate: string): Promise<Map<string, number>> => {
+  const rows = await db
+    .select({ id: meals.id, createdAt: meals.createdAt })
+    .from(meals)
+    .where(and(eq(meals.userId, userId), eq(meals.logDate, logDate), isNull(meals.deletedAt)))
+    .orderBy(asc(meals.createdAt));
+  return new Map(rows.map((row, index) => [row.id, index + 1]));
+};
+
+/** kcal for each of the given meals, read live through this user's own
+ * corrections - the same figure the meal page prints. */
+export const fetchMealKcals = async (userId: string, mealIds: readonly string[]): Promise<Map<string, number>> => {
+  if (mealIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({
+      mealId: mealIngredients.mealId,
+      quantity: mealIngredients.quantity,
+      basisQuantity: products.nutritionBasisQuantity,
+      energyKcal: sql<string>`coalesce(${productOverrides.energyKcal}, ${products.energyKcal})`,
+    })
+    .from(mealIngredients)
+    .innerJoin(products, eq(mealIngredients.productId, products.id))
+    .leftJoin(
+      productOverrides,
+      and(eq(productOverrides.productId, products.id), eq(productOverrides.userId, userId)),
+    )
+    .where(and(inArray(mealIngredients.mealId, [...mealIds]), isNull(mealIngredients.deletedAt)));
+
+  return rows.reduce((totals, row) => {
+    const kcal = (Number(row.energyKcal) * Number(row.quantity)) / Number(row.basisQuantity);
+    return totals.set(row.mealId, (totals.get(row.mealId) ?? 0) + kcal);
+  }, new Map<string, number>());
+};
+
+/** The user's other live meals on the same local day, from the same recipe.
+ * The day filter is the rule, not a convenience: a closed day's total is a
+ * figure the user already read.
+ *
+ * Also excludes the recipe's own origin meal - "Save as recipe" links that
+ * meal to the recipe in the same transaction the recipe row is inserted, so
+ * that meal's createdAt is always earlier than the recipe's own. Every meal
+ * later entered into an already-existing recipe is created at or after that
+ * point, which the `createdAt > recipes.createdAt` join tells apart with no
+ * extra column. A meal created before the recipe existed and only entered
+ * into it afterward would be wrongly excluded here too - unreachable through
+ * the shipped UI (a recipe can only be entered into the meal being actively
+ * built), so left as a known ceiling rather than added tracking for it.
+ */
+export const fetchSiblingMealIds = async (userId: string, meal: OwnedMeal): Promise<string[]> => {
+  if (meal.recipeId === null) {
+    return [];
+  }
+  const rows = await db
+    .select({ id: meals.id })
+    .from(meals)
+    .innerJoin(recipes, eq(recipes.id, meals.recipeId))
+    .where(
+      and(
+        eq(meals.userId, userId),
+        eq(meals.logDate, meal.logDate),
+        eq(meals.recipeId, meal.recipeId),
+        isNull(meals.deletedAt),
+        ne(meals.id, meal.id),
+        gt(meals.createdAt, recipes.createdAt),
+      ),
+    )
+    .orderBy(asc(meals.createdAt));
+  return rows.map((row) => row.id);
+};
+
+/**
+ * Replaces a meal's live rows with the given items.
+ *
+ * The old rows are soft-deleted rather than dropped, matching every other
+ * removal in the app: purgeSoftDeleted collects them, and nothing else in the
+ * schema hard-deletes an ingredient.
+ */
+export const replaceMealIngredients = async (
+  tx: DbTransaction,
+  mealId: string,
+  items: readonly AmountRow[],
+): Promise<void> => {
+  await tx
+    .update(mealIngredients)
+    .set({ deletedAt: sql`now()` })
+    .where(and(eq(mealIngredients.mealId, mealId), isNull(mealIngredients.deletedAt)));
+  await appendItemsToMeal(tx, mealId, items);
 };
