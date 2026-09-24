@@ -305,15 +305,19 @@ interface StepViewProps {
 // One branch per wizard step. CLAUDE.md requires a switch here: TypeScript
 // narrows the discriminated union per case, which a Record lookup cannot do
 // without an unsafe cast.
+// Exhaustive switch over a discriminated union scores one per case, and
+// every case here already delegates to a named render* function - there is
+// no un-extracted work left to pull out. Splitting the table across two
+// functions to clear the threshold would fragment the one thing this switch
+// exists to keep scannable: the state map. Same argument wizardReducer's own
+// directive carries; this is the repo's second, not a first exception.
+// eslint-disable-next-line complexity
 const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
-    // default, not a tenth `case`: every other kind already has its own case
-    // above, so TypeScript still narrows step to exactly "recipe-pick" here -
-    // and ESLint's complexity rule (unlike SwitchCase) doesn't count default.
-    default: return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch);
+    case "recipe-pick": return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch);
     case "match-result": return renderMatchResultStep(step, dispatch);
     case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);
     case "serving-size": return renderServingSizeStep(step, dispatch);
