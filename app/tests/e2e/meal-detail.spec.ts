@@ -15,7 +15,7 @@ test("editing an ingredient amount recalculates its contribution", async ({ page
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Amount", { exact: true }).fill("100");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
 
   // Matches the ingredient row's own "<qty>g · <kcal> kcal" summary line
   // (QuantitySummary in ingredient-row.tsx). A bare /70 kcal/ would also hit
@@ -35,7 +35,7 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Amount", { exact: true }).fill("0");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
 
   const errorMessage = page.getByText('Couldn\'t work out the amount in "g". Try a different unit.');
   await expect(errorMessage).toBeVisible();
@@ -43,7 +43,7 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
 
   await page.getByLabel("Amount", { exact: true }).fill("100");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
 
   await expect(errorMessage).toHaveCount(0);
   await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();

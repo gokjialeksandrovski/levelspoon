@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { getMealDetail, restoreMealIngredient } from "@/features/meals/actions/meals";
-import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/features/meals/actions/meals";
+import type { MealDetail as MealDetailData, MealIngredientDetail, MealRecipeLink } from "@/features/meals/actions/meals";
 import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import { MacroLine } from "@/features/meals/components/macro-line";
 import { AppHeader } from "@/components/layout/app-header";
@@ -22,6 +22,7 @@ import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 import { CookingFatControl } from "./cooking-fat-control";
 import { DeleteMeal } from "./delete-meal";
 import { IngredientRow, RemovedIngredientRow } from "./ingredient-row";
+import { RecipeControl, RecipeDivergence, RecipeSubtitle } from "./recipe-control";
 
 type MealDetailState =
   | { status: "loading" }
@@ -269,13 +270,15 @@ const IngredientsSection = ({ meal, removals, onIngredientChanged }: Ingredients
 interface MealActionsProps {
   mealId: string;
   mealDate: string;
+  recipe: MealRecipeLink | null;
+  hasIngredients: boolean;
   onIngredientChanged: () => void;
 }
 
 // Two adding actions sit together; deleting the meal is a different kind of
 // act and gets a gap wide enough that a thumb reaching for "Add" never finds
 // it by accident.
-const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps) => (
+const MealActions = ({ mealId, mealDate, recipe, hasIngredients, onIngredientChanged }: MealActionsProps) => (
   <div className="mt-8 flex flex-col gap-10">
     <div className="flex flex-col gap-3">
       {/*
@@ -291,6 +294,7 @@ const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps
         Add ingredient
       </Link>
       <CookingFatControl mealId={mealId} onIngredientChanged={onIngredientChanged} />
+      <RecipeControl mealId={mealId} recipe={recipe} hasIngredients={hasIngredients} onChanged={onIngredientChanged} />
     </div>
     <DeleteMeal mealId={mealId} mealDate={mealDate} />
   </div>
@@ -298,8 +302,18 @@ const MealActions = ({ mealId, mealDate, onIngredientChanged }: MealActionsProps
 
 const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged }: MealReadyBodyProps) => (
   <>
+    <div className="mb-4 flex flex-col gap-2">
+      <RecipeDivergence recipe={meal.recipe} />
+      <RecipeSubtitle recipe={meal.recipe} />
+    </div>
     <IngredientsSection meal={meal} removals={removals} onIngredientChanged={onIngredientChanged} />
-    <MealActions mealId={mealId} mealDate={meal.date} onIngredientChanged={onIngredientChanged} />
+    <MealActions
+      mealId={mealId}
+      mealDate={meal.date}
+      recipe={meal.recipe}
+      hasIngredients={meal.ingredients.length > 0}
+      onIngredientChanged={onIngredientChanged}
+    />
   </>
 );
 
