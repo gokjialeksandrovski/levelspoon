@@ -617,9 +617,12 @@ wizard's `Add meals` section.
   `products_ai_estimate_private` CHECK forbids label photo and `standard`
   source; `assertNotAiEstimate` guards `linkBarcode` and `setPortionGrams`;
   `notAiEstimate` fragment keeps them out of `searchUserProducts`,
-  `matchProduct`, `findSameFigures`, `assertUserProduct` - and now
-  `findStoredMeasures` too, fenced in Task 3. A new search, match or barcode
-  writer must apply it too.
+  `matchProduct`, `findSameFigures`, `assertUserProduct` and
+  `findStoredMeasures`. `isProofless` (`attachLabelProof`'s own guard)
+  excludes an AI row too, and `getProductForCorrection` returns null for one,
+  so `/products/<id>/correct` 404s rather than promoting a guess to a shared,
+  label-proved row. A new search, match, barcode or photo-proof writer must
+  apply the same guard.
 - Reuse is through recipes only. `(AI estimate)` tag on recipe and `AI
   estimate` on item are derived from origin, never stored; swapping every
   guess for a real product clears recipe tag.

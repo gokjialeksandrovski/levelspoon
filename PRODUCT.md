@@ -104,7 +104,8 @@ documented in `CLAUDE.md`; four accents each carry exactly one semantic role
    is a lazy-track estimate the user asked for, labelled and private.
 2. State by default. Advise only where the user asks, and show the
    uncertainty. Every figure on screen traces to a label, a measurement, the
-   user's own entry, or a named published formula.
+   user's own entry, or a named published formula - except the one AI figure
+   named in Principle 1, always shown labelled as an estimate.
 3. The shared table is the thing worth protecting: refuse a duplicate or a
    reused photo at write time rather than cleaning up later.
 4. Optional stays optional. A feature the user has not set up must not block,
