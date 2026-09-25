@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { estimateMeal, logLazyMeal, type EstimateMealResult } from "@/features/lazy-track/actions/lazy-track";
+import { estimateMeal, logLazyMeal, type EstimateMealResult, type LogLazyMealResult } from "@/features/lazy-track/actions/lazy-track";
 import { canEstimate, DESCRIPTION_MAX_LENGTH, isDescriptionTooLong, type MealEstimateView } from "@/features/lazy-track/actions/lazy-track.utils";
 import { Button } from "@/components/ui/button";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
@@ -117,7 +117,7 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
 
 const LOG_FAILED = "Couldn't log it. Try again.";
 
-const LOG_ERRORS: Record<"invalid_items" | "invalid_recipe_name" | "meal_missing", string> = {
+const LOG_ERRORS: Record<Exclude<LogLazyMealResult["kind"], "logged">, string> = {
   invalid_items: "Something in this estimate doesn't add up — estimate again.",
   invalid_recipe_name: "Give the recipe a name.",
   meal_missing: "This meal is gone. Nothing was logged.",
@@ -178,6 +178,21 @@ const useLog = (mealId: string, onLogged: () => void) => {
   return { isLogging, error, log };
 };
 
+// A document listener, not the step's own root-div onKeyDown: AnimatedStep
+// (capture-wizard.tsx) moves focus to its own ancestor on step change, so a
+// keydown on this div never fires - it bubbles up, not down, from wherever
+// focus actually landed. Skips an already-handled key so a future Sheet's
+// own Escape isn't double-fired.
+const useEscapeToGoBack = (dispatch: (action: PathAction) => void) => {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) dispatch({ type: "BACK" });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [dispatch]);
+};
+
 // Rows and their derived total, split out of LazyReviewStep so that
 // component's own body stays under the complexity threshold without a third
 // eslint-disable directive (CLAUDE.md caps that at two, both already spent).
@@ -194,14 +209,10 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
   const [saveRecipe, setSaveRecipe] = useState(false);
   const [recipeName, setRecipeName] = useState(estimate.mealName);
   const logging = useLog(mealId, onLogged);
+  useEscapeToGoBack(dispatch);
 
   return (
-    <div
-      className="flex flex-col gap-4"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") dispatch({ type: "BACK" });
-      }}
-    >
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold">{estimate.mealName}</h2>
         <p className="tabular-nums text-sm text-text-muted">Rough estimate · about {Math.round(totalKcal)} kcal</p>
