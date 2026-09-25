@@ -57,10 +57,13 @@ const DISPLAY_DECIMALS = 2;
 const toDisplayValue = (value: number | null): string =>
   value === null ? "" : String(Number(value.toFixed(DISPLAY_DECIMALS)));
 
+// Walks the known fields, not the object's own keys: the real OCR service
+// omits a figure the label never printed (fibre, most often), and a missing
+// key left that field undefined - toNutritionValues' .trim() then threw, and
+// the confirm step could neither revalidate nor save.
 export const toFieldValues = (parsed: NullableNutritionValues): FieldValues => {
-  const entries = Object.entries(parsed) as [keyof NullableNutritionValues, number | null][];
-  const stringEntries = entries.map(([key, value]) => [key, toDisplayValue(value)] as const);
-  return Object.fromEntries(stringEntries) as FieldValues;
+  const fields = Object.keys(FIELD_LABELS) as (keyof NullableNutritionValues)[];
+  return Object.fromEntries(fields.map((field) => [field, toDisplayValue(parsed[field] ?? null)])) as FieldValues;
 };
 
 export const toNutritionValues = (values: FieldValues): NutritionValues => ({

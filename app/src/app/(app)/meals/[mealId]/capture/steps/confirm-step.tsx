@@ -365,7 +365,8 @@ const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: 
     }
     const result = await saveProduct(input);
     applyCreateProductResult(result, input, dispatch, callbacks);
-  } catch {
+  } catch (caught) {
+    console.error("saveConfirmedProduct failed", caught);
     callbacks.setError(SAVE_ERROR);
   } finally {
     callbacks.setIsSaving(false);
@@ -479,7 +480,7 @@ const useConfirmStepForm = (props: ConfirmStepProps, barcodeToAttach: string | n
       .then(setFlags)
       // Transient failure leaves existing flags in place - handleSave's own
       // pre-save check still guards the save.
-      .catch(() => {});
+      .catch((caught) => console.error("validateNutrition failed", caught));
   }, []);
 
   const actions = buildConfirmStepActions(

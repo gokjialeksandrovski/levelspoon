@@ -2,8 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { changedNutritionFields, FIELD_LABELS, flaggedFieldSet, NUTRITION_FIELD_GROUPS, toFieldValues, toNutritionValues } from "./nutrition-fields";
 import type { FieldValues } from "./nutrition-fields";
+import type { NullableNutritionValues } from "./provider";
 
 describe("toFieldValues", () => {
+  // The real OCR service drops a figure the label never printed; a missing key
+  // must still become a blank field, or toNutritionValues throws on it.
+  it("fills a blank field for a figure the reply left out", () => {
+    const { fibreG: _omitted, ...withoutFibre } = { energyKcal: 56, fatG: 2.8, saturatesG: 1.8, carbohydrateG: 4.6, sugarsG: 4.6, proteinG: 3, saltG: 0.12, fibreG: null };
+    const values = toFieldValues(withoutFibre as NullableNutritionValues);
+    expect(values.fibreG).toBe("");
+    expect(toNutritionValues(values).fibreG).toBeNull();
+  });
+
   it("stringifies numbers and renders null as an empty string", () => {
     const result = toFieldValues({
       energyKcal: 70, fatG: null, saturatesG: 1.2, carbohydrateG: 4, sugarsG: 4, proteinG: 9, saltG: 0.18, fibreG: null,
