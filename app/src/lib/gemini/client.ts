@@ -54,6 +54,17 @@ export interface GeminiResponse {
   choices?: GeminiChoice[];
 }
 
+// Shared by every provider's reply parser: a reply cut off by the token
+// budget surfaces as TruncatedResponseError instead of being parsed as an
+// empty or partial answer.
+export const firstChoice = (body: GeminiResponse, maxTokens: number): GeminiChoice | undefined => {
+  const choice = body.choices?.[0];
+  if (choice?.finish_reason === "length") {
+    throw new TruncatedResponseError(maxTokens);
+  }
+  return choice;
+};
+
 export const geminiApiKey = (): string => {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {

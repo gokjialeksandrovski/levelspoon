@@ -1,9 +1,9 @@
 import {
+  firstChoice,
   geminiApiKey,
   geminiModel,
   imagePart,
   postChatCompletion,
-  TruncatedResponseError,
   type GeminiResponse,
 } from "@/lib/gemini/client";
 
@@ -34,10 +34,7 @@ class QuantityEstimationError extends Error {
 }
 
 const parseGramsResponse = (body: GeminiResponse): number => {
-  const choice = body.choices?.[0];
-  if (choice?.finish_reason === "length") {
-    throw new TruncatedResponseError(MAX_RESPONSE_TOKENS);
-  }
+  const choice = firstChoice(body, MAX_RESPONSE_TOKENS);
   const content = choice?.message?.content ?? "";
   const grams = Number.parseFloat(content);
   if (!Number.isFinite(grams) || grams <= 0) {
