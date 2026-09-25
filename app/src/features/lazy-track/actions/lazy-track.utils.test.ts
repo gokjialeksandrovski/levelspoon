@@ -27,6 +27,10 @@ describe("isPlausibleItem", () => {
   it("refuses grams above the cap", () => expect(isPlausibleItem({ ...chicken, grams: 5001 })).toBe(false));
   it("refuses a negative figure", () => expect(isPlausibleItem(withFigures({ proteinG: -1 }))).toBe(false));
   it("refuses macros over 100 g per 100 g", () => expect(isPlausibleItem(withFigures({ fatG: 50, proteinG: 51 }))).toBe(false));
+  // A US-style reply already folds fibre into carbohydrateG, so counting it
+  // again over-totals a real food and drops it.
+  it("accepts a peanut-butter-like item whose US-style carbs already include its fibre", () =>
+    expect(isPlausibleItem(withFigures({ fatG: 50, carbohydrateG: 20, proteinG: 25, fibreG: 6 }))).toBe(true));
   it("refuses kcal above 900 per 100 g", () => expect(isPlausibleItem(withFigures({ energyKcal: 901 }))).toBe(false));
   it("refuses sugars above carbs", () => expect(isPlausibleItem(withFigures({ carbohydrateG: 5, sugarsG: 6 }))).toBe(false));
   it("refuses saturates above fat", () => expect(isPlausibleItem(withFigures({ fatG: 1, saturatesG: 2 }))).toBe(false));
