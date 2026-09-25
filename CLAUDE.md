@@ -671,7 +671,10 @@ same breath — no separate "Back to today" control.
   `components/ui/` wrappers: `Button` (`app/src/components/ui/button.tsx`,
   `variant` primary/ghost/danger/fat for filled/outlined boxes, `link` for
   underlined text-link actions, `pending` for busy+spinner) not raw
-  `<button>`; `Field`/`UnitAmountField` not raw `<input>`/`<select>`;
+  `<button>`; `Field`/`UnitAmountField` not raw `<input>`/`<select>` (`FigureField`
+  for a figure checked row-by-row against something printed - the confirm
+  and lazy-track review tables); `StickyActionBar` for a step's commit
+  button below a long form;
   `Sheet` not raw `<dialog>`; `PhotoInput` not raw `<input type="file">`.
   Raw HTML stays only for shapes no wrapper covers: icon-only controls
   (`ICON_TAP_TARGET_CLASS` — back chevron, header icons) and full-width

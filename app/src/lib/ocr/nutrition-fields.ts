@@ -27,6 +27,9 @@ export const NUTRITION_FIELD_GROUPS: (keyof NullableNutritionValues)[][] = [
   ["proteinG", "saltG"],
 ];
 
+/** Printed indented under their parent on an EU label ("of which ..."). */
+export const INDENTED_FIELDS: ReadonlySet<keyof NullableNutritionValues> = new Set(["saturatesG", "sugarsG"]);
+
 // Matches ocr-service's validate.py flag naming (snake_case field names),
 // confirmed directly against its source. fibre_g is one of them: _component_total
 // adds it when a known fibre figure pushes the total past 100g, and

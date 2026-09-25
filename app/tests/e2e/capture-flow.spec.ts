@@ -141,7 +141,7 @@ test("per-unit product (household measure, no printed grams): capture, log, and 
   // "2 Tablespoon" serving becomes the product's basis instead of asking a
   // question with no answer ("how many grams is 2 tbsp?"). This is the
   // reported bug's fix (spec §1/§5).
-  await expect(page.getByText("Confirm nutrition (per 1 tbsp)")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nutrition per 1 tbsp" })).toBeVisible();
   await expect(page.getByLabel("Energy (kcal)")).toHaveValue("95");
   await page.getByRole("button", { name: /save product/i }).click();
 

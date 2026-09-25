@@ -9,15 +9,17 @@ import { createProduct, searchUserProducts } from "@/features/products/actions/p
 import type { CreateProductResult, ProductCandidate } from "@/features/products/actions/products";
 import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { Field, FigureField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LabelPhotoStrip } from "@/components/ui/label-photo-strip";
 import { PhotoInput } from "@/components/ui/photo-input";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import {
   changedNutritionFields,
   FIELD_LABELS,
   flaggedFieldSet,
   focusFirstFlagged,
+  INDENTED_FIELDS,
   NUTRITION_FIELD_GROUPS,
   toFieldValues,
   toNutritionValues,
@@ -248,30 +250,35 @@ interface NutritionFieldsProps {
   flaggedFields: Set<keyof FieldValues>;
   onFieldChange: (field: keyof FieldValues, value: string) => void;
   onFieldBlur: () => void;
+  /** "100 g", "1 tbsp" - what every figure in the table is per. */
+  basis: string;
 }
 
-// gap-8 between blocks against gap-3 within: eight identical boxes in one
-// even stack give the eye nowhere to rest while it checks them off a label.
-const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur }: NutritionFieldsProps) => (
-  <div className="flex flex-col gap-8">
-    {NUTRITION_FIELD_GROUPS.map((group) => (
-      <div key={group[0]} className="flex flex-col gap-3">
-        {group.map((field) => (
-          <Field
-            key={field}
-            label={FIELD_LABELS[field]}
-            name={field}
-            type="number"
-            value={values[field]}
-            onChange={(event) => onFieldChange(field, event.target.value)}
-            onBlur={onFieldBlur}
-            flagged={flaggedFields.has(field)}
-            error={errorFor(field, flaggedFields, values)}
-          />
-        ))}
-      </div>
-    ))}
-  </div>
+// One ruled table in the label's own order, not a stack of full-width boxes:
+// eight figures fit one phone screen, and each sits on the same row as its
+// name the way the printed table the user is checking against does.
+const NutritionFields = ({ values, flaggedFields, onFieldChange, onFieldBlur, basis }: NutritionFieldsProps) => (
+  <section aria-labelledby="nutrition-heading" className="flex flex-col">
+    <h2 id="nutrition-heading" className="border-b-2 border-text pb-2 text-base font-semibold">
+      Nutrition <span className="font-normal text-text-muted">per {basis}</span>
+    </h2>
+    <div className="flex flex-col divide-y divide-border">
+      {NUTRITION_FIELD_GROUPS.flat().map((field) => (
+        <FigureField
+          key={field}
+          label={FIELD_LABELS[field]}
+          name={field}
+          type="number"
+          indent={INDENTED_FIELDS.has(field)}
+          value={values[field]}
+          onChange={(event) => onFieldChange(field, event.target.value)}
+          onBlur={onFieldBlur}
+          flagged={flaggedFields.has(field)}
+          error={errorFor(field, flaggedFields, values)}
+        />
+      ))}
+    </div>
+  </section>
 );
 
 interface SaveConfirmInput {
@@ -725,32 +732,42 @@ export const ConfirmStep = (props: ConfirmStepProps) => {
   const photoUrl = useLabelPhotoUrl(props.photo);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {photoUrl && <LabelPhotoStrip url={photoUrl} />}
-      <h2 className="text-lg font-semibold">Confirm nutrition (per {props.nutritionBasisQuantity} {props.nutritionBasisUnit})</h2>
       <DuplicateSuggestions duplicates={props.duplicates} barcode={props.barcode} dispatch={props.dispatch} />
       <ProductNameField value={form.nameValue} onChange={form.setNameValue} />
-      <NutritionFields values={form.values} flaggedFields={form.flaggedFields} onFieldChange={form.setFieldValue} onFieldBlur={form.revalidateNow} />
+      <NutritionFields
+        values={form.values}
+        flaggedFields={form.flaggedFields}
+        onFieldChange={form.setFieldValue}
+        onFieldBlur={form.revalidateNow}
+        basis={`${props.nutritionBasisQuantity} ${props.nutritionBasisUnit}`}
+      />
       {props.barcode === null && <BarcodeAttachmentControl pendingBarcode={props.pendingBarcode} attachment={attachment} dispatch={props.dispatch} />}
-      {form.duplicate && (
-        <DuplicateNotice
-          duplicate={form.duplicate}
-          acknowledged={form.acknowledgedSameFigures}
-          onAcknowledge={form.setAcknowledgedSameFigures}
-          dispatch={props.dispatch}
-        />
-      )}
-      {form.sameFigures && (
-        <SameFiguresNotice
-          ownerName={form.sameFigures.ownerName}
-          acknowledged={form.acknowledgedSameFigures}
-          onAcknowledge={form.setAcknowledgedSameFigures}
-        />
-      )}
-      {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-      <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
-        Save product
-      </Button>
+      {/* Save's refusals ride in the pinned bar with it: a notice rendered in
+          the page body would land below the fold, where the user who just
+          tapped Save cannot see why nothing happened. */}
+      <StickyActionBar>
+        {form.duplicate && (
+          <DuplicateNotice
+            duplicate={form.duplicate}
+            acknowledged={form.acknowledgedSameFigures}
+            onAcknowledge={form.setAcknowledgedSameFigures}
+            dispatch={props.dispatch}
+          />
+        )}
+        {form.sameFigures && (
+          <SameFiguresNotice
+            ownerName={form.sameFigures.ownerName}
+            acknowledged={form.acknowledgedSameFigures}
+            onAcknowledge={form.setAcknowledgedSameFigures}
+          />
+        )}
+        {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+        <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
+          Save product
+        </Button>
+      </StickyActionBar>
     </div>
   );
 };

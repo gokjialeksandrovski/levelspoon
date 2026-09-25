@@ -167,3 +167,67 @@ export const TextAreaField = ({ label, name, value, onChange, helperText, error,
     <FieldMessage name={name} helperText={helperText} error={error} flagged={false} />
   </div>
 );
+
+interface FigureFieldProps {
+  label: React.ReactNode;
+  name: string;
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
+  type?: "text" | "number";
+  /** Shown inside the box after the figure; hidden from assistive tech, so
+   * the label must already say it. */
+  unit?: string;
+  /** A sub-row, printed the way an EU label indents "of which" figures. */
+  indent?: boolean;
+  /** Muted line under the label, e.g. what the figure works out to. */
+  detail?: React.ReactNode;
+  error?: string;
+  flagged?: boolean;
+  /** One control after the box, such as an icon-only remove. */
+  action?: React.ReactNode;
+}
+
+const FigureLabel = ({ name, label, detail, indent }: Pick<FigureFieldProps, "name" | "label" | "detail"> & { indent: boolean }) => (
+  <div className={`flex min-w-0 flex-1 flex-col ${indent ? "pl-4" : ""}`}>
+    <label htmlFor={name} className={`text-sm ${indent ? "text-text-muted" : "text-text"}`}>
+      {label}
+    </label>
+    {detail && <p className="text-xs tabular-nums text-text-muted">{detail}</p>}
+  </div>
+);
+
+const UnitSuffix = ({ unit }: { unit: string }) => (
+  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-text-muted">
+    {unit}
+  </span>
+);
+
+// Field's box on one row with its label, like a line of a nutrition table:
+// a column of figures checked against a label reads down one edge instead of
+// scrolling through a stack of full-width boxes. w-28 fits "9999.99" plus a
+// unit at text-sm; the box keeps Field's 44px height.
+export const FigureField = ({ label, name, value, onChange, onBlur, type = "text", unit, indent = false, detail, error, flagged = false, action }: FigureFieldProps) => (
+  <div className="flex flex-col gap-1 py-1.5">
+    <div className="flex items-center gap-3">
+      <FigureLabel name={name} label={label} detail={detail} indent={indent} />
+      <div className="relative w-28 shrink-0">
+        <input
+          id={name}
+          name={name}
+          type={type}
+          inputMode="decimal"
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
+          aria-invalid={flagged || Boolean(error)}
+          aria-describedby={error ? `${name}-error` : undefined}
+          className={`${fieldInputClassName(flagged, error)} w-full text-right tabular-nums ${unit ? "pr-9" : ""}`}
+        />
+        {unit && <UnitSuffix unit={unit} />}
+      </div>
+      {action}
+    </div>
+    <FieldMessage name={name} helperText={undefined} error={error} flagged={flagged} />
+  </div>
+);

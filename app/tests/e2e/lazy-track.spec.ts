@@ -25,7 +25,7 @@ test("describe, consent, adjust, save as recipe, log", async ({ page }) => {
   await page.getByRole("button", { name: "I agree" }).click();
 
   await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
-  await page.getByLabel("Grams").nth(1).fill("150");
+  await page.getByLabel(/, grams$/).nth(1).fill("150");
   await page.getByRole("button", { name: "Remove Olive oil" }).click();
   await page.getByLabel("Save as recipe").check();
   await page.getByRole("button", { name: "Log" }).click();
@@ -93,7 +93,7 @@ test("an emptied grams field disables Log", async ({ page }) => {
   await describeAndEstimate(page);
   await page.getByRole("button", { name: "I agree" }).click();
 
-  await page.getByLabel("Grams").first().fill("");
+  await page.getByLabel(/, grams$/).first().fill("");
   await expect(page.getByRole("button", { name: "Log" })).toBeDisabled();
   await expect(page.getByText("Enter an amount above 0.")).toBeVisible();
 });

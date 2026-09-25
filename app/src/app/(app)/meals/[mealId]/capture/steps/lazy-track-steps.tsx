@@ -1,17 +1,19 @@
 "use client";
 
+import { XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { estimateMeal, logLazyMeal, type EstimateMealResult, type LogLazyMealResult } from "@/features/lazy-track/actions/lazy-track";
 import { canEstimate, DESCRIPTION_MAX_LENGTH, isDescriptionTooLong, type MealEstimateView } from "@/features/lazy-track/actions/lazy-track.utils";
 import { Button } from "@/components/ui/button";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
-import { Field, TextAreaField } from "@/components/ui/field";
+import { Field, FigureField, TextAreaField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
+import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 import type { PathAction } from "../capture-wizard.path";
-import { BACK_TO_OPTIONS_LABEL } from "../capture-wizard.types";
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
 import { AiConsentSheet } from "./amount-photo-field";
 import { gramsFieldError, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
@@ -107,9 +109,6 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
       <Button disabled={!canEstimate(description, photo !== null)} pending={estimate.isEstimating} onClick={() => estimate.request(description, photo)}>
         Estimate
       </Button>
-      <Button variant="ghost" link onClick={() => dispatch({ type: "BACK" })}>
-        {BACK_TO_OPTIONS_LABEL}
-      </Button>
       <AiConsentSheet open={estimate.consentOpen} onAgree={() => estimate.agree(description, photo)} onDecline={estimate.decline} />
     </div>
   );
@@ -130,26 +129,31 @@ interface LazyReviewStepProps {
   dispatch: (action: PathAction) => void;
 }
 
+// Same row as the confirm step's nutrition table: name and what it works out
+// to on the left, the one editable figure on the right, so five items fit a
+// phone screen. Icon-only remove, like the other row-level icon controls.
 const ReviewRowView = ({ row, index, onGrams, onRemove }: { row: ReviewRow; index: number; onGrams: (text: string) => void; onRemove: () => void }) => {
   const kcal = rowKcal(row);
   return (
-    <div className="flex flex-col gap-2 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-text">{row.item.name}</span>
-        <Button variant="danger" link aria-label={`Remove ${row.item.name}`} onClick={onRemove}>
-          Remove
-        </Button>
-      </div>
-      <Field
-        label="Grams"
-        name={`lazy-grams-${index}`}
-        inputMode="decimal"
-        value={row.gramsText}
-        onChange={(event) => onGrams(event.target.value)}
-        error={gramsFieldError(row.gramsText)}
-        helperText={kcal === null ? undefined : `About ${Math.round(kcal)} kcal`}
-      />
-    </div>
+    <FigureField
+      label={
+        <>
+          {row.item.name}
+          <span className="sr-only">, grams</span>
+        </>
+      }
+      name={`lazy-grams-${index}`}
+      unit="g"
+      value={row.gramsText}
+      onChange={(event) => onGrams(event.target.value)}
+      detail={kcal === null ? undefined : `About ${Math.round(kcal)} kcal`}
+      error={gramsFieldError(row.gramsText)}
+      action={
+        <button type="button" aria-label={`Remove ${row.item.name}`} onClick={onRemove} className={`${ICON_TAP_TARGET_CLASS} -mr-2.5 text-text-muted`}>
+          <XIcon weight="regular" />
+        </button>
+      }
+    />
   );
 };
 
@@ -214,25 +218,33 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
   useEscapeToGoBack(dispatch, logging.isLogging);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">{estimate.mealName}</h2>
-        <p className="tabular-nums text-sm text-text-muted">Rough estimate · about {Math.round(totalKcal)} kcal</p>
-      </div>
-      <div className="flex flex-col divide-y divide-border">
-        {rows.map((row, index) => (
-          <ReviewRowView key={`${row.item.name}-${index}`} row={row} index={index} onGrams={(text) => setGrams(index, text)} onRemove={() => remove(index)} />
-        ))}
-      </div>
+    <div className="flex flex-col gap-6">
+      <section aria-labelledby="lazy-review-heading" className="flex flex-col">
+        <div className="flex flex-col gap-0.5 border-b-2 border-text pb-2">
+          <h2 id="lazy-review-heading" className="text-base font-semibold">
+            {estimate.mealName}
+          </h2>
+          <p className="text-sm tabular-nums text-text-muted">Rough estimate · about {Math.round(totalKcal)} kcal</p>
+        </div>
+        <div className="flex flex-col divide-y divide-border">
+          {rows.map((row, index) => (
+            <ReviewRowView key={`${row.item.name}-${index}`} row={row} index={index} onGrams={(text) => setGrams(index, text)} onRemove={() => remove(index)} />
+          ))}
+        </div>
+      </section>
       <Button variant="ghost" link disabled={logging.isLogging} onClick={() => dispatch({ type: "BACK" })}>
         Something missing? Add detail
       </Button>
-      <CheckboxRow name="lazy-save-recipe" label="Save as recipe" checked={saveRecipe} onChange={setSaveRecipe} />
-      {saveRecipe && <Field label="Recipe name" name="lazy-recipe-name" value={recipeName} onChange={(event) => setRecipeName(event.target.value)} />}
-      {logging.error && <InlineMessage tone="error">{logging.error}</InlineMessage>}
-      <Button disabled={!reviewDraftIsLoggable(rows)} pending={logging.isLogging} onClick={() => void logging.log(rows, saveRecipe ? recipeName : null)}>
-        Log
-      </Button>
+      <div className="flex flex-col gap-3">
+        <CheckboxRow name="lazy-save-recipe" label="Save as recipe" checked={saveRecipe} onChange={setSaveRecipe} />
+        {saveRecipe && <Field label="Recipe name" name="lazy-recipe-name" value={recipeName} onChange={(event) => setRecipeName(event.target.value)} />}
+      </div>
+      <StickyActionBar>
+        {logging.error && <InlineMessage tone="error">{logging.error}</InlineMessage>}
+        <Button disabled={!reviewDraftIsLoggable(rows)} pending={logging.isLogging} onClick={() => void logging.log(rows, saveRecipe ? recipeName : null)}>
+          Log
+        </Button>
+      </StickyActionBar>
     </div>
   );
 };
