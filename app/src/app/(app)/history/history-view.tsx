@@ -107,14 +107,24 @@ const HistorySkeleton = () => (
   </div>
 );
 
-// Reached from today, so the way back is the header's own Back control and
-// this says what the page will hold instead of repeating it as a button.
+// Shaped like the day view's own empty state - left-aligned under the header,
+// display heading over one muted line - rather than a centred block floating
+// in the middle of the screen with nothing to anchor it. The line is text-sm:
+// it explains the heading, so it reads below it, not level with it.
+//
+// No top margin, unlike the day view's, because this is main's first child:
+// its py-6 is the whole gap, and the loaded page's first row starts there too,
+// so the screen doesn't jump when the first day arrives. The day view's own
+// empty state keeps its mt-10 - it has the hero and macros above it.
 const HistoryEmptyState = ({ today }: { today: string }) => (
-  <div className="mt-16 flex flex-col items-center gap-4 text-center">
-    <p className="text-pretty text-text-muted">
+  <div className="flex flex-col items-start">
+    <h2 className="font-display text-xl font-semibold text-text">No days logged yet</h2>
+    {/* max-w-[38ch] keeps the measure readable on a wide screen; the copy is
+        one sentence, so it wraps to two lines at phone width either way. */}
+    <p className="mt-2 max-w-[38ch] text-pretty text-sm text-text-muted">
       Every day you log lands here, newest first, with how it sat against your goal.
     </p>
-    <Link href={`/day/${today}`} className={buttonClassName("ghost")}>
+    <Link href={`/day/${today}`} className={`${buttonClassName("ghost")} mt-6`}>
       Log something today
     </Link>
   </div>
