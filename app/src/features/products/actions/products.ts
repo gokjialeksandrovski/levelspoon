@@ -18,7 +18,7 @@ import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
 import { nutritionOriginEnum, products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
-import { visibleToUser } from "@/lib/db/visibility";
+import { notAiEstimate, visibleToUser } from "@/lib/db/visibility";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
@@ -249,6 +249,7 @@ interface FiguresMatch {
 // belongs under the same rule, or a Cyrillic stored name versus its
 // Latin-typed duplicate scores ~0 and a genuine collision quietly degrades to
 // tier 2's ask.
+// AI rows excluded: a guess colliding with a real label proves nothing.
 const findSameFigures = async (
   input: CreateProductInput,
   userId: string,
@@ -272,6 +273,7 @@ const findSameFigures = async (
            similarity(p.name_search, ${toSearchText(input.name)}) AS score
     FROM products p
     WHERE p.source = ${USER_SOURCE}
+      AND ${notAiEstimate}
       AND p.energy_kcal = ${values.energyKcal}
       AND p.fat_g = ${values.fatG}
       AND p.saturates_g = ${values.saturatesG}
@@ -344,6 +346,7 @@ const fetchCandidateRows = async (ocrText: string, userId: string): Promise<Cand
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
     WHERE p.source = ${USER_SOURCE}
+      AND ${notAiEstimate}
       AND ${visibleToUser(userId)}
     ORDER BY score DESC
     LIMIT ${CANDIDATE_LIMIT}
@@ -409,6 +412,7 @@ export const searchUserProducts = async (query: string): Promise<ProductCandidat
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
     WHERE p.source = ${USER_SOURCE}
+      AND ${notAiEstimate}
       AND ${visibleToUser(userId)}
       AND (${sql.join(tokenFilters, sql` AND `)}
            OR similarity(p.name_search, ${searchQuery}) >= ${TYPED_SEARCH_MIN_SIMILARITY})
@@ -688,6 +692,7 @@ const assertUserProduct = async (userId: string, productId: string): Promise<voi
     SELECT p.id FROM products p
     WHERE p.id = ${productId}
       AND p.source = ${USER_SOURCE}
+      AND ${notAiEstimate}
       AND ${visibleToUser(userId)}
   `);
   if (result.rows.length === 0) {
@@ -1055,6 +1060,7 @@ export const findStoredMeasures = async (productName: string): Promise<LearnedMe
     FROM products p
     WHERE lower(trim(p.name)) = lower(trim(${productName}))
       AND p.source = ${USER_SOURCE}
+      AND ${notAiEstimate}
       AND ${visibleToUser(userId)}
     ORDER BY p.id
     LIMIT 1

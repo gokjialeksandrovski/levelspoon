@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
 import { productBarcodes } from "@/lib/db/schema";
+import { assertNotAiEstimate } from "@/lib/db/visibility";
 import type { NutritionValues } from "@/types/nutrition";
 
 import { validateNutrition } from "./ocr";
@@ -107,6 +108,7 @@ export const lookupBarcode = async (rawCode: string): Promise<LookupBarcodeResul
 
 export const linkBarcode = async (rawCode: string, productId: string): Promise<LinkBarcodeResult> => {
   const userId = await requireUserId();
+  await assertNotAiEstimate(productId);
   const barcode = toCanonicalBarcode(rawCode);
   try {
     await db.insert(productBarcodes).values({ barcode, productId, createdByUserId: userId });

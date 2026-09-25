@@ -1,4 +1,8 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+
+import { db } from ".";
+import { AI_ESTIMATE_ORIGIN, products } from "./schema";
+import { AiEstimateNotEditableError } from "./ai-estimate-errors";
 
 /**
  * Who may be offered this product.
@@ -31,3 +35,20 @@ export const visibleToUser = (userId: string) => sql`
  * Expects the products table aliased as `p`.
  */
 export const notAiEstimate = sql`p.nutrition_origin <> 'ai_estimate'`;
+
+/**
+ * Refuses an edit meant for a real product when aimed at a lazy-track guess.
+ * A barcode link or a portion weight both imply someone measured this
+ * product; an AI estimate never was, so either write would misrepresent it.
+ * No UI path offers either action from a lazy-track row - this is the
+ * backstop for a bug, not a user-facing refusal.
+ */
+export const assertNotAiEstimate = async (productId: string): Promise<void> => {
+  const [row] = await db
+    .select({ origin: products.nutritionOrigin })
+    .from(products)
+    .where(eq(products.id, productId));
+  if (row?.origin === AI_ESTIMATE_ORIGIN) {
+    throw new AiEstimateNotEditableError(productId);
+  }
+};

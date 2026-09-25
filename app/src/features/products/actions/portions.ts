@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { portionOverrides, products } from "@/lib/db/schema";
+import { assertNotAiEstimate } from "@/lib/db/visibility";
 import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
 
@@ -25,6 +26,7 @@ export const setPortionGrams = async (
   if (!(grams > 0)) {
     throw new Error(`A portion weight must be a positive number of grams, got ${grams}`);
   }
+  await assertNotAiEstimate(productId);
   await db
     .insert(portionOverrides)
     .values({ userId, productId, portionLabel, grams: String(grams) })
