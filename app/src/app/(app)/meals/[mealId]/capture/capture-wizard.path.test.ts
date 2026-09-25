@@ -146,4 +146,21 @@ describe("LAZY_ESTIMATED", () => {
     expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null });
     expect(back).toHaveLength(2);
   });
+
+  // The estimate request can take up to 30s (REQUEST_TIMEOUT_MS); a user who
+  // backs out to options in the meantime must not be pulled back onto a
+  // review screen once it lands.
+  it("leaves the path unchanged when it arrives after the user left the describe step", () => {
+    const path = pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" });
+    const backToOptions = pathReducer(path, { type: "BACK" });
+
+    const late = pathReducer(backToOptions, {
+      type: "LAZY_ESTIMATED",
+      description: "rice bowl",
+      photo: null,
+      estimate: { mealName: "Bowl", items: [] },
+    });
+
+    expect(late).toBe(backToOptions);
+  });
 });
