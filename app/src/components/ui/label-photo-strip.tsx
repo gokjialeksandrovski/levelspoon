@@ -25,7 +25,7 @@ const CollapsedLabelPhoto = ({ url }: { url: string }) => (
       unoptimized
       className="size-10 shrink-0 rounded-control object-cover"
     />
-    <span className="text-sm text-text-muted">Label photo — tap to check against it</span>
+    <span className="text-sm text-text-muted">Label photo: tap to check against it</span>
   </span>
 );
 

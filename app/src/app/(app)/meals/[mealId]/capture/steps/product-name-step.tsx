@@ -247,7 +247,7 @@ const BARCODE_ROW_DESCRIPTION = "Photograph the code. Easiest, try this first.";
 // One line above the list rather than a clause bolted onto each of the four:
 // the fact is the same for all of them, and repeating it four times is how a
 // list of options stops being scannable.
-const ALREADY_ADDED_HINT = "Added this before? Any of these finds it — no label photo needed.";
+const ALREADY_ADDED_HINT = "Added this before? Any of these finds it without a label photo.";
 
 interface PhotoNameEntryProps {
   busyLabel: string | null;
@@ -321,7 +321,7 @@ const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: Manua
 const ADD_MEALS_TITLE = "Add meals";
 const RECIPE_ROW_LOCKED_DESCRIPTION = "Save a meal as a recipe first, and it lands here.";
 const RECIPE_ROW_DESCRIPTION = "Re-add a meal you already saved, in one tap.";
-const LAZY_TRACK_DESCRIPTION = "Least accurate — describe a meal, get a rough estimate.";
+const LAZY_TRACK_DESCRIPTION = "Least accurate. Describe a meal and get a rough estimate.";
 
 const OPTION_GROUP_TITLE_CLASS = "px-1 pb-1 pt-4 text-xs font-medium uppercase tracking-wide text-text-muted";
 

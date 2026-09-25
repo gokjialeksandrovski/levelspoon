@@ -171,7 +171,7 @@ const PickerSkeleton = () => (
   </div>
 );
 
-const NO_RECIPES_LEFT_MESSAGE = "No recipes left — save a meal as a recipe to see it here again.";
+const NO_RECIPES_LEFT_MESSAGE = "No recipes left. Save a meal as a recipe to see it here again.";
 const ADD_FAILED_MESSAGE = "Couldn't add it. Try again.";
 
 interface RecipePickStepProps {

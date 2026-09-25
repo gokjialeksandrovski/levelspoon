@@ -190,7 +190,7 @@ export const earlierMealsTickLabel = (
   }
   const noun = offerable.length === 1 ? "the meal you ate" : "the meals you ate";
   const delta = offerable.reduce((sum, meal) => sum + (draftTotalKcal - meal.currentKcal), 0);
-  return `Also update ${noun} from it earlier today (${mealNames(offerable).join(", ")}) — ${signedKcal(delta)}`;
+  return `Also update ${noun} from it earlier today (${mealNames(offerable).join(", ")}): ${signedKcal(delta)}`;
 };
 
 const joinWithAnd = (names: readonly string[]): string =>

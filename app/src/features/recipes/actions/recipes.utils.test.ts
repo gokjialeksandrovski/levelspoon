@@ -220,19 +220,19 @@ describe("earlier-meals copy", () => {
 
   it("states a signed kcal delta against the draft", () => {
     expect(earlierMealsTickLabel([earlier(3, true, 400)], 445)).toBe(
-      "Also update the meal you ate from it earlier today (Meal 3) — +45 kcal",
+      "Also update the meal you ate from it earlier today (Meal 3): +45 kcal",
     );
   });
 
   it("states a negative delta with its own sign", () => {
     expect(earlierMealsTickLabel([earlier(3, true, 500)], 445)).toBe(
-      "Also update the meal you ate from it earlier today (Meal 3) — −55 kcal",
+      "Also update the meal you ate from it earlier today (Meal 3): −55 kcal",
     );
   });
 
   it("pluralises the tick over several meals and sums their movement", () => {
     expect(earlierMealsTickLabel([earlier(1, true, 400), earlier(3, true, 400)], 445)).toBe(
-      "Also update the meals you ate from it earlier today (Meal 1, Meal 3) — +90 kcal",
+      "Also update the meals you ate from it earlier today (Meal 1, Meal 3): +90 kcal",
     );
   });
 

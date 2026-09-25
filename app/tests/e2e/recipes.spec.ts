@@ -337,7 +337,7 @@ test("overwrite updates a matching earlier meal and leaves a diverged one named"
   // (offering the hand-edited Meal 2, excusing the two matching meals) would
   // fail both of these, where the old alternation would have passed either way.
   const tick = sheet.getByRole("checkbox", {
-    name: "Also update the meals you ate from it earlier today (Meal 1, Meal 3) — +70 kcal",
+    name: "Also update the meals you ate from it earlier today (Meal 1, Meal 3): +70 kcal",
   });
   await expect(tick).toBeVisible();
   await expect(page.getByText("Meal 2 was changed after you logged it, so it is left as it is.")).toBeVisible();
