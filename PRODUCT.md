@@ -22,10 +22,10 @@ curated standard-food search does the reading.
 ## Positioning
 
 Nutrition figures stay deterministic. OCR, parsing and rule-based validation
-read the label; an LLM is allowed exactly one job (estimating amount eaten from
-a photo) and is never allowed near a product name or a nutrition value. Shared
-crowd-sourced product table with per-user override, so a correction never
-silently rewrites another user's figures.
+read the label. An LLM has two jobs: estimating amount eaten from a photo, and
+lazy track — a rough, itemized estimate of a described meal the user asks for,
+labelled as an estimate, kept private to that user, never written to a shared
+row.
 
 The app states figures. It advises intake in exactly one place, on request:
 the calorie estimate (`/calories/estimate`), which shows a range from
@@ -99,7 +99,8 @@ documented in `CLAUDE.md`; four accents each carry exactly one semantic role
 ## Product Principles
 
 1. Deterministic where a number is involved. AI only where no deterministic
-   answer exists, and never for a nutrition figure.
+   answer exists, and never for a shared nutrition figure. The one AI figure
+   is a lazy-track estimate the user asked for, labelled and private.
 2. State by default. Advise only where the user asks, and show the
    uncertainty. Every figure on screen traces to a label, a measurement, the
    user's own entry, or a named published formula.

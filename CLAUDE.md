@@ -71,11 +71,21 @@ most test files hit real database. e2e `TRUNCATE`s shared DB mid-run.
 
 ### AI usage boundary — hard product requirement, not a cost detail
 
-Gemini used **only** for amount/quantity estimation from amount-used
-photo. **Never** for product-name or nutrition-value extraction — those stay
-fully deterministic (OCR + parsing + rule-based validation). `estimateQuantity`
-in `app/src/features/quantity/actions/quantity.ts` only action allowed call LLM.
-`matchProduct` / `createProduct` / `updateProduct` deterministic, always.
+Gemini has exactly two jobs.
+
+1. Grams from amount-used photo — `estimateQuantity`
+   (`app/src/features/quantity/actions/quantity.ts`).
+2. Lazy-track estimate — `estimateMeal`
+   (`app/src/features/lazy-track/actions/lazy-track.ts`): meal name, items,
+   grams, eight per-100g figures, from user description + optional photo.
+
+Job 2 output lands **only** on private `products` rows with
+`nutrition_origin = 'ai_estimate'`: never shared, never searchable, never
+matched, never linked to barcode or label photo (`products_ai_estimate_private`
+CHECK + `notAiEstimate` fragment). Product names and nutrition values on every
+other path stay fully deterministic (OCR + parsing + rule-based validation).
+These two actions only ones allowed call LLM. `matchProduct` / `createProduct`
+/ `updateProduct` deterministic, always.
 
 ### Gemini model
 
