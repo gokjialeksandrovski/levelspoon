@@ -30,5 +30,11 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   if (action.type === "PORTIONS_UPDATED") {
     return [...path.slice(0, -1), wizardReducer(path[path.length - 1], action)];
   }
+  // The describe step under the review is rewritten with what was sent, so
+  // "Add detail" (Back) reopens it holding the user's own text and photo.
+  if (action.type === "LAZY_ESTIMATED") {
+    const describe: WizardStep = { kind: "lazy-describe", description: action.description, photo: action.photo };
+    return [...path.slice(0, -1), describe, wizardReducer(describe, action)];
+  }
   return [...path, wizardReducer(path[path.length - 1], action)];
 };

@@ -68,7 +68,7 @@ const ConsentActions = ({ onAgree, onDecline }: { onAgree: () => void; onDecline
   </div>
 );
 
-const AiConsentSheet = ({ open, onAgree, onDecline }: AiConsentSheetProps) => (
+export const AiConsentSheet = ({ open, onAgree, onDecline }: AiConsentSheetProps) => (
   <Sheet
     open={open}
     onClose={onDecline}

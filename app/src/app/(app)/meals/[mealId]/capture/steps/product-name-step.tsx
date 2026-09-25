@@ -259,6 +259,7 @@ interface PhotoNameEntryProps {
   onManualEntry: () => void;
   onWholeFood: () => void;
   onPickRecipe: () => void;
+  onLazyTrack: () => void;
 }
 
 interface BarcodeAndPhotoRowsProps {
@@ -320,9 +321,7 @@ const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: Manua
 const ADD_MEALS_TITLE = "Add meals";
 const RECIPE_ROW_LOCKED_DESCRIPTION = "Save a meal as a recipe first, and it lands here.";
 const RECIPE_ROW_DESCRIPTION = "Re-add a meal you already saved, in one tap.";
-// Named, not inline: the row is the whole feature this cycle, and the copy is
-// what tells the user it is coming rather than broken.
-const LAZY_TRACK_DESCRIPTION = "Coming soon — describe a meal and get a rough estimate.";
+const LAZY_TRACK_DESCRIPTION = "Least accurate — describe a meal, get a rough estimate.";
 
 const OPTION_GROUP_TITLE_CLASS = "px-1 pb-1 pt-4 text-xs font-medium uppercase tracking-wide text-text-muted";
 
@@ -330,9 +329,10 @@ interface AddMealsRowsProps {
   hasRecipes: boolean;
   isLoading: boolean;
   onPickRecipe: () => void;
+  onLazyTrack: () => void;
 }
 
-const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe }: AddMealsRowsProps) => (
+const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe, onLazyTrack }: AddMealsRowsProps) => (
   <>
     <EntryOptionRow
       icon={BookmarkSimpleIcon}
@@ -341,13 +341,12 @@ const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe }: AddMealsRowsProps
       onClick={onPickRecipe}
       disabled={isLoading || !hasRecipes}
     />
-    {/* Placeholder only this cycle: no action, no step, no handler. */}
     <EntryOptionRow
       icon={FeatherIcon}
       title="Lazy track"
       description={LAZY_TRACK_DESCRIPTION}
-      onClick={() => undefined}
-      disabled
+      onClick={onLazyTrack}
+      disabled={isLoading}
     />
   </>
 );
@@ -358,7 +357,7 @@ interface EntryOptionListProps extends Omit<PhotoNameEntryProps, "busyLabel" | "
 
 // Two labelled groups over one divide-y list: the rows are still one list to
 // scan, and the headings say which of the two things the user is adding.
-const EntryOptionList = ({ isLoading, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe }: EntryOptionListProps) => (
+const EntryOptionList = ({ isLoading, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe, onLazyTrack }: EntryOptionListProps) => (
   <div className="flex flex-col">
     <div className="flex flex-col divide-y divide-border">
       <BarcodeAndPhotoRows isLoading={isLoading} onSelectName={onSelectName} onSelectBarcode={onSelectBarcode} />
@@ -366,7 +365,7 @@ const EntryOptionList = ({ isLoading, hasRecipes, onSelectName, onSelectBarcode,
     </div>
     <h3 className={OPTION_GROUP_TITLE_CLASS}>{ADD_MEALS_TITLE}</h3>
     <div className="flex flex-col divide-y divide-border">
-      <AddMealsRows hasRecipes={hasRecipes} isLoading={isLoading} onPickRecipe={onPickRecipe} />
+      <AddMealsRows hasRecipes={hasRecipes} isLoading={isLoading} onPickRecipe={onPickRecipe} onLazyTrack={onLazyTrack} />
     </div>
   </div>
 );
@@ -374,7 +373,7 @@ const EntryOptionList = ({ isLoading, hasRecipes, onSelectName, onSelectBarcode,
 // The option rows are all disabled while the photo is read, so showing the
 // photo beats four dead rows and a 12px spinner. The caption names the wait
 // the tapped row started - reading a name, reading a code, looking one up.
-const PhotoEntryBody = ({ busyLabel, previewUrl, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe }: Omit<PhotoNameEntryProps, "error">) =>
+const PhotoEntryBody = ({ busyLabel, previewUrl, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe, onLazyTrack }: Omit<PhotoNameEntryProps, "error">) =>
   busyLabel && previewUrl ? (
     <PhotoPreview previewUrl={previewUrl} scanningLabel={busyLabel} />
   ) : (
@@ -386,6 +385,7 @@ const PhotoEntryBody = ({ busyLabel, previewUrl, hasRecipes, onSelectName, onSel
       onManualEntry={onManualEntry}
       onWholeFood={onWholeFood}
       onPickRecipe={onPickRecipe}
+      onLazyTrack={onLazyTrack}
     />
   );
 
@@ -421,6 +421,7 @@ export const ProductNameStep = ({ pendingBarcode, hasRecipes, dispatch }: Produc
       onManualEntry={() => dispatch({ type: "MANUAL_NAME_ENTRY", pendingBarcode })}
       onWholeFood={() => dispatch({ type: "WHOLE_FOOD_SEARCH" })}
       onPickRecipe={() => dispatch({ type: "RECIPE_PICK_OPENED" })}
+      onLazyTrack={() => dispatch({ type: "LAZY_TRACK_OPENED" })}
     />
   );
 };

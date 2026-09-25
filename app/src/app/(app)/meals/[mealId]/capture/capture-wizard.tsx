@@ -18,6 +18,7 @@ import { pathReducer, type PathAction } from "./capture-wizard.path";
 import { INITIAL_WIZARD_STEP, type WizardStep } from "./capture-wizard.types";
 import { AmountStep } from "./steps/amount-step";
 import { ConfirmStep } from "./steps/confirm-step";
+import { LazyDescribeStep, LazyReviewStep } from "./steps/lazy-track-steps";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
 import { ManualNameStep, ProductNameStep } from "./steps/product-name-step";
@@ -39,6 +40,8 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
   confirm: "Confirm values",
   amount: "Amount",
   saved: "Saved",
+  "lazy-describe": "Lazy track",
+  "lazy-review": "Check the estimate",
 };
 
 // Approximate, not derived: the wizard's remaining length depends on which
@@ -55,6 +58,8 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   confirm: 0.75,
   amount: 0.9,
   saved: 1,
+  "lazy-describe": 0.4,
+  "lazy-review": 0.8,
 };
 
 interface DaySnapshot {
@@ -285,6 +290,17 @@ const renderSavedStep = (moment: SavedMoment, dispatch: (action: PathAction) => 
   <SavedStep moment={moment} dispatch={dispatch} onDone={onDone} />
 );
 
+const renderLazyDescribeStep = (step: Extract<WizardStep, { kind: "lazy-describe" }>, dispatch: (action: PathAction) => void) => (
+  <LazyDescribeStep description={step.description} photo={step.photo} dispatch={dispatch} />
+);
+
+const renderLazyReviewStep = (
+  step: Extract<WizardStep, { kind: "lazy-review" }>,
+  mealId: string,
+  onLogged: () => void,
+  dispatch: (action: PathAction) => void,
+) => <LazyReviewStep mealId={mealId} estimate={step.estimate} onLogged={onLogged} dispatch={dispatch} />;
+
 interface StepViewProps {
   step: WizardStep;
   mealId: string;
@@ -292,7 +308,7 @@ interface StepViewProps {
   recipes: RecipeSummary[];
   isRecipesLoading: boolean;
   onRecipesChanged: () => void;
-  onRecipeEntered: () => void;
+  onEnteredMeal: () => void;
   dispatch: (action: PathAction) => void;
   onSaved: () => void;
   onDone: () => void;
@@ -312,18 +328,20 @@ interface StepViewProps {
 // exists to keep scannable: the state map. Same argument wizardReducer's own
 // directive carries; this is the repo's second, not a first exception.
 // eslint-disable-next-line complexity
-const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch, onSaved, onDone }: StepViewProps) => {
+const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
-    case "recipe-pick": return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onRecipeEntered, dispatch);
+    case "recipe-pick": return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal, dispatch);
     case "match-result": return renderMatchResultStep(step, dispatch);
     case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);
     case "serving-size": return renderServingSizeStep(step, dispatch);
     case "confirm": return renderConfirmStep(step, dispatch);
     case "amount": return renderAmountStep(step, mealId, dispatch, onSaved);
     case "saved": return renderSavedStep(moment, dispatch, onDone);
+    case "lazy-describe": return renderLazyDescribeStep(step, dispatch);
+    case "lazy-review": return renderLazyReviewStep(step, mealId, onEnteredMeal, dispatch);
   }
 };
 
@@ -442,11 +460,11 @@ export const CaptureWizard = ({ mealId }: { mealId: string }) => {
           recipes={recipes}
           isRecipesLoading={isRecipesLoading}
           onRecipesChanged={() => setRecipesReload((count) => count + 1)}
-          // Entering a recipe is already written, so this leaves the wizard
-          // for the meal page rather than landing on the "saved" step - that
-          // step means "product saved, add another", which is not what
-          // happened.
-          onRecipeEntered={() => router.push(`/meals/${mealId}`)}
+          // Entering a recipe, or logging a lazy-tracked meal, is already
+          // written, so this leaves the wizard for the meal page rather than
+          // landing on the "saved" step - that step means "product saved, add
+          // another", which is not what happened.
+          onEnteredMeal={() => router.push(`/meals/${mealId}`)}
           dispatch={dispatch}
           onSaved={markSaved}
           onDone={finish}

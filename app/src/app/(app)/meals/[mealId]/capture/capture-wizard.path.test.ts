@@ -137,3 +137,13 @@ describe("recipe-pick on the path", () => {
     expect(pathReducer(opened, { type: "BACK" }).map((step) => step.kind)).toEqual(["product-photo"]);
   });
 });
+
+describe("LAZY_ESTIMATED", () => {
+  it("keeps the typed text on the describe step Back returns to", () => {
+    const path = pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" });
+    const reviewed = pathReducer(path, { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate: { mealName: "Bowl", items: [] } });
+    const back = pathReducer(reviewed, { type: "BACK" });
+    expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null });
+    expect(back).toHaveLength(2);
+  });
+});

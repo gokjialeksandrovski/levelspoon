@@ -131,3 +131,39 @@ export const Field = ({
     <FieldMessage name={name} helperText={helperText} error={error} flagged={flagged} />
   </div>
 );
+
+interface TextAreaFieldProps {
+  label: React.ReactNode;
+  name: string;
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  helperText?: string;
+  error?: string;
+  maxLength?: number;
+  rows?: number;
+}
+
+const DEFAULT_TEXTAREA_ROWS = 4;
+
+// Field's box, label and message, for free text longer than one line. A
+// sibling rather than a `multiline` flag: every Field prop typed against
+// HTMLInputElement would need a union.
+export const TextAreaField = ({ label, name, value, onChange, helperText, error, maxLength, rows = DEFAULT_TEXTAREA_ROWS }: TextAreaFieldProps) => (
+  <div className="flex flex-col gap-1.5">
+    <label htmlFor={name} className="text-xs font-medium text-text-muted">
+      {label}
+    </label>
+    <textarea
+      id={name}
+      name={name}
+      rows={rows}
+      value={value}
+      onChange={onChange}
+      maxLength={maxLength}
+      aria-invalid={Boolean(error)}
+      aria-describedby={describedById(name, helperText, error)}
+      className={`${fieldInputClassName(false, error)} resize-y`}
+    />
+    <FieldMessage name={name} helperText={helperText} error={error} flagged={false} />
+  </div>
+);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
-import { wizardReducer } from "./capture-wizard.types";
+import { INITIAL_WIZARD_STEP, wizardReducer } from "./capture-wizard.types";
 
 // Spread into both ProductCandidate inputs and the SelectedProduct outputs
 // they map to, so it carries the union of what the two shapes need. Nutrition
@@ -463,5 +463,18 @@ describe("RECIPE_PICK_OPENED", () => {
       kind: "product-photo",
       pendingBarcode: null,
     });
+  });
+});
+
+const ESTIMATE = { mealName: "Bowl", items: [] };
+
+describe("lazy track transitions", () => {
+  it("opens the describe step empty", () => {
+    expect(wizardReducer(INITIAL_WIZARD_STEP, { type: "LAZY_TRACK_OPENED" })).toEqual({ kind: "lazy-describe", description: "", photo: null });
+  });
+
+  it("moves to review with the estimate", () => {
+    const state = { kind: "lazy-describe" as const, description: "", photo: null };
+    expect(wizardReducer(state, { type: "LAZY_ESTIMATED", description: "rice", photo: null, estimate: ESTIMATE })).toEqual({ kind: "lazy-review", estimate: ESTIMATE });
   });
 });
