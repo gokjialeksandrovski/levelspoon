@@ -130,6 +130,17 @@ describe("logLazyMeal", () => {
     expect(await logLazyMeal(mealId, [item()], null)).toEqual({ kind: "meal_missing" });
     expect(await db.select().from(products)).toEqual([]);
   });
+
+  it("writes the parsed item's trimmed name, not the raw browser string", async () => {
+    const userId = await seedUser();
+    const mealId = await seedMeal(userId);
+    signedInAs(userId);
+
+    await logLazyMeal(mealId, [item({ name: "  Chicken breast  " })], null);
+
+    const [product] = await db.select({ name: products.name }).from(products);
+    expect(product.name).toBe("Chicken breast");
+  });
 });
 
 describe("derived AI tags", () => {
@@ -157,5 +168,23 @@ describe("derived AI tags", () => {
     await db.update(recipeItems).set({ productId: real.id });
 
     expect((await listRecipes()).map((recipe) => recipe.isAiEstimate)).toEqual([false]);
+  });
+
+  // Both existing tests above use a one-item recipe, so an `every` (AND)
+  // regression in fetchRecipeSummaries would pass them both - this is the
+  // case that actually needs "any" (OR).
+  it("stays true for a recipe holding one AI item and one real item", async () => {
+    const userId = await seedUser();
+    const mealId = await seedMeal(userId);
+    signedInAs(userId);
+    await logLazyMeal(mealId, [item()], "Bowl");
+    const [recipe] = await db.select().from(recipes);
+    const [real] = await db
+      .insert(products)
+      .values({ name: "Real chicken", nameSearch: "real chicken", energyKcal: "165", fatG: "3.6", saturatesG: "1", carbohydrateG: "0", sugarsG: "0", proteinG: "31", saltG: "0.2", nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`, createdByUserId: userId })
+      .returning({ id: products.id });
+    await db.insert(recipeItems).values({ recipeId: recipe.id, productId: real.id, quantity: "100", position: 1 });
+
+    expect((await listRecipes()).map((recipe) => recipe.isAiEstimate)).toEqual([true]);
   });
 });
