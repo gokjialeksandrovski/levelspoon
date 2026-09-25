@@ -17,17 +17,16 @@ import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-cons
 import { AiConsentSheet } from "./amount-photo-field";
 import { gramsFieldError, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
 
-const DISCLAIMER = "Least accurate way to log. Better than nothing — for exact figures use a label, barcode or search.";
 const DESCRIPTION_LABEL = "What did you eat, and what was in it?";
-const DESCRIPTION_HINT = "More detail, better estimate — portion size, cooking oil, sauces.";
+const DESCRIPTION_HINT = "More detail gives a better estimate, e.g. portion size, cooking oil, sauces.";
 const PHOTO_LABEL = "Photo of the meal (optional, helps a lot)";
 const ATTACHED_PHOTO_LABEL = "Photo of the meal";
 const TOO_LONG_ERROR = `Keep it under ${DESCRIPTION_MAX_LENGTH} characters.`;
-const ESTIMATE_FAILED = "Estimate unavailable right now. Your text is kept — try again, or add items by search.";
+const ESTIMATE_FAILED = "Estimate unavailable right now. Your text is kept, so try again or add items by search.";
 
 const ESTIMATE_ERRORS: Record<Exclude<EstimateMealResult["kind"], "estimated">, string> = {
-  nothing_found: "Couldn't pick out any food — say what was on the plate.",
-  photo_unreadable: "That photo format can't be read — use JPEG, PNG or WebP, or leave the photo out.",
+  nothing_found: "Couldn't pick out any food. Say what was on the plate.",
+  photo_unreadable: "That photo format can't be read. Use JPEG, PNG or WebP, or leave the photo out.",
   unavailable: ESTIMATE_FAILED,
 };
 
@@ -86,7 +85,6 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
 
   return (
     <div className="flex flex-col gap-4">
-      <InlineMessage tone="info">{DISCLAIMER}</InlineMessage>
       <TextAreaField
         label={DESCRIPTION_LABEL}
         name="lazy-description"
@@ -121,7 +119,7 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
 const LOG_FAILED = "Couldn't log it. Try again.";
 
 const LOG_ERRORS: Record<Exclude<LogLazyMealResult["kind"], "logged">, string> = {
-  invalid_items: "Something in this estimate doesn't add up — estimate again.",
+  invalid_items: "Something in this estimate doesn't add up. Estimate again.",
   meal_missing: "This meal is gone. Nothing was logged.",
 };
 

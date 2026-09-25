@@ -19,7 +19,6 @@ const describeAndEstimate = async (page: Page, text = "chicken with rice and som
 test("describe, consent, adjust, log, save as recipe from the meal page", async ({ page }) => {
   await signUp(page);
   await openLazyTrack(page);
-  await expect(page.getByText(/Least accurate way to log/)).toBeVisible();
 
   await describeAndEstimate(page);
   await page.getByRole("button", { name: "I agree" }).click();
@@ -125,7 +124,7 @@ test("unavailable keeps text", async ({ page }) => {
   await page.getByRole("button", { name: "I agree" }).click();
 
   await expect(
-    page.getByText("Estimate unavailable right now. Your text is kept — try again, or add items by search."),
+    page.getByText("Estimate unavailable right now. Your text is kept, so try again or add items by search."),
   ).toBeVisible();
   await expect(page.getByLabel("What did you eat, and what was in it?")).toHaveValue(text);
 });
