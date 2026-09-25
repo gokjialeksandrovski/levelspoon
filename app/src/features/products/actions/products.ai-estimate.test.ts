@@ -1,7 +1,7 @@
 const mockAuth = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
@@ -9,7 +9,15 @@ import { AI_ESTIMATE_ORIGIN, products, users } from "@/lib/db/schema";
 
 import { linkBarcode } from "./barcode";
 import { setPortionGrams } from "./portions";
-import { createProduct, findStoredMeasures, matchProduct, saveNutritionOverride, searchUserProducts } from "./products";
+import {
+  attachLabelProof,
+  createProduct,
+  findStoredMeasures,
+  getProductForCorrection,
+  matchProduct,
+  saveNutritionOverride,
+  searchUserProducts,
+} from "./products";
 
 export const FIGURES = {
   energyKcal: "165",
@@ -175,5 +183,30 @@ describe("AI rows stay out of every search, match and gate", () => {
     });
     signedInAs(userId);
     expect(await findStoredMeasures(name)).toEqual({ densityGMl: null, servingUnit: "breast", servingGrams: 120 });
+  });
+
+  // An AI row is otherwise indistinguishable from a hand-typed proofless row,
+  // so without this exclusion attachLabelProof would promote a guess to a
+  // shared, label-proved product.
+  it("attachLabelProof refuses an AI row and leaves it untouched", async () => {
+    const userId = await seedUser();
+    const productId = await seedAiProduct(userId);
+    signedInAs(userId);
+    const photo = new Blob(["proof-jpeg-bytes"], { type: "image/jpeg" });
+
+    const result = await attachLabelProof(productId, photo, { nutritionPer100g: NUTRITION, fromLabel: true });
+
+    expect(result).toEqual({ kind: "not_attachable" });
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionOrigin).toBe(AI_ESTIMATE_ORIGIN);
+    expect(row.nutritionPhotoKey).toBeNull();
+  });
+
+  it("getProductForCorrection returns null for an AI row, so its page 404s", async () => {
+    const userId = await seedUser();
+    const productId = await seedAiProduct(userId);
+    signedInAs(userId);
+
+    expect(await getProductForCorrection(productId)).toBeNull();
   });
 });
