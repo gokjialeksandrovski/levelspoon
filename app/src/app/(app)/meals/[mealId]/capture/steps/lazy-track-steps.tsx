@@ -14,7 +14,7 @@ import type { PathAction } from "../capture-wizard.path";
 import { BACK_TO_OPTIONS_LABEL } from "../capture-wizard.types";
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
 import { AiConsentSheet } from "./amount-photo-field";
-import { reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
+import { gramsFieldError, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
 
 const DISCLAIMER = "Least accurate way to log. Better than nothing — for exact figures use a label, barcode or search.";
 const DESCRIPTION_LABEL = "What did you eat, and what was in it?";
@@ -146,7 +146,7 @@ const ReviewRowView = ({ row, index, onGrams, onRemove }: { row: ReviewRow; inde
         inputMode="decimal"
         value={row.gramsText}
         onChange={(event) => onGrams(event.target.value)}
-        error={kcal === null ? "Enter an amount above 0." : undefined}
+        error={gramsFieldError(row.gramsText)}
         helperText={kcal === null ? undefined : `About ${Math.round(kcal)} kcal`}
       />
     </div>
@@ -182,15 +182,17 @@ const useLog = (mealId: string, onLogged: () => void) => {
 // (capture-wizard.tsx) moves focus to its own ancestor on step change, so a
 // keydown on this div never fires - it bubbles up, not down, from wherever
 // focus actually landed. Skips an already-handled key so a future Sheet's
-// own Escape isn't double-fired.
-const useEscapeToGoBack = (dispatch: (action: PathAction) => void) => {
+// own Escape isn't double-fired. Disabled while logging is in flight: the
+// write is already underway, so leaving now would not stop it, only race it -
+// the user would land back on describe while their meal still gets logged.
+const useEscapeToGoBack = (dispatch: (action: PathAction) => void, disabled: boolean) => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) dispatch({ type: "BACK" });
+      if (event.key === "Escape" && !event.defaultPrevented && !disabled) dispatch({ type: "BACK" });
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [dispatch]);
+  }, [dispatch, disabled]);
 };
 
 // Rows and their derived total, split out of LazyReviewStep so that
@@ -209,7 +211,7 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
   const [saveRecipe, setSaveRecipe] = useState(false);
   const [recipeName, setRecipeName] = useState(estimate.mealName);
   const logging = useLog(mealId, onLogged);
-  useEscapeToGoBack(dispatch);
+  useEscapeToGoBack(dispatch, logging.isLogging);
 
   return (
     <div className="flex flex-col gap-4">
@@ -222,7 +224,7 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
           <ReviewRowView key={`${row.item.name}-${index}`} row={row} index={index} onGrams={(text) => setGrams(index, text)} onRemove={() => remove(index)} />
         ))}
       </div>
-      <Button variant="ghost" link onClick={() => dispatch({ type: "BACK" })}>
+      <Button variant="ghost" link disabled={logging.isLogging} onClick={() => dispatch({ type: "BACK" })}>
         Something missing? Add detail
       </Button>
       <CheckboxRow name="lazy-save-recipe" label="Save as recipe" checked={saveRecipe} onChange={setSaveRecipe} />
