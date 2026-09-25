@@ -56,12 +56,15 @@ const borderColorClass = (flagged: boolean, error: string | undefined, readOnly:
   return readOnly ? "border-border" : "border-text-muted";
 };
 
+const FULL_PADDING = "px-3 py-3";
+
 export const fieldInputClassName = (
   flagged: boolean,
   error: string | undefined,
   readOnly = false,
+  padding = FULL_PADDING,
 ): string =>
-  `rounded-(--radius-control) border ${readOnly ? READ_ONLY_SURFACE : EDITABLE_SURFACE} px-3 py-3 text-sm placeholder:text-text-muted ${FIELD_FOCUS_RING} ${borderColorClass(flagged, error, readOnly)}`;
+  `rounded-(--radius-control) border ${readOnly ? READ_ONLY_SURFACE : EDITABLE_SURFACE} ${padding} text-sm placeholder:text-text-muted ${FIELD_FOCUS_RING} ${borderColorClass(flagged, error, readOnly)}`;
 
 // Points aria-describedby at the error (replaces helper text visually, so
 // it should replace it for screen readers too), else the helper text.
@@ -198,20 +201,23 @@ const FigureLabel = ({ name, label, detail, indent }: Pick<FigureFieldProps, "na
 );
 
 const UnitSuffix = ({ unit }: { unit: string }) => (
-  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-text-muted">
+  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-text-muted">
     {unit}
   </span>
 );
 
 // Field's box on one row with its label, like a line of a nutrition table:
 // a column of figures checked against a label reads down one edge instead of
-// scrolling through a stack of full-width boxes. w-28 fits "9999.99" plus a
-// unit at text-sm; the box keeps Field's 44px height.
+// scrolling through a stack of full-width boxes. Sized to the figure, not the
+// row: w-20 holds "1234.5", or four digits beside a unit. The box drops below
+// the 44px floor on purpose - the label is its htmlFor, so the whole row is
+// the tap target.
+const FIGURE_PADDING = "px-2.5 py-2";
 export const FigureField = ({ label, name, value, onChange, onBlur, type = "text", unit, indent = false, detail, error, flagged = false, action }: FigureFieldProps) => (
   <div className="flex flex-col gap-1 py-1.5">
     <div className="flex items-center gap-3">
       <FigureLabel name={name} label={label} detail={detail} indent={indent} />
-      <div className="relative w-28 shrink-0">
+      <div className="relative w-20 shrink-0">
         <input
           id={name}
           name={name}
@@ -222,7 +228,7 @@ export const FigureField = ({ label, name, value, onChange, onBlur, type = "text
           onBlur={onBlur}
           aria-invalid={flagged || Boolean(error)}
           aria-describedby={error ? `${name}-error` : undefined}
-          className={`${fieldInputClassName(flagged, error)} w-full text-right tabular-nums ${unit ? "pr-9" : ""}`}
+          className={`${fieldInputClassName(flagged, error, false, FIGURE_PADDING)} w-full text-right tabular-nums ${unit ? "pr-7" : ""}`}
         />
         {unit && <UnitSuffix unit={unit} />}
       </div>

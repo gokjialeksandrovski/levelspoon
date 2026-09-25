@@ -9,7 +9,7 @@ import { mealIngredients, meals, products, recipeItems, recipes, users } from "@
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { MOCK_UNAVAILABLE_MARKER } from "@/lib/meal-estimate/mock-provider";
 import { getMealDetail } from "@/features/meals/actions/meals";
-import { listRecipes } from "@/features/recipes/actions/recipes";
+import { listRecipes, saveMealAsRecipe } from "@/features/recipes/actions/recipes";
 
 import { estimateMeal, logLazyMeal } from "./lazy-track";
 import type { LoggedItem } from "./lazy-track.utils";
@@ -75,7 +75,7 @@ describe("logLazyMeal", () => {
     const mealId = await seedMeal(userId);
     signedInAs(userId);
 
-    const result = await logLazyMeal(mealId, [item(), item({ name: "Rice", grams: 180, gramsEdited: true })], null);
+    const result = await logLazyMeal(mealId, [item(), item({ name: "Rice", grams: 180, gramsEdited: true })]);
 
     expect(result).toEqual({ kind: "logged" });
     const rows = await db
@@ -90,36 +90,14 @@ describe("logLazyMeal", () => {
     ]);
   });
 
-  it("saves and links a recipe when named", async () => {
-    const userId = await seedUser();
-    const mealId = await seedMeal(userId);
-    signedInAs(userId);
-
-    await logLazyMeal(mealId, [item()], " Bowl ");
-
-    const [recipe] = await db.select().from(recipes);
-    expect(recipe.name).toBe("Bowl");
-    expect(await db.select().from(recipeItems)).toHaveLength(1);
-    const [meal] = await db.select({ recipeId: meals.recipeId }).from(meals).where(eq(meals.id, mealId));
-    expect(meal.recipeId).toBe(recipe.id);
-  });
-
   it("refuses tampered figures and writes nothing", async () => {
     const userId = await seedUser();
     const mealId = await seedMeal(userId);
     signedInAs(userId);
 
-    expect(await logLazyMeal(mealId, [item(), item({ grams: 1e9 })], null)).toEqual({ kind: "invalid_items" });
-    expect(await logLazyMeal(mealId, [item({ per100g: { ...item().per100g, proteinG: -1 } })], null)).toEqual({ kind: "invalid_items" });
-    expect(await logLazyMeal(mealId, [], null)).toEqual({ kind: "invalid_items" });
-    expect(await db.select().from(products)).toEqual([]);
-  });
-
-  it("refuses a blank recipe name and writes nothing", async () => {
-    const userId = await seedUser();
-    const mealId = await seedMeal(userId);
-    signedInAs(userId);
-    expect(await logLazyMeal(mealId, [item()], "  ")).toEqual({ kind: "invalid_recipe_name" });
+    expect(await logLazyMeal(mealId, [item(), item({ grams: 1e9 })])).toEqual({ kind: "invalid_items" });
+    expect(await logLazyMeal(mealId, [item({ per100g: { ...item().per100g, proteinG: -1 } })])).toEqual({ kind: "invalid_items" });
+    expect(await logLazyMeal(mealId, [])).toEqual({ kind: "invalid_items" });
     expect(await db.select().from(products)).toEqual([]);
   });
 
@@ -127,7 +105,7 @@ describe("logLazyMeal", () => {
     const owner = await seedUser();
     const mealId = await seedMeal(owner);
     signedInAs(await seedUser());
-    expect(await logLazyMeal(mealId, [item()], null)).toEqual({ kind: "meal_missing" });
+    expect(await logLazyMeal(mealId, [item()])).toEqual({ kind: "meal_missing" });
     expect(await db.select().from(products)).toEqual([]);
   });
 
@@ -136,7 +114,7 @@ describe("logLazyMeal", () => {
     const mealId = await seedMeal(userId);
     signedInAs(userId);
 
-    await logLazyMeal(mealId, [item({ name: "  Chicken breast  " })], null);
+    await logLazyMeal(mealId, [item({ name: "  Chicken breast  " })]);
 
     const [product] = await db.select({ name: products.name }).from(products);
     expect(product.name).toBe("Chicken breast");
@@ -148,7 +126,8 @@ describe("derived AI tags", () => {
     const userId = await seedUser();
     const mealId = await seedMeal(userId);
     signedInAs(userId);
-    await logLazyMeal(mealId, [item()], "Bowl");
+    await logLazyMeal(mealId, [item()]);
+    await saveMealAsRecipe(mealId, "Bowl");
 
     const detail = await getMealDetail(mealId);
     expect(detail?.ingredients.map((ingredient) => ingredient.isAiEstimate)).toEqual([true]);
@@ -160,7 +139,8 @@ describe("derived AI tags", () => {
     const userId = await seedUser();
     const mealId = await seedMeal(userId);
     signedInAs(userId);
-    await logLazyMeal(mealId, [item()], "Bowl");
+    await logLazyMeal(mealId, [item()]);
+    await saveMealAsRecipe(mealId, "Bowl");
     const [real] = await db
       .insert(products)
       .values({ name: "Real chicken", nameSearch: "real chicken", energyKcal: "165", fatG: "3.6", saturatesG: "1", carbohydrateG: "0", sugarsG: "0", proteinG: "31", saltG: "0.2", nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`, createdByUserId: userId })
@@ -177,7 +157,8 @@ describe("derived AI tags", () => {
     const userId = await seedUser();
     const mealId = await seedMeal(userId);
     signedInAs(userId);
-    await logLazyMeal(mealId, [item()], "Bowl");
+    await logLazyMeal(mealId, [item()]);
+    await saveMealAsRecipe(mealId, "Bowl");
     const [recipe] = await db.select().from(recipes);
     const [real] = await db
       .insert(products)

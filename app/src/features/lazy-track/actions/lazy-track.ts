@@ -6,15 +6,7 @@ import { UnsupportedImageFormatError } from "@/lib/gemini/image-mime-type";
 import { GeminiMealEstimateProvider } from "@/lib/meal-estimate/gemini-provider";
 import { MockMealEstimateProvider } from "@/lib/meal-estimate/mock-provider";
 import type { MealEstimateProvider } from "@/lib/meal-estimate/provider";
-import {
-  appendItemsToMeal,
-  fetchOwnedMeal,
-  insertRecipe,
-  replaceRecipeItems,
-  setMealRecipe,
-  type AmountRow,
-} from "@/features/recipes/actions/recipes.store";
-import { isValidRecipeName } from "@/features/recipes/actions/recipes.utils";
+import { appendItemsToMeal, fetchOwnedMeal, type AmountRow } from "@/features/recipes/actions/recipes.store";
 
 import { insertAiProducts } from "./lazy-track.store";
 import { canEstimate, parseMealEstimate, quantitySourceFor, type LoggedItem, type MealEstimateView } from "./lazy-track.utils";
@@ -28,7 +20,6 @@ export type EstimateMealResult =
 export type LogLazyMealResult =
   | { kind: "logged" }
   | { kind: "invalid_items" }
-  | { kind: "invalid_recipe_name" }
   | { kind: "meal_missing" };
 
 const getProvider = (): MealEstimateProvider =>
@@ -67,17 +58,17 @@ const toAmountRow = (productId: string, item: LoggedItem): AmountRow => ({
 });
 
 /**
- * Files the reviewed estimate. Figures came back through the browser, so the
+ * Files the reviewed estimate. Saving it as a recipe is the meal page's
+ * `Save as recipe`, same as for any meal. Figures came back through the browser, so the
  * same bounds run again here; tampering could only ever touch this user's own
  * private rows, but a refused write is still cheaper than a nonsense one.
  */
-export const logLazyMeal = async (mealId: string, items: LoggedItem[], recipeName: string | null): Promise<LogLazyMealResult> => {
+export const logLazyMeal = async (mealId: string, items: LoggedItem[]): Promise<LogLazyMealResult> => {
   const userId = await requireUserId();
   // Re-parsed, not just re-bounded: a browser can send a string where a number
   // belongs, which isPlausibleItem's types alone would not catch at runtime.
   const parsedItems = parseMealEstimate({ items }).items;
   if (items.length === 0 || parsedItems.length !== items.length) return { kind: "invalid_items" };
-  if (recipeName !== null && !isValidRecipeName(recipeName)) return { kind: "invalid_recipe_name" };
   // Generic for a missing meal and another user's alike, same as saveMealAsRecipe.
   if (!(await fetchOwnedMeal(userId, mealId))) return { kind: "meal_missing" };
 
@@ -91,11 +82,6 @@ export const logLazyMeal = async (mealId: string, items: LoggedItem[], recipeNam
     const productIds = await insertAiProducts(tx, userId, loggedItems);
     const rows = loggedItems.map((item, index) => toAmountRow(productIds[index], item));
     await appendItemsToMeal(tx, mealId, rows);
-    if (recipeName !== null) {
-      const recipeId = await insertRecipe(tx, userId, recipeName);
-      await replaceRecipeItems(tx, recipeId, rows);
-      await setMealRecipe(tx, mealId, recipeId);
-    }
   });
   return { kind: "logged" };
 };

@@ -6,8 +6,7 @@ import { useEffect, useState } from "react";
 import { estimateMeal, logLazyMeal, type EstimateMealResult, type LogLazyMealResult } from "@/features/lazy-track/actions/lazy-track";
 import { canEstimate, DESCRIPTION_MAX_LENGTH, isDescriptionTooLong, type MealEstimateView } from "@/features/lazy-track/actions/lazy-track.utils";
 import { Button } from "@/components/ui/button";
-import { CheckboxRow } from "@/components/ui/checkbox-row";
-import { Field, FigureField, TextAreaField } from "@/components/ui/field";
+import { FigureField, TextAreaField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
@@ -118,7 +117,6 @@ const LOG_FAILED = "Couldn't log it. Try again.";
 
 const LOG_ERRORS: Record<Exclude<LogLazyMealResult["kind"], "logged">, string> = {
   invalid_items: "Something in this estimate doesn't add up — estimate again.",
-  invalid_recipe_name: "Give the recipe a name.",
   meal_missing: "This meal is gone. Nothing was logged.",
 };
 
@@ -161,11 +159,11 @@ const useLog = (mealId: string, onLogged: () => void) => {
   const [isLogging, setIsLogging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const log = async (rows: readonly ReviewRow[], recipeName: string | null) => {
+  const log = async (rows: readonly ReviewRow[]) => {
     setError(null);
     setIsLogging(true);
     try {
-      const result = await logLazyMeal(mealId, toLoggedItems(rows), recipeName);
+      const result = await logLazyMeal(mealId, toLoggedItems(rows));
       if (result.kind === "logged") {
         onLogged();
         return;
@@ -210,10 +208,10 @@ const useReviewRows = (estimate: MealEstimateView) => {
   return { rows, setGrams, remove, totalKcal };
 };
 
+// Add detail sits beside Log, not as a link in the body: it is the other way
+// out of this screen, and a pair reads as "this, or that" at a glance.
 export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyReviewStepProps) => {
   const { rows, setGrams, remove, totalKcal } = useReviewRows(estimate);
-  const [saveRecipe, setSaveRecipe] = useState(false);
-  const [recipeName, setRecipeName] = useState(estimate.mealName);
   const logging = useLog(mealId, onLogged);
   useEscapeToGoBack(dispatch, logging.isLogging);
 
@@ -232,18 +230,16 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
           ))}
         </div>
       </section>
-      <Button variant="ghost" link disabled={logging.isLogging} onClick={() => dispatch({ type: "BACK" })}>
-        Something missing? Add detail
-      </Button>
-      <div className="flex flex-col gap-3">
-        <CheckboxRow name="lazy-save-recipe" label="Save as recipe" checked={saveRecipe} onChange={setSaveRecipe} />
-        {saveRecipe && <Field label="Recipe name" name="lazy-recipe-name" value={recipeName} onChange={(event) => setRecipeName(event.target.value)} />}
-      </div>
       <StickyActionBar>
         {logging.error && <InlineMessage tone="error">{logging.error}</InlineMessage>}
-        <Button disabled={!reviewDraftIsLoggable(rows)} pending={logging.isLogging} onClick={() => void logging.log(rows, saveRecipe ? recipeName : null)}>
-          Log
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="ghost" disabled={logging.isLogging} onClick={() => dispatch({ type: "BACK" })}>
+            Add detail
+          </Button>
+          <Button className="flex-1" disabled={!reviewDraftIsLoggable(rows)} pending={logging.isLogging} onClick={() => void logging.log(rows)}>
+            Log
+          </Button>
+        </div>
       </StickyActionBar>
     </div>
   );
