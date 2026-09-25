@@ -25,7 +25,8 @@ Nutrition figures stay deterministic. OCR, parsing and rule-based validation
 read the label. An LLM has two jobs: estimating amount eaten from a photo, and
 lazy track — a rough, itemized estimate of a described meal the user asks for,
 labelled as an estimate, kept private to that user, never written to a shared
-row.
+row. Shared crowd-sourced product table with per-user override, so a correction
+never silently rewrites another user's figures.
 
 The app states figures. It advises intake in exactly one place, on request:
 the calorie estimate (`/calories/estimate`), which shows a range from
