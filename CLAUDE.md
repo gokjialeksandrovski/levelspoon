@@ -605,12 +605,37 @@ time, the picker is the only surface.
 - Imports: `meals → recipes` (the store and the utils only, never the
   `"use server"` module) and `recipes → lib` only. `recipes.store.ts` carries
   no `"use server"`, same reason `weight.store.ts` carries none.
-- **`Lazy track` is a disabled placeholder row.** Building it means Gemini
-  returning nutrition values from a description, which changes the AI usage
-  boundary above. Amend that rule in CLAUDE.md and PRODUCT.md deliberately,
-  with the reasoning recorded in `docs/DECISIONS.md`, before writing any code
-  for it.
 - Spec: `docs/superpowers/specs/2026-09-24-recipes-design.md`.
+
+## Lazy track
+
+Least accurate logging path, on purpose: user describes meal (+ optional
+photo), Gemini returns itemized estimate, user fixes grams, logs. Reached from
+wizard's `Add meals` section.
+
+- **Guesses are private `products` rows**, `nutrition_origin = 'ai_estimate'`.
+  `products_ai_estimate_private` CHECK forbids label photo and `standard`
+  source; `assertNotAiEstimate` guards `linkBarcode` and `setPortionGrams`;
+  `notAiEstimate` fragment keeps them out of `searchUserProducts`,
+  `matchProduct`, `findSameFigures`, `assertUserProduct` - and now
+  `findStoredMeasures` too, fenced in Task 3. A new search, match or barcode
+  writer must apply it too.
+- Reuse is through recipes only. `(AI estimate)` tag on recipe and `AI
+  estimate` on item are derived from origin, never stored; swapping every
+  guess for a real product clears recipe tag.
+- Figures bounded in `features/lazy-track/actions/lazy-track.utils.ts` (each
+  constant labelled physical or judgment), run on Gemini's reply and again in
+  `logLazyMeal` - figures round-trip through browser.
+- Edits on review: grams, remove, re-ask. No name or per-100g edits, no
+  correction link, no portion overrides on AI rows.
+- Consent reuses `AiConsentSheet` / `per100:ai-photo-consent`, asked before
+  text-only requests too. Meal photo sent, never stored.
+- No usage cap yet - scoped separately.
+- Refusals cross as `EstimateMealResult` / `LogLazyMealResult`.
+- `MEAL_ESTIMATE_PROVIDER` picks mock vs Gemini; `.env.example` defaults
+  `mock`. Mock provider throws on `MOCK_UNAVAILABLE_MARKER` in the
+  description - e2e's hook for the unavailable path.
+- Spec: `docs/superpowers/specs/2026-09-25-lazy-track-design.md`.
 
 ## Time
 
@@ -694,10 +719,10 @@ same breath — no separate "Back to today" control.
   can catch (missing env var in `lib/s3.ts`, `lib/db/index.ts`,
   `lib/ocr/http-provider.ts`). A blanket ESLint ban was considered and
   rejected 2026-09-17: it cannot see which throws are domain failures.
-- Impure/heavy deps sit behind env-var-selected interface: `OCR_PROVIDER`
-  and `QUANTITY_PROVIDER` pick real vs mock. `.env.example` default both to
-  `mock` — real deployment must set them or every photo return canned
-  result silently.
+- Impure/heavy deps sit behind env-var-selected interface: `OCR_PROVIDER`,
+  `QUANTITY_PROVIDER` and `MEAL_ESTIMATE_PROVIDER` pick real vs mock.
+  `.env.example` default all three to `mock` — real deployment must set them
+  or every photo return canned result silently.
 - Refactor passes add **no new production files** — extractions stay in
   same file (a `use<Thing>` hook, standalone handler, subcomponent).
 - `StepView` (`capture-wizard.tsx`) use a `switch`, never `Record` lookup —
@@ -801,6 +826,10 @@ consent copy, app-wide privacy policy and terms, and consent for
 Recipes shipped 2026-09-24 (`docs/superpowers/plans/2026-09-24-recipes.md`):
 save a meal, re-enter it from the wizard's `Add meals` section, edit it with a
 save-new-or-overwrite fork - see "Recipes" above.
+
+Lazy track shipped 2026-09-25 (`docs/superpowers/plans/2026-09-25-lazy-track.md`):
+describe a meal, get an itemized Gemini estimate kept on private rows - see
+"Lazy track" above.
 
 Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
 cloud — next, not started.**

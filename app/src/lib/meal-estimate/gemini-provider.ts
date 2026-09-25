@@ -9,10 +9,11 @@ import {
 
 import type { MealEstimateProvider } from "./provider";
 
-// Provisional until Task 10's live measurement replaces it with measured
-// output-token counts: a 5-item answer is ~600 tokens by the schema's shape,
-// so 2048 bounds a runaway reply without cutting a real one.
-const MAX_RESPONSE_TOKENS = 2048;
+// Measured 2026-09-25: 5 live text-only calls (gemini-3.5-flash-lite, no
+// photo calls measured), completion_tokens 280-547, max 547 on a 5-item
+// caesar salad. 2200 is ~4x that max - the quantity provider's 16x headroom
+// is sized for a 4-token answer, 4x is enough here for hundreds of tokens.
+const MAX_RESPONSE_TOKENS = 2200;
 
 const PROMPT = [
   "You estimate what a person ate from their description and optional photo.",
