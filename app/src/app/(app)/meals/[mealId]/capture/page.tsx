@@ -1,8 +1,16 @@
+import { REESTIMATE_PARAM } from "@/features/lazy-track/actions/lazy-track.utils";
+
 import { CaptureWizard } from "./capture-wizard";
 
-const CapturePage = async ({ params }: { params: Promise<{ mealId: string }> }) => {
+interface CapturePageProps {
+  params: Promise<{ mealId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+const CapturePage = async ({ params, searchParams }: CapturePageProps) => {
   const { mealId } = await params;
-  return <CaptureWizard mealId={mealId} />;
+  const reestimate = (await searchParams)[REESTIMATE_PARAM];
+  return <CaptureWizard mealId={mealId} reestimate={typeof reestimate === "string" ? reestimate : null} />;
 };
 
 export default CapturePage;

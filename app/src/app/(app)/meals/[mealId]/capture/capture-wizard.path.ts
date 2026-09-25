@@ -5,6 +5,11 @@ import { INITIAL_WIZARD_STEP, wizardReducer, type WizardAction, type WizardStep 
 export type WizardPath = WizardStep[]; // non-empty; last element is the current step
 export type PathAction = WizardAction | { type: "BACK" };
 
+/** "Describe again" from the meal page opens on the describe step, with the
+ * options screen under it so Back still reaches every other way in. */
+export const initialWizardPath = (reestimate: string | null): WizardPath =>
+  reestimate === null ? [INITIAL_WIZARD_STEP] : [INITIAL_WIZARD_STEP, { kind: "lazy-describe", description: reestimate, replacing: true }];
+
 export const pathReducer = (path: WizardPath, action: PathAction): WizardPath => {
   if (action.type === "BACK") {
     return path.length > 1 ? path.slice(0, -1) : path;
@@ -29,17 +34,6 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   // would leave Back pointing at the weights the user just replaced.
   if (action.type === "PORTIONS_UPDATED") {
     return [...path.slice(0, -1), wizardReducer(path[path.length - 1], action)];
-  }
-  // The describe step under the review is rewritten with what was sent, so
-  // "Add detail" (Back) reopens it holding the user's own text and photo.
-  // Ignored once the user has left that step (Back to options, or started a
-  // different path): a late arrival must not rewrite whatever is current now.
-  if (action.type === "LAZY_ESTIMATED") {
-    if (path[path.length - 1].kind !== "lazy-describe") {
-      return path;
-    }
-    const describe: WizardStep = { kind: "lazy-describe", description: action.description, photo: action.photo };
-    return [...path.slice(0, -1), describe, wizardReducer(describe, action)];
   }
   return [...path, wizardReducer(path[path.length - 1], action)];
 };

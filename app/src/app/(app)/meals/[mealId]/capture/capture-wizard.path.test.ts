@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pathReducer, type WizardPath } from "./capture-wizard.path";
+import { initialWizardPath, pathReducer, type WizardPath } from "./capture-wizard.path";
 import { INITIAL_WIZARD_STEP } from "./capture-wizard.types";
 
 const AMOUNT_STEP = {
@@ -138,29 +138,14 @@ describe("recipe-pick on the path", () => {
   });
 });
 
-describe("LAZY_ESTIMATED", () => {
-  it("keeps the typed text on the describe step Back returns to", () => {
-    const path = pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" });
-    const reviewed = pathReducer(path, { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate: { mealName: "Bowl", items: [] } });
-    const back = pathReducer(reviewed, { type: "BACK" });
-    expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null });
-    expect(back).toHaveLength(2);
+describe("initialWizardPath", () => {
+  it("opens on the options screen by default", () => {
+    expect(initialWizardPath(null)).toEqual([INITIAL_WIZARD_STEP]);
   });
 
-  // The estimate request can take up to 30s (REQUEST_TIMEOUT_MS); a user who
-  // backs out to options in the meantime must not be pulled back onto a
-  // review screen once it lands.
-  it("leaves the path unchanged when it arrives after the user left the describe step", () => {
-    const path = pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" });
-    const backToOptions = pathReducer(path, { type: "BACK" });
-
-    const late = pathReducer(backToOptions, {
-      type: "LAZY_ESTIMATED",
-      description: "rice bowl",
-      photo: null,
-      estimate: { mealName: "Bowl", items: [] },
-    });
-
-    expect(late).toBe(backToOptions);
+  it("opens a re-estimate on the describe step, options under it", () => {
+    const path = initialWizardPath("rice bowl");
+    expect(path.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", replacing: true });
+    expect(pathReducer(path, { type: "BACK" })).toEqual([INITIAL_WIZARD_STEP]);
   });
 });

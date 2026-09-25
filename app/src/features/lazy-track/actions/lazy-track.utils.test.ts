@@ -4,9 +4,9 @@ import {
   canEstimate,
   DESCRIPTION_MAX_LENGTH,
   isDescriptionTooLong,
+  isEstimateUntouched,
   isPlausibleItem,
   parseMealEstimate,
-  quantitySourceFor,
   withAiEstimateTag,
   type EstimatedItem,
 } from "./lazy-track.utils";
@@ -81,9 +81,20 @@ describe("description rules", () => {
   });
 });
 
-describe("quantitySourceFor", () => {
-  it("keeps untouched grams as ai_estimated", () => expect(quantitySourceFor(false)).toBe("ai_estimated"));
-  it("marks edited grams manual", () => expect(quantitySourceFor(true)).toBe("manual"));
+describe("isEstimateUntouched", () => {
+  const guess = { isAiEstimate: true, quantitySource: "ai_estimated" as const };
+  const real = { isAiEstimate: false, quantitySource: "manual" as const };
+
+  it("holds while every guess keeps its grams, whatever else the meal holds", () => {
+    expect(isEstimateUntouched([real, guess, guess])).toBe(true);
+  });
+  it("fails once any guess was edited", () => {
+    expect(isEstimateUntouched([guess, { ...guess, quantitySource: "manual" }])).toBe(false);
+  });
+  it("fails with no guess at all", () => {
+    expect(isEstimateUntouched([real])).toBe(false);
+    expect(isEstimateUntouched([])).toBe(false);
+  });
 });
 
 describe("withAiEstimateTag", () => {

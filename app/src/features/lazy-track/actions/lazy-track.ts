@@ -6,48 +6,26 @@ import { UnsupportedImageFormatError } from "@/lib/gemini/image-mime-type";
 import { GeminiMealEstimateProvider } from "@/lib/meal-estimate/gemini-provider";
 import { MockMealEstimateProvider } from "@/lib/meal-estimate/mock-provider";
 import type { MealEstimateProvider } from "@/lib/meal-estimate/provider";
-import {
-  appendItemsToMeal,
-  fetchOwnedMeal,
-  insertRecipe,
-  replaceRecipeItems,
-  setMealRecipe,
-  type AmountRow,
-} from "@/features/recipes/actions/recipes.store";
-import { isValidRecipeName } from "@/features/recipes/actions/recipes.utils";
+import { appendItemsToMeal, fetchOwnedMeal, type AmountRow } from "@/features/recipes/actions/recipes.store";
 
-import { insertAiProducts } from "./lazy-track.store";
-import { canEstimate, parseMealEstimate, quantitySourceFor, type LoggedItem, type MealEstimateView } from "./lazy-track.utils";
+import { insertAiProducts, removeUntouchedEstimate } from "./lazy-track.store";
+import { canEstimate, parseMealEstimate, type EstimatedItem, type MealEstimateView } from "./lazy-track.utils";
 
-export type EstimateMealResult =
-  | { kind: "estimated"; estimate: MealEstimateView }
-  | { kind: "nothing_found" }
-  | { kind: "photo_unreadable" }
-  | { kind: "unavailable" };
+type EstimateFailure = { kind: "nothing_found" } | { kind: "photo_unreadable" } | { kind: "unavailable" };
 
-export type LogLazyMealResult =
-  | { kind: "logged" }
-  | { kind: "invalid_items" }
-  | { kind: "invalid_recipe_name" }
-  | { kind: "meal_missing" };
+export type EstimateMealResult = { kind: "logged" } | { kind: "meal_missing" } | EstimateFailure;
+
+export type UndoMealEstimateResult = { kind: "undone" } | { kind: "meal_missing" };
 
 const getProvider = (): MealEstimateProvider =>
   process.env.MEAL_ESTIMATE_PROVIDER === "mock" ? new MockMealEstimateProvider() : new GeminiMealEstimateProvider();
 
 const toBuffer = async (photo: Blob | null): Promise<Buffer | null> => (photo ? Buffer.from(await photo.arrayBuffer()) : null);
 
-/** The second of Gemini's two jobs (CLAUDE.md, "AI usage boundary"). Nothing
- * is written here: the estimate goes back to the review screen, and only
- * logLazyMeal writes. */
-export const estimateMeal = async (description: string, photo: Blob | null): Promise<EstimateMealResult> => {
-  await requireUserId();
-  if (!canEstimate(description, photo !== null)) {
-    return { kind: "nothing_found" };
-  }
+const requestEstimate = async (description: string, photo: Blob | null): Promise<MealEstimateView | EstimateFailure> => {
   try {
-    const raw = await getProvider().estimate(description.trim(), await toBuffer(photo));
-    const estimate = parseMealEstimate(raw);
-    return estimate.items.length === 0 ? { kind: "nothing_found" } : { kind: "estimated", estimate };
+    const estimate = parseMealEstimate(await getProvider().estimate(description.trim(), await toBuffer(photo)));
+    return estimate.items.length === 0 ? { kind: "nothing_found" } : estimate;
   } catch (error) {
     if (error instanceof UnsupportedImageFormatError) {
       return { kind: "photo_unreadable" };
@@ -57,45 +35,43 @@ export const estimateMeal = async (description: string, photo: Blob | null): Pro
   }
 };
 
-const toAmountRow = (productId: string, item: LoggedItem): AmountRow => ({
+const toAmountRow = (productId: string, item: EstimatedItem): AmountRow => ({
   productId,
   quantity: item.grams,
   quantityUnit: "g",
   entryCount: item.grams,
   entryUnit: "g",
-  quantitySource: quantitySourceFor(item.gramsEdited),
+  quantitySource: "ai_estimated",
 });
 
 /**
- * Files the reviewed estimate. Figures came back through the browser, so the
- * same bounds run again here; tampering could only ever touch this user's own
- * private rows, but a refused write is still cheaper than a nonsense one.
+ * The second of Gemini's two jobs (CLAUDE.md, "AI usage boundary"). Logs the
+ * guess straight into the meal - the meal page is where it gets checked, and
+ * its Undo is the way back out. `replacing` swaps out the meal's untouched
+ * guesses in the same transaction, so a failed re-estimate keeps the old one.
+ * Figures never pass through the browser: they go from the parse to the DB.
  */
-export const logLazyMeal = async (mealId: string, items: LoggedItem[], recipeName: string | null): Promise<LogLazyMealResult> => {
+export const estimateMeal = async (mealId: string, description: string, photo: Blob | null, replacing: boolean): Promise<EstimateMealResult> => {
   const userId = await requireUserId();
-  // Re-parsed, not just re-bounded: a browser can send a string where a number
-  // belongs, which isPlausibleItem's types alone would not catch at runtime.
-  const parsedItems = parseMealEstimate({ items }).items;
-  if (items.length === 0 || parsedItems.length !== items.length) return { kind: "invalid_items" };
-  if (recipeName !== null && !isValidRecipeName(recipeName)) return { kind: "invalid_recipe_name" };
-  // Generic for a missing meal and another user's alike, same as saveMealAsRecipe.
+  if (!canEstimate(description, photo !== null)) return { kind: "nothing_found" };
+  // Checked before the Gemini call, not after: a missing meal should cost no request.
   if (!(await fetchOwnedMeal(userId, mealId))) return { kind: "meal_missing" };
 
-  // Written from the parsed items, not the raw browser array: trimmed names
-  // and narrowed numbers are the actual trust boundary. gramsEdited has no
-  // equivalent on EstimatedItem, so it maps back on by index - safe only
-  // because the length check above guarantees a 1:1 correspondence.
-  const loggedItems: LoggedItem[] = parsedItems.map((item, index) => ({ ...item, gramsEdited: items[index].gramsEdited }));
+  const estimate = await requestEstimate(description, photo);
+  if ("kind" in estimate) return estimate;
 
   await db.transaction(async (tx) => {
-    const productIds = await insertAiProducts(tx, userId, loggedItems);
-    const rows = loggedItems.map((item, index) => toAmountRow(productIds[index], item));
-    await appendItemsToMeal(tx, mealId, rows);
-    if (recipeName !== null) {
-      const recipeId = await insertRecipe(tx, userId, recipeName);
-      await replaceRecipeItems(tx, recipeId, rows);
-      await setMealRecipe(tx, mealId, recipeId);
-    }
+    if (replacing) await removeUntouchedEstimate(tx, mealId);
+    const productIds = await insertAiProducts(tx, userId, estimate.items);
+    await appendItemsToMeal(tx, mealId, estimate.items.map((item, index) => toAmountRow(productIds[index], item)));
   });
   return { kind: "logged" };
+};
+
+export const undoMealEstimate = async (mealId: string): Promise<UndoMealEstimateResult> => {
+  const userId = await requireUserId();
+  // Generic for a missing meal and another user's alike, same as saveMealAsRecipe.
+  if (!(await fetchOwnedMeal(userId, mealId))) return { kind: "meal_missing" };
+  await db.transaction((tx) => removeUntouchedEstimate(tx, mealId));
+  return { kind: "undone" };
 };

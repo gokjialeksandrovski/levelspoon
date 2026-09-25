@@ -14,11 +14,11 @@ import { Button } from "@/components/ui/button";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
 
-import { pathReducer, type PathAction } from "./capture-wizard.path";
-import { INITIAL_WIZARD_STEP, type WizardStep } from "./capture-wizard.types";
+import { initialWizardPath, pathReducer, type PathAction } from "./capture-wizard.path";
+import type { WizardStep } from "./capture-wizard.types";
 import { AmountStep } from "./steps/amount-step";
 import { ConfirmStep } from "./steps/confirm-step";
-import { LazyDescribeStep, LazyReviewStep } from "./steps/lazy-track-steps";
+import { LazyDescribeStep } from "./steps/lazy-track-steps";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
 import { ManualNameStep, ProductNameStep } from "./steps/product-name-step";
@@ -41,7 +41,6 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
   amount: "Amount",
   saved: "Saved",
   "lazy-describe": "Lazy track",
-  "lazy-review": "Check the estimate",
 };
 
 // Approximate, not derived: the wizard's remaining length depends on which
@@ -58,8 +57,7 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   confirm: 0.75,
   amount: 0.9,
   saved: 1,
-  "lazy-describe": 0.4,
-  "lazy-review": 0.8,
+  "lazy-describe": 0.5,
 };
 
 interface DaySnapshot {
@@ -290,16 +288,9 @@ const renderSavedStep = (moment: SavedMoment, dispatch: (action: PathAction) => 
   <SavedStep moment={moment} dispatch={dispatch} onDone={onDone} />
 );
 
-const renderLazyDescribeStep = (step: Extract<WizardStep, { kind: "lazy-describe" }>, dispatch: (action: PathAction) => void) => (
-  <LazyDescribeStep description={step.description} photo={step.photo} dispatch={dispatch} />
+const renderLazyDescribeStep = (step: Extract<WizardStep, { kind: "lazy-describe" }>, mealId: string, dispatch: (action: PathAction) => void) => (
+  <LazyDescribeStep mealId={mealId} description={step.description} replacing={step.replacing} dispatch={dispatch} />
 );
-
-const renderLazyReviewStep = (
-  step: Extract<WizardStep, { kind: "lazy-review" }>,
-  mealId: string,
-  onLogged: () => void,
-  dispatch: (action: PathAction) => void,
-) => <LazyReviewStep mealId={mealId} estimate={step.estimate} onLogged={onLogged} dispatch={dispatch} />;
 
 interface StepViewProps {
   step: WizardStep;
@@ -340,8 +331,7 @@ const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesCh
     case "confirm": return renderConfirmStep(step, dispatch);
     case "amount": return renderAmountStep(step, mealId, dispatch, onSaved);
     case "saved": return renderSavedStep(moment, dispatch, onDone);
-    case "lazy-describe": return renderLazyDescribeStep(step, dispatch);
-    case "lazy-review": return renderLazyReviewStep(step, mealId, onEnteredMeal, dispatch);
+    case "lazy-describe": return renderLazyDescribeStep(step, mealId, dispatch);
   }
 };
 
@@ -420,9 +410,11 @@ interface UseCaptureWizardResult {
 
 // Bundles path/save-count state and exit strategy so CaptureWizard's body
 // stays under the line budget.
-const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
-  const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
-  const [savedCount, setSavedCount] = useState(0);
+const useCaptureWizard = (mealId: string, reestimate: string | null): UseCaptureWizardResult => {
+  const [path, dispatch] = useReducer(pathReducer, reestimate, initialWizardPath);
+  // A re-estimate starts on a meal that already holds the estimate, so exit
+  // must keep it and return to it, same as after a save.
+  const [savedCount, setSavedCount] = useState(reestimate === null ? 0 : 1);
   const step = path[path.length - 1];
   const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const exit = useWizardExit(mealId, savedCount, today);
@@ -443,12 +435,18 @@ const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   };
 };
 
-export const CaptureWizard = ({ mealId }: { mealId: string }) => {
+interface CaptureWizardProps {
+  mealId: string;
+  /** Non-null when opened by the meal page's "Describe again": the text to reopen with. */
+  reestimate: string | null;
+}
+
+export const CaptureWizard = ({ mealId, reestimate }: CaptureWizardProps) => {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const [recipesReload, setRecipesReload] = useState(0);
   const { recipes, isLoading: isRecipesLoading } = useRecipes(recipesReload);
-  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId);
+  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId, reestimate);
 
   return (
     <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack} exits={backExits}>
@@ -460,10 +458,10 @@ export const CaptureWizard = ({ mealId }: { mealId: string }) => {
           recipes={recipes}
           isRecipesLoading={isRecipesLoading}
           onRecipesChanged={() => setRecipesReload((count) => count + 1)}
-          // Entering a recipe, or logging a lazy-tracked meal, is already
-          // written, so this leaves the wizard for the meal page rather than
-          // landing on the "saved" step - that step means "product saved, add
-          // another", which is not what happened.
+          // Entering a recipe is already written, so this leaves the wizard
+          // for the meal page rather than landing on the "saved" step - that
+          // step means "product saved, add another", which is not what
+          // happened. Lazy track leaves the same way, from its own step.
           onEnteredMeal={() => router.push(`/meals/${mealId}`)}
           dispatch={dispatch}
           onSaved={markSaved}
