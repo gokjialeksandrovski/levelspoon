@@ -21,7 +21,8 @@ export const DESCRIPTION_MAX_LENGTH = 1000;
 // a unit mix-up, not a meal.
 export const MAX_ITEM_GRAMS = 5000;
 
-// Physical: 100 g of food cannot hold more than 100 g of macronutrients.
+// Physical: 100 g of food cannot hold more than 100 g of fat + carbs +
+// protein (see massPer100g for why fibre is excluded from this sum).
 const MAX_MASS_PER_100G = 100;
 // Physical: pure fat is 9 kcal/g (Atwater), the densest food there is.
 const MAX_KCAL_PER_100G = 900;
@@ -32,8 +33,12 @@ const FIGURE_KEYS = ["energyKcal", "fatG", "saturatesG", "carbohydrateG", "sugar
 
 const isNonNegative = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
-const massPer100g = (figures: NutritionValues): number =>
-  figures.fatG + figures.carbohydrateG + figures.proteinG + (figures.fibreG ?? 0);
+// Fibre excluded on purpose: EU-style carbohydrateG already excludes it, and
+// US-style carbohydrateG already includes it, so EU carbs + fibre <= US total
+// carbs always holds. Summing fibre again on top of a US-style reply
+// double-counted it and dropped real foods - peanut butter (fat 50, carbs 20
+// incl. 6 fibre, protein 25) is 95 g, not the 101 g the old sum read.
+const massPer100g = (figures: NutritionValues): number => figures.fatG + figures.carbohydrateG + figures.proteinG;
 
 const crossFieldsArePlausible = (figures: NutritionValues): boolean =>
   figures.sugarsG <= figures.carbohydrateG && figures.saturatesG <= figures.fatG;
