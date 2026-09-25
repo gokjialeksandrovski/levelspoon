@@ -1,0 +1,2 @@
+ALTER TYPE "public"."nutrition_origin" ADD VALUE 'ai_estimate';--> statement-breakpoint
+ALTER TABLE "products" ADD CONSTRAINT "products_ai_estimate_private" CHECK ("products"."nutrition_origin"::text <> 'ai_estimate' OR ("products"."nutrition_photo_key" IS NULL AND "products"."source" = 'user'));

@@ -176,6 +176,13 @@
       "when": 1790250405028,
       "tag": "0024_add-recipes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790299646239,
+      "tag": "0025_add-ai-estimate-origin",
+      "breakpoints": true
     }
   ]
 }

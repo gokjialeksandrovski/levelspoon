@@ -1,4 +1,5 @@
-import { date, index, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, date, index, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
 
@@ -15,7 +16,11 @@ export const productCategory = pgEnum("product_category", ["whole", "fat"]);
 // ODbL (OFF's license) requires derived-database share-alike; keeping
 // OFF-sourced rows distinguishable is the only way to separate them later
 // if any data-sharing deal ever needs it (spec §3).
-export const nutritionOriginEnum = pgEnum("nutrition_origin", ["label_photo", "manual", "open_food_facts"]);
+// "ai_estimate" = a lazy-track guess (CLAUDE.md, "AI usage boundary"): private
+// to its author by the CHECK below, kept out of every search by notAiEstimate.
+export const nutritionOriginEnum = pgEnum("nutrition_origin", ["label_photo", "manual", "open_food_facts", "ai_estimate"]);
+
+export const AI_ESTIMATE_ORIGIN = "ai_estimate" as const;
 
 const NUTRITION_COLUMN_PRECISION = 10;
 const NUTRITION_COLUMN_SCALE = 2;
@@ -90,6 +95,13 @@ export const products = pgTable(
   (table) => [
     index("products_name_trgm_idx").using("gin", table.name.op("gin_trgm_ops")),
     index("products_name_search_trgm_idx").using("gin", table.nameSearch.op("gin_trgm_ops")),
+    // ::text, not an enum literal: the enum value is added in the same
+    // migration, and Postgres refuses a new enum value used in the transaction
+    // that added it ("unsafe use of new value").
+    check(
+      "products_ai_estimate_private",
+      sql`${table.nutritionOrigin}::text <> 'ai_estimate' OR (${table.nutritionPhotoKey} IS NULL AND ${table.source} = 'user')`,
+    ),
   ],
 );
 

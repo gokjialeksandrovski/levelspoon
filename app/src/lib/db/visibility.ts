@@ -22,3 +22,12 @@ export const visibleToUser = (userId: string) => sql`
    OR p.created_by_user_id = ${userId}
    OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.product_id = p.id))
 `;
+
+/**
+ * Keeps lazy-track guesses out of every search, match and gate. An AI row is
+ * private by visibleToUser already; this also hides it from its own author,
+ * who reuses it through a recipe, never by typing its name.
+ *
+ * Expects the products table aliased as `p`.
+ */
+export const notAiEstimate = sql`p.nutrition_origin <> 'ai_estimate'`;
