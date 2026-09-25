@@ -7,6 +7,7 @@ import {
   isPlausibleItem,
   parseMealEstimate,
   quantitySourceFor,
+  withAiEstimateTag,
   type EstimatedItem,
 } from "./lazy-track.utils";
 
@@ -79,4 +80,11 @@ describe("description rules", () => {
 describe("quantitySourceFor", () => {
   it("keeps untouched grams as ai_estimated", () => expect(quantitySourceFor(false)).toBe("ai_estimated"));
   it("marks edited grams manual", () => expect(quantitySourceFor(true)).toBe("manual"));
+});
+
+describe("withAiEstimateTag", () => {
+  it("suffixes only a guess", () => {
+    expect(withAiEstimateTag("Bowl", true)).toBe("Bowl (AI estimate)");
+    expect(withAiEstimateTag("Bowl", false)).toBe("Bowl");
+  });
 });

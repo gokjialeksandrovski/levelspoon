@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import type { MealIngredientDetail, MealRecipeLink } from "@/features/meals/actions/meals";
 import { divergenceLine } from "@/features/recipes/actions/recipes.utils";
+import { withAiEstimateTag } from "@/features/lazy-track/actions/lazy-track.utils";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 
@@ -14,7 +15,7 @@ import { SaveRecipeSheet } from "./save-recipe-sheet";
 /** The line under the header on a linked meal. The header itself stays
  * ordinal - a meal is still "Meal 2", whatever it was made from. */
 export const RecipeSubtitle = ({ recipe }: { recipe: MealRecipeLink | null }) =>
-  recipe ? <p className="text-sm text-text-muted">From your saved recipes: {recipe.name}</p> : null;
+  recipe ? <p className="text-sm text-text-muted">From your saved recipes: {withAiEstimateTag(recipe.name, recipe.isAiEstimate)}</p> : null;
 
 /** Sits in the page flow above the ingredients, red, with nothing to dismiss:
  * it is a standing fact about the meal, so it has no exit and needs none.

@@ -1006,7 +1006,7 @@ describe("getMealDetail recipe link", () => {
     if (saved.kind !== "saved") throw new Error(saved.kind);
 
     const meal = await getMealDetail(mealId);
-    expect(meal?.recipe).toEqual({ id: saved.recipeId, name: "Yogurt", matches: true, recipeIsSubset: true });
+    expect(meal?.recipe).toEqual({ id: saved.recipeId, name: "Yogurt", matches: true, recipeIsSubset: true, isAiEstimate: false });
   });
 
   it("reports no match once an ingredient is edited", async () => {

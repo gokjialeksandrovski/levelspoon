@@ -6,7 +6,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { db, type DbTransaction } from "@/lib/db";
 import { effectiveNutritionSelection } from "@/lib/db/effective-nutrition";
-import { mealIngredients, meals, productOverrides, products, recipeItems, recipes } from "@/lib/db/schema";
+import { AI_ESTIMATE_ORIGIN, mealIngredients, meals, productOverrides, products, recipeItems, recipes } from "@/lib/db/schema";
 import { toSearchText } from "@/lib/db/search-text";
 import { ZERO_NUTRITION, addNutrition, productRowToNutritionValues } from "@/lib/nutrition/totals";
 import { scaleNutrition } from "@/lib/nutrition/scale-per-serving";
@@ -33,6 +33,7 @@ export interface RecipeSummary {
   name: string;
   itemCount: number;
   total: NutritionValues;
+  isAiEstimate: boolean;
 }
 
 export interface OwnedMeal {
@@ -120,6 +121,7 @@ export const fetchRecipeSummaries = async (userId: string): Promise<RecipeSummar
       name: recipes.name,
       quantity: recipeItems.quantity,
       basisQuantity: products.nutritionBasisQuantity,
+      origin: products.nutritionOrigin,
       product: effectiveNutritionSelection(),
     })
     .from(recipes)
@@ -134,7 +136,7 @@ export const fetchRecipeSummaries = async (userId: string): Promise<RecipeSummar
 
   const byRecipe = new Map<string, RecipeSummary>();
   for (const row of rows) {
-    const current = byRecipe.get(row.recipeId) ?? { id: row.recipeId, name: row.name, itemCount: 0, total: ZERO_NUTRITION };
+    const current = byRecipe.get(row.recipeId) ?? { id: row.recipeId, name: row.name, itemCount: 0, total: ZERO_NUTRITION, isAiEstimate: false };
     const contribution = scaleNutrition(
       productRowToNutritionValues(row.product),
       Number(row.quantity) / Number(row.basisQuantity),
@@ -143,9 +145,21 @@ export const fetchRecipeSummaries = async (userId: string): Promise<RecipeSummar
       ...current,
       itemCount: current.itemCount + 1,
       total: addNutrition(current.total, contribution),
+      isAiEstimate: current.isAiEstimate || row.origin === AI_ESTIMATE_ORIGIN,
     });
   }
   return [...byRecipe.values()];
+};
+
+/** True while any of the recipe's items is still a lazy-track guess. */
+export const recipeHasAiItems = async (recipeId: string): Promise<boolean> => {
+  const [row] = await db
+    .select({ id: recipeItems.id })
+    .from(recipeItems)
+    .innerJoin(products, eq(recipeItems.productId, products.id))
+    .where(and(eq(recipeItems.recipeId, recipeId), eq(products.nutritionOrigin, AI_ESTIMATE_ORIGIN)))
+    .limit(1);
+  return row !== undefined;
 };
 
 export const insertRecipe = async (tx: DbTransaction, userId: string, name: string): Promise<string> => {

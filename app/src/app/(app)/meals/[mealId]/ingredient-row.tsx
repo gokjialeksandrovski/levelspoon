@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/features/meals/actions/meals";
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
 import { MacroLine } from "@/features/meals/components/macro-line";
+import { AI_ESTIMATE_TAG } from "@/features/lazy-track/actions/lazy-track.utils";
 import type { NutritionValues } from "@/types/nutrition";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -313,6 +314,7 @@ interface QuantitySummaryProps {
   entryUnit: string | null;
   contribution: NutritionValues;
   quantitySource: MealIngredientDetail["quantitySource"];
+  isAiEstimate: boolean;
   isBusy: boolean;
   onEdit: () => void;
   onRemove: () => void;
@@ -380,7 +382,7 @@ const RowActionsGroup = ({ productName, isBusy, onEdit, onRemove }: RowActionsGr
   </div>
 );
 
-const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entryUnit, contribution, quantitySource, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entryUnit, contribution, quantitySource, isAiEstimate, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex flex-col gap-1">
     <div className="flex items-center justify-between text-sm text-text-muted">
       <QuantityLine
@@ -389,7 +391,7 @@ const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entr
         entryCount={entryCount}
         entryUnit={entryUnit}
         energyKcal={contribution.energyKcal}
-        sourceNote={AMOUNT_SOURCE_NOTE[quantitySource]}
+        sourceNote={isAiEstimate ? AI_ESTIMATE_TAG : AMOUNT_SOURCE_NOTE[quantitySource]}
       />
       <RowActionsGroup productName={productName} isBusy={isBusy} onEdit={onEdit} onRemove={onRemove} />
     </div>
@@ -429,6 +431,7 @@ const SummaryControls = ({ ingredient, editing, onRequestRemove }: QuantityContr
     entryUnit={ingredient.entryUnit}
     contribution={ingredient.contribution}
     quantitySource={ingredient.quantitySource}
+    isAiEstimate={ingredient.isAiEstimate}
     isBusy={editing.isBusy}
     onEdit={editing.startEditing}
     onRemove={onRequestRemove}
@@ -467,8 +470,10 @@ const IngredientRowContent = ({ ingredient, editing, onRequestRemove }: Ingredie
     <IngredientHeader productName={ingredient.productName} />
     <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
     {/* Hidden while editing: it navigates away mid-edit, which is not an exit,
-        and a row being edited is not the moment to offer it. */}
-    {!editing.isEditing && (
+        and a row being edited is not the moment to offer it. Hidden on an AI
+        row outright: saveNutritionOverride refuses those, so the link would
+        only lead to a refusal. */}
+    {!editing.isEditing && !ingredient.isAiEstimate && (
       <CorrectionLink productId={ingredient.productId} productName={displayProductName(ingredient.productName)} />
     )}
     {editing.error && <InlineMessage tone="error">{editing.error}</InlineMessage>}

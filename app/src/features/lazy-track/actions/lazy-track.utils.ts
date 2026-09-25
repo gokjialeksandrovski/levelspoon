@@ -88,3 +88,7 @@ export const canEstimate = (description: string, hasPhoto: boolean): boolean =>
   !isDescriptionTooLong(description) && (description.trim().length > 0 || hasPhoto);
 
 export const quantitySourceFor = (gramsEdited: boolean): "ai_estimated" | "manual" => (gramsEdited ? "manual" : "ai_estimated");
+
+/** One wording for every place a guess is marked. */
+export const AI_ESTIMATE_TAG = "AI estimate";
+export const withAiEstimateTag = (name: string, isAiEstimate: boolean): string => (isAiEstimate ? `${name} (${AI_ESTIMATE_TAG})` : name);

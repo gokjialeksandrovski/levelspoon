@@ -7,7 +7,7 @@ import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { db } from "@/lib/db";
 import { portionOverridesSelection } from "@/lib/db/portion-overrides-sql";
 import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective-nutrition";
-import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
+import { AI_ESTIMATE_ORIGIN, mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
 import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
 import { ZERO_NUTRITION, addNutrition, productRowToNutritionValues, type ProductNutritionRow } from "@/lib/nutrition/totals";
@@ -16,7 +16,7 @@ import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 import { fetchCalorieGoal, fetchMacroTargets } from "@/features/goals/actions/goals";
 import type { MacroTargets } from "@/features/goals/actions/macro-targets.utils";
-import { fetchMealItems, fetchOwnedRecipe, fetchRecipeItems } from "@/features/recipes/actions/recipes.store";
+import { fetchMealItems, fetchOwnedRecipe, fetchRecipeItems, recipeHasAiItems } from "@/features/recipes/actions/recipes.store";
 import { mealMatchesRecipe, recipeIsSubsetOfMeal } from "@/features/recipes/actions/recipes.utils";
 import { fetchWeightView } from "@/features/weight/actions/weight";
 import type { WeightView } from "@/features/weight/actions/weight.utils";
@@ -268,6 +268,8 @@ export interface MealIngredientDetail {
   /** Resolved server-side, same as on a product DTO: the edit control offers
    * these labels as units, so an amount logged as "1 slice" stays editable. */
   portions: readonly Portion[];
+  /** Lazy-track guess: tagged in the row, and no correction link. */
+  isAiEstimate: boolean;
 }
 
 export interface MealRecipeLink {
@@ -287,6 +289,9 @@ export interface MealRecipeLink {
    * what it says on this one call site. This field exists only to let the
    * divergence line tell "added to it" apart from genuine drift. */
   recipeIsSubset: boolean;
+  /** Whether any item is still a lazy-track guess. Derived: swapping every
+   * guess for a real product clears it. */
+  isAiEstimate: boolean;
 }
 
 export interface MealDetail {
@@ -322,6 +327,7 @@ interface MealIngredientRow {
   entryUnit: string | null;
   nutritionBasisQuantity: string;
   quantitySource: "ai_estimated" | "manual";
+  nutritionOrigin: string;
   product: ProductNutritionRow;
   measures: ProductMeasureColumns & { portionOverrides: Record<string, string> };
 }
@@ -339,6 +345,7 @@ const mealIngredientSelection = (userId: string) => ({
   entryUnit: mealIngredients.entryUnit,
   nutritionBasisQuantity: products.nutritionBasisQuantity,
   quantitySource: mealIngredients.quantitySource,
+  nutritionOrigin: products.nutritionOrigin,
   product: effectiveNutritionSelection(),
   measures: {
     nameSearch: products.nameSearch,
@@ -395,6 +402,7 @@ const toMealIngredientDetail = (row: MealIngredientRow): MealIngredientDetail =>
       Object.entries(row.measures.portionOverrides).map(([label, grams]) => [label, Number(grams)]),
     ),
   }),
+  isAiEstimate: row.nutritionOrigin === AI_ESTIMATE_ORIGIN,
 });
 
 // Upper bound is read back in SQL, not bound as a JS value: Postgres keeps
@@ -447,12 +455,17 @@ const fetchMealRecipeLink = async (
   if (!recipe) {
     return null;
   }
-  const [mealRows, recipeItemRows] = await Promise.all([fetchMealItems(mealId), fetchRecipeItems(recipeId)]);
+  const [mealRows, recipeItemRows, isAiEstimate] = await Promise.all([
+    fetchMealItems(mealId),
+    fetchRecipeItems(recipeId),
+    recipeHasAiItems(recipeId),
+  ]);
   return {
     id: recipe.id,
     name: recipe.name,
     matches: mealMatchesRecipe(mealRows, recipeItemRows),
     recipeIsSubset: recipeIsSubsetOfMeal(mealRows, recipeItemRows),
+    isAiEstimate,
   };
 };
 

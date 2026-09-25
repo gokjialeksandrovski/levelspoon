@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, recipeItems, recipes, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { getMealDetail } from "@/features/meals/actions/meals";
+import { listRecipes } from "@/features/recipes/actions/recipes";
 
 import { estimateMeal, logLazyMeal } from "./lazy-track";
 import type { LoggedItem } from "./lazy-track.utils";
@@ -121,5 +123,33 @@ describe("logLazyMeal", () => {
     signedInAs(await seedUser());
     expect(await logLazyMeal(mealId, [item()], null)).toEqual({ kind: "meal_missing" });
     expect(await db.select().from(products)).toEqual([]);
+  });
+});
+
+describe("derived AI tags", () => {
+  it("flags AI ingredients and the recipe filed from them", async () => {
+    const userId = await seedUser();
+    const mealId = await seedMeal(userId);
+    signedInAs(userId);
+    await logLazyMeal(mealId, [item()], "Bowl");
+
+    const detail = await getMealDetail(mealId);
+    expect(detail?.ingredients.map((ingredient) => ingredient.isAiEstimate)).toEqual([true]);
+    expect(detail?.recipe?.isAiEstimate).toBe(true);
+    expect((await listRecipes()).map((recipe) => recipe.isAiEstimate)).toEqual([true]);
+  });
+
+  it("clears the recipe tag once no item is an AI estimate", async () => {
+    const userId = await seedUser();
+    const mealId = await seedMeal(userId);
+    signedInAs(userId);
+    await logLazyMeal(mealId, [item()], "Bowl");
+    const [real] = await db
+      .insert(products)
+      .values({ name: "Real chicken", nameSearch: "real chicken", energyKcal: "165", fatG: "3.6", saturatesG: "1", carbohydrateG: "0", sugarsG: "0", proteinG: "31", saltG: "0.2", nutritionPhotoKey: `test/${crypto.randomUUID()}.jpg`, createdByUserId: userId })
+      .returning({ id: products.id });
+    await db.update(recipeItems).set({ productId: real.id });
+
+    expect((await listRecipes()).map((recipe) => recipe.isAiEstimate)).toEqual([false]);
   });
 });

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { deleteRecipe, enterRecipe, renameRecipe } from "@/features/recipes/actions/recipes";
 import type { RecipeSummary } from "@/features/recipes/actions/recipes.store";
 import { isValidRecipeName } from "@/features/recipes/actions/recipes.utils";
+import { withAiEstimateTag } from "@/features/lazy-track/actions/lazy-track.utils";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -144,7 +145,7 @@ const RecipeRow = ({ recipe, isEntering, onEnter, onChanged }: RecipeRowProps) =
   return (
     <div className="flex flex-col gap-1">
       <button type="button" className={RECIPE_ROW_CLASS} disabled={isEntering} onClick={onEnter}>
-        <span className="text-sm font-medium text-text">{recipe.name}</span>
+        <span className="text-sm font-medium text-text">{withAiEstimateTag(recipe.name, recipe.isAiEstimate)}</span>
         <span className="tabular-nums text-xs text-text-muted">{macroLine(recipe)}</span>
       </button>
       <div className="flex gap-2 px-1 pb-2">
