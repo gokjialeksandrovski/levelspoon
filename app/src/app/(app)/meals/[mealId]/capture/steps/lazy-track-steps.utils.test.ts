@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGrams, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows } from "./lazy-track-steps.utils";
+import { MAX_ITEM_GRAMS } from "@/features/lazy-track/actions/lazy-track.utils";
+
+import { gramsFieldError, parseGrams, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows } from "./lazy-track-steps.utils";
 
 const rice = {
   name: "Rice",
@@ -20,10 +22,23 @@ describe("review draft", () => {
     expect(parseGrams("abc")).toBeNull();
   });
 
+  it("refuses grams above the cap", () => {
+    expect(parseGrams(String(MAX_ITEM_GRAMS))).toBe(MAX_ITEM_GRAMS);
+    expect(parseGrams(String(MAX_ITEM_GRAMS + 1))).toBeNull();
+  });
+
   it("is loggable only with at least one row and every grams valid", () => {
     expect(reviewDraftIsLoggable([])).toBe(false);
     expect(reviewDraftIsLoggable([{ item: rice, gramsText: "" }])).toBe(false);
     expect(reviewDraftIsLoggable([{ item: rice, gramsText: "150" }])).toBe(true);
+    expect(reviewDraftIsLoggable([{ item: rice, gramsText: String(MAX_ITEM_GRAMS + 1) }])).toBe(false);
+  });
+
+  it("names the actual limit for grams over the cap, distinct from a blank or zero", () => {
+    expect(gramsFieldError(String(MAX_ITEM_GRAMS + 1))).toBe(`Enter ${MAX_ITEM_GRAMS} g or less.`);
+    expect(gramsFieldError("0")).toBe("Enter an amount above 0.");
+    expect(gramsFieldError("")).toBe("Enter an amount above 0.");
+    expect(gramsFieldError("150")).toBeUndefined();
   });
 
   it("marks an edited amount and keeps an untouched one", () => {
