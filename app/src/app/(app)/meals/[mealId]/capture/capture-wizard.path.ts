@@ -32,7 +32,12 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   }
   // The describe step under the review is rewritten with what was sent, so
   // "Add detail" (Back) reopens it holding the user's own text and photo.
+  // Ignored once the user has left that step (Back to options, or started a
+  // different path): a late arrival must not rewrite whatever is current now.
   if (action.type === "LAZY_ESTIMATED") {
+    if (path[path.length - 1].kind !== "lazy-describe") {
+      return path;
+    }
     const describe: WizardStep = { kind: "lazy-describe", description: action.description, photo: action.photo };
     return [...path.slice(0, -1), describe, wizardReducer(describe, action)];
   }
