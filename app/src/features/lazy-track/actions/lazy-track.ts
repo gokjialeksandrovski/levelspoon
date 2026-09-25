@@ -75,14 +75,21 @@ export const logLazyMeal = async (mealId: string, items: LoggedItem[], recipeNam
   const userId = await requireUserId();
   // Re-parsed, not just re-bounded: a browser can send a string where a number
   // belongs, which isPlausibleItem's types alone would not catch at runtime.
-  if (items.length === 0 || parseMealEstimate({ items }).items.length !== items.length) return { kind: "invalid_items" };
+  const parsedItems = parseMealEstimate({ items }).items;
+  if (items.length === 0 || parsedItems.length !== items.length) return { kind: "invalid_items" };
   if (recipeName !== null && !isValidRecipeName(recipeName)) return { kind: "invalid_recipe_name" };
   // Generic for a missing meal and another user's alike, same as saveMealAsRecipe.
   if (!(await fetchOwnedMeal(userId, mealId))) return { kind: "meal_missing" };
 
+  // Written from the parsed items, not the raw browser array: trimmed names
+  // and narrowed numbers are the actual trust boundary. gramsEdited has no
+  // equivalent on EstimatedItem, so it maps back on by index - safe only
+  // because the length check above guarantees a 1:1 correspondence.
+  const loggedItems: LoggedItem[] = parsedItems.map((item, index) => ({ ...item, gramsEdited: items[index].gramsEdited }));
+
   await db.transaction(async (tx) => {
-    const productIds = await insertAiProducts(tx, userId, items);
-    const rows = items.map((item, index) => toAmountRow(productIds[index], item));
+    const productIds = await insertAiProducts(tx, userId, loggedItems);
+    const rows = loggedItems.map((item, index) => toAmountRow(productIds[index], item));
     await appendItemsToMeal(tx, mealId, rows);
     if (recipeName !== null) {
       const recipeId = await insertRecipe(tx, userId, recipeName);
