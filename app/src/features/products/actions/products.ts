@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
@@ -17,7 +17,7 @@ import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { toSearchText } from "@/lib/db/search-text";
 import { effectiveNutritionSql, overrideJoinSql } from "@/lib/db/effective-nutrition";
 import { portionOverridesJson } from "@/lib/db/portion-overrides-sql";
-import { nutritionOriginEnum, products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
+import { AI_ESTIMATE_ORIGIN, nutritionOriginEnum, products, productBarcodes, productOverrides, productSource } from "@/lib/db/schema";
 import { notAiEstimate, visibleToUser } from "@/lib/db/visibility";
 import { NOTHING_LEARNED, type LearnedMeasures } from "@/lib/measures/learn";
 import type { Portion } from "@/lib/measures/portions";
@@ -838,6 +838,10 @@ const LABEL_PHOTO_ORIGIN = nutritionOriginEnum.enumValues[0];
 // Proofless means nobody but the author has ever been offered this row
 // (lib/db/visibility.ts), which is what makes the write below safe: no other
 // user's figures are being rewritten, because no other user has these figures.
+// An AI row is excluded too: it is otherwise indistinguishable from a
+// hand-typed proofless row (source 'user', no photo, no barcode), and
+// writeLabelProof's own origin-column UPDATE would clear the CHECK that is
+// supposed to keep it private.
 const isProofless = async (userId: string, productId: string): Promise<boolean> => {
   const [row] = await db
     .select({ id: products.id })
@@ -848,6 +852,7 @@ const isProofless = async (userId: string, productId: string): Promise<boolean> 
         eq(products.source, USER_SOURCE),
         eq(products.createdByUserId, userId),
         isNull(products.nutritionPhotoKey),
+        ne(products.nutritionOrigin, AI_ESTIMATE_ORIGIN),
       ),
     );
   return row !== undefined && !(await fetchHasBarcode(productId));
@@ -1004,11 +1009,14 @@ const fetchOverrideRow = async (userId: string, productId: string): Promise<Over
 };
 
 // A standard row is curated, not user-owned: no label photo, no correction
-// path. (spec §6)
+// path. (spec §6) An AI row is excluded the same way: it never had a label
+// proof to disclose, and rendering ProofDisclosure for one is the route
+// attachLabelProof's own guard closes off server-side - /products/<aiId>/correct
+// 404s instead.
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
   const userId = await requireUserId();
   const [product] = await db.select().from(products).where(eq(products.id, productId));
-  if (!product || product.source === STANDARD_SOURCE) {
+  if (!product || product.source === STANDARD_SOURCE || product.nutritionOrigin === AI_ESTIMATE_ORIGIN) {
     return null;
   }
 
