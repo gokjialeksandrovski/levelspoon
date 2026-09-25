@@ -1,0 +1,104 @@
+import { expect, test, type Page } from "@playwright/test";
+
+import { signUp, truncateAll } from "./support";
+
+test.beforeEach(truncateAll);
+
+const openLazyTrack = async (page: Page) => {
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: /Lazy track/ }).click();
+};
+
+const describeAndEstimate = async (page: Page, text = "chicken with rice and some olive oil") => {
+  await page.getByLabel("What did you eat, and what was in it?").fill(text);
+  await page.getByRole("button", { name: "Estimate" }).click();
+};
+
+test("describe, consent, adjust, save as recipe, log", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  await expect(page.getByText(/Least accurate way to log/)).toBeVisible();
+
+  await describeAndEstimate(page);
+  await page.getByRole("button", { name: "I agree" }).click();
+
+  await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
+  await page.getByLabel("Grams").nth(1).fill("150");
+  await page.getByRole("button", { name: "Remove Olive oil" }).click();
+  await page.getByLabel("Save as recipe").check();
+  await page.getByRole("button", { name: "Log" }).click();
+
+  await page.waitForURL(/\/meals\/[^/]+$/);
+  // Substring "AI estimate" also matches the recipe subtitle's "(AI estimate)",
+  // so this counts the item tag's own rendered text (" · AI estimate"), not
+  // every occurrence of the substring on the page (controller ruling 1).
+  await expect(page.getByText("· AI estimate")).toHaveCount(2);
+  await expect(page.getByText("From your saved recipes: Chicken rice bowl (AI estimate)")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Correct values/ })).toHaveCount(0);
+});
+
+test("a second estimate does not ask for consent again", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  await describeAndEstimate(page);
+  await page.getByRole("button", { name: "I agree" }).click();
+  await page.getByRole("button", { name: "Something missing? Add detail" }).click();
+
+  await expect(page.getByLabel("What did you eat, and what was in it?")).toHaveValue("chicken with rice and some olive oil");
+  await page.getByRole("button", { name: "Estimate" }).click();
+  await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
+});
+
+test("declining consent sends nothing", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  const posts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") posts.push(request.url());
+  });
+
+  await describeAndEstimate(page);
+  await page.getByRole("button", { name: "Not now" }).click();
+
+  await expect(page.getByLabel("What did you eat, and what was in it?")).toHaveValue("chicken with rice and some olive oil");
+  expect(posts).toHaveLength(0);
+});
+
+test("Escape on review writes nothing and keeps the text", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  await describeAndEstimate(page);
+  await page.getByRole("button", { name: "I agree" }).click();
+  // No .focus() on a Grams field first (controller ruling 2): this covers the
+  // arrival case - Escape fired right after the review step mounts, with
+  // nothing on it yet given focus - which is the bug the document-level
+  // keydown listener (vs. a since-removed div onKeyDown) was fixed for.
+  await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
+
+  const posts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") posts.push(request.url());
+  });
+  await page.keyboard.press("Escape");
+
+  await expect(page.getByLabel("What did you eat, and what was in it?")).toHaveValue("chicken with rice and some olive oil");
+  expect(posts).toHaveLength(0);
+});
+
+test("an emptied grams field disables Log", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  await describeAndEstimate(page);
+  await page.getByRole("button", { name: "I agree" }).click();
+
+  await page.getByLabel("Grams").first().fill("");
+  await expect(page.getByRole("button", { name: "Log" })).toBeDisabled();
+  await expect(page.getByText("Enter an amount above 0.")).toBeVisible();
+});
+
+test("Estimate stays disabled with no text and no photo", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  await expect(page.getByRole("button", { name: "Estimate" })).toBeDisabled();
+});

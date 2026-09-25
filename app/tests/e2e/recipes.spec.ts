@@ -106,7 +106,7 @@ const saveCurrentMealAsRecipe = async (page: import("@playwright/test").Page, na
   await expect(page.getByText(`From your saved recipes: ${name}`)).toBeVisible();
 };
 
-test("a user with no recipes sees the Add meals section with both rows locked", async ({ page }) => {
+test("a user with no recipes sees the recipe row locked and lazy track open", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
   await page.getByRole("button", { name: "New meal" }).click();
@@ -114,7 +114,7 @@ test("a user with no recipes sees the Add meals section with both rows locked", 
 
   await expect(page.getByText("Add meals")).toBeVisible();
   await expect(page.getByRole("button", { name: "Use one of your recipes" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Lazy track" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Lazy track/ })).toBeEnabled();
 });
 
 test("a saved recipe unlocks the row and enters into a fresh meal", async ({ page }) => {
