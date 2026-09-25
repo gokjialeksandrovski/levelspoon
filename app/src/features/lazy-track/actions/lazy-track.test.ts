@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { mealIngredients, meals, products, recipeItems, recipes, users } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { MOCK_UNAVAILABLE_MARKER } from "@/lib/meal-estimate/mock-provider";
 import { getMealDetail } from "@/features/meals/actions/meals";
 import { listRecipes } from "@/features/recipes/actions/recipes";
 
@@ -51,6 +52,11 @@ describe("estimateMeal", () => {
   it("refuses empty input without a request", async () => {
     signedInAs(await seedUser());
     expect(await estimateMeal("   ", null)).toEqual({ kind: "nothing_found" });
+  });
+
+  it("reports unavailable when the provider throws", async () => {
+    signedInAs(await seedUser());
+    expect(await estimateMeal(`chicken with rice ${MOCK_UNAVAILABLE_MARKER}`, null)).toEqual({ kind: "unavailable" });
   });
 
   it("reports an unreadable photo format", async () => {

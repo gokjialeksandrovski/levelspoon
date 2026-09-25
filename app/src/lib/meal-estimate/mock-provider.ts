@@ -1,5 +1,10 @@
 import type { MealEstimateProvider } from "./provider";
 
+// Same marker idea as lib/ocr/mock-provider.ts's fixture markers: a plain
+// string an e2e test can embed in its description to force the failure path
+// deterministically, without a real Gemini outage.
+export const MOCK_UNAVAILABLE_MARKER = "[mock:unavailable]";
+
 // Fixed, plausible bowl so dev, CI and e2e run with zero AI spend. The oil
 // row sits at the physical limits on purpose, so the bounds see it every run.
 const MOCK_ESTIMATE = {
@@ -12,7 +17,8 @@ const MOCK_ESTIMATE = {
 };
 
 export class MockMealEstimateProvider implements MealEstimateProvider {
-  async estimate(_description: string, _photo: Buffer | null): Promise<unknown> {
+  async estimate(description: string, _photo: Buffer | null): Promise<unknown> {
+    if (description.includes(MOCK_UNAVAILABLE_MARKER)) throw new Error("mock estimate unavailable");
     return MOCK_ESTIMATE;
   }
 }

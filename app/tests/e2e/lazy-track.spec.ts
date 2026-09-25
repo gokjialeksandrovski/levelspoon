@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { MOCK_UNAVAILABLE_MARKER } from "../../src/lib/meal-estimate/mock-provider";
 import { signUp, truncateAll } from "./support";
 
 test.beforeEach(truncateAll);
@@ -95,6 +96,19 @@ test("an emptied grams field disables Log", async ({ page }) => {
   await page.getByLabel("Grams").first().fill("");
   await expect(page.getByRole("button", { name: "Log" })).toBeDisabled();
   await expect(page.getByText("Enter an amount above 0.")).toBeVisible();
+});
+
+test("unavailable keeps text", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  const text = `chicken with rice ${MOCK_UNAVAILABLE_MARKER}`;
+  await describeAndEstimate(page, text);
+  await page.getByRole("button", { name: "I agree" }).click();
+
+  await expect(
+    page.getByText("Estimate unavailable right now. Your text is kept — try again, or add items by search."),
+  ).toBeVisible();
+  await expect(page.getByLabel("What did you eat, and what was in it?")).toHaveValue(text);
 });
 
 test("Estimate stays disabled with no text and no photo", async ({ page }) => {
