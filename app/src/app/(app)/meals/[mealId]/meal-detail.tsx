@@ -21,7 +21,6 @@ import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 import { CookingFatControl } from "./cooking-fat-control";
 import { DeleteMeal } from "./delete-meal";
-import { EstimateFollowUp } from "./estimate-follow-up";
 import { IngredientRow, RemovedIngredientRow } from "./ingredient-row";
 import { RecipeControl, RecipeDivergence, RecipeSubtitle } from "./recipe-control";
 
@@ -231,8 +230,6 @@ const MealNotFound = () => (
 
 interface MealDetailProps {
   mealId: string;
-  /** Set only on arrival straight from a lazy-track estimate (see page.tsx). */
-  estimateDescription: string | null;
 }
 
 // AppHeader's title needs a value in every state, but the meal number only
@@ -251,13 +248,12 @@ const mealDetailBackHref = (state: MealDetailState, today: string): string =>
 interface MealReadyBodyProps {
   meal: MealDetailData;
   mealId: string;
-  estimateDescription: string | null;
   removals: UseRemovalsResult;
   onIngredientChanged: () => void;
   onAnnounce: (message: string) => void;
 }
 
-type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId" | "onAnnounce" | "estimateDescription">;
+type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId" | "onAnnounce">;
 
 const IngredientsSection = ({ meal, removals, onIngredientChanged }: IngredientsSectionProps) => {
   const entries = listEntries(meal.ingredients, removals.removals);
@@ -306,7 +302,7 @@ const MealActions = ({ mealId, mealDate, recipe, ingredients, onIngredientChange
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, estimateDescription, removals, onIngredientChanged, onAnnounce }: MealReadyBodyProps) => (
+const MealReadyBody = ({ meal, mealId, removals, onIngredientChanged, onAnnounce }: MealReadyBodyProps) => (
   <>
     {meal.recipe && (
       <div className="mb-4 flex flex-col gap-2">
@@ -315,13 +311,6 @@ const MealReadyBody = ({ meal, mealId, estimateDescription, removals, onIngredie
       </div>
     )}
     <IngredientsSection meal={meal} removals={removals} onIngredientChanged={onIngredientChanged} />
-    <EstimateFollowUp
-      mealId={mealId}
-      description={estimateDescription}
-      ingredients={meal.ingredients}
-      onChanged={onIngredientChanged}
-      onAnnounce={onAnnounce}
-    />
     <MealActions
       mealId={mealId}
       mealDate={meal.date}
@@ -357,7 +346,6 @@ const MealDetailSkeleton = () => (
 interface MealDetailBodyProps {
   state: MealDetailState;
   mealId: string;
-  estimateDescription: string | null;
   removals: UseRemovalsResult;
   onIngredientChanged: () => void;
   onAnnounce: (message: string) => void;
@@ -367,7 +355,7 @@ interface MealDetailContentProps extends Omit<MealDetailBodyProps, "state"> {
   state: Exclude<MealDetailState, { status: "loading" }>;
 }
 
-const MealDetailContent = ({ state, mealId, estimateDescription, removals, onIngredientChanged, onAnnounce }: MealDetailContentProps) => {
+const MealDetailContent = ({ state, mealId, removals, onIngredientChanged, onAnnounce }: MealDetailContentProps) => {
   if (state.status === "error") {
     return <p className="text-sm text-danger">Couldn&apos;t load this meal. Try again.</p>;
   }
@@ -376,20 +364,13 @@ const MealDetailContent = ({ state, mealId, estimateDescription, removals, onIng
   }
 
   return (
-    <MealReadyBody
-      meal={state.meal}
-      mealId={mealId}
-      estimateDescription={estimateDescription}
-      removals={removals}
-      onIngredientChanged={onIngredientChanged}
-      onAnnounce={onAnnounce}
-    />
+    <MealReadyBody meal={state.meal} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} onAnnounce={onAnnounce} />
   );
 };
 
 // Same delayed-skeleton + fade-in treatment as DayViewBody/HistoryBody, so
 // a fast fetch doesn't flash a placeholder then jump-cut to content.
-const MealDetailBody = ({ state, mealId, estimateDescription, removals, onIngredientChanged, onAnnounce }: MealDetailBodyProps) => {
+const MealDetailBody = ({ state, mealId, removals, onIngredientChanged, onAnnounce }: MealDetailBodyProps) => {
   const reduceMotion = useReducedMotion();
   const showSkeleton = useDelayedSkeleton(state.status === "loading");
 
@@ -403,14 +384,7 @@ const MealDetailBody = ({ state, mealId, estimateDescription, removals, onIngred
       animate={{ opacity: 1 }}
       transition={contentFadeTransition(reduceMotion)}
     >
-      <MealDetailContent
-        state={state}
-        mealId={mealId}
-        estimateDescription={estimateDescription}
-        removals={removals}
-        onIngredientChanged={onIngredientChanged}
-        onAnnounce={onAnnounce}
-      />
+      <MealDetailContent state={state} mealId={mealId} removals={removals} onIngredientChanged={onIngredientChanged} onAnnounce={onAnnounce} />
     </motion.div>
   );
 };
@@ -420,7 +394,7 @@ const MealDetailBody = ({ state, mealId, estimateDescription, removals, onIngred
 // use below for why it must expire at all.
 const RECIPE_ANNOUNCEMENT_CLEAR_MS = 4000;
 
-export const MealDetail = ({ mealId, estimateDescription }: MealDetailProps) => {
+export const MealDetail = ({ mealId }: MealDetailProps) => {
   const [reloadCounter, setReloadCounter] = useState(0);
   const [recipeAnnouncement, setRecipeAnnouncement] = useState("");
   const bumpReload = () => setReloadCounter((count) => count + 1);
@@ -447,14 +421,7 @@ export const MealDetail = ({ mealId, estimateDescription }: MealDetailProps) => 
             recipe save takes priority over a removal's own announcement,
             but only for as long as RECIPE_ANNOUNCEMENT_CLEAR_MS above. */}
         <LiveStatus message={recipeAnnouncement || removals.announcement || (state.status === "ready" ? "Meal loaded" : "")} />
-        <MealDetailBody
-          state={state}
-          mealId={mealId}
-          estimateDescription={estimateDescription}
-          removals={removals}
-          onIngredientChanged={bumpReload}
-          onAnnounce={setRecipeAnnouncement}
-        />
+        <MealDetailBody state={state} mealId={mealId} removals={removals} onIngredientChanged={bumpReload} onAnnounce={setRecipeAnnouncement} />
       </main>
     </>
   );

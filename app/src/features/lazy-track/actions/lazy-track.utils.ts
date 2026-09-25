@@ -11,6 +11,10 @@ export interface MealEstimateView {
   items: EstimatedItem[];
 }
 
+export interface LoggedItem extends EstimatedItem {
+  gramsEdited: boolean;
+}
+
 export const DESCRIPTION_MAX_LENGTH = 1000;
 
 // Judgment: a whole family tray bake is ~3 kg; past 5 kg a guess is a typo or
@@ -88,23 +92,7 @@ export const isDescriptionTooLong = (description: string): boolean => descriptio
 export const canEstimate = (description: string, hasPhoto: boolean): boolean =>
   !isDescriptionTooLong(description) && (description.trim().length > 0 || hasPhoto);
 
-/** Search params carrying the description between the capture wizard and the
- * meal page, so "Describe again" reopens it holding the user's own text. */
-export const ESTIMATE_PARAM = "estimate";
-export const REESTIMATE_PARAM = "reestimate";
-
-interface EstimateIngredient {
-  isAiEstimate: boolean;
-  quantitySource: "ai_estimated" | "manual";
-}
-
-/** The meal still holds an estimate nobody has touched: Undo and Describe
- * again remove exactly these rows (removeUntouchedEstimate), so they are only
- * offered while that removes the whole guess, not what is left of it. */
-export const isEstimateUntouched = (ingredients: readonly EstimateIngredient[]): boolean => {
-  const guesses = ingredients.filter((ingredient) => ingredient.isAiEstimate);
-  return guesses.length > 0 && guesses.every((ingredient) => ingredient.quantitySource === "ai_estimated");
-};
+export const quantitySourceFor = (gramsEdited: boolean): "ai_estimated" | "manual" => (gramsEdited ? "manual" : "ai_estimated");
 
 /** One wording for every place a guess is marked. */
 export const AI_ESTIMATE_TAG = "AI estimate";

@@ -1,3 +1,4 @@
+import type { MealEstimateView } from "@/features/lazy-track/actions/lazy-track.utils";
 import type { LookupBarcodeResult } from "@/features/products/actions/barcode";
 import type { MatchResult } from "@/features/products/actions/products";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
@@ -102,9 +103,8 @@ export type WizardStep =
       pendingBarcode: string | null;
     }
   | { kind: "saved" }
-  /** `replacing`: reached from the meal page's "Describe again", so the
-   * estimate replaces the one already logged instead of adding to it. */
-  | { kind: "lazy-describe"; description: string; replacing: boolean };
+  | { kind: "lazy-describe"; description: string; photo: File | null }
+  | { kind: "lazy-review"; estimate: MealEstimateView };
 
 export type WizardAction =
   | { type: "MATCH_RESOLVED"; nameGuess: string; result: MatchResult; netWeightText: string | null; pendingBarcode: string | null }
@@ -141,7 +141,8 @@ export type WizardAction =
   | { type: "MANUAL_NAME_ENTRY"; pendingBarcode: string | null }
   | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> }
   | { type: "PORTIONS_UPDATED"; portions: readonly Portion[] }
-  | { type: "LAZY_TRACK_OPENED" };
+  | { type: "LAZY_TRACK_OPENED" }
+  | { type: "LAZY_ESTIMATED"; description: string; photo: File | null; estimate: MealEstimateView };
 
 export const INITIAL_WIZARD_STEP: WizardStep = { kind: "product-photo", pendingBarcode: null };
 
@@ -272,6 +273,7 @@ export const wizardReducer = (state: WizardStep, action: WizardAction): WizardSt
     case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
     case "PORTIONS_UPDATED": return applyPortionsUpdated(state, action.portions);
-    case "LAZY_TRACK_OPENED": return { kind: "lazy-describe", description: "", replacing: false };
+    case "LAZY_TRACK_OPENED": return { kind: "lazy-describe", description: "", photo: null };
+    case "LAZY_ESTIMATED": return { kind: "lazy-review", estimate: action.estimate };
   }
 };

@@ -610,8 +610,8 @@ time, the picker is the only surface.
 ## Lazy track
 
 Least accurate logging path, on purpose: user describes meal (+ optional
-photo), Gemini returns itemized estimate, which is logged straight into the
-meal and checked on the meal page. Reached from wizard's `Add meals` section.
+photo), Gemini returns itemized estimate, user fixes grams, logs. Reached from
+wizard's `Add meals` section.
 
 - **Guesses are private `products` rows**, `nutrition_origin = 'ai_estimate'`.
   `products_ai_estimate_private` CHECK forbids label photo and `standard`
@@ -627,24 +627,14 @@ meal and checked on the meal page. Reached from wizard's `Add meals` section.
   estimate` on item are derived from origin, never stored; swapping every
   guess for a real product clears recipe tag.
 - Figures bounded in `features/lazy-track/actions/lazy-track.utils.ts` (each
-  constant labelled physical or judgment), run on Gemini's reply. They go
-  from the parse straight to the DB, never through the browser.
-- **No review screen - estimate logs, meal page checks** (rejected
-  2026-09-25, see `DECISIONS.md`). `estimateMeal` writes, then the wizard
-  opens `/meals/<id>?estimate=<text>`. There `EstimateFollowUp` offers
-  `Describe again` and `Undo` - Rule 21's exit for a write nobody reviewed -
-  only while `isEstimateUntouched`: every guess still `ai_estimated`. Both
-  remove exactly `removeUntouchedEstimate`'s rows; an edited guess would
-  leave them removing half of what the user sees. `Describe again` reopens
-  the describe step with the text (`?reestimate=`), `replacing: true`, and
-  swaps the guess in one transaction - a failed re-estimate keeps the old
-  one. The photo is not carried back: it is never stored.
-- Grams and remove on the meal page, as for any row. No name or per-100g
-  edits, no correction link, no portion overrides on AI rows.
+  constant labelled physical or judgment), run on Gemini's reply and again in
+  `logLazyMeal` - figures round-trip through browser.
+- Edits on review: grams, remove, re-ask. No name or per-100g edits, no
+  correction link, no portion overrides on AI rows.
 - Consent reuses `AiConsentSheet` / `per100:ai-photo-consent`, asked before
   text-only requests too. Meal photo sent, never stored.
 - No usage cap yet - scoped separately.
-- Refusals cross as `EstimateMealResult` / `UndoMealEstimateResult`.
+- Refusals cross as `EstimateMealResult` / `LogLazyMealResult`.
 - `MEAL_ESTIMATE_PROVIDER` picks mock vs Gemini; `.env.example` defaults
   `mock`. Mock provider throws on `MOCK_UNAVAILABLE_MARKER` in the
   description - e2e's hook for the unavailable path.
@@ -842,9 +832,7 @@ save-new-or-overwrite fork - see "Recipes" above.
 
 Lazy track shipped 2026-09-25 (`docs/superpowers/plans/2026-09-25-lazy-track.md`):
 describe a meal, get an itemized Gemini estimate kept on private rows - see
-"Lazy track" above. Its review screen was dropped the same day: the estimate
-logs straight into the meal, and the meal page carries Undo and Describe
-again.
+"Lazy track" above.
 
 Every playbook under `docs/superpowers/plans/` is now done. **M4 — provision
 cloud — next, not started.**
