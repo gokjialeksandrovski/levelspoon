@@ -153,7 +153,7 @@ test("leaving the picker writes nothing", async ({ page }) => {
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
   await page.getByRole("button", { name: "Use one of your recipes" }).click();
-  await page.getByRole("button", { name: "Choose a different way" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
 
   // "Scan the barcode" is the row's visible title, not any element's
   // accessible name - the row is a <label>, and its file input's own

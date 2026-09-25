@@ -11,8 +11,6 @@ import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import type { PathAction } from "../capture-wizard.path";
-import { BACK_TO_OPTIONS_LABEL } from "../capture-wizard.types";
 
 // A full-width list row, structurally the same shape as the entry options -
 // not a CTA, so it stays a raw button (CLAUDE.md, "App conventions").
@@ -180,14 +178,13 @@ interface RecipePickStepProps {
   isLoading: boolean;
   onRecipesChanged: () => void;
   onEntered: () => void;
-  dispatch: (action: PathAction) => void;
 }
 
 // The picker cannot be *entered* empty - the row that opens it stays greyed
 // out until a recipe exists. It can still empty out while open, though:
 // deleting the last recipe from in here refetches to an empty list, which
 // the branch below states rather than rendering nothing under the heading.
-export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, onEntered, dispatch }: RecipePickStepProps) => {
+export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, onEntered }: RecipePickStepProps) => {
   const [enteringId, setEnteringId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -230,9 +227,6 @@ export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, o
         </div>
       )}
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
-      <Button variant="ghost" link onClick={() => dispatch({ type: "BACK" })}>
-        {BACK_TO_OPTIONS_LABEL}
-      </Button>
     </div>
   );
 };

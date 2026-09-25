@@ -187,7 +187,6 @@ const renderRecipePickStep = (
   isLoading: boolean,
   onRecipesChanged: () => void,
   onEntered: () => void,
-  dispatch: (action: PathAction) => void,
 ) => (
   <RecipePickStep
     mealId={mealId}
@@ -195,7 +194,6 @@ const renderRecipePickStep = (
     isLoading={isLoading}
     onRecipesChanged={onRecipesChanged}
     onEntered={onEntered}
-    dispatch={dispatch}
   />
 );
 
@@ -333,7 +331,7 @@ const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesCh
     case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
-    case "recipe-pick": return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal, dispatch);
+    case "recipe-pick": return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal);
     case "match-result": return renderMatchResultStep(step, dispatch);
     case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);
     case "serving-size": return renderServingSizeStep(step, dispatch);

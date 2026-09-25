@@ -15,7 +15,7 @@ import { PhotoPreview, usePreviewUrl } from "@/components/ui/photo-input";
 import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
 
 import type { PathAction } from "../capture-wizard.path";
-import { BACK_TO_OPTIONS_LABEL, type WizardAction } from "../capture-wizard.types";
+import type { WizardAction } from "../capture-wizard.types";
 
 interface ProductNameStepProps {
   pendingBarcode: string | null;
@@ -148,10 +148,9 @@ interface ManualNameEntryProps {
   isLoading: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onBack: () => void;
 }
 
-const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit, onBack }: ManualNameEntryProps) => (
+const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: ManualNameEntryProps) => (
   <div className="flex flex-col gap-4">
     <h2 className="text-lg font-semibold">Type the product name</h2>
     <Field
@@ -163,9 +162,6 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit, onB
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <Button disabled={manualName.trim() === ""} pending={isLoading} onClick={onSubmit}>
       Continue
-    </Button>
-    <Button variant="ghost" link onClick={onBack}>
-      {BACK_TO_OPTIONS_LABEL}
     </Button>
   </div>
 );
@@ -442,7 +438,6 @@ export const ManualNameStep = ({ pendingBarcode, dispatch }: ProductSubStepProps
       isLoading={isLoading}
       onChange={setManualName}
       onSubmit={() => void handleManualName(manualName, callbacks)}
-      onBack={() => dispatch({ type: "BACK" })}
     />
   );
 };
