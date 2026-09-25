@@ -103,7 +103,9 @@ export type WizardStep =
       pendingBarcode: string | null;
     }
   | { kind: "saved" }
-  | { kind: "lazy-describe"; description: string; photo: File | null }
+  /** `previous`: the estimate "Add detail" left, so the step can go back to
+   * it without a second request. Null on a first describe. */
+  | { kind: "lazy-describe"; description: string; photo: File | null; previous: MealEstimateView | null }
   | { kind: "lazy-review"; estimate: MealEstimateView };
 
 export type WizardAction =
@@ -273,7 +275,7 @@ export const wizardReducer = (state: WizardStep, action: WizardAction): WizardSt
     case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
     case "PORTIONS_UPDATED": return applyPortionsUpdated(state, action.portions);
-    case "LAZY_TRACK_OPENED": return { kind: "lazy-describe", description: "", photo: null };
+    case "LAZY_TRACK_OPENED": return { kind: "lazy-describe", description: "", photo: null, previous: null };
     case "LAZY_ESTIMATED": return { kind: "lazy-review", estimate: action.estimate };
   }
 };

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FigureField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LabelPhotoStrip } from "@/components/ui/label-photo-strip";
-import { PhotoInput } from "@/components/ui/photo-input";
+import { PhotoInput, useDataUrl } from "@/components/ui/photo-input";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import {
   changedNutritionFields,
@@ -501,30 +501,6 @@ const ProductNameField = ({ value, onChange }: ProductNameFieldProps) => (
   <Field label="Product name" name="name" value={value} onChange={(event) => onChange(event.target.value)} />
 );
 
-// A data URL, not an object URL. usePreviewUrl gets away with an object URL
-// because it creates one in an event handler, well after effects settle; one
-// created for a prop is revoked by StrictMode's dev double-effect before the
-// expanded <Image> can fetch it again. A data URL has nothing to revoke.
-//
-// setUrl runs in the reader's callback, never in the effect body, which this
-// repo's lint rejects. Null whenever no label photo was taken - the barcode
-// path reaches this step straight from Open Food Facts.
-const useLabelPhotoUrl = (blob: Blob | undefined): string | null => {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!blob) {
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setUrl(typeof reader.result === "string" ? reader.result : null);
-    reader.readAsDataURL(blob);
-    return () => reader.abort();
-  }, [blob]);
-
-  return url;
-};
-
 interface BarcodeAttachmentControlProps {
   pendingBarcode: string | null;
   attachment: UseBarcodeAttachmentResult;
@@ -730,7 +706,7 @@ const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: Barc
 export const ConfirmStep = (props: ConfirmStepProps) => {
   const attachment = useBarcodeAttachment(props);
   const form = useConfirmStepForm(props, attachment.barcodeToAttach);
-  const photoUrl = useLabelPhotoUrl(props.photo);
+  const photoUrl = useDataUrl(props.photo);
 
   return (
     <div className="flex flex-col gap-6">

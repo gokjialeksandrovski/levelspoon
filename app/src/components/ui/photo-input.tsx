@@ -1,11 +1,12 @@
 "use client";
 
-import { CameraIcon } from "@phosphor-icons/react";
+import { CameraIcon, XIcon } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import Image from "next/image";
 import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 
 import { ScanningOverlay } from "@/components/ui/scanning-overlay";
+import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 interface UsePreviewUrlResult {
   previewUrl: string | null;
@@ -33,6 +34,29 @@ export const usePreviewUrl = (): UsePreviewUrlResult => {
   };
 
   return { previewUrl, showPreview };
+};
+
+// A data URL, not an object URL. usePreviewUrl gets away with an object URL
+// because it creates one in an event handler, well after effects settle; one
+// created for a prop is revoked by StrictMode's dev double-effect before the
+// expanded <Image> can fetch it again. A data URL has nothing to revoke.
+//
+// setUrl runs in the reader's callback, never in the effect body, which this
+// repo's lint rejects. Null while there is no blob.
+export const useDataUrl = (blob: Blob | undefined): string | null => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!blob) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setUrl(typeof reader.result === "string" ? reader.result : null);
+    reader.readAsDataURL(blob);
+    return () => reader.abort();
+  }, [blob]);
+
+  return url;
 };
 
 interface PhotoInputProps {
@@ -141,6 +165,38 @@ export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = Camera
         </>
       )}
       {previewUrl && <PhotoPreview previewUrl={previewUrl} scanningLabel={scanningLabel} />}
+    </div>
+  );
+};
+
+interface AttachedPhotoProps {
+  photo: Blob;
+  /** What the photo is of - the same words the dropzone it replaced used. */
+  label: string;
+  onRemove: () => void;
+}
+
+const ATTACHED_THUMB_PX = 96;
+
+// Takes the dropzone's place once a photo is picked: same raised tile, so the
+// slot reads as "filled" rather than growing a second control under it. The
+// thumbnail says which photo; the X is the one way to take it back.
+export const AttachedPhoto = ({ photo, label, onRemove }: AttachedPhotoProps) => {
+  const url = useDataUrl(photo);
+  return (
+    <div className="flex min-h-16 items-center gap-3 rounded-surface bg-surface-raised py-2 pr-1 pl-2">
+      {url ? (
+        <Image src={url} alt="" width={ATTACHED_THUMB_PX} height={ATTACHED_THUMB_PX} unoptimized className="size-12 shrink-0 rounded-control object-cover" />
+      ) : (
+        <span aria-hidden="true" className="size-12 shrink-0 rounded-control bg-border" />
+      )}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-medium text-text">{label}</span>
+        <span className="text-xs text-text-muted">Attached</span>
+      </span>
+      <button type="button" aria-label="Remove photo" onClick={onRemove} className={`${ICON_TAP_TARGET_CLASS} text-text-muted`}>
+        <XIcon weight="regular" />
+      </button>
     </div>
   );
 };

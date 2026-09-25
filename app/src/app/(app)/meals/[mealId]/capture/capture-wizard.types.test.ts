@@ -470,11 +470,11 @@ const ESTIMATE = { mealName: "Bowl", items: [] };
 
 describe("lazy track transitions", () => {
   it("opens the describe step empty", () => {
-    expect(wizardReducer(INITIAL_WIZARD_STEP, { type: "LAZY_TRACK_OPENED" })).toEqual({ kind: "lazy-describe", description: "", photo: null });
+    expect(wizardReducer(INITIAL_WIZARD_STEP, { type: "LAZY_TRACK_OPENED" })).toEqual({ kind: "lazy-describe", description: "", photo: null, previous: null });
   });
 
   it("moves to review with the estimate", () => {
-    const state = { kind: "lazy-describe" as const, description: "", photo: null };
+    const state = { kind: "lazy-describe" as const, description: "", photo: null, previous: null };
     expect(wizardReducer(state, { type: "LAZY_ESTIMATED", description: "rice", photo: null, estimate: ESTIMATE })).toEqual({ kind: "lazy-review", estimate: ESTIMATE });
   });
 });

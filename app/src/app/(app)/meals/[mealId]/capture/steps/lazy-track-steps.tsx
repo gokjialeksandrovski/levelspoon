@@ -8,7 +8,7 @@ import { canEstimate, DESCRIPTION_MAX_LENGTH, isDescriptionTooLong, type MealEst
 import { Button } from "@/components/ui/button";
 import { FigureField, TextAreaField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { PhotoInput } from "@/components/ui/photo-input";
+import { AttachedPhoto, PhotoInput } from "@/components/ui/photo-input";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
@@ -21,6 +21,7 @@ const DISCLAIMER = "Least accurate way to log. Better than nothing — for exact
 const DESCRIPTION_LABEL = "What did you eat, and what was in it?";
 const DESCRIPTION_HINT = "More detail, better estimate — portion size, cooking oil, sauces.";
 const PHOTO_LABEL = "Photo of the meal (optional, helps a lot)";
+const ATTACHED_PHOTO_LABEL = "Photo of the meal";
 const TOO_LONG_ERROR = `Keep it under ${DESCRIPTION_MAX_LENGTH} characters.`;
 const ESTIMATE_FAILED = "Estimate unavailable right now. Your text is kept — try again, or add items by search.";
 
@@ -33,6 +34,7 @@ const ESTIMATE_ERRORS: Record<Exclude<EstimateMealResult["kind"], "estimated">, 
 interface LazyDescribeStepProps {
   description: string;
   photo: File | null;
+  previous: MealEstimateView | null;
   dispatch: (action: PathAction) => void;
 }
 
@@ -76,10 +78,9 @@ const useEstimate = (dispatch: (action: PathAction) => void) => {
 // The shell's own <h1> already reads "Lazy track" (STEP_TITLES) for this
 // step, so no second heading repeats it here - unlike the review step below,
 // nothing on this screen needs a heading of its own.
-export const LazyDescribeStep = ({ description: initialDescription, photo: initialPhoto, dispatch }: LazyDescribeStepProps) => {
+export const LazyDescribeStep = ({ description: initialDescription, photo: initialPhoto, previous, dispatch }: LazyDescribeStepProps) => {
   const [description, setDescription] = useState(initialDescription);
   const [photo, setPhoto] = useState<File | null>(initialPhoto);
-  const [photoKey, setPhotoKey] = useState(0);
   const estimate = useEstimate(dispatch);
   const tooLong = isDescriptionTooLong(description);
 
@@ -95,19 +96,23 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
         error={tooLong ? TOO_LONG_ERROR : undefined}
         maxLength={DESCRIPTION_MAX_LENGTH + 1}
       />
-      <PhotoInput key={photoKey} label={PHOTO_LABEL} onSelect={setPhoto} />
-      {/* PhotoInput previews only what it picked itself; a photo carried back
-          by "Add detail" needs saying. */}
-      {photo && photo === initialPhoto && <InlineMessage tone="info">Photo attached.</InlineMessage>}
-      {photo && (
-        <Button variant="ghost" link onClick={() => { setPhoto(null); setPhotoKey((key) => key + 1); }}>
-          Remove photo
-        </Button>
-      )}
+      {photo ? <AttachedPhoto photo={photo} label={ATTACHED_PHOTO_LABEL} onRemove={() => setPhoto(null)} /> : <PhotoInput label={PHOTO_LABEL} onSelect={setPhoto} />}
       {estimate.error && <InlineMessage tone="error">{estimate.error}</InlineMessage>}
       <Button disabled={!canEstimate(description, photo !== null)} pending={estimate.isEstimating} onClick={() => estimate.request(description, photo)}>
         Estimate
       </Button>
+      {/* Add detail's exit (Rule 21): back to the estimate it left, as
+          Gemini gave it, with the text and photo that produced it and no
+          second request. Edits made here are dropped with it. */}
+      {previous && (
+        <Button
+          variant="ghost"
+          disabled={estimate.isEstimating}
+          onClick={() => dispatch({ type: "LAZY_ESTIMATED", description: initialDescription, photo: initialPhoto, estimate: previous })}
+        >
+          Actually, don&apos;t add more detail
+        </Button>
+      )}
       <AiConsentSheet open={estimate.consentOpen} onAgree={() => estimate.agree(description, photo)} onDecline={estimate.decline} />
     </div>
   );

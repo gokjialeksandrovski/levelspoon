@@ -143,8 +143,19 @@ describe("LAZY_ESTIMATED", () => {
     const path = pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" });
     const reviewed = pathReducer(path, { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate: { mealName: "Bowl", items: [] } });
     const back = pathReducer(reviewed, { type: "BACK" });
-    expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null });
+    expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null, previous: { mealName: "Bowl", items: [] } });
     expect(back).toHaveLength(2);
+  });
+
+  it("returns to the same estimate from the describe step it left", () => {
+    const estimate = { mealName: "Bowl", items: [] };
+    const reviewed = pathReducer(pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" }), { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate });
+    const describe = pathReducer(reviewed, { type: "BACK" }).at(-1);
+    if (describe?.kind !== "lazy-describe" || describe.previous === null) throw new Error("expected a describe step holding the estimate");
+
+    const back = pathReducer(pathReducer(reviewed, { type: "BACK" }), { type: "LAZY_ESTIMATED", description: describe.description, photo: describe.photo, estimate: describe.previous });
+
+    expect(back).toEqual(reviewed);
   });
 
   // The estimate request can take up to 30s (REQUEST_TIMEOUT_MS); a user who

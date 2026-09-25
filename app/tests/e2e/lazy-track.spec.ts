@@ -53,6 +53,23 @@ test("a second estimate does not ask for consent again", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
 });
 
+test("Actually, don't add more detail returns to the estimate without a request", async ({ page }) => {
+  await signUp(page);
+  await openLazyTrack(page);
+  await describeAndEstimate(page);
+  await page.getByRole("button", { name: "I agree" }).click();
+  await page.getByRole("button", { name: "Add detail" }).click();
+
+  const posts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") posts.push(request.url());
+  });
+  await page.getByRole("button", { name: "Actually, don't add more detail" }).click();
+
+  await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
+  expect(posts).toHaveLength(0);
+});
+
 test("declining consent sends nothing", async ({ page }) => {
   await signUp(page);
   await openLazyTrack(page);

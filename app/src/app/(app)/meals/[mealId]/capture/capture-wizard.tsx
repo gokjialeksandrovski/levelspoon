@@ -291,7 +291,7 @@ const renderSavedStep = (moment: SavedMoment, dispatch: (action: PathAction) => 
 );
 
 const renderLazyDescribeStep = (step: Extract<WizardStep, { kind: "lazy-describe" }>, dispatch: (action: PathAction) => void) => (
-  <LazyDescribeStep description={step.description} photo={step.photo} dispatch={dispatch} />
+  <LazyDescribeStep description={step.description} photo={step.photo} previous={step.previous} dispatch={dispatch} />
 );
 
 const renderLazyReviewStep = (
