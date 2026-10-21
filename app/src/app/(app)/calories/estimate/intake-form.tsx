@@ -22,6 +22,7 @@ import {
   type PrimaryGoal,
   type TrainingStyle,
   type TrainingYears,
+  type WeightTrend,
 } from "@/features/intake/actions/intake.utils";
 import { bandPresets, cadenceLabel, CHECKIN_PRESETS, pacePresets } from "@/features/weight/actions/weight.utils";
 import {
@@ -51,6 +52,7 @@ import {
   hasSharpenAnswers,
   initialDraft,
   suggestedPaceText,
+  trendHasRate,
   type BarState,
   type IntakeDraft,
   type MetabolismDirection,
@@ -129,12 +131,21 @@ const DIRECTION_OPTIONS: ChoiceOption<MetabolismDirection>[] = [
   { value: "down", label: "Down" },
 ];
 
+const TREND_OPTIONS: ChoiceOption<WeightTrend>[] = [
+  { value: "steady", label: "Steady" },
+  { value: "down", label: "Going down" },
+  { value: "up", label: "Going up" },
+];
+
+const CURRENT_INTAKE_HELPER =
+  "Optional. Leave it empty if you don't know. A figure from a food app, or a typical week added up, works best.";
+
 // DRAFT consent copy - pending legal review (spec §13.1). Once approved it is
 // verbatim, same rule as the AI-photo consent, and a change bumps
 // CONSENT_VERSION in intake.utils.ts.
 const CONSENT_LABEL = "Save my answers so I don't have to enter them again.";
 const CONSENT_HELPER =
-  'Your answers include health information. We store them only to fill in this form next time and never share them. Tap "Forget these details" at any time to delete them.';
+  'Your answers include health information, such as your weight, body fat and what you eat. We store them only to fill in this form next time and never share them. Tap "Forget these details" at any time to delete them.';
 
 const browserTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -335,6 +346,46 @@ const YourGoal = ({ draft, update, errorFor, paceHelper, hasWeightGoal }: YourGo
   );
 };
 
+// The trend and its rate appear only once there is an intake to describe:
+// "what did your weight do on that" has no "that" until a figure is typed.
+const CurrentIntakeFields = ({ draft, update, errorFor }: SectionProps) => (
+  <div className="flex flex-col gap-3">
+    <Field
+      label="What you eat a day now"
+      name="current-intake"
+      inputMode="numeric"
+      value={draft.currentIntakeDraft}
+      error={errorFor("current_intake")}
+      helperText={CURRENT_INTAKE_HELPER}
+      onChange={(event) => update({ currentIntakeDraft: event.target.value })}
+      trailing={<UnitSuffix>kcal</UnitSuffix>}
+    />
+    {draft.currentIntakeDraft.trim() !== "" && (
+      <>
+        <ChoiceGroup
+          legend="Your weight while eating that"
+          name="weight-trend"
+          options={TREND_OPTIONS}
+          value={draft.weightTrend}
+          onChange={(weightTrend) => update({ weightTrend })}
+        />
+        {trendHasRate(draft.weightTrend) && (
+          <Field
+            label="By about"
+            name="weight-trend-rate"
+            inputMode="decimal"
+            value={draft.weightTrendRateDraft}
+            error={errorFor("weight_trend")}
+            helperText="A rough figure from the last few weeks is fine."
+            onChange={(event) => update({ weightTrendRateDraft: event.target.value })}
+            trailing={<UnitSuffix>{`${draft.unit}/wk`}</UnitSuffix>}
+          />
+        )}
+      </>
+    )}
+  </div>
+);
+
 const MetabolismFields = ({ draft, update, errorFor }: SectionProps) => (
   <div className="flex flex-col gap-3">
     <CheckboxRow
@@ -423,6 +474,7 @@ const TrainingFields = ({ draft, update, errorFor }: SectionProps) => (
 const SharpenFields = (props: SectionProps) => (
   <div className="flex flex-col gap-6 pt-4">
     <p className="text-xs text-text-muted">Optional. Each answer narrows the range.</p>
+    <CurrentIntakeFields {...props} />
     <BodyFatFields {...props} />
     <TrainingFields {...props} />
     {/* One list, no gap: each row is already a 44px tap target, so the

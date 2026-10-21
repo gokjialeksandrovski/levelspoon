@@ -1,4 +1,4 @@
-from per100_ocr.nutrition.decimals import decimal_candidates, resolve_decimals
+from levelspoon_ocr.nutrition.decimals import decimal_candidates, resolve_decimals
 
 FIELD_ORDER = ("fat_g", "saturates_g", "carbohydrate_g", "sugars_g", "protein_g", "salt_g")
 

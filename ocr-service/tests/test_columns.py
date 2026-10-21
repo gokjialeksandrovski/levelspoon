@@ -1,7 +1,7 @@
 import pytest
 
-from per100_ocr.boxes import Box, OcrResult
-from per100_ocr.nutrition.columns import ColumnDetectionError, find_per_100g_values
+from levelspoon_ocr.boxes import Box, OcrResult
+from levelspoon_ocr.nutrition.columns import ColumnDetectionError, find_per_100g_values
 
 
 def _result(*boxes: Box, width: int = 1000) -> OcrResult:

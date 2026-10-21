@@ -19,8 +19,8 @@ import { formatDayLabel } from "@/lib/date/format";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
-import { recentAverage, toHistoryMonths } from "./history.utils";
-import type { HistoryMonth, HistoryRow, RecentAverage } from "./history.utils";
+import { toHistoryMonths, weekSummary } from "./history.utils";
+import type { HistoryMonth, HistoryRow, WeekDay, WeekSummary } from "./history.utils";
 
 type HistoryState =
   | { status: "loading" }
@@ -239,12 +239,82 @@ const MonthSection = ({ month, calorieGoal, today }: { month: HistoryMonth; calo
   </section>
 );
 
-// One line, no card and no chart: it is context for the list under it, and the
-// day it would compete with is the one the user just left.
-const RecentAverageLine = ({ average }: { average: RecentAverage }) => (
-  <p className="text-sm text-text-muted">
-    Last {average.days} logged days · <span className="tabular-nums text-text">{average.kcal.toLocaleString()} kcal</span> a day
-  </p>
+type DayTone = "blank" | "logged" | "over";
+
+const dayTone = (kcal: number | null, calorieGoal: number | null): DayTone => {
+  if (kcal === null) return "blank";
+  return calorieRemaining(calorieGoal, kcal).status === "over" ? "over" : "logged";
+};
+
+// The rail pair again: bg-border is an empty track, bg-text a filled one,
+// danger a day past the goal. A blank day is the track with nothing on it.
+const TILE_CLASS: Record<DayTone, string> = {
+  blank: "bg-border",
+  logged: "bg-text",
+  over: "bg-danger",
+};
+
+const countTone = (tones: DayTone[], tone: DayTone): number => tones.filter((each) => each === tone).length;
+
+// What a sighted reader counts off the tiles, said in words for everyone else.
+const tallyLabel = (tones: DayTone[], hasGoal: boolean): string => {
+  const blank = `${countTone(tones, "blank")} with nothing logged`;
+  if (!hasGoal) return `${countTone(tones, "logged")} logged, ${blank}`;
+  return `${countTone(tones, "logged")} under goal, ${countTone(tones, "over")} over, ${blank}`;
+};
+
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-GB", { weekday: "narrow", timeZone: "UTC" });
+const weekdayInitial = (date: string): string => WEEKDAY_FORMATTER.format(new Date(`${date}T00:00:00Z`));
+
+// Not links: the rows under it already go to each day, and a tile is too
+// small a target for a thumb.
+const WeekStrip = ({ days, calorieGoal }: { days: WeekDay[]; calorieGoal: number | null }) => {
+  const tones = days.map((day) => dayTone(day.kcal, calorieGoal));
+  return (
+    <div role="img" aria-label={tallyLabel(tones, calorieGoal !== null)} className="flex gap-1">
+      {days.map((day, index) => (
+        <div key={day.date} className="flex flex-1 flex-col items-center gap-1.5">
+          <div className={`h-2 w-full rounded-full ${TILE_CLASS[tones[index]]}`} />
+          <span aria-hidden="true" className="text-xs text-text-muted">{weekdayInitial(day.date)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// How the average sat against the goal, in the rows' own words; a past week
+// is finished, so it is "under", never "left".
+const AverageAgainstGoal = ({ averageKcal, calorieGoal }: { averageKcal: number; calorieGoal: number | null }) => {
+  const remaining = calorieRemaining(calorieGoal, averageKcal);
+  if (remaining.status === "unset") return null;
+  const isOver = remaining.status === "over";
+  return (
+    <>
+      {" · "}
+      <span className={`tabular-nums ${isOver ? "text-danger" : ""}`}>
+        {remaining.kcal.toLocaleString()} {isOver ? "over" : "under"} goal
+      </span>
+    </>
+  );
+};
+
+// Context for the list under it, so it stays one quiet tier: a label, a strip
+// of tiles and one line, no card. The week ends yesterday, for the same reason
+// today's row says "so far".
+const WeekSummaryBlock = ({ summary, calorieGoal }: { summary: WeekSummary; calorieGoal: number | null }) => (
+  <section aria-labelledby="week-summary-heading" className="mb-2 flex flex-col gap-3">
+    <div className="flex items-baseline justify-between gap-4 text-sm text-text-muted">
+      <h2 id="week-summary-heading" className="font-medium tracking-wide">Last {summary.days.length} days</h2>
+      <p className="tabular-nums">
+        <span className="text-text">{summary.loggedDays}</span> of {summary.days.length} logged
+      </p>
+    </div>
+    <WeekStrip days={summary.days} calorieGoal={calorieGoal} />
+    <p className="text-sm text-text-muted">
+      <span className="tabular-nums text-text">{summary.averageKcal.toLocaleString()} kcal</span> a logged day
+      <AverageAgainstGoal averageKcal={summary.averageKcal} calorieGoal={calorieGoal} />
+    </p>
+  </section>
 );
 
 interface HistoryReadyBodyProps {
@@ -281,11 +351,11 @@ const HistoryReadyBody = ({
   if (entries.length === 0) {
     return <HistoryEmptyState today={today} />;
   }
-  const average = recentAverage(entries, today);
+  const summary = weekSummary(entries, today, nextOffset !== null);
 
   return (
     <div className="flex flex-col gap-4">
-      {average && <RecentAverageLine average={average} />}
+      {summary && <WeekSummaryBlock summary={summary} calorieGoal={calorieGoal} />}
       {toHistoryMonths(entries, today).map((month) => (
         <MonthSection key={month.key} month={month} calorieGoal={calorieGoal} today={today} />
       ))}

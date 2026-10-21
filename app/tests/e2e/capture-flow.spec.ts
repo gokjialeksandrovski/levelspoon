@@ -125,7 +125,7 @@ test("manual name entry: the header's Back returns to the entry options, not out
   await expect(page.getByRole("heading", { name: "Type the product name" })).toBeVisible();
 
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a product to a meal" })).toBeVisible();
   await expect(page).toHaveURL(/\/meals\/[^/]+\/capture$/);
 });
 

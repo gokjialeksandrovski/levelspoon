@@ -204,7 +204,7 @@ export type DuplicateVerdict =
   | { kind: "same-figures" };
 
 /**
- * Whether these figures are a product per100 already stores.
+ * Whether these figures are a product levelspoon already stores.
  *
  * Byte-identical photo keys catch a reused file; this catches the same label
  * re-photographed from another angle, which hashes differently but parses to
@@ -243,7 +243,7 @@ interface FiguresMatch {
 // itself (rather than through decideDuplicate) so the probe stays one indexed
 // round trip; decideDuplicate still decides the tier below.
 //
-// Scores name_search, not the raw name - CLAUDE.md's "typed search compares
+// Scores name_search, not the raw name - docs/PRODUCTS.md's "typed search compares
 // romanized text, never raw names" carves out exactly one exception
 // (matchProduct, tuned on OCR strings); this probe is a second comparison and
 // belongs under the same rule, or a Cyrillic stored name versus its

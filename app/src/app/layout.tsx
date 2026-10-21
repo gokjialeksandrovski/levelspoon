@@ -17,7 +17,7 @@ const karla = Karla({
 });
 
 export const metadata: Metadata = {
-  title: "Per100",
+  title: "levelspoon",
   description: "Log meals by their nutrition per 100g",
 };
 

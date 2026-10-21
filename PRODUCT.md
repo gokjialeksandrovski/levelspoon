@@ -1,4 +1,4 @@
-  # Product
+# Product
 
 <!-- impeccable:product-schema 1 -->
 
@@ -45,20 +45,30 @@ reach. Weeks-scale review happens on `/history`.
 ## Capabilities and Constraints
 
 - Product discovery: label photo + OCR, barcode (internal DB first, Open Food
-  Facts fallback), curated standard-food search (212 rows), manual entry.
+  Facts fallback), curated standard-food search (232 rows), manual entry.
+- Recipes: a meal the user saved to re-add later, private to that user.
+  Saved from the meal page, picked from the capture wizard's `Add a meal`
+  section; no standalone recipes page. Stores amounts only; every total reads
+  live nutrition, so a corrected label moves every recipe. Retro-update of
+  earlier identical meals is today-only. See `docs/MEALS.md`.
+- Lazy track: user describes a meal (optional photo), Gemini returns an
+  itemized estimate, user fixes grams on a review step, then logs. Guesses
+  land on private `ai_estimate` product rows: never shared, searched, matched,
+  barcode-linked or label-proved. Reuse only through recipes, tagged as an
+  estimate. Least accurate logging path on purpose. See `docs/MEALS.md`.
 - Daily calorie goal: optional, hand-set, per user (`users.daily_calorie_goal`,
   null until set). App offers no default and no reset-to-2000 chip — a flat
   number on a button would be the app recommending an intake.
 - Macro targets: optional, per macro, hand-set on the goal sheet, no preset.
   A share of daily kcal when a kcal goal is set, grams when not; the kcal
   goal itself can be removed. Shown on the day view as gram targets.
-- Calorie estimate: shipped 2026-09-21. Optional form reached only from the
+- Calorie estimate: optional form reached only from the
   goal sheet; Mifflin-St Jeor or Katch-McArdle, standard activity factors,
   shown as a range that narrows with each answer. A goal weight saves a
   target weight goal; Maintain's band saves a hold goal, optionally with
   Recomp. Answers stored only with explicit consent (`intake_profiles`). See
   `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
-- Measured calorie burn: shipped 2026-09-23. When a user has logged meals and
+- Measured calorie burn: when a user has logged meals and
   weighed in for long enough, the estimate works their maintenance out from
   those rows by energy balance instead of from the formula, and says so. Too
   little or too noisy data and it says that instead of guessing. Shown only in
@@ -67,7 +77,7 @@ reach. Weeks-scale review happens on `/history`.
 - Amounts: grams, millilitres, learned label servings, curated portion classes
   (a slice, an egg grade, a cup where density is genuinely known), and recent
   amounts per product.
-- Weight tracking: shipped 2026-09-21. Optional; app fully usable without it.
+- Weight tracking: optional; app fully usable without it.
   Deliberately carries no arithmetic to or from the calorie goal — see
   `docs/superpowers/specs/2026-09-21-weight-goal-design.md`. Stored in kg
   always; `users.weight_unit` picks kg or lb for entry and display. Pace, band
@@ -82,16 +92,16 @@ reach. Weeks-scale review happens on `/history`.
 
 ## Brand Commitments
 
-Name: Per100 — the per-100 g model is the product's name and its mechanism.
+Name: levelspoon.
 Voice: states facts, never coaches. No streaks, no badges, no encouragement
 copy, no shame copy. Design system "Warm Tactile Minimal" is settled and
-documented in `CLAUDE.md`; four accents each carry exactly one semantic role
+documented in `DESIGN.md`; four accents each carry exactly one semantic role
 (protein / carbs / fat / log-success) and are never decorative.
 
 ## Evidence on Hand
 
 - `fixtures/` — committed real label photos, OCR boxes, golden per-100 g values.
-- `fixtures/standard-foods.json` — 212 curated unpackaged foods.
+- `fixtures/standard-foods.json` — 232 curated unpackaged foods.
 - `app/src/lib/measures/`, `portions.ts` — measured gram figures, each carrying
   a source comment.
 - No user data exists yet in production; nothing is deployed. No customers, no

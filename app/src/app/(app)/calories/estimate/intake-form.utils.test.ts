@@ -5,6 +5,9 @@ import {
   convertUnit,
   detailLines,
   DISCLAIMER_TEXT,
+  disclaimerText,
+  MEASURED_DISCLAIMER_TEXT,
+  REPORTED_DISCLAIMER_TEXT,
   draftToInput,
   initialDraft,
   missingRequiredCount,
@@ -170,6 +173,9 @@ describe("initialDraft", () => {
         pregnantOrBreastfeeding: false,
         metabolismCondition: true,
         metabolismAdjustPct: -10,
+        currentIntakeKcal: null,
+        weightTrend: null,
+        weightTrendKgPerWeek: null,
       },
     });
     expect(draft).toMatchObject({
@@ -222,6 +228,8 @@ describe("detailLines with a measured burn", () => {
     bmrKcal: 1780,
     maintenanceKcal: 2410,
     isMeasured: true,
+    isReported: false,
+    reported: null,
     formulaMaintenanceKcal: 2320,
     adjustmentKcal: 0,
     pointKcal: 2410,
@@ -289,8 +297,52 @@ describe("detailLines with a measured burn", () => {
     expect(state.estimate.isMeasured).toBe(true);
   });
 
+  it("picks the disclaimer that is true of the figure's source", () => {
+    const typed = readyEstimate({ ...caseA, primaryGoal: "maintain", currentIntakeDraft: "2400", weightTrend: "steady" });
+    expect(disclaimerText(typed)).toBe(REPORTED_DISCLAIMER_TEXT);
+    expect(disclaimerText(readyEstimate(caseA))).toBe(DISCLAIMER_TEXT);
+    expect(disclaimerText({ ...typed, isMeasured: true, isReported: false })).toBe(MEASURED_DISCLAIMER_TEXT);
+  });
+
   it("no longer promises a figure in two weeks", () => {
     expect(DISCLAIMER_TEXT).toContain("for a few weeks");
     expect(DISCLAIMER_TEXT).not.toContain("2 weeks");
+  });
+});
+
+describe("reported intake draft", () => {
+  it("sends no trend when the intake is empty, whatever the trend buttons say", () => {
+    const input = draftToInput({ ...caseA, currentIntakeDraft: "", weightTrend: "down", weightTrendRateDraft: "0.5" });
+    expect(input?.currentIntakeKcal).toBeNull();
+    expect(input?.weightTrend).toBeNull();
+    expect(input?.weightTrendKgPerWeek).toBeNull();
+  });
+
+  it("sends a rate only for a moving trend", () => {
+    const steady = draftToInput({ ...caseA, currentIntakeDraft: "2400", weightTrend: "steady", weightTrendRateDraft: "0.5" });
+    expect(steady?.weightTrendKgPerWeek).toBeNull();
+    const down = draftToInput({ ...caseA, currentIntakeDraft: "2400", weightTrend: "down", weightTrendRateDraft: "0.5" });
+    expect(down?.weightTrendKgPerWeek).toBe(0.5);
+  });
+
+  it("names the rate field when a moving trend has none, rather than falling back silently", () => {
+    const state = barStateOf({ ...caseA, currentIntakeDraft: "2400", weightTrend: "down", weightTrendRateDraft: "" }, 2026);
+    expect(state).toEqual({ kind: "invalid", field: "weight_trend" });
+  });
+
+  it("states where maintenance came from in Details", () => {
+    const state = barStateOf({ ...caseA, primaryGoal: "maintain", currentIntakeDraft: "2400", weightTrend: "steady" }, 2026);
+    if (state.kind !== "ready") throw new Error("expected a ready estimate");
+    expect(detailLines(state.estimate, "kg", null)).toContain(
+      "from the 2,400 kcal a day you eat now, with your weight steady",
+    );
+  });
+
+  it("says why a typed intake below BMR changed nothing", () => {
+    const state = barStateOf({ ...caseA, currentIntakeDraft: "1000", weightTrend: "steady" }, 2026);
+    if (state.kind !== "ready") throw new Error("expected a ready estimate");
+    expect(detailLines(state.estimate, "kg", null)).toContain(
+      "The intake you typed works out below your BMR, so the formula is used instead.",
+    );
   });
 });

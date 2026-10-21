@@ -76,7 +76,7 @@ export type WizardStep =
       learned: LearnedMeasures;
       nutritionBasisUnit: string;
       nutritionBasisQuantity: number;
-      /** A barcode scanned earlier in this capture that neither per100 nor
+      /** A barcode scanned earlier in this capture that neither levelspoon nor
        * Open Food Facts recognised - shown at confirm as a declinable
        * opt-in, never auto-attached (barcode spec §7; T4 renders the
        * checkbox, this step shape only carries the value there). */

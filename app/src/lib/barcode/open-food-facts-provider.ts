@@ -43,8 +43,8 @@ interface OffResponse {
 // Real (non-mock) deployment must set OFF_CONTACT_EMAIL - BARCODE_LOOKUP_PROVIDER
 // defaults to mock, so this path isn't hit in local dev/CI.
 const userAgent = (): string => {
-  const contact = process.env.OFF_CONTACT_EMAIL ?? "unset-contact@per100.local";
-  return `per100/${APP_VERSION} (${contact})`;
+  const contact = process.env.OFF_CONTACT_EMAIL ?? "unset-contact@levelspoon.local";
+  return `levelspoon/${APP_VERSION} (${contact})`;
 };
 
 const toNutritionValues = (nutriments: OffNutriments = {}): NutritionValues => ({

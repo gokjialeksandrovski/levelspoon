@@ -1,6 +1,6 @@
 "use client";
 
-import { TrashIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
@@ -13,6 +13,8 @@ import {
   draftRowToAmountRow,
   earlierMealsTickLabel,
   isValidRecipeName,
+  RECIPE_NAME_MAX_LENGTH,
+  recipeNameHint,
   kcalPerUnit,
   offerableMeals,
   type DraftRow,
@@ -20,9 +22,10 @@ import {
 } from "@/features/recipes/actions/recipes.utils";
 import { Button } from "@/components/ui/button";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
-import { Field } from "@/components/ui/field";
+import { Field, FigureField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
+import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 const EMPTY_DRAFT_HINT = "A recipe needs at least one ingredient.";
 // Distinct from EMPTY_DRAFT_HINT: a row can be sitting right there on screen
@@ -59,37 +62,51 @@ interface AmountPaneProps {
   onCancel: () => void;
 }
 
+interface DraftRowFieldProps {
+  row: DraftRow;
+  onQuantity: (text: string) => void;
+  onRemove: () => void;
+}
+
+// Same row as lazy-track's review table: name and kcal on the left, the amount
+// in a figure-sized box with its unit inside, remove as a 44px icon control.
+// X, not a trash can: removing a row only edits the draft, nothing is deleted.
+const DraftRowField = ({ row, onQuantity, onRemove }: DraftRowFieldProps) => (
+  <FigureField
+    label={
+      <>
+        {row.productName}
+        <span className="sr-only"> amount</span>
+      </>
+    }
+    name={`draft-${row.mealIngredientId}`}
+    unit={row.quantityUnit}
+    // Holds the raw typed text, not a parsed number - see DraftRow.
+    // Round-tripping through Number() on every keystroke is what
+    // made "2." collapse back to "2" before the "." could land.
+    value={row.quantity}
+    onChange={(event) => onQuantity(event.target.value)}
+    detail={`About ${Math.round(draftKcal([row]))} kcal`}
+    action={
+      <button type="button" aria-label={`Remove ${row.productName}`} onClick={onRemove} className={`${ICON_TAP_TARGET_CLASS} -mr-2.5 text-text-muted`}>
+        <XIcon weight="regular" />
+      </button>
+    }
+  />
+);
+
 // Pane one drafts the OPEN MEAL's rows, because overwriting files what the
 // meal now is. Local state only - nothing is written until Save on pane two.
 const AmountPane = ({ rows, onChange, onContinue, onCancel }: AmountPaneProps) => (
   <div className="flex flex-col gap-4">
     <div className="flex flex-col divide-y divide-border">
       {rows.map((row, index) => (
-        <div key={row.mealIngredientId} className="flex items-end gap-2 py-3">
-          <div className="flex-1">
-            <Field
-              label={`${row.productName} amount`}
-              name={`draft-${row.mealIngredientId}`}
-              inputMode="decimal"
-              // Holds the raw typed text, not a parsed number - see DraftRow.
-              // Round-tripping through Number() on every keystroke is what
-              // made "2." collapse back to "2" before the "." could land.
-              value={row.quantity}
-              onChange={(event) =>
-                onChange(rows.map((current, position) => (position === index ? { ...current, quantity: event.target.value } : current)))
-              }
-            />
-          </div>
-          <span className="pb-3 text-sm text-text-muted">{row.quantityUnit}</span>
-          <Button
-            variant="ghost"
-            link
-            aria-label={`Remove ${row.productName}`}
-            onClick={() => onChange(rows.filter((_, position) => position !== index))}
-          >
-            <TrashIcon size={18} />
-          </Button>
-        </div>
+        <DraftRowField
+          key={row.mealIngredientId}
+          row={row}
+          onQuantity={(text) => onChange(rows.map((current, position) => (position === index ? { ...current, quantity: text } : current)))}
+          onRemove={() => onChange(rows.filter((_, position) => position !== index))}
+        />
       ))}
     </div>
     {!draftIsSaveable(rows) && (
@@ -166,12 +183,20 @@ const ForkPane = ({ recipeName, earlier, draftTotalKcal, error, isSaving, onSave
         </label>
         {choice === "new" && (
           <div className="ml-6">
-            <Field label="New recipe name" name="new-recipe-name" value={newName} onChange={(event) => setNewName(event.target.value)} autoFocus />
+            <Field
+              label="New recipe name"
+              name="new-recipe-name"
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              maxLength={RECIPE_NAME_MAX_LENGTH}
+              helperText={recipeNameHint(newName)}
+              autoFocus
+            />
           </div>
         )}
         <label className="flex items-start gap-2 text-sm text-text">
           <input type="radio" name="recipe-save-mode" value="overwrite" checked={choice === "overwrite"} onChange={() => setChoice("overwrite")} className="mt-1" />
-          <span>Overwrite &ldquo;{recipeName}&rdquo;</span>
+          <span className="min-w-0 wrap-anywhere">Overwrite &ldquo;{recipeName}&rdquo;</span>
         </label>
         {choice === "overwrite" && (
           <EarlierMealsBlock earlier={earlier} draftTotalKcal={draftTotalKcal} isTicked={isTicked} onTick={setIsTicked} />

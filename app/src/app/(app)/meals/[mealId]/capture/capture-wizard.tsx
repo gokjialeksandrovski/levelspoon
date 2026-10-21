@@ -30,7 +30,7 @@ import { WizardShell } from "./wizard-shell";
 // The two product-* steps share a title and progress: alternate ways into
 // one stage, not progress through it.
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
-  "product-photo": "Product name",
+  "product-photo": "Add food",
   "product-manual": "Product name",
   "standard-food-search": "Whole food",
   "recipe-pick": "Your recipes",
@@ -93,7 +93,7 @@ const useTodaySnapshots = (today: string, savedCount: number): DaySnapshot[] => 
   return snapshots;
 };
 
-// One request, both jobs: the length decides whether the `Add meals` row is
+// One request, both jobs: the length decides whether the recipe row in `Add a meal` is
 // greyed, and the list itself is handed to the picker, so tapping opens
 // instantly instead of spinning. `reloadCounter` re-runs it after a rename or
 // a delete.

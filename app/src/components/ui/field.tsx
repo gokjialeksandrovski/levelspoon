@@ -10,6 +10,7 @@ interface FieldProps {
   onBlur?: () => void;
   required?: boolean;
   minLength?: number;
+  maxLength?: number;
   error?: string;
   flagged?: boolean;
   inputMode?: "numeric" | "decimal" | "text";
@@ -98,7 +99,7 @@ const FieldMessage = ({ name, helperText, error, flagged }: FieldMessageProps) =
 
 export const Field = ({
   label, name, type = "text", defaultValue, value, onChange, onBlur,
-  required = false, minLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
+  required = false, minLength, maxLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
   readOnly = false,
   trailing,
   trailingReserveClass = DEFAULT_TRAILING_RESERVE,
@@ -124,6 +125,7 @@ export const Field = ({
         readOnly={readOnly}
         required={required}
         minLength={minLength}
+        maxLength={maxLength}
         aria-invalid={flagged || Boolean(error)}
         aria-describedby={describedById(name, helperText, error)}
         className={`${fieldInputClassName(flagged, error, readOnly)} ${trailing ? trailingReserveClass : ""}`}

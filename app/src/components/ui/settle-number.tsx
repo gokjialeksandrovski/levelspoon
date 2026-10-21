@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 
 // Any figure that re-renders in place on a data change (a meal total, a day
 // hero, a goal preview) replays a short fade+rise instead of snapping
-// straight to the new value - .impeccable.md's own named motion gap ("a
+// straight to the new value - DESIGN.md's first motion principle ("a
 // number settling").
 const SETTLE_OFFSET_PX = 4;
 const SETTLE_DURATION_SECONDS = 0.18;

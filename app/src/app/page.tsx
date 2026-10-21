@@ -15,7 +15,7 @@ const HomePage = () => {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-bg text-text">
-      <p className="text-lg font-semibold tracking-tight">Per100</p>
+      <p className="text-lg font-semibold tracking-tight">levelspoon</p>
     </div>
   );
 };

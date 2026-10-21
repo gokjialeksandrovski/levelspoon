@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="Per100 OCR", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="levelspoon OCR", version="0.1.0", lifespan=lifespan)
 
 
 def get_engine(request: Request) -> "OcrEngine":

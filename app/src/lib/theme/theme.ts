@@ -3,7 +3,7 @@
 
 export type Theme = "system" | "light" | "dark";
 
-const THEME_STORAGE_KEY = "per100:theme";
+const THEME_STORAGE_KEY = "levelspoon:theme";
 
 const isTheme = (value: string | null): value is Theme =>
   value === "system" || value === "light" || value === "dark";

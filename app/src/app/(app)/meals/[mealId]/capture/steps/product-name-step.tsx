@@ -28,7 +28,7 @@ interface ProductNameStepProps {
 // looking at their own photo with one of these written over it.
 const READING_NAME_LABEL = "Reading the product name…";
 const READING_BARCODE_LABEL = "Reading the barcode…";
-const BARCODE_LOOKUP_LABEL = "Looking up the code…";
+const BARCODE_LOOKUP_LABEL = "Looking up the barcode…";
 const SEARCHING_NAME_LABEL = "Searching your products…";
 
 const resolveProductMatch = async (
@@ -57,7 +57,9 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
     const { text, netWeightText } = await ocrProductName(photo);
     await resolveProductMatch(text, netWeightText, callbacks.pendingBarcode, callbacks.dispatch);
   } catch {
-    callbacks.onError("Could not read the product name from the photo.");
+    callbacks.onError(
+      "Couldn't read a name in that photo. Try a closer shot, or type the name.",
+    );
   } finally {
     callbacks.onBusy(null);
   }
@@ -82,14 +84,15 @@ const handleManualName = async (manualName: string, callbacks: ProductNameCallba
       pendingBarcode: callbacks.pendingBarcode,
     });
   } catch {
-    callbacks.onError("Could not search for this product name. Please try again.");
+    callbacks.onError("Couldn't search for that name. Please try again.");
   } finally {
     callbacks.onBusy(null);
   }
 };
 
-const REJECTED_BARCODE_ERROR = "That's not a product barcode. Photograph the product name instead, or type it in.";
-const BARCODE_LOOKUP_ERROR = "Could not look up this barcode. Please try again.";
+const REJECTED_BARCODE_ERROR =
+  "That's not a product barcode. Take a photo of the product name instead, or type it.";
+const BARCODE_LOOKUP_ERROR = "Couldn't look up that barcode. Please try again.";
 
 const lookUpBarcode = async (code: string, callbacks: ProductNameCallbacks): Promise<void> => {
   callbacks.onBusy(BARCODE_LOOKUP_LABEL);
@@ -184,9 +187,24 @@ interface EntryOptionRowProps {
   disabled?: boolean;
 }
 
-const EntryOptionRow = ({ icon: RowIcon, title, description, onClick, disabled }: EntryOptionRowProps) => (
-  <button type="button" onClick={onClick} disabled={disabled} className={OPTION_ROW_BUTTON}>
-    <RowIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+export const EntryOptionRow = ({
+  icon: RowIcon,
+  title,
+  description,
+  onClick,
+  disabled,
+}: EntryOptionRowProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={OPTION_ROW_BUTTON}
+  >
+    <RowIcon
+      size={24}
+      className="mt-0.5 shrink-0 text-text-muted"
+      aria-hidden="true"
+    />
     <span className="flex flex-col gap-0.5">
       <span className="text-sm font-medium text-text">{title}</span>
       <span className="text-xs text-text-muted">{description}</span>
@@ -237,13 +255,17 @@ const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, isLoadi
   </label>
 );
 
-const PHOTO_ROW_DESCRIPTION = "Reads the name off the packaging. Best when there's no barcode.";
-const BARCODE_ROW_DESCRIPTION = "Photograph the code. Easiest, try this first.";
+const PHOTO_ROW_DESCRIPTION =
+  "For when the barcode isn't found. We read the name off the package instead.";
+const BARCODE_ROW_DESCRIPTION =
+  "Take a photo of the barcode. It's the quickest, so start here.";
 
 // One line above the list rather than a clause bolted onto each of the four:
 // the fact is the same for all of them, and repeating it four times is how a
 // list of options stops being scannable.
-const ALREADY_ADDED_HINT = "Added this before? Any of these finds it without a label photo.";
+const ADD_PRODUCT_TITLE = "Add a product to a meal";
+const ADD_PRODUCT_DESCRIPTION =
+  "If we already have the product, or you've added it before, any of these takes you straight to the amount.";
 
 interface PhotoNameEntryProps {
   busyLabel: string | null;
@@ -295,31 +317,37 @@ interface ManualAndWholeFoodRowsProps {
   onWholeFood: () => void;
 }
 
-const ManualAndWholeFoodRows = ({ isLoading, onManualEntry, onWholeFood }: ManualAndWholeFoodRowsProps) => (
+const ManualAndWholeFoodRows = ({
+  isLoading,
+  onManualEntry,
+  onWholeFood,
+}: ManualAndWholeFoodRowsProps) => (
   <>
     <EntryOptionRow
       icon={PencilSimpleIcon}
       title="Type a packaged product's name"
-      description="When the scan and the photo both come up empty."
+      description="When you know we already have it and would rather type the name."
       onClick={onManualEntry}
       disabled={isLoading}
     />
     <EntryOptionRow
       icon={CarrotIcon}
       title="Whole food, no packaging"
-      description="Loose fruit, vegetables, eggs - anything with no label."
+      description="Fruit, vegetables, eggs, anything without a label."
       onClick={onWholeFood}
       disabled={isLoading}
     />
   </>
 );
 
-const ADD_MEALS_TITLE = "Add meals";
-const RECIPE_ROW_LOCKED_DESCRIPTION = "Save a meal as a recipe first, and it lands here.";
-const RECIPE_ROW_DESCRIPTION = "Re-add a meal you already saved, in one tap.";
-const LAZY_TRACK_DESCRIPTION = "Least accurate. Describe a meal and get a rough estimate.";
-
-const OPTION_GROUP_TITLE_CLASS = "px-1 pb-1 pt-4 text-xs font-medium uppercase tracking-wide text-text-muted";
+const ADD_MEAL_TITLE = "Add a meal";
+const ADD_MEAL_DESCRIPTION =
+  "Log everything you ate in one go. Pick a saved recipe or describe the meal.";
+const RECIPE_ROW_LOCKED_DESCRIPTION =
+  "Save a meal as a recipe and it shows up here.";
+const RECIPE_ROW_DESCRIPTION = "Add a meal you saved before, in one tap.";
+const LAZY_TRACK_DESCRIPTION =
+  "Describe your meal and AI makes a rough guess. Add detail to sharpen it.";
 
 interface AddMealsRowsProps {
   hasRecipes: boolean;
@@ -347,22 +375,66 @@ const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe, onLazyTrack }: AddM
   </>
 );
 
+interface OptionSectionProps {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}
+
+// Both groups share one heading shape: adding a product and adding a whole
+// meal are peers, and order alone says which one comes first.
+const OptionSection = ({
+  title,
+  description,
+  children,
+}: OptionSectionProps) => (
+  <section className="flex flex-col gap-3">
+    <div className="flex flex-col gap-1">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="text-pretty text-sm text-text-muted">{description}</p>
+    </div>
+    <div className="flex flex-col divide-y divide-border">{children}</div>
+  </section>
+);
+
 interface EntryOptionListProps extends Omit<PhotoNameEntryProps, "busyLabel" | "error" | "previewUrl"> {
   isLoading: boolean;
 }
 
-// Two labelled groups over one divide-y list: the rows are still one list to
-// scan, and the headings say which of the two things the user is adding.
-const EntryOptionList = ({ isLoading, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe, onLazyTrack }: EntryOptionListProps) => (
-  <div className="flex flex-col">
-    <div className="flex flex-col divide-y divide-border">
-      <BarcodeAndPhotoRows isLoading={isLoading} onSelectName={onSelectName} onSelectBarcode={onSelectBarcode} />
-      <ManualAndWholeFoodRows isLoading={isLoading} onManualEntry={onManualEntry} onWholeFood={onWholeFood} />
-    </div>
-    <h3 className={OPTION_GROUP_TITLE_CLASS}>{ADD_MEALS_TITLE}</h3>
-    <div className="flex flex-col divide-y divide-border">
-      <AddMealsRows hasRecipes={hasRecipes} isLoading={isLoading} onPickRecipe={onPickRecipe} onLazyTrack={onLazyTrack} />
-    </div>
+const EntryOptionList = ({
+  isLoading,
+  hasRecipes,
+  onSelectName,
+  onSelectBarcode,
+  onManualEntry,
+  onWholeFood,
+  onPickRecipe,
+  onLazyTrack,
+}: EntryOptionListProps) => (
+  <div className="flex flex-col gap-8">
+    <OptionSection
+      title={ADD_PRODUCT_TITLE}
+      description={ADD_PRODUCT_DESCRIPTION}
+    >
+      <BarcodeAndPhotoRows
+        isLoading={isLoading}
+        onSelectName={onSelectName}
+        onSelectBarcode={onSelectBarcode}
+      />
+      <ManualAndWholeFoodRows
+        isLoading={isLoading}
+        onManualEntry={onManualEntry}
+        onWholeFood={onWholeFood}
+      />
+    </OptionSection>
+    <OptionSection title={ADD_MEAL_TITLE} description={ADD_MEAL_DESCRIPTION}>
+      <AddMealsRows
+        hasRecipes={hasRecipes}
+        isLoading={isLoading}
+        onPickRecipe={onPickRecipe}
+        onLazyTrack={onLazyTrack}
+      />
+    </OptionSection>
   </div>
 );
 
@@ -387,10 +459,6 @@ const PhotoEntryBody = ({ busyLabel, previewUrl, hasRecipes, onSelectName, onSel
 
 const PhotoNameEntry = ({ error, ...body }: PhotoNameEntryProps) => (
   <div className="flex flex-col gap-4">
-    <div className="flex flex-col gap-1">
-      <h2 className="text-lg font-semibold">Add a product</h2>
-      <p className="text-sm text-text-muted">{ALREADY_ADDED_HINT}</p>
-    </div>
     <PhotoEntryBody {...body} />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
   </div>

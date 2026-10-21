@@ -446,6 +446,7 @@ describe("getDayLog", () => {
 
     const before = await getDayLog(TODAY, "UTC");
     expect(before.dayTotal.fibreG).toBeNull();
+    expect(before.dayFibreCoverage).toEqual({ known: 0, total: 1 });
 
     await saveNutritionOverride(productId, {
       energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0, sugarsG: 4.0, proteinG: 9.0, saltG: 0.18, fibreG: 4,
@@ -453,6 +454,7 @@ describe("getDayLog", () => {
 
     const corrected = await getDayLog(TODAY, "UTC");
     expect(corrected.dayTotal.fibreG).toBe(4);
+    expect(corrected.dayFibreCoverage).toEqual({ known: 1, total: 1 });
   });
 
   it("excludes a meal that has no ingredients", async () => {

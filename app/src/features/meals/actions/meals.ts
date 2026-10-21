@@ -10,7 +10,14 @@ import { effectiveNutritionSelection, overrideJoinSql } from "@/lib/db/effective
 import { AI_ESTIMATE_ORIGIN, mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
 import type { Portion } from "@/lib/measures/portions";
 import { resolvePortions } from "@/lib/measures/resolve-portions";
-import { ZERO_NUTRITION, addNutrition, productRowToNutritionValues, type ProductNutritionRow } from "@/lib/nutrition/totals";
+import {
+  ZERO_NUTRITION,
+  addNutrition,
+  fibreCoverage,
+  productRowToNutritionValues,
+  type FibreCoverage,
+  type ProductNutritionRow,
+} from "@/lib/nutrition/totals";
 
 import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
 import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
@@ -139,6 +146,7 @@ export interface DayMealSummary {
 export interface DayLog {
   meals: DayMealSummary[];
   dayTotal: NutritionValues;
+  dayFibreCoverage: FibreCoverage;
   calorieGoal: number | null;
   calorieRemaining: CalorieRemaining;
   macroTargets: MacroTargets | null;
@@ -243,6 +251,7 @@ export const getDayLog = async (date: string, timezone: string): Promise<DayLog>
   return {
     meals: dayMeals,
     dayTotal,
+    dayFibreCoverage: fibreCoverage(rows.map((row) => row.product)),
     calorieGoal,
     calorieRemaining: calorieRemaining(calorieGoal, dayTotal.energyKcal),
     macroTargets,

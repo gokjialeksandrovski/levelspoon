@@ -1,5 +1,5 @@
 [project]
-name = "per100-ocr"
+name = "levelspoon-ocr"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.115", "uvicorn[standard]>=0.32", "python-multipart>=0.0.17"]

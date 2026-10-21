@@ -39,7 +39,7 @@ interface ConfirmStepProps {
   learned: LearnedMeasures;
   nutritionBasisUnit: string;
   nutritionBasisQuantity: number;
-  /** A barcode scanned earlier in this capture that neither per100 nor Open
+  /** A barcode scanned earlier in this capture that neither levelspoon nor Open
    * Food Facts recognised - surfaced below as a declinable, default-on
    * checkbox (barcode spec §7). */
   pendingBarcode: string | null;
@@ -65,7 +65,7 @@ const BARCODE_ATTACH_LABEL = "Scan the barcode";
 const BARCODE_ATTACH_HINT = "Photographing the code helps everyone else find this product easier.";
 const READING_BARCODE_LABEL = "Reading the barcode…";
 const SAVE_ERROR = "Could not save this product. Please try again.";
-// A second user's scan/OFF-save of the same not-yet-in-per100 barcode won
+// A second user's scan/OFF-save of the same not-yet-in-levelspoon barcode won
 // the race between this confirm step's own lookup and its save - a distinct,
 // named failure (CLAUDE.md Rule 10), not the generic save error.
 const BARCODE_CONFLICT_ERROR = "This barcode was just linked to a different product. Search for that product instead of creating a new one.";
@@ -80,7 +80,7 @@ const SAME_FIGURES_ACK_LABEL = "This is a different product that happens to have
 const DUPLICATE_LOOKUP_ERROR = "Could not look up that product. Please try again.";
 const duplicateMessage = (name: string): string => `${name} already has these figures.`;
 const duplicateActionLabel = (name: string): string => `Use ${name} instead`;
-const DUPLICATE_SUGGESTION_HINT = "This may already be in per100:";
+const DUPLICATE_SUGGESTION_HINT = "This may already be in levelspoon:";
 
 const errorFor = (field: keyof FieldValues, flaggedFields: Set<keyof FieldValues>, values: FieldValues): string | undefined => {
   if (!flaggedFields.has(field)) {

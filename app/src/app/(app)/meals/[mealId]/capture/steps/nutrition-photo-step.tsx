@@ -1,14 +1,15 @@
 "use client";
 
+import { PencilSimpleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { ocrNutritionTable } from "@/features/products/actions/ocr";
-import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
 
 import type { WizardAction } from "../capture-wizard.types";
+import { EntryOptionRow } from "./product-name-step";
 
 interface NutritionPhotoStepProps {
   nameGuess: string;
@@ -83,7 +84,7 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
       }
       dispatch({ type: "NUTRITION_PARSED", parsed: read.values, flags: read.flags, name: nameGuess, photo: selected, learned: read.learned, nutritionBasisUnit: read.nutritionBasisUnit, nutritionBasisQuantity: read.nutritionBasisQuantity, pendingBarcode });
     } catch {
-      setError("Could not read the nutrition table from this photo. Retake it with the whole table and its \"per 100g\" heading in frame.");
+      setError("Couldn't read the nutrition table in this photo. Retake it with the whole table in frame, headings included.");
     } finally {
       setIsLoading(false);
     }
@@ -99,25 +100,48 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
 
 const READING_LABEL = "Reading the nutrition table…";
 
-// Values are only read against a per-100g (or per-100ml) column; a photo
-// cropped below that heading fails however sharp the figures are.
-const FRAMING_HINT =
-  'Try to fit the whole table in the photo, including the "per 100g" heading at the top.';
+// Figures are read against their column heading (per 100g, per 100ml or per
+// serving), so a photo cropped below the headings fails however sharp the
+// figures are.
+const FRAMING_HINT = "Fit the whole table in the photo, headings included.";
+
+// Its own note rather than a clause on the framing hint: it answers a
+// different question ("does my label work?"), and stops a user reading
+// "per 100g" as the only label that does. With no printed weight, the
+// serving-size step asks for it.
+const PER_SERVING_NOTE =
+  'Per-serving tables work too. If the serving shows its weight, like "1 bar (40g)", we convert it to per 100g. If not, we ask you for it.';
 
 // Said where the choice is made, not after the save. Shown only when it is
 // true: visibleToUser (products.ts) shares a row that has either a label
 // photo or a barcode, so a pending barcode or a photo already in hand would
 // make this a false promise - confirm-step states the outcome for those.
-const PRIVATE_PRODUCT_HINT =
-  "This product will be saved for you, but not for other users. Only products with a label photo or a barcode are shared.";
+const PRIVATE_PRODUCT_HINT = "Saved for you only. A product is shared once it has a label photo or a barcode.";
+const MANUAL_ENTRY_DESCRIPTION = "Type the figures from the label yourself.";
+
+const manualEntryDescription = (hasPhoto: boolean, pendingBarcode: string | null): string =>
+  hasPhoto || pendingBarcode !== null ? MANUAL_ENTRY_DESCRIPTION : PRIVATE_PRODUCT_HINT;
+
+// A hairline either side of "or": the manual row is the other way through
+// this step, not a footnote to the photo.
+const OrDivider = () => (
+  <div className="flex items-center gap-3 text-xs text-text-muted" aria-hidden="true">
+    <span className="h-px flex-1 bg-border" />
+    or
+    <span className="h-px flex-1 bg-border" />
+  </div>
+);
 
 export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, dispatch }: NutritionPhotoStepProps) => {
   const form = useNutritionPhotoStep(nameGuess, netWeightText, pendingBarcode, dispatch);
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-lg font-semibold">Reading {nameGuess}</h2>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold">{nameGuess}</h2>
+        <p className="text-sm text-text-muted">Take a photo of its nutrition table.</p>
+      </div>
+      <div className="flex flex-col gap-3">
         <PhotoInput
           label="Nutrition table photo"
           hint={FRAMING_HINT}
@@ -125,17 +149,18 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
           scanningLabel={form.isLoading ? READING_LABEL : undefined}
         />
         {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
+        <p className="border-l-2 border-border pl-3 text-pretty text-sm/relaxed text-text-muted">{PER_SERVING_NOTE}</p>
       </div>
-      <div className="flex flex-col gap-2">
-        {/* Disabled during OCR: wizardReducer applies NUTRITION_PARSED unconditionally,
-            so a tap here mid-scan would race the pending dispatch from handleSelect. */}
-        <Button variant="ghost" link className="self-start" disabled={form.isLoading} onClick={form.handleManualEntry}>
-          {form.photo ? "Enter the values manually instead" : "Enter the values manually"}
-        </Button>
-        {!form.photo && pendingBarcode === null && (
-          <InlineMessage tone="info">{PRIVATE_PRODUCT_HINT}</InlineMessage>
-        )}
-      </div>
+      <OrDivider />
+      {/* Disabled during OCR: wizardReducer applies NUTRITION_PARSED unconditionally,
+          so a tap here mid-scan would race the pending dispatch from handleSelect. */}
+      <EntryOptionRow
+        icon={PencilSimpleIcon}
+        title={form.photo ? "Enter the values manually instead" : "Enter the values manually"}
+        description={manualEntryDescription(form.photo !== null, pendingBarcode)}
+        onClick={form.handleManualEntry}
+        disabled={form.isLoading}
+      />
     </div>
   );
 };

@@ -46,7 +46,7 @@ const DisclosureTrigger = ({ label, isOpen, contentId, reduceMotion, onToggle }:
 );
 
 // grid-template-rows (0fr -> 1fr), not height directly, per the app's motion
-// rule against animating layout properties - see .impeccable.md Motion Rules.
+// rule against animating layout properties - see DESIGN.md Motion.
 const DisclosurePanel = ({ contentId, isOpen, children }: { contentId: string; isOpen: boolean; children: React.ReactNode }) => (
   <div
     id={contentId}

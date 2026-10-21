@@ -1,11 +1,11 @@
 // app/src/app/(app)/day/[date]/weigh-in-dismissal.ts
-// Per-device (localStorage), like per100:ai-photo-consent. Dismissing a prompt
+// Per-device (localStorage), like levelspoon:ai-photo-consent. Dismissing a prompt
 // is not a fact about the account, and a server round trip to say "not now"
 // would be a write the exit is supposed to avoid.
 //
 // Read only from event handlers and effects, never during render, so there is
 // no SSR/hydration branch.
-const dismissalKey = (date: string): string => `per100:weigh-in-dismissed:${date}`;
+const dismissalKey = (date: string): string => `levelspoon:weigh-in-dismissed:${date}`;
 
 export const isWeighInDismissed = (date: string): boolean => {
   try {

@@ -57,3 +57,23 @@ export const productRowToNutritionValues = (product: ProductNutritionRow): Nutri
   // Number(null) is 0, which would file every unknown fibre as a confident zero.
   fibreG: product.fibreG === null ? null : Number(product.fibreG),
 });
+
+export interface FibreCoverage {
+  known: number;
+  total: number;
+}
+
+export const fibreCoverage = (rows: readonly { fibreG: number | string | null }[]): FibreCoverage => ({
+  known: rows.filter((row) => row.fibreG !== null).length,
+  total: rows.length,
+});
+
+// A partial total is a floor, not the day's fibre, so it says how many
+// ingredients it covers. Nothing known prints a dash, never a made-up 0g.
+export const fibreText = (fibreG: number | null, coverage: FibreCoverage): string => {
+  if (fibreG === null) {
+    return "Fibre —";
+  }
+  const figure = `Fibre ${Math.round(fibreG)}g`;
+  return coverage.known < coverage.total ? `${figure} (${coverage.known} of ${coverage.total} ingredients)` : figure;
+};

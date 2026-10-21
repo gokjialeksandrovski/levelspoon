@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { intakeProfiles, users, weightEntries, weightGoals } from "@/lib/db/schema";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 
+import { CONSENT_VERSION } from "./intake.utils";
+
 const userId = randomUUID();
 
 vi.mock("@/lib/auth/require-user", () => ({ requireUserId: () => Promise.resolve(userId) }));
@@ -39,6 +41,9 @@ const baseInput = {
   pregnantOrBreastfeeding: false,
   metabolismCondition: false,
   metabolismAdjustPct: null,
+  currentIntakeKcal: null,
+  weightTrend: null,
+  weightTrendKgPerWeek: null,
   saveAnswers: false,
 };
 
@@ -83,7 +88,7 @@ describe("saveIntakeEstimate", () => {
     await saveIntakeEstimate({ ...baseInput, saveAnswers: true }, TIMEZONE);
     const [row] = await profileRows();
     expect(row.heightCm).toBe("180.0");
-    expect(row.consentVersion).toBe(1);
+    expect(row.consentVersion).toBe(CONSENT_VERSION);
     expect(row.consentedAt).toBeInstanceOf(Date);
   });
 
@@ -196,6 +201,21 @@ describe("getIntakePrefill", () => {
     expect(prefill.targetGoal).toEqual({ targetWeightKg: 72, rateKgPerWeek: 0.4 });
     expect(prefill.hasWeightGoal).toBe(true);
     expect(prefill.profile).toMatchObject({ sex: "male", heightCm: 180, metabolismAdjustPct: -10 });
+  });
+
+  it("round-trips a typed intake and its trend", async () => {
+    await saveIntakeEstimate(
+      {
+        ...baseInput,
+        saveAnswers: true,
+        currentIntakeKcal: 2400,
+        weightTrend: "down",
+        weightTrendKgPerWeek: 0.5,
+      },
+      TIMEZONE,
+    );
+    const prefill = await getIntakePrefill();
+    expect(prefill.profile).toMatchObject({ currentIntakeKcal: 2400, weightTrend: "down", weightTrendKgPerWeek: 0.5 });
   });
 });
 

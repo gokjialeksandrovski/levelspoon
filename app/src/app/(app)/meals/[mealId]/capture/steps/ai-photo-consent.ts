@@ -4,7 +4,7 @@
 // Read only from event handlers, never during render, so no SSR/hydration
 // branch to worry about.
 
-const AI_PHOTO_CONSENT_KEY = "per100:ai-photo-consent";
+const AI_PHOTO_CONSENT_KEY = "levelspoon:ai-photo-consent";
 const ACCEPTED_VALUE = "accepted";
 
 export const hasAcceptedAiPhotoConsent = (): boolean => {

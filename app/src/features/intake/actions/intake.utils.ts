@@ -21,6 +21,8 @@ export type PrimaryGoal = "lose_fat" | "maintain" | "gain_muscle";
 export type BodyFatSource = "typed" | "visual";
 export type TrainingStyle = "sedentary" | "cardio" | "strength" | "mixed";
 export type TrainingYears = "none" | "under_1" | "1_to_3" | "over_3";
+/** What the user's weight did while they ate their reported intake. */
+export type WeightTrend = "steady" | "down" | "up";
 
 export const BODY_FAT_STAGES = ["abs", "flat", "soft", "belly", "large"] as const;
 export type BodyFatStage = (typeof BODY_FAT_STAGES)[number];
@@ -43,6 +45,12 @@ export interface IntakeProfile {
   metabolismCondition: boolean;
   /** Signed: + the condition raised metabolism, - lowered it. */
   metabolismAdjustPct: number | null;
+  /** What the user says they eat a day now. Null when they don't know. */
+  currentIntakeKcal: number | null;
+  /** Set exactly when currentIntakeKcal is. */
+  weightTrend: WeightTrend | null;
+  /** How fast, for a down or up trend only. */
+  weightTrendKgPerWeek: number | null;
 }
 
 /** Everything the estimate reads. Weight, goal weight, pace, band and recomp
@@ -70,9 +78,19 @@ export type IntakeField =
   | "body_fat"
   | "strength_days"
   | "tracking_period"
-  | "metabolism";
+  | "metabolism"
+  | "current_intake"
+  | "weight_trend";
 
 export type RefusalReason = "under_18" | "pregnancy";
+
+/** The typed intake, and the maintenance it works out to. */
+export interface ReportedIntake {
+  intakeKcal: number;
+  trend: WeightTrend;
+  kgPerWeek: number | null;
+  maintenanceKcal: number;
+}
 
 export interface IntakeReady {
   kind: "ready";
@@ -80,6 +98,11 @@ export interface IntakeReady {
   maintenanceKcal: number;
   /** True when maintenanceKcal came from the user's own logs, not the formula. */
   isMeasured: boolean;
+  /** True when maintenanceKcal came from the intake the user typed. */
+  isReported: boolean;
+  /** Null when no intake was typed. Present but unused when a measured
+   * figure won, or when it came out below BMR. */
+  reported: ReportedIntake | null;
   /** BMR x activity, always computed, so Details can state both figures. */
   formulaMaintenanceKcal: number;
   /** Before the floor: what the pace asks for, so the details line states the
@@ -105,7 +128,8 @@ export type IntakeEstimate = { kind: "refused"; reason: RefusalReason } | Intake
 
 // Bump when the consent copy in intake-form.tsx changes, so a stored consent
 // can be traced to the wording it was given against (spec §13).
-export const CONSENT_VERSION = 1;
+// 2: the helper names weight, body fat and intake, once intake was stored.
+export const CONSENT_VERSION = 2;
 
 // PUBLISHED - Mifflin MD, St Jeor ST et al., Am J Clin Nutr 1990;51:241-7.
 // BMR kcal/day = 10·kg + 6.25·cm − 5·age + s.
@@ -176,6 +200,15 @@ const METABOLISM_UNKNOWN_WIDTH_SHARE = 0.1;
 const METABOLISM_TYPED_WIDTH_SHARE = 0.05;
 // Derived - half the male/female Mifflin gap (166 kcal).
 const UNSPECIFIED_SEX_WIDTH_KCAL = (MIFFLIN_SEX_OFFSET.male - MIFFLIN_SEX_OFFSET.female) / 2;
+// JUDGMENT - self-reported intake runs low by double-digit percentages against
+// doubly labelled water (e.g. the OPEN study, Subar AF et al., Am J Epidemiol
+// 2003;158:1). No published band fits a typed daily figure, so 15%; the BMR
+// check in resolveMaintenance catches the worst under-reports outright.
+const REPORTED_INTAKE_WIDTH_SHARE = 0.15;
+
+// Which way a trend moves maintenance away from what is eaten: losing weight
+// means burning more than you eat, so maintenance sits above the intake.
+const TREND_DIRECTION: Record<WeightTrend, number> = { steady: 0, down: 1, up: -1 };
 
 // Storage-and-typing guards, not medical opinion - the same stance as
 // MIN_CALORIE_GOAL. A value past them is a slipped keystroke.
@@ -191,6 +224,11 @@ const MAX_STRENGTH_DAYS = 7;
 // weigh-in cadence has: any whole number of days, like that field.
 export const MIN_TRACKING_PERIOD_DAYS = 1;
 export const MAX_TRACKING_PERIOD_DAYS = 365;
+// Typing guards, like MAX_AGE: no adult eats under 500 or over 10,000 a day as
+// a habit, so a figure past either is a slipped keystroke. Mirrored by
+// intake_current_intake in the schema.
+const MIN_REPORTED_INTAKE_KCAL = 500;
+const MAX_REPORTED_INTAKE_KCAL = 10000;
 
 // JUDGMENT - visual body-fat charts are approximations; §6.5 keeps the range
 // wide for a stage rather than narrowing it.
@@ -290,6 +328,28 @@ const metabolismError = (input: IntakeInput): IntakeField | null => {
   return isStorable ? null : "metabolism";
 };
 
+const hasTrendRate = (trend: WeightTrend | null): boolean => trend !== null && trend !== "steady";
+
+// A trend without an intake, or a rate without a moving trend, is a leftover
+// nobody vouched for. The form clears both, so reaching one means a bad
+// caller, not a user.
+const trendError = (trend: WeightTrend | null, rate: number | null): IntakeField | null => {
+  if (trend === null) return "weight_trend";
+  if (!hasTrendRate(trend)) return rate === null ? null : "weight_trend";
+  return rate !== null && inRange(rate, MIN_RATE_KG_PER_WEEK, MAX_RATE_KG_PER_WEEK) ? null : "weight_trend";
+};
+
+const reportedIntakeError = (input: IntakeInput): IntakeField | null => {
+  const kcal = input.currentIntakeKcal;
+  if (kcal === null) {
+    return input.weightTrend === null && input.weightTrendKgPerWeek === null ? null : "current_intake";
+  }
+  if (!Number.isInteger(kcal) || !inRange(kcal, MIN_REPORTED_INTAKE_KCAL, MAX_REPORTED_INTAKE_KCAL)) {
+    return "current_intake";
+  }
+  return trendError(input.weightTrend, input.weightTrendKgPerWeek);
+};
+
 // Returns the first offending field, or null when the input can be estimated
 // and stored. Under 18 and pregnancy are not bad fields - they are refusals,
 // which estimateIntake returns as data.
@@ -299,7 +359,8 @@ export const intakeInputError = (input: IntakeInput, currentYear: number): Intak
   bodyFatError(input) ??
   trainingError(input) ??
   trackingPeriodError(input) ??
-  metabolismError(input);
+  metabolismError(input) ??
+  reportedIntakeError(input);
 
 const leanMassKg = (input: IntakeInput): number | null =>
   input.bodyFatPct === null ? null : input.weightKg * (1 - input.bodyFatPct / PERCENT);
@@ -368,29 +429,64 @@ const rangeWidthKcal = (input: IntakeInput, pointKcal: number): number => {
   return pointKcal * (formulaShare + metabolismWidthShare(input)) + sexWidthKcal(input);
 };
 
+// What the typed intake says maintenance is: the intake itself when weight
+// held, plus or minus the energy the trend stands for when it moved.
+const reportedIntakeOf = (input: IntakeInput): ReportedIntake | null => {
+  if (input.currentIntakeKcal === null || input.weightTrend === null) return null;
+  const trendKcal = ((input.weightTrendKgPerWeek ?? 0) * KCAL_PER_KG) / DAYS_PER_WEEK;
+  return {
+    intakeKcal: input.currentIntakeKcal,
+    trend: input.weightTrend,
+    kgPerWeek: input.weightTrendKgPerWeek,
+    maintenanceKcal: input.currentIntakeKcal + TREND_DIRECTION[input.weightTrend] * trendKcal,
+  };
+};
+
+interface Maintenance {
+  kcal: number;
+  source: "measured" | "reported" | "formula";
+  /** Half-width of the range when the figure brings its own; null uses the formula band. */
+  widthKcal: number | null;
+}
+
+// Most direct evidence wins: the user's own logs, then what they say they eat,
+// then the formula. A logged or reported figure below the user's own BMR is
+// not something a body does - it is what under-logging or under-reporting
+// looks like - so it is refused and the next source stands (spec §5). The
+// deficit floor cannot catch it: the floor is clamped to maintenance, so it
+// would follow the bad figure down and then print it as the floor.
+const resolveMaintenance = (
+  formulaKcal: number,
+  bmr: number,
+  measured: MeasuredBurn | null,
+  reported: number | null,
+): Maintenance => {
+  if (measured?.kind === "measured" && measured.kcal >= bmr) {
+    return { kcal: measured.kcal, source: "measured", widthKcal: measured.sigma };
+  }
+  if (reported !== null && reported >= bmr) {
+    return { kcal: reported, source: "reported", widthKcal: reported * REPORTED_INTAKE_WIDTH_SHARE };
+  }
+  return { kcal: formulaKcal, source: "formula", widthKcal: null };
+};
+
 const weeksToGoal = (input: IntakeInput, pace: number | null, isMaintenanceOnly: boolean): number | null => {
   if (input.goalWeightKg === null || pace === null || isMaintenanceOnly) return null;
   return Math.abs(input.weightKg - input.goalWeightKg) / pace;
 };
 
 const readyEstimate = (input: IntakeInput, age: number, measured: MeasuredBurn | null): IntakeReady => {
-  // BMR is still computed when a measured figure wins: the §7 floor reads it,
-  // and the metabolism factor inside it keeps that floor from sitting above a
-  // down-regulated maintenance. What the measured path drops is the activity
-  // product and the Mifflin width band - a measured burn already contains
-  // whatever the user's activity and condition do to it, so applying either
-  // correction on top would count it twice.
+  // BMR is still computed when a measured or reported figure wins: the §7
+  // floor reads it, and the metabolism factor inside it keeps that floor from
+  // sitting above a down-regulated maintenance. What those paths drop is the
+  // activity product and the Mifflin width band - a burn the user lived
+  // already contains whatever their activity and condition do to it, so
+  // applying either correction on top would count it twice.
   const bmr = bmrKcal(input, age);
   const formulaMaintenance = bmr * ACTIVITY_FACTOR[input.activityLevel];
-  // A maintenance below the user's own BMR is not something a body does - it
-  // is what under-logging looks like. The deficit floor cannot catch it: the
-  // floor is clamped to maintenance so as never to suggest eating more than
-  // you burn, so it would follow the bad figure down and then print it as the
-  // floor. The fit is refused here instead, which judges the measurement and
-  // not the user's days (spec §5).
-  const usable = measured?.kind === "measured" && measured.kcal >= bmr ? measured : null;
-  const isMeasured = usable !== null;
-  const maintenance = isMeasured ? usable.kcal : formulaMaintenance;
+  const reported = reportedIntakeOf(input);
+  const resolved = resolveMaintenance(formulaMaintenance, bmr, measured, reported?.maintenanceKcal ?? null);
+  const maintenance = resolved.kcal;
   const bmi = input.weightKg / heightSquaredM(input.heightCm);
   const isMaintenanceOnly = input.primaryGoal === "lose_fat" && bmi < UNDERWEIGHT_BMI;
   const pace = resolvePace(input);
@@ -403,14 +499,16 @@ const readyEstimate = (input: IntakeInput, age: number, measured: MeasuredBurn |
   const floor = Math.min(maintenance, Math.max(bmr, KCAL_FLOOR[input.sex]));
   const raw = maintenance + adjustment;
   const point = Math.max(raw, floor);
-  const width = usable ? usable.sigma : rangeWidthKcal(input, point);
+  const width = resolved.widthKcal ?? rangeWidthKcal(input, point);
   const lean = leanMassKg(input);
 
   return {
     kind: "ready",
     bmrKcal: bmr,
     maintenanceKcal: maintenance,
-    isMeasured,
+    isMeasured: resolved.source === "measured",
+    isReported: resolved.source === "reported",
+    reported,
     formulaMaintenanceKcal: formulaMaintenance,
     adjustmentKcal: adjustment,
     pointKcal: point,

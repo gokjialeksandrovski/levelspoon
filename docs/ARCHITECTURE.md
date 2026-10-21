@@ -1,0 +1,140 @@
+# Architecture
+
+Stack, layout, data, routes, env vars, local commands and test setup.
+
+## Stack
+
+| Part | What |
+|---|---|
+| `app/` | Next.js 16 (App Router), React 19, TypeScript 5. UI, auth, business logic. |
+| `ocr-service/` | FastAPI + PaddleOCR (Python 3.12). Warm, always-on. |
+| Database | Postgres via Drizzle ORM. Migrations in `app/drizzle/`. |
+| Auth | Auth.js v5, Credentials provider (email/password), JWT sessions. |
+| Photo storage | One S3-compatible client (`app/src/lib/s3.ts`). MinIO locally. `S3_ENDPOINT` only difference between environments, no branching in app code. Prod host undecided (`docs/ROADMAP.md`). |
+| AI | Gemini, direct call, pinned model. Two jobs only (see CLAUDE.md). |
+
+Nothing deployed. No CI.
+
+## Repo layout
+
+| Path | Holds |
+|---|---|
+| `app/` | Next.js app |
+| `ocr-service/` | OCR + nutrition parser. `src/levelspoon_ocr/nutrition/` is the parser (`docs/PRODUCTS.md`). |
+| `fixtures/` | Committed test corpus: real label photos, OCR boxes, golden per-100g values, `standard-foods.json` (232 curated rows) |
+| `scripts/` | Dev/verification scripts. `venv-run.mjs` runs Python via `.venv`. |
+| `docs/` | This doc set, `DECISIONS.md`, `ROADMAP.md`, `superpowers/specs/` (approved design specs per shipped feature) |
+| `PRODUCT.md`, `DESIGN.md` | Root on purpose: impeccable skill reads them there |
+
+## App structure (`app/src/`)
+
+| Path | Holds |
+|---|---|
+| `app/` | Routing shell. Route-specific UI colocates in its route folder (capture wizard steps, day and meal views) until a second route needs it. |
+| `features/<domain>/actions/` | Server Actions, `*.utils.ts` (pure maths), `*.store.ts` (userId-taking DB writers, no `"use server"`). Domains: `auth`, `goals`, `intake`, `lazy-track`, `meals`, `products` (incl. `ocr.ts`), `quantity`, `recipes`, `weight`. |
+| `components/ui/` | Dumb presentational primitives. Never import `features/`. |
+| `components/layout/` | Global chrome: `app-header.tsx`, `theme-toggle.tsx`, `install-app-button.tsx` (PWA install; manifest in `app/manifest.ts`). Never import `features/`. |
+| `lib/` | Shared infra: `db/` (schema, search text, photo keys, effective nutrition), `measures/`, `nutrition/`, `ocr/`, `quantity/`, `meal-estimate/`, `barcode/`, `gemini/`, `theme/`, `date/`, `s3.ts`. Never imports `features/` or `app/`. |
+| `types/` | Cross-domain shared types (`NutritionValues`) |
+
+Import boundaries are ESLint-enforced (`app/eslint.config.mjs`, vendored `app/clean-code-rules.mjs`).
+
+## Routes
+
+| Route | Page |
+|---|---|
+| `/` | Client redirect to `/day/<today local>` |
+| `/day/[date]` | Day view: kcal hero, macros, meal list, weight row (today only), new-meal bar |
+| `/meals/[mealId]` | Meal detail, recipe controls |
+| `/meals/[mealId]/capture` | Capture wizard: add ingredient (photo, barcode, name search, standard food, recipe, lazy track) |
+| `/products/[productId]/correct` | Per-user nutrition override / label proof |
+| `/history` | One row per logged day, month groups, week summary |
+| `/calories/estimate` | Intake estimate, reached only from goal sheet |
+| `/dev/barcode-scanner` | Dev harness for `BarcodeScanner` |
+| `/signin`, `/signup` | Credentials auth |
+| `/api/auth/[...nextauth]` | Auth.js handler |
+
+## Server/client boundary
+
+Server Actions only path from browser to Postgres, storage or Gemini. Files under `app/src/lib/db/`, `app/src/lib/s3.ts`, `app/src/features/*/actions/*`, `app/src/auth.ts` start with `"use server"` or are imported only by files that do. `*.store.ts` files take a userId and carry no `"use server"`: exposing one as an action would let a browser write any user's rows.
+
+## Provider seams
+
+Impure/heavy deps sit behind env-selected interfaces. `.env.example` defaults each to `mock`; real deployment must set them or every call returns canned result silently.
+
+| Env var | Seam | Real implementation |
+|---|---|---|
+| `OCR_PROVIDER` | `app/src/lib/ocr/` | HTTP to `ocr-service` |
+| `QUANTITY_PROVIDER` | `QuantityProvider`, `app/src/lib/quantity/` | Gemini. Swapping provider is one-file change. |
+| `MEAL_ESTIMATE_PROVIDER` | `app/src/lib/meal-estimate/` | Gemini. Mock throws on `MOCK_UNAVAILABLE_MARKER` in description (e2e hook for unavailable path). |
+| `BARCODE_LOOKUP_PROVIDER` | `app/src/lib/barcode/` | Open Food Facts. Internal `product_barcodes` table checked first regardless. |
+
+## Env vars
+
+Template: `.env.example` (git-tracked, placeholders only). App reads `app/.env.local`.
+
+| Var | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres. Local: `postgres://levelspoon:levelspoon@localhost:15432/levelspoon` |
+| `AUTH_SECRET` | Auth.js secret (`npx auth secret`) |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` | Photo storage. Local MinIO, bucket `levelspoon-photos`. |
+| `OCR_SERVICE_URL`, `OCR_PROVIDER` | OCR service URL, `mock` or real |
+| `QUANTITY_PROVIDER` | Amount-photo grams, `mock` or Gemini |
+| `MEAL_ESTIMATE_PROVIDER` | Lazy track, `mock` or Gemini |
+| `GEMINI_API_KEY` | `app/.env.local` only, read by app, not passed to a container |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` (pinned; see CLAUDE.md) |
+| `BARCODE_LOOKUP_PROVIDER` | `mock` or Open Food Facts |
+| `OFF_CONTACT_EMAIL` | Open Food Facts User-Agent contact (their terms). Real address before deploy. |
+
+## Time model
+
+Day boundaries are user's **local** calendar day (browser IANA timezone, per request), never server UTC day.
+
+`meals.log_date` is day a meal counts towards: browser's local date when meal started, stored, never derived from `created_at`. Every day read filters on it: `getDayLog`, `getDayHistory`, `dailyKcalTotals`, meal numbering. `created_at` means only "when row written": ordering inside a day, `recentAmounts`, soft-delete sweep. Stored because a meal eaten yesterday can be entered today, and a timestamp cannot tell those apart. A day reads the same wherever reader is.
+
+`createMeal(logDate, timezone)` refuses a future date (`InvalidLogDateError`), never a past one. Screen that starts a meal passes the day on screen.
+
+Every reachable day is loggable. Day view bottom bar middle slot is always `NewMealButton`; label names the day when not today ("New meal for yesterday"). Header day label is the way back to today; no separate "Back to today" control.
+
+## Local commands
+
+Run from repo root unless noted. Docker Desktop must run (installed per-user: `docker` on **User** PATH, `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin`).
+
+| Command | Does |
+|---|---|
+| `npm run dev:up` / `dev:down` | Postgres (host port **15432**, remapped to dodge native PG18) + MinIO (9000, console 9001) + OCR service (8000). `dev:up` rebuilds OCR image from source. |
+| `npm run dev:app` | Next.js dev server |
+| `npm run db:migrate` | Apply Drizzle migrations |
+| `npm run db:seed` | Test user, 2%/10% variant pair, 232 standard foods |
+| `npm run db:reset` | Drop, migrate, seed |
+| `npm run ocr:build` / `ocr:up` / `ocr:down` | OCR image alone (first build slow: bakes model) |
+| `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
+| `npm run test` | Tier-2 Vitest against real local Postgres (delegates into `app/`) |
+| `npm run test:e2e` | Playwright, mocked providers, only Postgres needed |
+| `npm run test:e2e:real` | Playwright against real OCR stack |
+| `npm run test:ocr` | Tier-1 OCR unit tests, no Docker |
+| `npm run verify:ocr` | Tier-4 gate: real photos through real service |
+| `npm run lint` | Ruff (Python) **only** |
+| `cd app && npm run lint` | ESLint + Clean Code rules for the app |
+| `npm run report:photo-debt` | Derived JSON, one entry per product with a reformulation claim |
+| `cd app && npm run check:portion-classes` | Portion-class gate over 232 curated foods, must exit 0 |
+
+Python setup (`ocr-service`): see `README.md`. paddlepaddle is **not** installed locally, lives only in container. Unit tests import pure modules; verify gate talks HTTP to running container.
+
+### Local gotchas
+
+- MinIO does not auto-create buckets. Create `levelspoon-photos` once (steps in `README.md`). Needed before `app/src/lib/s3.test.ts` or any photo upload.
+- `npm run db:migrate` alone fails migration `0014` ("could not create unique index") on a dev DB seeded before content-addressed photo keys: old fixtures share a literal photo key across rows. Use `db:reset` on such a DB.
+- Applied migration files stay byte-for-byte immutable: drizzle-orm hashes each file for its applied-migration bookkeeping.
+- Generate migrations with drizzle-kit, never hand-write: journal and snapshot must stay in step.
+
+## Tests
+
+Verification tiers: 1 unit (no Docker) · 2 real Postgres · 3 e2e mock · 4 real photos through real OCR · 5 real stack. Tiers 4–5 run locally before deploy (133 MB model, ~10 s per photo).
+
+- Local Postgres must be up before any Vitest or Playwright run; most test files hit real DB. e2e `TRUNCATE`s shared DB mid-run.
+- No `@testing-library/react`, no `.test.tsx`. Logic tested as pure functions (Vitest, node env). Component behaviour via Playwright e2e.
+- Per-module `.test.ts` / `.test.py` beside the module.
+- Real photos and golden per-100g values committed in `fixtures/`.
+- Some client-side specs fail when run **alone** (`npx vitest run <one file>`) with `Cannot find module 'next/server' imported from next-auth/lib/env.js`: ESM resolution artifact, not a broken test (`amount-step.test.ts` is one). Run the suite or a directory.
+- `app/playwright.config.ts` has an explicit `testMatch` allowlist. A new spec file must be added or it collects as "No tests found" and suite still passes. `workers: 1` / `fullyParallel: false` because every spec truncates same tables.

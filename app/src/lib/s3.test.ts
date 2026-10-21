@@ -6,7 +6,7 @@ import { getPhotoUrl, uploadPhoto } from "./s3";
 describe("uploadPhoto", () => {
   it("writes an object retrievable at the given key", async () => {
     const key = `test/${crypto.randomUUID()}.txt`;
-    const body = Buffer.from("hello per100");
+    const body = Buffer.from("hello levelspoon");
 
     await uploadPhoto(key, body, "text/plain");
 
@@ -24,19 +24,19 @@ describe("uploadPhoto", () => {
     );
     const retrieved = await result.Body?.transformToString();
 
-    expect(retrieved).toBe("hello per100");
+    expect(retrieved).toBe("hello levelspoon");
   });
 });
 
 describe("getPhotoUrl", () => {
   it("returns a presigned URL that resolves to the uploaded content", async () => {
     const key = `test/${crypto.randomUUID()}.txt`;
-    await uploadPhoto(key, Buffer.from("hello per100"), "text/plain");
+    await uploadPhoto(key, Buffer.from("hello levelspoon"), "text/plain");
 
     const url = await getPhotoUrl(key);
     const response = await fetch(url);
 
     expect(response.ok).toBe(true);
-    expect(await response.text()).toBe("hello per100");
+    expect(await response.text()).toBe("hello levelspoon");
   });
 });

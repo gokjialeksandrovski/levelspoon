@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { saveMealAsRecipe, type SaveRecipeResult } from "@/features/recipes/actions/recipes";
-import { isValidRecipeName } from "@/features/recipes/actions/recipes.utils";
+import { isValidRecipeName, RECIPE_NAME_MAX_LENGTH, recipeNameHint } from "@/features/recipes/actions/recipes.utils";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -78,7 +78,15 @@ export const SaveRecipeSheet = ({ mealId, open, onClose, onSaved, onMealMissing 
        * not just the first mount. */}
       {open && (
         <div className="flex flex-col gap-4">
-          <Field label="Name" name="recipe-name" value={name} onChange={(event) => setName(event.target.value)} autoFocus />
+          <Field
+            label="Name"
+            name="recipe-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={RECIPE_NAME_MAX_LENGTH}
+            helperText={recipeNameHint(name)}
+            autoFocus
+          />
           <InlineMessage tone="info">{PRIVACY_LINE}</InlineMessage>
           {error && <InlineMessage tone="error">{error}</InlineMessage>}
           <div className="flex gap-2">

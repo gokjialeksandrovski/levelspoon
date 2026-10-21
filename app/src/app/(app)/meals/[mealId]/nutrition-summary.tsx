@@ -17,7 +17,7 @@ import { SettleNumber } from "@/components/ui/settle-number";
 // this is the one place that can say where a kcal figure comes from. True of
 // both unavailable cases: nothing entered yet, and an amount that did not
 // resolve (see previewContribution).
-const PREVIEW_PLACEHOLDER = "Pick or type an amount to see what it adds.";
+const PREVIEW_PLACEHOLDER = "Enter an amount to see what it adds up to.";
 
 // justify-center only moves the placeholder: the ready state's kcal line plus
 // MacroLine already fill the reserved height.

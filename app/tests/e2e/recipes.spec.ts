@@ -112,7 +112,7 @@ test("a user with no recipes sees the recipe row locked and lazy track open", as
   await page.getByRole("button", { name: "New meal" }).click();
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
 
-  await expect(page.getByText("Add meals")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a meal" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use one of your recipes" })).toBeDisabled();
   await expect(page.getByRole("button", { name: /Lazy track/ })).toBeEnabled();
 });
@@ -159,6 +159,40 @@ test("leaving the picker writes nothing", async ({ page }) => {
   // accessible name - the row is a <label>, and its file input's own
   // accessible name is its distinct inputLabel ("Barcode photo").
   await expect(page.getByLabel("Barcode photo")).toBeVisible();
+});
+
+test("search narrows the picker as the user types, and each row carries the accent-coded macros", async ({ page }) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
+  await page.goto("/");
+  await logOneIngredient(page);
+  await saveCurrentMealAsRecipe(page, "Overnight oats");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+  await page.getByRole("button", { name: "Use one of your recipes" }).click();
+
+  const chickenRow = page.getByRole("button", { name: /^Chicken rice bowl/ });
+  const oatsRow = page.getByRole("button", { name: /^Overnight oats/ });
+  await expect(chickenRow).toBeVisible();
+  await expect(oatsRow).toBeVisible();
+  // The protein figure wears its accent, same as a meal row on the day view.
+  await expect(chickenRow.locator(".text-accent-protein")).toBeVisible();
+
+  const search = page.getByLabel("Search your recipes");
+  await search.fill("RICE chicken");
+  await expect(chickenRow).toBeVisible();
+  await expect(oatsRow).toHaveCount(0);
+
+  await search.fill("pizza");
+  await expect(page.getByText('No recipe matches "pizza".')).toBeVisible();
+
+  await search.fill("");
+  await expect(chickenRow).toBeVisible();
+  await expect(oatsRow).toBeVisible();
 });
 
 test("renaming from the picker keeps the row and cancels cleanly", async ({ page }) => {
@@ -337,7 +371,7 @@ test("overwrite updates a matching earlier meal and leaves a diverged one named"
   // (offering the hand-edited Meal 2, excusing the two matching meals) would
   // fail both of these, where the old alternation would have passed either way.
   const tick = sheet.getByRole("checkbox", {
-    name: "Also update the meals you ate from it earlier today (Meal 1, Meal 3): +70 kcal",
+    name: "Also update Meal 1 and Meal 3 from earlier today (+70 kcal)",
   });
   await expect(tick).toBeVisible();
   await expect(page.getByText("Meal 2 was changed after you logged it, so it is left as it is.")).toBeVisible();

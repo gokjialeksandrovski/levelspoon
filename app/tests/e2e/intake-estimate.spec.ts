@@ -62,7 +62,7 @@ test("answers are kept only with consent, and come back prefilled", async ({ pag
   await expect(page.getByRole("button", { name: "Goal: 2,320" })).toBeVisible();
 
   const [row] = await db.select().from(intakeProfiles);
-  expect(row.consentVersion).toBe(1);
+  expect(row.consentVersion).toBe(2);
 
   await page.goto("/calories/estimate");
   await expect(page.getByLabel("Birth year")).toHaveValue(birthYearAged(30));

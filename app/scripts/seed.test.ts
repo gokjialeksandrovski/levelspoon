@@ -17,7 +17,7 @@ const seedUser = async (): Promise<string> => {
 const VALID_STANDARD_FOOD: StandardFoodFixture = {
   slug: "test-row",
   name: "Test Row",
-  per100g: { energyKcal: 100, fatG: 1, saturatesG: 0.5, carbohydrateG: 10, sugarsG: 5, proteinG: 2, saltG: 0.1 },
+  per100g: { energyKcal: 100, fatG: 1, saturatesG: 0.5, carbohydrateG: 10, sugarsG: 5, proteinG: 2, saltG: 0.1, fibreG: 1 },
   servingUnit: null,
   servingGrams: null,
   densityGMl: null,
@@ -40,6 +40,16 @@ describe("seedProducts", () => {
       "Olympus Greek Yogurt 10% Fat",
       "Olympus Greek Yogurt 2% Fat",
     ]);
+  });
+
+  it("re-runs without tripping the photo-key unique index", async () => {
+    const userId = await seedUser();
+
+    await seedProducts(userId);
+    await seedProducts(userId);
+
+    const rows = await db.select().from(products).where(eq(products.createdByUserId, userId));
+    expect(rows).toHaveLength(2);
   });
 });
 
@@ -69,6 +79,7 @@ describe("seedStandardFoods", () => {
         standardCategory: "fat",
         servingUnit: "corrupted-unit",
         servingGrams: "1",
+        fibreG: null,
       })
       .where(eq(products.standardSlug, "banana"));
 
@@ -82,6 +93,7 @@ describe("seedStandardFoods", () => {
     expect(banana.standardCategory).toBe("whole");
     expect(banana.servingUnit).toBe("medium");
     expect(Number(banana.servingGrams)).toBe(118);
+    expect(Number(banana.fibreG)).toBe(2.6);
   });
 
   it("returns the same system user id on repeat calls", async () => {

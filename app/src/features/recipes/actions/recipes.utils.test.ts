@@ -9,7 +9,10 @@ import {
   divergedMeals,
   earlierMealsTickLabel,
   isValidRecipeName,
+  RECIPE_NAME_MAX_LENGTH,
+  recipeNameHint,
   kcalPerUnit,
+  recipeMatchesQuery,
   mealMatchesRecipe,
   offerableMeals,
   recipeIsSubsetOfMeal,
@@ -202,6 +205,31 @@ describe("isValidRecipeName", () => {
   it("accepts a name in any script", () => {
     expect(isValidRecipeName("Сирење и леб")).toBe(true);
   });
+
+  it("accepts a name at the limit and refuses one past it", () => {
+    expect(isValidRecipeName("a".repeat(RECIPE_NAME_MAX_LENGTH))).toBe(true);
+    expect(isValidRecipeName("a".repeat(RECIPE_NAME_MAX_LENGTH + 1))).toBe(false);
+  });
+
+  it("measures the trimmed name, so padding never tips it over", () => {
+    expect(isValidRecipeName(`  ${"a".repeat(RECIPE_NAME_MAX_LENGTH)}  `)).toBe(true);
+  });
+});
+
+describe("recipeNameHint", () => {
+  it("stays silent well under the limit", () => {
+    expect(recipeNameHint("Oats")).toBeUndefined();
+  });
+
+  it("counts once the limit is near", () => {
+    expect(recipeNameHint("a".repeat(RECIPE_NAME_MAX_LENGTH))).toBe(`${RECIPE_NAME_MAX_LENGTH} of ${RECIPE_NAME_MAX_LENGTH} characters`);
+  });
+
+  it("says why Save is off for a name already past it", () => {
+    expect(recipeNameHint("a".repeat(RECIPE_NAME_MAX_LENGTH + 5))).toBe(
+      `${RECIPE_NAME_MAX_LENGTH + 5} of ${RECIPE_NAME_MAX_LENGTH} characters. Shorten it to save.`,
+    );
+  });
 });
 
 const earlier = (mealNumber: number, matches: boolean, currentKcal = 400): EarlierMeal => ({
@@ -220,19 +248,19 @@ describe("earlier-meals copy", () => {
 
   it("states a signed kcal delta against the draft", () => {
     expect(earlierMealsTickLabel([earlier(3, true, 400)], 445)).toBe(
-      "Also update the meal you ate from it earlier today (Meal 3): +45 kcal",
+      "Also update Meal 3 from earlier today (+45 kcal)",
     );
   });
 
   it("states a negative delta with its own sign", () => {
     expect(earlierMealsTickLabel([earlier(3, true, 500)], 445)).toBe(
-      "Also update the meal you ate from it earlier today (Meal 3): −55 kcal",
+      "Also update Meal 3 from earlier today (−55 kcal)",
     );
   });
 
   it("pluralises the tick over several meals and sums their movement", () => {
     expect(earlierMealsTickLabel([earlier(1, true, 400), earlier(3, true, 400)], 445)).toBe(
-      "Also update the meals you ate from it earlier today (Meal 1, Meal 3): +90 kcal",
+      "Also update Meal 1 and Meal 3 from earlier today (+90 kcal)",
     );
   });
 
@@ -265,5 +293,23 @@ describe("divergenceLine", () => {
     expect(divergenceLine("Chicken rice bowl")).toBe(
       'This meal no longer matches "Chicken rice bowl". To update the recipe from this meal, use Edit this recipe; to keep both, save this as a new recipe.',
     );
+  });
+});
+
+describe("recipeMatchesQuery", () => {
+  it("matches every word in any order, ignoring case", () => {
+    expect(recipeMatchesQuery("Chicken rice bowl", "RICE chick")).toBe(true);
+  });
+
+  it("refuses when one word is missing", () => {
+    expect(recipeMatchesQuery("Chicken rice bowl", "rice beef")).toBe(false);
+  });
+
+  it("finds a Cyrillic name from a Latin keyboard", () => {
+    expect(recipeMatchesQuery("Сирење со домати", "sirenje")).toBe(true);
+  });
+
+  it("matches everything on a blank query", () => {
+    expect(recipeMatchesQuery("Oats", "   ")).toBe(true);
   });
 });

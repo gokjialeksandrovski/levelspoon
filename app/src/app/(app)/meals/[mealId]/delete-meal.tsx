@@ -1,5 +1,6 @@
 "use client";
 
+import { TrashIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -44,15 +45,23 @@ export const DeleteMeal = ({ mealId, mealDate }: DeleteMealProps) => {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col gap-2 border-t border-border pt-2">
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <Button
         variant="danger"
         link
+        // Full-width row, no underline: an underline marks a link inside text,
+        // and this sits alone at the foot of the page like the buttons above it.
+        className="w-full no-underline!"
         pending={isBusy}
         onClick={() => deleteMealAndNavigate(mealId, mealDate, { router, onBusyChange: setIsBusy, onError: setError })}
       >
-        Delete meal
+        {/* Link mode wraps children in one span, where preflight's block-level svg
+            would break the line - this row keeps icon and label on one line. */}
+        <span className="inline-flex items-center gap-2">
+          <TrashIcon size={18} />
+          Delete meal
+        </span>
       </Button>
     </div>
   );

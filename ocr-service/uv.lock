@@ -1306,7 +1306,7 @@ wheels = [
 ]
 
 [[package]]
-name = "per100-ocr"
+name = "levelspoon-ocr"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

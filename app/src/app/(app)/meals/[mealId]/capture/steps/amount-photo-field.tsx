@@ -8,9 +8,10 @@ import { Sheet } from "@/components/ui/sheet";
 
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
 
-// Gray line under the picker - just the accuracy note. The data-use and
-// third-party detail lives in the terms sheet, shown once before first use.
-const DISCLAIMER = "Estimates using this feature may not be accurate.";
+// Gray line under the picker: says the figure is an AI guess before the user
+// takes the photo. The data-use and third-party detail lives in the terms
+// sheet, shown once before first use.
+const DISCLAIMER = "AI guesses the grams from your photo. Estimate can be wrong.";
 
 // Verbatim legal copy - do not paraphrase.
 const CONSENT_INTRO = "By enabling this AI feature, you acknowledge and agree to the following:";

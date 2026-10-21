@@ -9,6 +9,7 @@ import { gramTargets, type MacroTargets } from "@/features/goals/actions/macro-t
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { slideTransition } from "@/lib/motion/step-transition";
+import type { FibreCoverage } from "@/lib/nutrition/totals";
 import type { NutritionValues } from "@/types/nutrition";
 
 import { DayMacros } from "./day-macros";
@@ -116,6 +117,7 @@ const useGoalSheetState = (initialGoal: number | null, initialTargets: MacroTarg
 
 interface CalorieHeroProps {
   total: NutritionValues;
+  fibreCoverage: FibreCoverage;
   initialGoal: number | null;
   initialTargets: MacroTargets | null;
 }
@@ -124,7 +126,7 @@ interface CalorieHeroProps {
 // saving in the sheet updates the hero immediately, with no full day refetch.
 // Renders DayMacros too: a share-of-kcal target needs the kcal goal to become
 // grams, and both live here.
-export const CalorieHero = ({ total, initialGoal, initialTargets }: CalorieHeroProps) => {
+export const CalorieHero = ({ total, fibreCoverage, initialGoal, initialTargets }: CalorieHeroProps) => {
   const { goal, targets, sheetOpen, openToken, openSheet, closeSheet, setGoals } = useGoalSheetState(initialGoal, initialTargets);
   const consumedKcal = total.energyKcal;
   const reduceMotion = useReducedMotion();
@@ -140,7 +142,7 @@ export const CalorieHero = ({ total, initialGoal, initialTargets }: CalorieHeroP
       {goal !== null && (
         <CalorieGoalProgress consumedKcal={consumedKcal} goal={goal} isOver={remaining.status === "over"} reduceMotion={reduceMotion} />
       )}
-      <DayMacros total={total} targets={targets === null ? null : gramTargets(targets, goal)} />
+      <DayMacros total={total} fibreCoverage={fibreCoverage} targets={targets === null ? null : gramTargets(targets, goal)} />
       <GoalSheet
         key={openToken}
         open={sheetOpen}

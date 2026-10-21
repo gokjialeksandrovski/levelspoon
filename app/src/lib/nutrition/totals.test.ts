@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ZERO_NUTRITION, addNutrition, productRowToNutritionValues } from "./totals";
+import { ZERO_NUTRITION, addNutrition, fibreCoverage, fibreText, productRowToNutritionValues } from "./totals";
 
 const withFibre = (fibreG: number | null) => ({ ...ZERO_NUTRITION, energyKcal: 10, fibreG });
 
@@ -26,5 +26,19 @@ describe("productRowToNutritionValues", () => {
     });
     expect(values.energyKcal).toBe(70);
     expect(values.fibreG).toBeNull();
+  });
+});
+
+describe("fibreText", () => {
+  it("prints a full figure with no suffix", () => {
+    expect(fibreText(18.4, fibreCoverage([withFibre(10), withFibre(8.4)]))).toBe("Fibre 18g");
+  });
+
+  it("states coverage when some ingredients lack a figure", () => {
+    expect(fibreText(4, fibreCoverage([withFibre(4), withFibre(null), { fibreG: "0" }]))).toBe("Fibre 4g (2 of 3 ingredients)");
+  });
+
+  it("prints a dash when nothing is known", () => {
+    expect(fibreText(null, fibreCoverage([withFibre(null)]))).toBe("Fibre —");
   });
 });

@@ -2,8 +2,3 @@ extend = "clean-code-ruff.toml"
 
 # The project's own settings go here and win over the extended file.
 target-version = "py312"
-
-# Generated artifacts, not project source. The graphify skill writes Python
-# query helpers into graphify-out/; linting them reports defects in code no
-# one maintains and drowns out findings in ocr-service/.
-extend-exclude = ["graphify-out"]

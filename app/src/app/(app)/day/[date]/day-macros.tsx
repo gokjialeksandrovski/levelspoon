@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useId, useState } from "react";
 
 import type { MacroValues } from "@/features/goals/actions/macro-targets.utils";
+import { fibreText, type FibreCoverage } from "@/lib/nutrition/totals";
 import type { NutritionValues } from "@/types/nutrition";
 import { FOCUS_RING } from "@/components/ui/tap-target";
 
@@ -61,9 +62,17 @@ const SegmentedRule = ({ shares, className = "" }: { shares: MacroShares; classN
 
 // Always rendered so aria-controls points at a real element in both states;
 // `hidden` also drops it from the a11y tree while collapsed.
-const ExpandedLine = ({ total, id, expanded }: { total: NutritionValues; id: string; expanded: boolean }) => (
+interface ExpandedLineProps {
+  total: NutritionValues;
+  fibreCoverage: FibreCoverage;
+  id: string;
+  expanded: boolean;
+}
+
+const ExpandedLine = ({ total, fibreCoverage, id, expanded }: ExpandedLineProps) => (
   <p id={id} className={`mt-1 text-sm tabular-nums text-text-muted ${expanded ? "" : "hidden"}`}>
-    Sugars {round(total.sugarsG)}g · Saturates {round(total.saturatesG)}g · Salt {total.saltG.toFixed(1)}g
+    Sugars {round(total.sugarsG)}g · Saturates {round(total.saturatesG)}g · Salt {total.saltG.toFixed(1)}g ·{" "}
+    {fibreText(total.fibreG, fibreCoverage)}
   </p>
 );
 
@@ -162,21 +171,26 @@ const useExpandable = () => {
 
 // Targets show on an empty day too - they are the plan, the same way the kcal
 // bar shows at zero.
-const TargetMacros = ({ total, targets }: { total: NutritionValues; targets: MacroValues }) => {
+interface DayMacrosProps {
+  total: NutritionValues;
+  fibreCoverage: FibreCoverage;
+}
+
+const TargetMacros = ({ total, fibreCoverage, targets }: DayMacrosProps & { targets: MacroValues }) => {
   const toggle = useExpandable();
   return (
     <div className="mt-4">
       <MacroToggle {...toggle} className="grid w-full grid-cols-[1fr_1fr_1fr_auto] items-start gap-3">
         <TargetColumns total={total} targets={targets} />
       </MacroToggle>
-      <ExpandedLine total={total} id={toggle.detailsId} expanded={toggle.expanded} />
+      <ExpandedLine total={total} fibreCoverage={fibreCoverage} id={toggle.detailsId} expanded={toggle.expanded} />
     </div>
   );
 };
 
 // No targets and no meals: collapse entirely rather than render a zero-width
 // bar (spec §4.2).
-const CompositionMacros = ({ total }: { total: NutritionValues }) => {
+const CompositionMacros = ({ total, fibreCoverage }: DayMacrosProps) => {
   const toggle = useExpandable();
   const shares = macroGramShares(total);
 
@@ -190,11 +204,15 @@ const CompositionMacros = ({ total }: { total: NutritionValues }) => {
         <CompositionFigures total={total} shares={shares} />
       </MacroToggle>
       <SegmentedRule shares={shares} className="mt-2" />
-      <ExpandedLine total={total} id={toggle.detailsId} expanded={toggle.expanded} />
+      <ExpandedLine total={total} fibreCoverage={fibreCoverage} id={toggle.detailsId} expanded={toggle.expanded} />
     </div>
   );
 };
 
 // targets are grams per macro, already worked out from any share of kcal.
-export const DayMacros = ({ total, targets }: { total: NutritionValues; targets: MacroValues | null }) =>
-  targets === null ? <CompositionMacros total={total} /> : <TargetMacros total={total} targets={targets} />;
+export const DayMacros = ({ total, fibreCoverage, targets }: DayMacrosProps & { targets: MacroValues | null }) =>
+  targets === null ? (
+    <CompositionMacros total={total} fibreCoverage={fibreCoverage} />
+  ) : (
+    <TargetMacros total={total} fibreCoverage={fibreCoverage} targets={targets} />
+  );

@@ -15,7 +15,7 @@ test("empty today and empty past day show distinct copy", async ({ page }) => {
   await signUp(page);
 
   await page.goto(`/day/${localToday()}`);
-  await expect(page.getByText(/a clean page for today/i)).toBeVisible();
+  await expect(page.getByText(/log what you eat/i)).toBeVisible();
 
   await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
   await expect(page.getByText(/nothing was logged/i)).toBeVisible();
@@ -111,7 +111,7 @@ test("a meal started on yesterday is logged against yesterday, not today", async
   await expect(page.getByRole("link", { name: /140/ })).toBeVisible();
 
   await page.goto(`/day/${localToday()}`);
-  await expect(page.getByText(/a clean page for today/i)).toBeVisible();
+  await expect(page.getByText(/log what you eat/i)).toBeVisible();
 });
 
 test("home redirects to today", async ({ page }) => {

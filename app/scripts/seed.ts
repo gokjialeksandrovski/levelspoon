@@ -8,7 +8,7 @@ import { toSearchText } from "../src/lib/db/search-text";
 import { products, users, weightEntries, weightGoals } from "../src/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "../src/lib/date/day-bounds";
 
-const SEED_USER_EMAIL = "seed-user@per100.local";
+const SEED_USER_EMAIL = "seed-user@levelspoon.local";
 
 // The deliberate variant pair tier-2's own matchProduct test seeds
 // independently for isolation - this is for interactive local dev only,
@@ -63,7 +63,7 @@ export const seedProducts = async (seedUserId: string): Promise<void> => {
       nameSearch: toSearchText(product.name),
       createdByUserId: seedUserId,
     })),
-  );
+  ).onConflictDoNothing();
 };
 
 // A seeded goal with two readings, so the day view's weight row has a rail to
@@ -77,7 +77,7 @@ const SEED_CHECKIN_INTERVAL_DAYS = 7;
 export const seedWeightGoal = async (seedUserId: string): Promise<void> => {
   const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const startDate = addCalendarDays(today, GOAL_START_DAYS_AGO);
-  await db.insert(weightGoals).values({
+  const insertedGoals = await db.insert(weightGoals).values({
     userId: seedUserId,
     mode: "target",
     startWeightKg: "84.8",
@@ -85,19 +85,24 @@ export const seedWeightGoal = async (seedUserId: string): Promise<void> => {
     targetWeightKg: "72.0",
     rateKgPerWeek: "0.50",
     checkinIntervalDays: SEED_CHECKIN_INTERVAL_DAYS,
-  });
+  }).onConflictDoNothing().returning();
+  // Readings are dated relative to today, so a re-run on a later day would
+  // add a second pair beside the first one.
+  if (insertedGoals.length === 0) {
+    return;
+  }
   await db.insert(weightEntries).values([
     { userId: seedUserId, measuredOn: startDate, weightKg: "84.8" },
     { userId: seedUserId, measuredOn: addCalendarDays(today, LAST_READING_DAYS_AGO), weightKg: "78.7" },
   ]);
 };
 
-export const SYSTEM_USER_EMAIL = "system@per100.local";
+export const SYSTEM_USER_EMAIL = "system@levelspoon.local";
 
 const STANDARD_FOODS_PATH = new URL("../../fixtures/standard-foods.json", import.meta.url);
 
 const PER_100G_KEYS = [
-  "energyKcal", "fatG", "saturatesG", "carbohydrateG", "sugarsG", "proteinG", "saltG",
+  "energyKcal", "fatG", "saturatesG", "carbohydrateG", "sugarsG", "proteinG", "saltG", "fibreG",
 ] as const;
 
 export interface StandardFoodFixture {
@@ -200,6 +205,7 @@ const per100gColumns = (per100g: StandardFoodFixture["per100g"]) => ({
   sugarsG: String(per100g.sugarsG),
   proteinG: String(per100g.proteinG),
   saltG: String(per100g.saltG),
+  fibreG: String(per100g.fibreG),
 });
 
 const toStandardInsert = (systemUserId: string) => (row: StandardFoodFixture) => ({
@@ -230,6 +236,7 @@ const STANDARD_RESEED_SET = {
   sugarsG: sql`excluded.sugars_g`,
   proteinG: sql`excluded.protein_g`,
   saltG: sql`excluded.salt_g`,
+  fibreG: sql`excluded.fibre_g`,
   servingUnit: sql`excluded.serving_unit`,
   servingGrams: sql`excluded.serving_grams`,
   densityGMl: sql`excluded.density_g_ml`,
@@ -242,7 +249,7 @@ export const findOrCreateSystemUser = async (): Promise<string> => {
   }
   const [created] = await db
     .insert(users)
-    .values({ email: SYSTEM_USER_EMAIL, name: "Per100 System" })
+    .values({ email: SYSTEM_USER_EMAIL, name: "levelspoon System" })
     .returning();
   return created.id;
 };

@@ -1,4 +1,4 @@
-from per100_ocr.boxes import Box, OcrResult, cluster_columns
+from levelspoon_ocr.boxes import Box, OcrResult, cluster_columns
 
 
 def test_box_is_immutable():

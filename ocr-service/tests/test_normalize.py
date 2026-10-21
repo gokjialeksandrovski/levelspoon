@@ -1,7 +1,7 @@
 import pytest
 
-from per100_ocr.boxes import Box
-from per100_ocr.nutrition.normalize import NormalizationError, split_energy_row, to_grams
+from levelspoon_ocr.boxes import Box
+from levelspoon_ocr.nutrition.normalize import NormalizationError, split_energy_row, to_grams
 
 
 @pytest.mark.parametrize(

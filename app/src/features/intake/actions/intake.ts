@@ -35,6 +35,8 @@ import {
 
 // numeric(4,1) / numeric(3,1).
 const ONE_DECIMAL = 1;
+// numeric(4,2).
+const TWO_DECIMALS = 2;
 
 export interface IntakePrefill {
   unit: WeightUnit;
@@ -80,6 +82,9 @@ const toProfile = (row: ProfileRow): IntakeProfile => ({
   pregnantOrBreastfeeding: row.pregnantOrBreastfeeding,
   metabolismCondition: row.metabolismCondition,
   metabolismAdjustPct: row.metabolismAdjustPct,
+  currentIntakeKcal: row.currentIntakeKcal,
+  weightTrend: row.weightTrend,
+  weightTrendKgPerWeek: row.weightTrendKgPerWeek === null ? null : Number(row.weightTrendKgPerWeek),
 });
 
 // Picks the stored answers out of the save input by name: the input also
@@ -100,6 +105,10 @@ const toProfileRow = (userId: string, input: IntakeSaveInput) => ({
   pregnantOrBreastfeeding: input.pregnantOrBreastfeeding,
   metabolismCondition: input.metabolismCondition,
   metabolismAdjustPct: input.metabolismAdjustPct,
+  currentIntakeKcal: input.currentIntakeKcal,
+  weightTrend: input.weightTrend,
+  weightTrendKgPerWeek:
+    input.weightTrendKgPerWeek === null ? null : input.weightTrendKgPerWeek.toFixed(TWO_DECIMALS),
   // Re-stamped on every consented save: each one is the user ticking the box
   // again against the wording on screen.
   consentedAt: new Date(),

@@ -35,6 +35,9 @@ const base: IntakeInput = {
   pregnantOrBreastfeeding: false,
   metabolismCondition: false,
   metabolismAdjustPct: null,
+  currentIntakeKcal: null,
+  weightTrend: null,
+  weightTrendKgPerWeek: null,
 };
 
 const ready = (input: IntakeInput): IntakeReady => {
@@ -317,5 +320,82 @@ describe("estimateIntake - measured burn", () => {
     expect(estimate.floorKcal).toBeCloseTo(estimate.bmrKcal, 6);
     expect(estimate.pointKcal).toBe(estimate.floorKcal);
     expect(estimate.isFloored).toBe(true);
+  });
+});
+
+// Base BMR is 1780 (10·80 + 6.25·180 − 5·30 + 5). Maintain, so no pace moves
+// the point away from maintenance.
+describe("estimateIntake - reported intake", () => {
+  const maintain: IntakeInput = { ...base, primaryGoal: "maintain" };
+  const reported = (patch: Partial<IntakeInput>): IntakeReady => {
+    const estimate = estimateIntake({ ...maintain, ...patch }, CURRENT_YEAR);
+    if (estimate.kind !== "ready") throw new Error("expected a ready estimate");
+    return estimate;
+  };
+
+  it("takes a steady intake as maintenance, with its own 15% band", () => {
+    const estimate = reported({ currentIntakeKcal: 2400, weightTrend: "steady" });
+    expect(estimate.isReported).toBe(true);
+    expect(estimate.maintenanceKcal).toBe(2400);
+    expect(estimate.highKcal).toBe(2400 + 360);
+    expect(estimate.lowKcal).toBe(2400 - 360);
+  });
+
+  it("adds the energy a loss stands for: 0.5 kg/week is 550 kcal a day", () => {
+    const estimate = reported({ currentIntakeKcal: 2000, weightTrend: "down", weightTrendKgPerWeek: 0.5 });
+    expect(estimate.maintenanceKcal).toBe(2550);
+  });
+
+  it("subtracts the energy a gain stands for", () => {
+    const estimate = reported({ currentIntakeKcal: 3000, weightTrend: "up", weightTrendKgPerWeek: 0.5 });
+    expect(estimate.maintenanceKcal).toBe(2450);
+  });
+
+  it("refuses a reported maintenance below BMR and keeps the formula, saying why", () => {
+    const estimate = reported({ currentIntakeKcal: 1500, weightTrend: "steady" });
+    expect(estimate.isReported).toBe(false);
+    expect(estimate.maintenanceKcal).toBe(estimate.formulaMaintenanceKcal);
+    expect(estimate.reported?.maintenanceKcal).toBe(1500);
+  });
+
+  it("lets a measured burn win over a typed intake", () => {
+    const measured = { kind: "measured" as const, kcal: 2600, sigma: 90, windowDays: 28, loggedDays: 28 };
+    const estimate = estimateIntake(
+      { ...maintain, currentIntakeKcal: 2400, weightTrend: "steady" },
+      CURRENT_YEAR,
+      measured,
+    );
+    if (estimate.kind !== "ready") throw new Error("expected a ready estimate");
+    expect(estimate.isMeasured).toBe(true);
+    expect(estimate.isReported).toBe(false);
+    expect(estimate.maintenanceKcal).toBe(2600);
+  });
+
+  it("leaves the formula alone when no intake is typed", () => {
+    const estimate = reported({});
+    expect(estimate.isReported).toBe(false);
+    expect(estimate.reported).toBeNull();
+  });
+});
+
+describe("intakeInputError - reported intake", () => {
+  const error = (patch: Partial<IntakeInput>) => intakeInputError({ ...base, ...patch }, CURRENT_YEAR);
+
+  it("accepts a steady intake with no rate", () => {
+    expect(error({ currentIntakeKcal: 2400, weightTrend: "steady" })).toBeNull();
+  });
+
+  it("names the intake for a figure past the typing guards", () => {
+    expect(error({ currentIntakeKcal: 400, weightTrend: "steady" })).toBe("current_intake");
+    expect(error({ currentIntakeKcal: 10001, weightTrend: "steady" })).toBe("current_intake");
+  });
+
+  it("names the trend for a moving trend with no rate, or a steady one with a rate", () => {
+    expect(error({ currentIntakeKcal: 2400, weightTrend: "down" })).toBe("weight_trend");
+    expect(error({ currentIntakeKcal: 2400, weightTrend: "steady", weightTrendKgPerWeek: 0.5 })).toBe("weight_trend");
+  });
+
+  it("refuses a trend with no intake to describe", () => {
+    expect(error({ weightTrend: "steady" })).toBe("current_intake");
   });
 });

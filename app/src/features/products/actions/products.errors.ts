@@ -34,7 +34,7 @@ export class LabelPhotoAlreadyUsedError extends Error {
   }
 }
 
-/** The row per100 already holds for this product. Carried rather than just
+/** The row levelspoon already holds for this product. Carried rather than just
  * named, because the only useful next step is logging that product instead of
  * filing a second one for it.
  *

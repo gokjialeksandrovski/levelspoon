@@ -1,9 +1,9 @@
 import pytest
 
-from per100_ocr.boxes import Box, OcrResult
-from per100_ocr.nutrition.normalize import NormalizationError
-from per100_ocr.nutrition.us_label import is_us_label, read_us_label
-from per100_ocr.nutrition.validate import validate
+from levelspoon_ocr.boxes import Box, OcrResult
+from levelspoon_ocr.nutrition.normalize import NormalizationError
+from levelspoon_ocr.nutrition.us_label import is_us_label, read_us_label
+from levelspoon_ocr.nutrition.validate import validate
 
 
 def _box(text: str, y: float, x: float = 100.0) -> Box:

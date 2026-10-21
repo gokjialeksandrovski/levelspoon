@@ -15,7 +15,7 @@ import {
   applyButtonText,
   CONDITION_DISCLAIMER_TEXT,
   detailLines,
-  DISCLAIMER_TEXT,
+  disclaimerText,
   incompleteText,
   INVALID_BAR_TEXT,
   noticeLines,
@@ -66,7 +66,7 @@ const ReadyBody = ({ estimate, measured, unit, today, hasCondition, isSaving, on
       <Button variant="primary" className="w-full" pending={isSaving} onClick={onUse}>
         {applyButtonText(estimate)}
       </Button>
-      <p className="text-xs text-text-muted">{DISCLAIMER_TEXT}</p>
+      <p className="text-xs text-text-muted">{disclaimerText(estimate)}</p>
       {hasCondition && <p className="text-xs text-text-muted">{CONDITION_DISCLAIMER_TEXT}</p>}
       <Disclosure label="Details">
         <div className="flex flex-col gap-1 pt-1 text-xs tabular-nums text-text-muted">

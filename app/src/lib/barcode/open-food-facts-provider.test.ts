@@ -42,7 +42,7 @@ describe("OpenFoodFactsProvider.lookup", () => {
       },
     });
     const [, requestInit] = fetchMock.mock.calls[0];
-    expect((requestInit.headers as Record<string, string>)["User-Agent"]).toMatch(/^per100\//);
+    expect((requestInit.headers as Record<string, string>)["User-Agent"]).toMatch(/^levelspoon\//);
   });
 
   it("maps a liquid's serving_quantity_unit to a ml basis unit when product_quantity_unit is absent", async () => {

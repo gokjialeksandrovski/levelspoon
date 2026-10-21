@@ -13,10 +13,12 @@ import {
   type IntakeProfile,
   type IntakeReady,
   type IntakeSex,
+  type ReportedIntake,
   type PrimaryGoal,
   type RefusalReason,
   type TrainingStyle,
   type TrainingYears,
+  type WeightTrend,
 } from "@/features/intake/actions/intake.utils";
 import { MAX_WINDOW_DAYS, type MeasuredBurn } from "@/features/intake/actions/measured-burn.utils";
 import {
@@ -62,6 +64,10 @@ export interface IntakeDraft {
   metabolismCondition: boolean;
   metabolismDirection: MetabolismDirection;
   metabolismPctDraft: string;
+  currentIntakeDraft: string;
+  weightTrend: WeightTrend;
+  /** In the unit on screen, per week. Down or up only. */
+  weightTrendRateDraft: string;
   saveAnswers: boolean;
 }
 
@@ -127,7 +133,7 @@ const textOf = (value: number | null): string =>
 
 type ProfileDrafts = Omit<
   IntakeDraft,
-  "unit" | "weightDraft" | "goalWeightDraft" | "paceDraft" | "bandDraft" | "recomp"
+  "unit" | "weightDraft" | "goalWeightDraft" | "paceDraft" | "bandDraft" | "recomp" | "weightTrendRateDraft"
 >;
 
 const EMPTY_PROFILE_DRAFTS: ProfileDrafts = {
@@ -148,6 +154,10 @@ const EMPTY_PROFILE_DRAFTS: ProfileDrafts = {
   metabolismCondition: false,
   metabolismDirection: "down",
   metabolismPctDraft: "",
+  currentIntakeDraft: "",
+  // Steady first: the answer that needs no second figure, and the one most
+  // people who know their intake are giving.
+  weightTrend: "steady",
   saveAnswers: false,
 };
 
@@ -187,6 +197,8 @@ const profileDrafts = (
     metabolismCondition: profile.metabolismCondition,
     metabolismDirection: pct !== null && pct > 0 ? "up" : "down",
     metabolismPctDraft: pct === null ? "" : String(Math.abs(pct)),
+    currentIntakeDraft: textOf(profile.currentIntakeKcal),
+    weightTrend: profile.weightTrend ?? "steady",
     // A stored row exists only because the box was ticked; it renders ticked.
     saveAnswers: true,
   };
@@ -212,6 +224,7 @@ export const initialDraft = (prefill: IntakePrefill): IntakeDraft => ({
   paceDraft: paceText(prefill.targetGoal?.rateKgPerWeek ?? null, prefill.unit),
   bandDraft: bandDraftOf(prefill),
   recomp: prefill.holdGoal?.recomp ?? false,
+  weightTrendRateDraft: paceText(prefill.profile?.weightTrendKgPerWeek ?? null, prefill.unit),
 });
 
 // Flipping the unit re-expresses what is typed rather than clearing it: a
@@ -250,6 +263,7 @@ export const convertUnit = (
   weightDraft: reexpressWeight(draft.weightDraft, draft.unit, unit),
   goalWeightDraft: reexpressWeight(draft.goalWeightDraft, draft.unit, unit),
   paceDraft: reexpressPace(draft.paceDraft, draft.unit, unit),
+  weightTrendRateDraft: reexpressPace(draft.weightTrendRateDraft, draft.unit, unit),
   bandDraft:
     convertedPreset(draft.bandDraft, bandPresets, draft.unit, unit) ??
     reexpressPace(draft.bandDraft, draft.unit, unit),
@@ -289,6 +303,24 @@ const metabolismOf = (draft: IntakeDraft): number | null => {
   return draft.metabolismDirection === "up" ? pct : -pct;
 };
 
+export const trendHasRate = (trend: WeightTrend): boolean => trend !== "steady";
+
+// An empty intake sends no trend and no rate: the trend answers "what did
+// your weight do on that", and there is no "that" to answer about. A moving
+// trend with no rate is sent as NaN, not null, so validation names the field
+// rather than the estimate quietly falling back to the formula.
+const reportedIntakeOf = (draft: IntakeDraft) => {
+  const kcal = optionalNumber(draft.currentIntakeDraft);
+  if (kcal === null) return { currentIntakeKcal: null, weightTrend: null, weightTrendKgPerWeek: null };
+  return {
+    currentIntakeKcal: kcal,
+    weightTrend: draft.weightTrend,
+    weightTrendKgPerWeek: trendHasRate(draft.weightTrend)
+      ? draftToRangedKg(draft.weightTrendRateDraft, draft.unit)
+      : null,
+  };
+};
+
 // 0 and empty both mean "no hold goal".
 const bandOf = (draft: IntakeDraft): number | null => {
   const bandKg = optionalNumber(draft.bandDraft);
@@ -322,6 +354,7 @@ const optionalFieldsOf = (draft: IntakeDraft, sex: IntakeSex) => ({
   pregnantOrBreastfeeding: sex !== "male" && draft.pregnantOrBreastfeeding,
   metabolismCondition: draft.metabolismCondition,
   metabolismAdjustPct: metabolismOf(draft),
+  ...reportedIntakeOf(draft),
 });
 
 export const draftToInput = (draft: IntakeDraft): IntakeSaveInput | null => {
@@ -374,7 +407,8 @@ export const hasSharpenAnswers = (draft: IntakeDraft): boolean =>
   draft.strengthDaysDraft !== "" ||
   draft.trainingYears !== null ||
   draft.pregnantOrBreastfeeding ||
-  draft.metabolismCondition;
+  draft.metabolismCondition ||
+  draft.currentIntakeDraft !== "";
 
 // en-GB, not the browser default, so a figure reads the same in every test
 // run and on every device ("2,320", never "2.320").
@@ -417,6 +451,19 @@ export const REFUSAL_TEXT: Record<RefusalReason, string> = {
 export const DISCLAIMER_TEXT =
   "An estimate from published formulas, not medical advice. Real needs can differ by 10% or more. Log your meals and weight for a few weeks and the app will work out your real calorie burn from them.";
 
+// Each source gets a disclaimer that is true of it: "published formulas" is
+// false once a typed intake or the user's own logs produced the figure.
+export const REPORTED_DISCLAIMER_TEXT =
+  "An estimate from the intake you typed, not medical advice. People often underestimate what they eat, so real needs can differ by 15% or more. Log your meals and weight for a few weeks and the app will work out your real calorie burn from them.";
+
+export const MEASURED_DISCLAIMER_TEXT =
+  "An estimate from your own logged meals and weigh-ins, not medical advice. It updates as you keep logging.";
+
+export const disclaimerText = (estimate: IntakeReady): string => {
+  if (estimate.isMeasured) return MEASURED_DISCLAIMER_TEXT;
+  return estimate.isReported ? REPORTED_DISCLAIMER_TEXT : DISCLAIMER_TEXT;
+};
+
 export const CONDITION_DISCLAIMER_TEXT =
   "With a condition that affects metabolism, check this figure with your doctor.";
 
@@ -432,6 +479,8 @@ const FIELD_TEXT: Record<Exclude<IntakeField, "goal_direction">, string> = {
   strength_days: "Enter 0 to 7 days.",
   tracking_period: "Enter 1 to 365 days, or leave it empty.",
   metabolism: "Enter a figure from 1 to 30%, or leave it empty.",
+  current_intake: "Enter a daily figure from 500 to 10,000 kcal, or leave it empty.",
+  weight_trend: "Enter about how much a week, or pick Steady.",
 };
 
 export const fieldText = (
@@ -473,15 +522,40 @@ const bodyLine = (estimate: IntakeReady, unit: WeightUnit): string => {
   return `${bmi} · lean mass ${displayWeight(estimate.leanMassKg, unit)} ${unit} · FFMI ${roundToTenth(estimate.ffmi)}`;
 };
 
-// The measured path replaces the BMR line rather than sitting beside it: BMR
-// is still computed for the floor, but it is not what produced this figure,
-// and two maintenance lines would read as two answers.
-const maintenanceLines = (estimate: IntakeReady, measured: MeasuredBurn | null): string[] => {
+const TREND_TEXT: Record<WeightTrend, string> = {
+  steady: "with your weight steady",
+  down: "while losing",
+  up: "while gaining",
+};
+
+const trendText = (reported: ReportedIntake, unit: WeightUnit): string =>
+  reported.kgPerWeek === null
+    ? TREND_TEXT[reported.trend]
+    : `${TREND_TEXT[reported.trend]} ${paceText(reported.kgPerWeek, unit)} ${unit}/week`;
+
+// Said when an intake was typed and not used, so the figure never changes
+// nothing without a reason on screen.
+const unusedReportedLine = (estimate: IntakeReady): string | null => {
+  if (estimate.reported === null || estimate.isReported) return null;
+  return estimate.isMeasured
+    ? "Your logged meals and weigh-ins are used instead of the intake you typed."
+    : "The intake you typed works out below your BMR, so the formula is used instead.";
+};
+
+// A measured or reported figure replaces the BMR line rather than sitting
+// beside it: BMR is still computed for the floor, but it is not what produced
+// this figure, and two maintenance lines would read as two answers.
+const sourceLines = (estimate: IntakeReady, unit: WeightUnit, measured: MeasuredBurn | null): string[] => {
+  const formulaSaid = `Formula said ${kcalText(estimate.formulaMaintenanceKcal)}.`;
+  const maintenance = `Maintenance ${kcalText(estimate.maintenanceKcal)} kcal`;
   if (measured?.kind === "measured" && estimate.isMeasured) {
+    return [maintenance, `from ${measured.loggedDays} logged days of the last ${measured.windowDays}`, formulaSaid];
+  }
+  if (estimate.isReported && estimate.reported !== null) {
     return [
-      `Maintenance ${kcalText(estimate.maintenanceKcal)} kcal`,
-      `from ${measured.loggedDays} logged days of the last ${measured.windowDays}`,
-      `Formula said ${kcalText(estimate.formulaMaintenanceKcal)}.`,
+      maintenance,
+      `from the ${kcalText(estimate.reported.intakeKcal)} kcal a day you eat now, ${trendText(estimate.reported, unit)}`,
+      formulaSaid,
     ];
   }
   const formulaLine = `BMR ${kcalText(estimate.bmrKcal)} kcal · maintenance ${kcalText(estimate.maintenanceKcal)} kcal`;
@@ -498,7 +572,12 @@ export const detailLines = (
   unit: WeightUnit,
   measured: MeasuredBurn | null,
 ): string[] =>
-  [...maintenanceLines(estimate, measured), paceLine(estimate, unit), bodyLine(estimate, unit)].filter(isLine);
+  [
+    ...sourceLines(estimate, unit, measured),
+    unusedReportedLine(estimate),
+    paceLine(estimate, unit),
+    bodyLine(estimate, unit),
+  ].filter(isLine);
 
 const weeksText = (weeks: number): string =>
   weeks === 1 ? "1 week" : `${weeks} weeks`;

@@ -11,12 +11,16 @@ export const primaryGoalEnum = pgEnum("primary_goal", ["lose_fat", "maintain", "
 export const bodyFatSourceEnum = pgEnum("body_fat_source", ["typed", "visual"]);
 export const trainingStyleEnum = pgEnum("training_style", ["sedentary", "cardio", "strength", "mixed"]);
 export const trainingYearsEnum = pgEnum("training_years", ["none", "under_1", "1_to_3", "over_3"]);
+export const weightTrendEnum = pgEnum("weight_trend", ["steady", "down", "up"]);
 
 // 999.9 cm and 99.9%: one decimal is what a tape or a caliper reads, and the
 // app's own ranges (100-250 cm, 3-60%) sit well inside both.
 const HEIGHT_PRECISION = 4;
 const BODY_FAT_PRECISION = 3;
 const ONE_DECIMAL = 1;
+// numeric(4,2), the same shape as weight_goals' rate: a trend is a pace.
+const TREND_RATE_PRECISION = 4;
+const TWO_DECIMALS = 2;
 
 // The user's answers, stored only with explicit consent (GDPR Art. 9 - spec
 // §13). Current weight, goal weight and pace are not here: the weight
@@ -47,6 +51,12 @@ export const intakeProfiles = pgTable(
     // Signed percent: + the condition raised metabolism, - lowered it. Which
     // condition is never asked and never stored (spec §5).
     metabolismAdjustPct: smallint("metabolism_adjust_pct"),
+    // What the user says they eat a day now, and what their weight did on it.
+    // A trend is what turns an intake into a maintenance figure, so the two
+    // are stored together or not at all.
+    currentIntakeKcal: smallint("current_intake_kcal"),
+    weightTrend: weightTrendEnum("weight_trend"),
+    weightTrendKgPerWeek: numeric("weight_trend_kg_per_week", { precision: TREND_RATE_PRECISION, scale: TWO_DECIMALS }),
     // GDPR Art. 7(1): consent has to be demonstrable, and a later change of
     // wording has to be told apart from the text this user agreed to.
     consentedAt: timestamp("consented_at").notNull(),
@@ -68,6 +78,21 @@ export const intakeProfiles = pgTable(
     check(
       "intake_tracking_period",
       sql`${table.trackingPeriodDays} IS NULL OR ${table.trackingPeriodDays} BETWEEN 1 AND 365`,
+    ),
+    // Mirrors MIN/MAX_REPORTED_INTAKE_KCAL in intake.utils.ts.
+    check(
+      "intake_current_intake",
+      sql`${table.currentIntakeKcal} IS NULL OR ${table.currentIntakeKcal} BETWEEN 500 AND 10000`,
+    ),
+    check(
+      "intake_weight_trend_pair",
+      sql`(${table.currentIntakeKcal} IS NULL) = (${table.weightTrend} IS NULL)`,
+    ),
+    // A rate exactly when the trend moves: steady has no speed, and a moving
+    // trend without one cannot become a maintenance figure.
+    check(
+      "intake_weight_trend_rate",
+      sql`(${table.weightTrendKgPerWeek} IS NOT NULL) = (${table.weightTrend} IS NOT NULL AND ${table.weightTrend} <> 'steady')`,
     ),
     check(
       "intake_strength_days",

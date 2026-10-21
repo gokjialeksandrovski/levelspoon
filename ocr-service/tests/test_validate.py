@@ -1,6 +1,6 @@
 import dataclasses
 
-from per100_ocr.nutrition.validate import NutritionValues, validate
+from levelspoon_ocr.nutrition.validate import NutritionValues, validate
 
 GOLDEN = NutritionValues(
     energy_kcal=70.0, fat_g=2.0, saturates_g=1.2,

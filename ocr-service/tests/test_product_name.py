@@ -1,5 +1,5 @@
-from per100_ocr.boxes import Box, OcrResult
-from per100_ocr.product_name import extract_net_weight_text, extract_product_name
+from levelspoon_ocr.boxes import Box, OcrResult
+from levelspoon_ocr.product_name import extract_net_weight_text, extract_product_name
 
 
 def _result(*boxes: Box) -> OcrResult:

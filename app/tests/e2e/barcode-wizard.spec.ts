@@ -45,7 +45,7 @@ test("a barcode neither source has falls through to the normal flow and surfaces
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
 
   // Falls back to the ordinary chooser - same step, nothing attached yet.
-  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a product to a meal" })).toBeVisible();
 
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
@@ -116,7 +116,7 @@ test("a restricted-circulation code shows an inline message and leaves the entry
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/restricted-barcode.png");
 
   await expect(page.getByText(/not a product barcode/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Add a product" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add a product to a meal" })).toBeVisible();
   // The row the message names is right there, not one back-navigation away.
   await expect(page.getByLabel("Product photo")).toBeAttached();
 });

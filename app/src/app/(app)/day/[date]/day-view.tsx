@@ -147,7 +147,7 @@ interface DayViewReadyProps {
 
 const DayViewReady = ({ log, isToday, deleted }: DayViewReadyProps) => (
   <>
-    <CalorieHero total={log.dayTotal} initialGoal={log.calorieGoal} initialTargets={log.macroTargets} />
+    <CalorieHero total={log.dayTotal} fibreCoverage={log.dayFibreCoverage} initialGoal={log.calorieGoal} initialTargets={log.macroTargets} />
     {/* Today only, and outside DayMacros' zero-macro early return: a weight
         goal is about weeks and does not disappear on a day with no meals. */}
     {isToday && <WeightRow initialView={log.weight} today={todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone)} />}

@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition, listStaggerVariants } from "@/lib/motion/step-transition";
 import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
+import { fibreCoverage, fibreText } from "@/lib/nutrition/totals";
 
 import { CookingFatControl } from "./cooking-fat-control";
 import { DeleteMeal } from "./delete-meal";
@@ -157,11 +158,12 @@ const IngredientList = ({ entries, removals, onIngredientChanged }: IngredientLi
   );
 };
 
-// The three EU-label fields the app already computes but doesn't surface at
+// The EU-label fields the app already computes but doesn't surface at
 // meal level (energy/fat/carb/protein cover the rest via MacroLine above).
 // Salt gets a fixed 1 decimal - most real foods sit under 1g, where
 // Math.round would read as "0g" for everything.
-const NutritionDetail = ({ total }: { total: MealDetailData["total"] }) => {
+const NutritionDetail = ({ meal }: { meal: MealDetailData }) => {
+  const { total } = meal;
   const reduceMotion = useReducedMotion();
 
   return (
@@ -171,6 +173,8 @@ const NutritionDetail = ({ total }: { total: MealDetailData["total"] }) => {
       Sugars <SettleNumber value={Math.round(total.sugarsG)} reduceMotion={reduceMotion} />g
       {" · "}
       Salt <SettleNumber value={total.saltG.toFixed(1)} reduceMotion={reduceMotion} />g
+      {" · "}
+      {fibreText(total.fibreG, fibreCoverage(meal.ingredients.map((ingredient) => ingredient.contribution)))}
     </p>
   );
 };
@@ -191,7 +195,8 @@ const DayRemainingBracket = ({ remaining }: { remaining: CalorieRemaining }) => 
 
 // border-t-2 (double the divide-y hairline between ingredient rows) plus
 // extra top margin marks this as a summary, not one more ingredient row.
-const MealTotal = ({ total, dayCalorieRemaining }: { total: MealDetailData["total"]; dayCalorieRemaining: CalorieRemaining }) => {
+const MealTotal = ({ meal }: { meal: MealDetailData }) => {
+  const { total, dayCalorieRemaining } = meal;
   const reduceMotion = useReducedMotion();
 
   return (
@@ -205,8 +210,8 @@ const MealTotal = ({ total, dayCalorieRemaining }: { total: MealDetailData["tota
       </p>
       <MacroLine contribution={total} size="sm" animate />
       <div className="mt-1">
-        <Disclosure label="Saturates, sugars & salt">
-          <NutritionDetail total={total} />
+        <Disclosure label="Saturates, sugars, salt & fibre">
+          <NutritionDetail meal={meal} />
         </Disclosure>
       </div>
     </div>
@@ -263,7 +268,7 @@ const IngredientsSection = ({ meal, removals, onIngredientChanged }: Ingredients
   return (
     <>
       <IngredientList entries={entries} removals={removals} onIngredientChanged={onIngredientChanged} />
-      {meal.ingredients.length > 0 && <MealTotal total={meal.total} dayCalorieRemaining={meal.dayCalorieRemaining} />}
+      {meal.ingredients.length > 0 && <MealTotal meal={meal} />}
     </>
   );
 };
@@ -278,10 +283,10 @@ interface MealActionsProps {
 }
 
 // Two adding actions sit together; deleting the meal is a different kind of
-// act and gets a gap wide enough that a thumb reaching for "Add" never finds
-// it by accident.
+// act, set apart by a hairline rather than a wide empty gap - the rule reads as
+// "end of the meal's actions" and still keeps a thumb reaching for "Add" off it.
 const MealActions = ({ mealId, mealDate, recipe, ingredients, onIngredientChanged, onAnnounce }: MealActionsProps) => (
-  <div className="mt-8 flex flex-col gap-10">
+  <div className="mt-8 flex flex-col gap-6">
     <div className="flex flex-col gap-3">
       {/*
         A plain navigation link, not an inline reveal: the capture wizard

@@ -1,27 +1,31 @@
-// One worked line of the per-100g model: the label figure, the amount eaten,
-// what that costs. Real numbers for rolled oats; 40 g of 389 kcal/100 g = 156.
-const PerHundredExample = () => (
-  <div className="flex flex-col gap-2 rounded-surface bg-surface-raised p-4 text-sm tabular-nums">
-    <p className="flex justify-between gap-3">
-      <span className="text-text">Rolled oats</span>
-      <span className="text-text-muted">389 kcal per 100 g</span>
-    </p>
-    <p className="flex justify-between gap-3">
-      <span className="text-text-muted">You had 40 g</span>
-      <span className="font-semibold text-text">156 kcal</span>
-    </p>
-  </div>
-);
+const INTRO_POINTS = [
+  {
+    term: "Pick what to track",
+    detail: "Calories, protein, carbs and fat are under Set goal. Weight has its own link above. You can track all of them, some, or none.",
+  },
+  {
+    term: "Need help with the numbers?",
+    detail: "If you're setting goals for the first time, or just want a second opinion, tap Set goal, then Work out the numbers. It asks a few questions and gives you a daily calorie range.",
+  },
+] as const;
 
-// The first screen a new user sees, so it teaches the model instead of saying
-// "nothing here". No CTA: the day view's own sticky "New meal" bar sits below.
+// The first screen a new user sees, so it says what the app is for. Shows on
+// every empty today, so it stays short enough to cost a returning user nothing.
+// No CTA: the day view's own sticky "New meal" bar sits below.
 const TodayEmptyState = () => (
   <div className="mt-10 flex flex-col gap-3">
-    <h2 className="font-display text-xl font-semibold text-text">A clean page for today</h2>
+    <h2 className="font-display text-xl font-semibold text-text">Log what you eat</h2>
     <p className="text-pretty text-text-muted">
-      Each food keeps the numbers from its label, usually per 100 g or 100 ml. Tell us how much you had and we&apos;ll do the sums.
+      You can start right away. There&apos;s no setup to get through first. Tap New meal at the bottom to add your first food.
     </p>
-    <PerHundredExample />
+    <dl className="mt-3 flex flex-col text-sm">
+      {INTRO_POINTS.map(({ term, detail }) => (
+        <div key={term} className="flex flex-col gap-1 border-t border-border py-3">
+          <dt className="font-semibold text-text">{term}</dt>
+          <dd className="text-pretty text-text-muted">{detail}</dd>
+        </div>
+      ))}
+    </dl>
   </div>
 );
 

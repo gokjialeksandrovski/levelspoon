@@ -2,10 +2,10 @@ import math
 
 import pytest
 
-from per100_ocr.boxes import Box, OcrResult
-from per100_ocr.nutrition.columns import ColumnDetectionError
-from per100_ocr.nutrition.parse import parse_nutrition
-from per100_ocr.nutrition.reading import LabelFormat
+from levelspoon_ocr.boxes import Box, OcrResult
+from levelspoon_ocr.nutrition.columns import ColumnDetectionError
+from levelspoon_ocr.nutrition.parse import parse_nutrition
+from levelspoon_ocr.nutrition.reading import LabelFormat
 
 
 def _box(text: str, y: float, x: float = 900.0) -> Box:

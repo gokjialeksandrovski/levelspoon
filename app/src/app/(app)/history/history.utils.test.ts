@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { monthLabel, recentAverage, toHistoryMonths, withUnloggedDays } from "./history.utils";
+import { monthLabel, toHistoryMonths, weekSummary, withUnloggedDays } from "./history.utils";
 
 const logged = (date: string, totalKcal = 2000) => ({ date, totalKcal });
 
@@ -67,24 +67,42 @@ describe("monthLabel", () => {
   });
 });
 
-describe("recentAverage", () => {
-  it("averages the complete logged days", () => {
-    const average = recentAverage([logged("2026-09-22", 2000), logged("2026-09-21", 1000)], "2026-09-23");
-    expect(average).toEqual({ days: 2, kcal: 1500 });
+describe("weekSummary", () => {
+  it("averages the logged days of the week before today", () => {
+    const summary = weekSummary([logged("2026-09-22", 2000), logged("2026-09-20", 1000)], "2026-09-23", true);
+    expect(summary?.loggedDays).toBe(2);
+    expect(summary?.averageKcal).toBe(1500);
+    expect(summary?.days).toHaveLength(7);
+  });
+
+  it("lists the week oldest first, blank days as null", () => {
+    const summary = weekSummary([logged("2026-09-22", 2000), logged("2026-09-20", 1000)], "2026-09-23", true);
+    expect(summary?.days.slice(-3)).toEqual([
+      { date: "2026-09-20", kcal: 1000 },
+      { date: "2026-09-21", kcal: null },
+      { date: "2026-09-22", kcal: 2000 },
+    ]);
   });
 
   // A day still being eaten is not a day's eating.
   it("leaves today out", () => {
-    const average = recentAverage([logged("2026-09-23", 200), logged("2026-09-22", 2000), logged("2026-09-21", 1000)], "2026-09-23");
-    expect(average).toEqual({ days: 2, kcal: 1500 });
+    const summary = weekSummary([logged("2026-09-23", 200), logged("2026-09-22", 2000), logged("2026-09-21", 1000)], "2026-09-23", true);
+    expect(summary?.averageKcal).toBe(1500);
+    expect(summary?.days.map((day) => day.date)).not.toContain("2026-09-23");
   });
 
   it("reads no further back than a week", () => {
     const entries = Array.from({ length: 10 }, (_, index) => logged(`2026-09-${String(22 - index).padStart(2, "0")}`, 2000));
-    expect(recentAverage(entries, "2026-09-23")?.days).toBe(7);
+    expect(weekSummary(entries, "2026-09-23", false)?.loggedDays).toBe(7);
+  });
+
+  // Days before the first log were not missed; the app was not in use yet.
+  it("starts at the first day ever logged", () => {
+    const summary = weekSummary([logged("2026-09-22"), logged("2026-09-20")], "2026-09-23", false);
+    expect(summary?.days.map((day) => day.date)).toEqual(["2026-09-20", "2026-09-21", "2026-09-22"]);
   });
 
   it("refuses to call a single day an average", () => {
-    expect(recentAverage([logged("2026-09-22")], "2026-09-23")).toBeNull();
+    expect(weekSummary([logged("2026-09-22")], "2026-09-23", true)).toBeNull();
   });
 });

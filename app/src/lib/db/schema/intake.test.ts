@@ -84,6 +84,38 @@ describe("intake_profiles", () => {
     );
   });
 
+  it("refuses an intake without a trend, and a trend without an intake", async () => {
+    expect(await violatedConstraint(db.insert(intakeProfiles).values({ ...validRow, currentIntakeKcal: 2400 }))).toBe(
+      "intake_weight_trend_pair",
+    );
+    expect(await violatedConstraint(db.insert(intakeProfiles).values({ ...validRow, weightTrend: "steady" }))).toBe(
+      "intake_weight_trend_pair",
+    );
+  });
+
+  it("refuses a rate on a steady trend, and a moving trend with no rate", async () => {
+    expect(
+      await violatedConstraint(
+        db
+          .insert(intakeProfiles)
+          .values({ ...validRow, currentIntakeKcal: 2400, weightTrend: "steady", weightTrendKgPerWeek: "0.50" }),
+      ),
+    ).toBe("intake_weight_trend_rate");
+    expect(
+      await violatedConstraint(
+        db.insert(intakeProfiles).values({ ...validRow, currentIntakeKcal: 2400, weightTrend: "down" }),
+      ),
+    ).toBe("intake_weight_trend_rate");
+  });
+
+  it("refuses an intake past the typing guards", async () => {
+    expect(
+      await violatedConstraint(
+        db.insert(intakeProfiles).values({ ...validRow, currentIntakeKcal: 400, weightTrend: "steady" }),
+      ),
+    ).toBe("intake_current_intake");
+  });
+
   it("goes when its user goes", async () => {
     const otherId = randomUUID();
     await db.insert(users).values({ id: otherId, email: `intake-cascade-${otherId}@test.local` });

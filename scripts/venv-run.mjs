@@ -7,7 +7,7 @@ const VENV_PYTHON_CANDIDATES = [".venv/Scripts/python.exe", ".venv/bin/python"];
 
 const pythonPath = VENV_PYTHON_CANDIDATES.find(existsSync);
 if (!pythonPath) {
-  console.error("No .venv found - see README Setup (python -m venv .venv).");
+  console.error("No .venv found - see README Quick start (python -m venv .venv).");
   process.exit(1);
 }
 

@@ -76,7 +76,7 @@ const seedStandardRow = async (row: {
 }): Promise<string> => {
   const [sys] = await db
     .insert(users)
-    .values({ email: `system-${crypto.randomUUID()}@per100.local` })
+    .values({ email: `system-${crypto.randomUUID()}@levelspoon.local` })
     .returning();
   const [product] = await db
     .insert(products)

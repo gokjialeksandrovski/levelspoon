@@ -1,5 +1,5 @@
 {
-  "name": "per100",
+  "name": "levelspoon",
   "private": true,
   "scripts": {
     "ocr:up": "docker compose -f docker-compose.dev.yml up -d --wait ocr-service",
@@ -10,7 +10,7 @@
     "verify:ocr": "npm run ocr:up && node scripts/venv-run.mjs -m pytest ocr-service/tests -m real -v",
     "fixtures:capture": "node scripts/venv-run.mjs scripts/capture_fixtures.py",
     "dev:app": "npm --prefix app run dev",
-    "dev:up": "docker compose -f docker-compose.dev.yml up -d --wait postgres minio ocr-service",
+    "dev:up": "docker compose -f docker-compose.dev.yml up -d --build --wait postgres minio ocr-service",
     "dev:down": "docker compose -f docker-compose.dev.yml down",
     "db:drop": "npm --prefix app run db:drop",
     "db:migrate": "npm --prefix app run db:migrate",

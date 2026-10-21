@@ -1,3 +1,5 @@
+import anyAscii from "any-ascii";
+
 import type { AmountRow } from "./recipes.store";
 
 /** An amount as either side of the comparison states it: the product, and how
@@ -121,7 +123,7 @@ export const draftKcal = (rows: readonly DraftRow[]): number =>
  *
  * The entry echo and quantity_source follow the row only when its amount is
  * exactly what it was seeded with. Retyping the amount is what invalidates
- * "2 slices" - and is what CLAUDE.md's manual-entry rule means by "any edit":
+ * "2 slices" - and is what docs/AMOUNTS.md's manual-entry rule means by "any edit":
  * an edited row's source becomes "manual", the same as a typed amount
  * anywhere else in the app. A row nobody touched keeps whatever it already
  * was, ai_estimated included - editing sibling rows in the same draft must
@@ -144,7 +146,28 @@ export const draftRowToAmountRow = (row: DraftRow): AmountRow => {
 export const draftIsSaveable = (rows: readonly DraftRow[]): boolean =>
   rows.length > 0 && rows.every((row) => Number(row.quantity) > 0);
 
-export const isValidRecipeName = (name: string): boolean => name.trim().length > 0;
+/** Judgment: fits one line of the picker beside its kcal column on a phone,
+ * and still holds a long real name ("Chicken rice bowl with avocado and lime"
+ * is 39). Counted in UTF-16 units, the same unit an input's maxLength counts. */
+export const RECIPE_NAME_MAX_LENGTH = 60;
+// Judgment: ten characters' warning is enough to finish a word.
+const RECIPE_NAME_COUNTER_HEADROOM = 10;
+const RECIPE_NAME_COUNTER_FROM = RECIPE_NAME_MAX_LENGTH - RECIPE_NAME_COUNTER_HEADROOM;
+
+export const isValidRecipeName = (name: string): boolean => {
+  const length = name.trim().length;
+  return length > 0 && length <= RECIPE_NAME_MAX_LENGTH;
+};
+
+/** Silent until the limit is near, so the field only speaks when the count
+ * matters. A name saved before the limit existed can start over it; the hint
+ * then says why Save stays off. */
+export const recipeNameHint = (name: string): string | undefined => {
+  const length = name.trim().length;
+  if (length < RECIPE_NAME_COUNTER_FROM) return undefined;
+  const count = `${length} of ${RECIPE_NAME_MAX_LENGTH} characters`;
+  return length > RECIPE_NAME_MAX_LENGTH ? `${count}. Shorten it to save.` : count;
+};
 
 /** An earlier meal today from the same recipe, as the save pane needs it. */
 export interface EarlierMeal {
@@ -174,6 +197,9 @@ const signedKcal = (delta: number): string => {
   return rounded < 0 ? `${MINUS_SIGN}${Math.abs(rounded)} kcal` : `+${rounded} kcal`;
 };
 
+const joinWithAnd = (names: readonly string[]): string =>
+  names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
 /**
  * The tick's label, or null when nothing may be offered.
  *
@@ -188,13 +214,9 @@ export const earlierMealsTickLabel = (
   if (offerable.length === 0) {
     return null;
   }
-  const noun = offerable.length === 1 ? "the meal you ate" : "the meals you ate";
   const delta = offerable.reduce((sum, meal) => sum + (draftTotalKcal - meal.currentKcal), 0);
-  return `Also update ${noun} from it earlier today (${mealNames(offerable).join(", ")}): ${signedKcal(delta)}`;
+  return `Also update ${joinWithAnd(mealNames(offerable))} from earlier today (${signedKcal(delta)})`;
 };
-
-const joinWithAnd = (names: readonly string[]): string =>
-  names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
 /** Names the meals the update leaves alone. They are never silently excluded
  * and never silently overwritten. */
@@ -214,3 +236,18 @@ export const divergedSentence = (diverged: readonly EarlierMeal[]): string | nul
  * apart. "The recipe has changed" would be false in the first two. */
 export const divergenceLine = (recipeName: string): string =>
   `This meal no longer matches "${recipeName}". To update the recipe from this meal, use Edit this recipe; to keep both, save this as a new recipe.`;
+
+// Folded the way lib/db/search-text.ts folds a product name, so "Сирење"
+// is found from a Latin keyboard here too. Not imported from there: lib/db is
+// server-only territory, and this runs in the picker as the user types.
+const foldForSearch = (text: string): string => anyAscii(text).toLowerCase();
+
+// Every typed word must appear somewhere in the name, in any order: "rice
+// chicken" finds "Chicken rice bowl". A blank query matches everything.
+export const recipeMatchesQuery = (name: string, query: string): boolean => {
+  const folded = foldForSearch(name);
+  return foldForSearch(query)
+    .split(/\s+/)
+    .filter((word) => word !== "")
+    .every((word) => folded.includes(word));
+};

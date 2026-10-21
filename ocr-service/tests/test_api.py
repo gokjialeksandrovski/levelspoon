@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from per100_ocr.boxes import Box, OcrResult
-from per100_ocr.main import app, get_engine
+from levelspoon_ocr.boxes import Box, OcrResult
+from levelspoon_ocr.main import app, get_engine
 
 
 class StubEngine:
