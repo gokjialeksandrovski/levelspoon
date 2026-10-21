@@ -76,7 +76,7 @@ Template: `.env.example` (git-tracked, placeholders only). App reads `app/.env.l
 | Var | Purpose |
 |---|---|
 | `DATABASE_URL` | Postgres. Local: `postgres://levelspoon:levelspoon@localhost:15432/levelspoon` |
-| `AUTH_SECRET` | Auth.js secret (`npx auth secret`) |
+| `AUTH_SECRET` | Auth.js secret (`pnpm dlx auth secret`) |
 | `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` | Photo storage. Local MinIO, bucket `levelspoon-photos`. |
 | `OCR_SERVICE_URL`, `OCR_PROVIDER` | OCR service URL, `mock` or real |
 | `QUANTITY_PROVIDER` | Amount-photo grams, `mock` or Gemini |
@@ -102,29 +102,29 @@ Run from repo root unless noted. Docker Desktop must run (installed per-user: `d
 
 | Command | Does |
 |---|---|
-| `npm run dev:up` / `dev:down` | Postgres (host port **15432**, remapped to dodge native PG18) + MinIO (9000, console 9001) + OCR service (8000). `dev:up` rebuilds OCR image from source. |
-| `npm run dev:app` | Next.js dev server |
-| `npm run db:migrate` | Apply Drizzle migrations |
-| `npm run db:seed` | Test user, 2%/10% variant pair, 232 standard foods |
-| `npm run db:reset` | Drop, migrate, seed |
-| `npm run ocr:build` / `ocr:up` / `ocr:down` | OCR image alone (first build slow: bakes model) |
-| `npm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
-| `npm run test` | Tier-2 Vitest against real local Postgres (delegates into `app/`) |
-| `npm run test:e2e` | Playwright, mocked providers, only Postgres needed |
-| `npm run test:e2e:real` | Playwright against real OCR stack |
-| `npm run test:ocr` | Tier-1 OCR unit tests, no Docker |
-| `npm run verify:ocr` | Tier-4 gate: real photos through real service |
-| `npm run lint` | Ruff (Python) **only** |
-| `cd app && npm run lint` | ESLint + Clean Code rules for the app |
-| `npm run report:photo-debt` | Derived JSON, one entry per product with a reformulation claim |
-| `cd app && npm run check:portion-classes` | Portion-class gate over 232 curated foods, must exit 0 |
+| `pnpm run dev:up` / `dev:down` | Postgres (host port **15432**, remapped to dodge native PG18) + MinIO (9000, console 9001) + OCR service (8000). `dev:up` rebuilds OCR image from source. |
+| `pnpm run dev:app` | Next.js dev server |
+| `pnpm run db:migrate` | Apply Drizzle migrations |
+| `pnpm run db:seed` | Test user, 2%/10% variant pair, 232 standard foods |
+| `pnpm run db:reset` | Drop, migrate, seed |
+| `pnpm run ocr:build` / `ocr:up` / `ocr:down` | OCR image alone (first build slow: bakes model) |
+| `pnpm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
+| `pnpm run test` | Tier-2 Vitest against real local Postgres (delegates into `app/`) |
+| `pnpm run test:e2e` | Playwright, mocked providers, only Postgres needed |
+| `pnpm run test:e2e:real` | Playwright against real OCR stack |
+| `pnpm run test:ocr` | Tier-1 OCR unit tests, no Docker |
+| `pnpm run verify:ocr` | Tier-4 gate: real photos through real service |
+| `pnpm run lint` | Ruff (Python) **only** |
+| `cd app && pnpm run lint` | ESLint + Clean Code rules for the app |
+| `pnpm run report:photo-debt` | Derived JSON, one entry per product with a reformulation claim |
+| `cd app && pnpm run check:portion-classes` | Portion-class gate over 232 curated foods, must exit 0 |
 
 Python setup (`ocr-service`): see `README.md`. paddlepaddle is **not** installed locally, lives only in container. Unit tests import pure modules; verify gate talks HTTP to running container.
 
 ### Local gotchas
 
 - MinIO does not auto-create buckets. Create `levelspoon-photos` once (steps in `README.md`). Needed before `app/src/lib/s3.test.ts` or any photo upload.
-- `npm run db:migrate` alone fails migration `0014` ("could not create unique index") on a dev DB seeded before content-addressed photo keys: old fixtures share a literal photo key across rows. Use `db:reset` on such a DB.
+- `pnpm run db:migrate` alone fails migration `0014` ("could not create unique index") on a dev DB seeded before content-addressed photo keys: old fixtures share a literal photo key across rows. Use `db:reset` on such a DB.
 - Applied migration files stay byte-for-byte immutable: drizzle-orm hashes each file for its applied-migration bookkeeping.
 - Generate migrations with drizzle-kit, never hand-write: journal and snapshot must stay in step.
 
@@ -136,5 +136,5 @@ Verification tiers: 1 unit (no Docker) · 2 real Postgres · 3 e2e mock · 4 rea
 - No `@testing-library/react`, no `.test.tsx`. Logic tested as pure functions (Vitest, node env). Component behaviour via Playwright e2e.
 - Per-module `.test.ts` / `.test.py` beside the module.
 - Real photos and golden per-100g values committed in `fixtures/`.
-- Some client-side specs fail when run **alone** (`npx vitest run <one file>`) with `Cannot find module 'next/server' imported from next-auth/lib/env.js`: ESM resolution artifact, not a broken test (`amount-step.test.ts` is one). Run the suite or a directory.
+- Some client-side specs fail when run **alone** (`pnpm exec vitest run <one file>`) with `Cannot find module 'next/server' imported from next-auth/lib/env.js`: ESM resolution artifact, not a broken test (`amount-step.test.ts` is one). Run the suite or a directory.
 - `app/playwright.config.ts` has an explicit `testMatch` allowlist. A new spec file must be added or it collects as "No tests found" and suite still passes. `workers: 1` / `fullyParallel: false` because every spec truncates same tables.

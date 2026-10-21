@@ -3,7 +3,7 @@
 Local only - excluded from CI by the 'real' marker, since a 133MB model and
 ~10s per photo buy little on every push. Required green before any deploy.
 
-Requires: npm run ocr:up
+Requires: pnpm run ocr:up
 """
 
 import json

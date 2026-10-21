@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import { fetchPhotoDebt } from "../src/lib/db/photo-debt";
 
-// Relative to this file, not the working directory: npm runs it with cwd=app/,
+// Relative to this file, not the working directory: pnpm runs it with cwd=app/,
 // but the report belongs at the repo root where it is easy to open.
 const REPORT_URL = new URL("../../product-photo-debt.json", import.meta.url);
 

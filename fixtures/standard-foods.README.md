@@ -14,7 +14,7 @@ reports sodium, not salt.
 every row; fat rows are `0`.
 
 Row schema enforced by `assertValidStandardFood` — a bad row fails
-`npm run db:seed` loudly with `StandardFoodRowError`.
+`pnpm run db:seed` loudly with `StandardFoodRowError`.
 
 232 rows: 200 whole, 32 fat. 10 rows spot-checked against USDA FDC on 2026-09-11; the
 2026-09-16 fat additions cross-checked against USDA FDC / myfooddata where

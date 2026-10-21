@@ -4,7 +4,7 @@ Run deliberately - never as part of a test run. Refreshing fixtures from
 whatever the model currently produces would let a regression silently
 rewrite the expectations meant to catch it.
 
-Usage: npm run fixtures:capture   (requires: npm run ocr:up)
+Usage: pnpm run fixtures:capture   (requires: pnpm run ocr:up)
 """
 
 import json

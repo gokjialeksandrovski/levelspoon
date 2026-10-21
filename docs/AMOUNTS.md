@@ -32,7 +32,7 @@ A portion is an amount nobody printed on a label: a slice of bread, an EU egg gr
 - `MeasureContext.portions` (`resolve-grams.ts`) is required, never optional. Portions resolve server-side and travel as data on every product DTO (`ProductCandidate`, `StandardFood`, `SelectedProduct`, `MealIngredientDetail`). Never import `portions.ts`, `portion-class.ts` or `resolve-portions.ts` from a client component: the table must not reach the browser bundle.
 - `portion_overrides`: per-user grams for one label of one product. **Never write a portion weight to `products`.** Read as correlated `jsonb_object_agg` subquery, never `LEFT JOIN`: one row per label, join multiplies search results.
 
-Re-run `cd app && npm run check:portion-classes` after touching `PortionClass`, `CLASS_BY_SLUG`, `NAME_TOKENS_BY_CLASS`, `EXCLUDED_TOKENS_BY_CLASS` or `fixtures/standard-foods.json`. Must exit 0; never silence it. A conflict is a portion chip about to appear on a food nobody measures that way. Fix by excluding a token or mapping the slug, plus a unit test per fix.
+Re-run `cd app && pnpm run check:portion-classes` after touching `PortionClass`, `CLASS_BY_SLUG`, `NAME_TOKENS_BY_CLASS`, `EXCLUDED_TOKENS_BY_CLASS` or `fixtures/standard-foods.json`. Must exit 0; never silence it. A conflict is a portion chip about to appear on a food nobody measures that way. Fix by excluding a token or mapping the slug, plus a unit test per fix.
 
 ## Entry echo and recent amounts
 

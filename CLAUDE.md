@@ -36,10 +36,10 @@ Do NOT:
 ## Environment
 
 - Windows 11. Docker Desktop must run (`docker` on **User** PATH).
-- Node: npm, lockfile in `app/`. Root `package.json` holds orchestration scripts only.
+- Node: pnpm, lockfile (`pnpm-lock.yaml`) in `app/`. Root `package.json` holds orchestration scripts only.
 - Python: `.venv` at repo root, `ocr-service` installed editable. paddlepaddle only in container.
 - Local Postgres on host port **15432**, must be up before any Vitest or Playwright run.
-- `npm run lint` at root is Ruff only. Run `cd app && npm run lint` separately for ESLint + Clean Code; milestone exit criterion, easy to miss.
+- `pnpm run lint` at root is Ruff only. Run `cd app && pnpm run lint` separately for ESLint + Clean Code; milestone exit criterion, easy to miss.
 
 ## Hard rules
 

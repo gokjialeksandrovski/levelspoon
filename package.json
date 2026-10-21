@@ -7,18 +7,18 @@
     "ocr:build": "docker compose -f docker-compose.dev.yml build ocr-service",
     "lint": "node scripts/venv-run.mjs -m ruff check .",
     "test:ocr": "node scripts/venv-run.mjs -m pytest ocr-service/tests -m \"not real\" -v",
-    "verify:ocr": "npm run ocr:up && node scripts/venv-run.mjs -m pytest ocr-service/tests -m real -v",
+    "verify:ocr": "pnpm run ocr:up && node scripts/venv-run.mjs -m pytest ocr-service/tests -m real -v",
     "fixtures:capture": "node scripts/venv-run.mjs scripts/capture_fixtures.py",
-    "dev:app": "npm --prefix app run dev",
+    "dev:app": "pnpm --dir app run dev",
     "dev:up": "docker compose -f docker-compose.dev.yml up -d --build --wait postgres minio ocr-service",
     "dev:down": "docker compose -f docker-compose.dev.yml down",
-    "db:drop": "npm --prefix app run db:drop",
-    "db:migrate": "npm --prefix app run db:migrate",
-    "db:seed": "npm --prefix app run db:seed",
-    "report:photo-debt": "npm --prefix app run report:photo-debt",
-    "db:reset": "npm run db:drop && npm run db:migrate && npm run db:seed",
-    "test": "npm --prefix app run test",
-    "test:e2e": "npm --prefix app run test:e2e",
-    "test:e2e:real": "npm run ocr:up && npm --prefix app run test:e2e:real"
+    "db:drop": "pnpm --dir app run db:drop",
+    "db:migrate": "pnpm --dir app run db:migrate",
+    "db:seed": "pnpm --dir app run db:seed",
+    "report:photo-debt": "pnpm --dir app run report:photo-debt",
+    "db:reset": "pnpm run db:drop && pnpm run db:migrate && pnpm run db:seed",
+    "test": "pnpm --dir app run test",
+    "test:e2e": "pnpm --dir app run test:e2e",
+    "test:e2e:real": "pnpm run ocr:up && pnpm --dir app run test:e2e:real"
   }
 }

@@ -19,12 +19,12 @@ source .venv/Scripts/activate    # Windows Git Bash; .venv/bin/activate on Linux
 pip install -e "./ocr-service[dev]"
 
 # App deps
-cd app && npm install && cd ..
+cd app && pnpm install && cd ..
 
-# Env: copy .env.example to app/.env.local and fill AUTH_SECRET (npx auth secret)
+# Env: copy .env.example to app/.env.local and fill AUTH_SECRET (pnpm dlx auth secret)
 
 # Local stack: Postgres (15432), MinIO (9000/9001), OCR service (8000)
-npm run dev:up
+pnpm run dev:up
 ```
 
 Create the photo bucket once (MinIO does not auto-create it). Either via console at `http://localhost:9001` (login `levelspoon` / `levelspoon_minio`), or:
@@ -37,18 +37,18 @@ docker exec levelspoon-minio-1 mc mb local/levelspoon-photos
 Then:
 
 ```bash
-npm run db:reset    # drop, migrate, seed (test user + 232 standard foods)
-npm run dev:app     # Next.js dev server
+pnpm run db:reset    # drop, migrate, seed (test user + 232 standard foods)
+pnpm run dev:app     # Next.js dev server
 ```
 
 ## Checks
 
 ```bash
-npm run test:ocr           # Python unit tests, no Docker
-npm run test               # Vitest against local Postgres
-npm run test:e2e           # Playwright, mocked providers
-npm run lint               # Ruff only
-cd app && npm run lint     # ESLint + Clean Code
+pnpm run test:ocr           # Python unit tests, no Docker
+pnpm run test               # Vitest against local Postgres
+pnpm run test:e2e           # Playwright, mocked providers
+pnpm run lint               # Ruff only
+cd app && pnpm run lint     # ESLint + Clean Code
 ```
 
 Full command list: `docs/ARCHITECTURE.md`.

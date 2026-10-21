@@ -278,7 +278,7 @@ const main = async () => {
 // module's top level - without this guard, that import alone would also run
 // main() (a real DB write) and this file's own process.exit(), which kills
 // the Vitest worker mid-suite. Only run main() when this file is the actual
-// entry point (`npm run db:seed`), not when it's merely imported.
+// entry point (`pnpm run db:seed`), not when it's merely imported.
 const isDirectRun = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
