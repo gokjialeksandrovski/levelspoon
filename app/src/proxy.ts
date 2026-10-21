@@ -9,8 +9,8 @@ export const proxy = auth((req) => {
   }
 });
 
-// icon.svg and apple-icon excluded alongside favicon.ico - without it, a
-// signed-out visitor got redirected to /signin instead of served the icon.
+// Icons and the manifest excluded alongside favicon.ico - browsers fetch the
+// manifest without cookies, so a redirect to /signin makes the app uninstallable.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|icon.svg|apple-icon).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest.webmanifest).*)"],
 };

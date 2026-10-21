@@ -6,6 +6,7 @@ import { CaretLeftIcon, CalendarBlankIcon } from "@phosphor-icons/react";
 import { formatDayLabel } from "@/lib/date/format";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { AccountMenu } from "@/features/auth/components/account-menu";
+import { InstallAppButton } from "@/components/layout/install-app-button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   FOCUS_RING,
@@ -37,12 +38,13 @@ const DayLabel = ({ date }: { date: string }) => {
 
 // -space-x-2: the icons' own 44px tap targets already pad them well apart
 // from their glyphs; this pulls the boxes closer so the row reads as one
-// tight cluster instead of three separate stops.
+// tight cluster instead of separate stops.
 const HeaderActions = () => (
   <div className={`flex items-center -space-x-2 ${ICON_ROW_EDGE_PULL_RIGHT}`}>
     <Link href="/history" aria-label="History" className={ICON_TAP_TARGET_CLASS}>
       <CalendarBlankIcon />
     </Link>
+    <InstallAppButton />
     <ThemeToggle />
     <AccountMenu />
   </div>
