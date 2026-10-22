@@ -48,7 +48,7 @@ Least accurate logging path, on purpose: user describes meal (+ optional photo),
 - Figures bounded in `features/lazy-track/actions/lazy-track.utils.ts` (each constant labelled physical or judgment), run on Gemini reply and again in `logLazyMeal`: figures round-trip through browser.
 - Review edits: grams, remove, re-ask. No name or per-100g edits, no correction link, no portion overrides on AI rows.
 - Consent reuses `AiConsentSheet` / `levelspoon:ai-photo-consent`, asked before text-only requests too. Meal photo sent, never stored.
-- No usage cap yet (`docs/ROADMAP.md`).
+- No usage cap, on purpose: AI is BYOK only, user's own key carries cost (`docs/DECISIONS.md`).
 - Refusals cross as `EstimateMealResult` / `LogLazyMealResult`.
 - `MEAL_ESTIMATE_PROVIDER` picks mock vs Gemini; `.env.example` defaults `mock`.
 - Spec: `docs/superpowers/specs/2026-09-25-lazy-track-design.md`.

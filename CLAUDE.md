@@ -32,6 +32,7 @@ Do NOT:
 - Add streaks, badges, coaching, encouragement or shame copy, or a second place that advises intake (`PRODUCT.md`).
 - Add modals. `Sheet` is the only overlay.
 - Add a standalone recipes page, or a duplicate-merge tool (`docs/DECISIONS.md`).
+- Add subscriptions or payments. AI is BYOK only (`docs/DECISIONS.md`).
 
 ## Environment
 

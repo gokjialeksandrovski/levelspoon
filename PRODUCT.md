@@ -12,6 +12,10 @@ One primary user: person logging what they eat, on a phone, one-handed, mid-meal
 or straight after. Multi-user app, but no social, sharing or coach role — each
 account is one person's own log. Products are shared cross-user; logs are not.
 
+Hosted instance: developer and friends. Anyone unwilling to share data with
+developer self-hosts frontend and OCR. No subscriptions. AI features run only on
+user's own API key (BYOK).
+
 ## Product Purpose
 
 Log meals built from ingredients. Every product stores nutrition per 100 g (or
