@@ -50,7 +50,6 @@ Import boundaries are ESLint-enforced (`app/eslint.config.mjs`, vendored `app/cl
 | `/products/[productId]/correct` | Per-user nutrition override / label proof |
 | `/history` | One row per logged day, month groups, week summary |
 | `/calories/estimate` | Intake estimate, reached only from goal sheet |
-| `/dev/barcode-scanner` | Dev harness for `BarcodeScanner` |
 | `/signin`, `/signup` | Credentials auth |
 | `/demo` | Demo disclaimer, starts guest session |
 | `/api/auth/[...nextauth]` | Auth.js handler |

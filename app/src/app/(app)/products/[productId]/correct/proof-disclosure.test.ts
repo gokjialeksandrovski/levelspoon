@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/features/products/actions/barcode", () => ({ linkBarcode: vi.fn(), lookupBarcode: vi.fn() }));
 vi.mock("@/features/products/actions/ocr", () => ({ ocrNutritionTable: vi.fn() }));
 vi.mock("@/features/products/actions/products", () => ({ attachLabelProof: vi.fn() }));
-vi.mock("@/components/ui/barcode-scanner", () => ({ readBarcodeFromPhoto: vi.fn() }));
+vi.mock("@/lib/barcode/read-photo", () => ({ readBarcodeFromPhoto: vi.fn() }));
 
 import type { NutritionRead } from "@/features/products/actions/ocr";
 import type { ProductForCorrection } from "@/features/products/actions/products";

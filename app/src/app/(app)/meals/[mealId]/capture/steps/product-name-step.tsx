@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoPreview, usePreviewUrl } from "@/components/ui/photo-input";
-import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
+import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 
 import type { PathAction } from "../capture-wizard.path";
 import type { WizardAction } from "../capture-wizard.types";
@@ -292,10 +292,10 @@ interface BarcodeAndPhotoRowsProps {
   onSelectBarcode: (photo: File) => void;
 }
 
-// Both rows open the picker from here. Scanning used to be a step of its own
-// with a live camera on it, which meant a dead black rectangle wherever the
-// browser had no camera to give - and a page to read and dismiss before the
-// user could do the one thing the row promised.
+// Both rows open the picker from here, not a live-camera step: that would be
+// a dead black rectangle wherever the browser has no camera to give, and a
+// page to read and dismiss before the user could do the one thing the row
+// promised.
 const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode }: BarcodeAndPhotoRowsProps) => (
   <>
     <PhotoOptionRow

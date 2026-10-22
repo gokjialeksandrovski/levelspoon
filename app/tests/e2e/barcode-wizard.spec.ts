@@ -6,9 +6,27 @@ import { productBarcodes } from "../../src/lib/db/schema";
 
 import { seedConfidentProduct, seedProductWithBarcode, signUp, truncateAll } from "./support";
 
-test.beforeEach(async ({ context }) => {
-  await truncateAll();
-  await context.clearPermissions();
+test.beforeEach(truncateAll);
+
+test("a photo with no barcode says so, decoded by the self-hosted WASM", async ({ page }) => {
+  // Without the path check this passes even if locateFile regressed to the
+  // library's CDN fallback: decoding would still work.
+  const wasmUrls: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith(".wasm")) {
+      wasmUrls.push(request.url());
+    }
+  });
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByLabel(/barcode photo/i).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
+
+  await expect(page.getByText(/no barcode found/i)).toBeVisible();
+  expect(wasmUrls.length).toBeGreaterThan(0);
+  for (const url of wasmUrls) {
+    expect(new URL(url).pathname).toMatch(/^\/zxing\//);
+  }
 });
 
 test("scanning an already-linked barcode skips straight to the amount step", async ({ page }) => {

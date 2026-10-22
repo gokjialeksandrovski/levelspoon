@@ -7,7 +7,7 @@ import { checkBarcodeBinding } from "@/features/products/actions/barcode";
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { createProduct, searchUserProducts } from "@/features/products/actions/products";
 import type { CreateProductResult, ProductCandidate } from "@/features/products/actions/products";
-import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
+import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 import { Button } from "@/components/ui/button";
 import { Field, FigureField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -106,7 +106,7 @@ interface BarcodeBindingCallbacks {
 
 // Internal-only check (no OFF call - the product doesn't exist yet, so
 // external nutrition data is moot). Shared by the pre-scanned-code mount
-// check and the fresh-scan detect handler below (barcode spec §7, T4).
+// check and the fresh-scan detect handler below (barcode spec §7).
 export const resolveBarcodeBinding = async (rawCode: string, callbacks: BarcodeBindingCallbacks): Promise<void> => {
   try {
     const result = await checkBarcodeBinding(rawCode);
@@ -339,13 +339,12 @@ const applyCreateProductResult = (
   }
 };
 
-// Standalone, not a hook, so useConfirmStepForm's body stays under the line
-// budget - bundled callbacks object rather than closing over hook state.
-// The catch below is now only a backstop for a genuinely unexpected throw
-// (e.g. LabelPhotoAlreadyUsedError's race-condition backstop at save time,
-// which stays a throw - Task 3 already gives the user the good path earlier,
-// at the nutrition step) - every refusal this step itself understands arrives
-// as data through applyCreateProductResult instead.
+// Standalone with a bundled callbacks object rather than closing over hook
+// state. The catch below is only a backstop for a genuinely unexpected throw
+// (e.g. LabelPhotoAlreadyUsedError's race at save time, which stays a throw -
+// the nutrition step already gives the user the good path earlier); every
+// refusal this step understands arrives as data through
+// applyCreateProductResult instead.
 const saveConfirmedProduct = async (input: SaveConfirmInput, dispatch: (action: WizardAction) => void, callbacks: ConfirmSaveCallbacks): Promise<void> => {
   callbacks.setError(null);
   // A fresh attempt starts clean - otherwise a same_figures notice from an
@@ -590,7 +589,7 @@ interface DuplicateNoticeProps {
 // 1's escape for the honest collision (two brands of water, two dried-pasta
 // shapes off one label) that DuplicateProductError cannot tell apart from a
 // borrowed photo on name and figures alone - ticking it and saving again
-// resends acknowledgedSameFigures, which now clears tier 1 too.
+// resends acknowledgedSameFigures, which clears tier 1 too.
 const DuplicateNotice = ({ duplicate, acknowledged, onAcknowledge, dispatch }: DuplicateNoticeProps) => {
   const [isResolving, setIsResolving] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -604,9 +603,8 @@ const DuplicateNotice = ({ duplicate, acknowledged, onAcknowledge, dispatch }: D
       if (found) {
         dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(found), alternatives: [], pendingBarcode: null });
       } else {
-        // Without this, a miss left the button silently un-pending with no
-        // feedback at all - the same dead-button symptom the catch below
-        // exists to fix.
+        // Without this, a miss leaves the button silently un-pending with no
+        // feedback - the same dead-button symptom the catch below prevents.
         setLookupError(DUPLICATE_LOOKUP_ERROR);
       }
     } catch {

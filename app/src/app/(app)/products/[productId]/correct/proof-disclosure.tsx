@@ -10,7 +10,7 @@ import { ocrNutritionTable } from "@/features/products/actions/ocr";
 import type { NutritionRead } from "@/features/products/actions/ocr";
 import { attachLabelProof } from "@/features/products/actions/products";
 import type { ProductForCorrection } from "@/features/products/actions/products";
-import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
+import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { InlineMessage } from "@/components/ui/inline-message";
