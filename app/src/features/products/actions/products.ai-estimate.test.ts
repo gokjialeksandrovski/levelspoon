@@ -158,7 +158,7 @@ describe("AI rows stay out of every search, match and gate", () => {
     expect(await searchUserProducts("chicken")).toEqual([]);
   });
 
-  // Controller ruling: a same-name AI row could win findStoredMeasures's
+  // A same-name AI row could win findStoredMeasures's
   // `ORDER BY p.id LIMIT 1` tiebreak and mask a real row's learned serving
   // weight. Explicit ids force the AI row to sort first without the fence.
   it("findStoredMeasures ignores an AI row that would otherwise win the id tiebreak", async () => {

@@ -1,5 +1,5 @@
 // Field controls shared by the weight goal sheet and the calorie estimate
-// page. Moved out of the day route when the second route needed them.
+// page.
 import { Button } from "@/components/ui/button";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { Field } from "@/components/ui/field";

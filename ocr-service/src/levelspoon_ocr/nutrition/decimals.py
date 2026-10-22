@@ -1,9 +1,9 @@
 """Recover decimal separators PaddleOCR drops - but only when provably needed.
 
 PaddleOCR occasionally loses the decimal comma on tight-kerned digits
-("2,0 g" read as "20g"), a 10x error if trusted. The spike fixed this with a
-blanket rule, which would corrupt a genuine "72 g" carbohydrate into "7.2 g" -
-the same error in the opposite direction. Here the §4.4 rules decide, and
+("2,0 g" read as "20g"), a 10x error if trusted. A blanket rule would
+corrupt a genuine "72 g" carbohydrate into "7.2 g" - the same error in the
+opposite direction. Here the §4.4 rules decide, and
 anything they cannot settle is flagged for the user (spec §4.4).
 """
 
@@ -15,7 +15,7 @@ from .validate import NutritionValues, validate
 # A bare two-digit value with NO unit suffix at all ("12") is the same
 # dropped-decimal failure as "12g" - just with the unit lost too. Observed
 # on the real Olympus label: saturates printed as "1,2 g" was read as "12"
-# (spec §4.4 generalization, confirmed 2026-08-26 against
+# (spec §4.4, confirmed against
 # fixtures/ocr-boxes/olympus-greek-2pct-nutrition.json).
 BARE_TWO_DIGIT_GRAMS = re.compile(r"^\s*(\d)(\d)\s*(?:g)?\s*$", re.IGNORECASE)
 MIN_AMBIGUOUS_OPTIONS = 2

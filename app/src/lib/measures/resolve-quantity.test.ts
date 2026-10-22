@@ -63,7 +63,7 @@ describe("resolveQuantity — non-grams basis", () => {
 
   it("still takes the grams path when the selected unit is g, even on a non-grams-basis product", () => {
     // Not reachable through the UI today (availableUnits excludes "g" for
-    // these products, Task 1) but resolveQuantity's own contract shouldn't
+    // these products) but resolveQuantity's own contract shouldn't
     // depend on that - "g" always means "resolve as a mass", never a
     // literal count of the product's basis unit.
     expect(resolveQuantity("5", "g", TBSP_BASIS)).toEqual({ kind: "resolved", quantity: 5, quantityUnit: "g" });

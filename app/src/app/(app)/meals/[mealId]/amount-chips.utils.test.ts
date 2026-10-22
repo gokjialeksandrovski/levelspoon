@@ -97,7 +97,7 @@ describe("mergeChips", () => {
     expect(mergeChips(recents, [])).toEqual([{ count: 100, unit: "g", grams: 100, source: "recent" }]);
   });
 
-  // The egg case from the critique: a curated "1 medium · 50 g" beside a
+  // The egg case: a curated "1 medium · 50 g" beside a
   // "1 large · 50 g" the user taught. Same weight, different labels, and the
   // source tag is the only thing that can tell the two clusters apart.
   it("marks who supplied each figure, the user or the standard", () => {

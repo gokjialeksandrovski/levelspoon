@@ -4,8 +4,8 @@
  *
  * Two things happen here. Days nobody logged are put back, because a list that
  * silently skips them cannot answer "did I forget Tuesday, or did I eat
- * nothing?" - and since a missed day is now loggable, each one is somewhere to
- * go rather than a hole. Then the rows are cut into months, so a long scroll
+ * nothing?" - and a missed day is loggable, so each one is somewhere to go
+ * rather than a hole. Then the rows are cut into months, so a long scroll
  * keeps saying where it is.
  */
 import type { DayHistoryEntry } from "@/features/meals/actions/meals";

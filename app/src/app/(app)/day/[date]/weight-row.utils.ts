@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/weight-row.utils.ts
 import {
   displayWeight,
   projectedTargetDate,

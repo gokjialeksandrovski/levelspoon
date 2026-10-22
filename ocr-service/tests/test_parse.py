@@ -14,13 +14,17 @@ def _box(text: str, y: float, x: float = 900.0) -> Box:
 
 def _label(*value_texts: str) -> OcrResult:
     boxes = [_box("100 g", 100.0)]
-    boxes += [_box(text, 200.0 + index * 100.0) for index, text in enumerate(value_texts)]
+    boxes += [
+        _box(text, 200.0 + index * 100.0) for index, text in enumerate(value_texts)
+    ]
     boxes.append(_box("Masti", 200.0, x=100.0))
     return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1400)
 
 
 def test_parses_the_golden_label():
-    result = _label("295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
+    result = _label(
+        "295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g"
+    )
     reading = parse_nutrition(result)
     assert reading.per_100g.energy_kcal == 70.0
     assert reading.per_100g.fat_g == 2.0
@@ -31,7 +35,9 @@ def test_parses_the_golden_label():
 
 def test_parses_a_label_with_energy_split_across_two_boxes():
     """Eight numeric boxes must still map onto seven logical fields."""
-    result = _label("295 kJ", "70 kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
+    result = _label(
+        "295 kJ", "70 kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g"
+    )
     reading = parse_nutrition(result)
     assert reading.per_100g.fat_g == 2.0
     assert reading.per_100g.protein_g == 9.0
@@ -39,7 +45,9 @@ def test_parses_a_label_with_energy_split_across_two_boxes():
 
 
 def test_recovers_a_dropped_decimal_separator():
-    result = _label("295kJ/70 Kcal", "20g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
+    result = _label(
+        "295kJ/70 Kcal", "20g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g"
+    )
     assert parse_nutrition(result).per_100g.fat_g == 2.0
 
 
@@ -55,7 +63,9 @@ def test_missing_row_is_never_silently_zero():
     alone can never catch either missing - proving the `missing`-list union
     in parse_nutrition is load-bearing, not redundant (spec §4.4).
     """
-    result = _label("295kJ/70 Kcal", "2,0 g", "od kojih", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
+    result = _label(
+        "295kJ/70 Kcal", "2,0 g", "od kojih", "4,0 g", "4,0 g", "9,0 g", "0,18 g"
+    )
     reading = parse_nutrition(result)
     assert math.isnan(reading.per_100g.saturates_g)
     assert "saturates_g" in reading.flags
@@ -113,8 +123,8 @@ def _bella_farm_yoghurt_label() -> OcrResult:
 
 
 def test_reads_a_multilingual_label_whose_header_sits_with_the_row_descriptions():
-    """The reported bug: previously 422'd with "No energy row found" because
-    the header, not the energy figure, anchored column selection."""
+    """Anchoring column selection on the header, not the energy figure,
+    would 422 here with "No energy row found"."""
     reading = parse_nutrition(_bella_farm_yoghurt_label())
     assert reading.per_100g.energy_kcal == pytest.approx(56.0)
     assert reading.energy_kj == pytest.approx(233.0)
@@ -163,12 +173,16 @@ def test_dispatches_a_us_label_to_the_us_parser_when_no_100g_header_exists():
 def test_a_us_reading_carries_the_servings_per_container_count():
     result = _us_label_result()
     boxes = result.boxes + (Box("15 servings per container", 100.0, 75.0, 0.95),)
-    reading = parse_nutrition(OcrResult(boxes=boxes, image_width=1000, image_height=1600))
+    reading = parse_nutrition(
+        OcrResult(boxes=boxes, image_width=1000, image_height=1600)
+    )
     assert reading.servings_per_container == pytest.approx(15.0)
 
 
 def test_an_eu_reading_has_no_servings_per_container():
-    result = _label("295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g")
+    result = _label(
+        "295kJ/70 Kcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g"
+    )
     assert parse_nutrition(result).servings_per_container is None
 
 
@@ -179,8 +193,10 @@ def test_a_us_reading_carries_no_flags_because_validation_happens_after_scaling(
 
 
 def test_an_unreadable_photo_still_raises_column_detection_error():
-    """No EU header and no US markers: the original failure, unchanged."""
-    result = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
+    """No EU header and no US markers: still a loud failure."""
+    result = OcrResult(
+        boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400
+    )
     with pytest.raises(ColumnDetectionError):
         parse_nutrition(result)
 
@@ -188,11 +204,13 @@ def test_an_unreadable_photo_still_raises_column_detection_error():
 def test_seven_value_rows_read_fibre_and_keep_protein_and_salt():
     """EU order prints fibre between sugars and protein (Reg 1169/2011).
 
-    Before this fix the extra row shifted protein into salt_g and dropped
+    Unhandled, the extra row would shift protein into salt_g and drop
     salt - a silent one-field shift, the same class split_energy_row exists
     to prevent.
     """
-    result = _label("1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "6 g", "8 g", "1,2 g")
+    result = _label(
+        "1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "6 g", "8 g", "1,2 g"
+    )
     reading = parse_nutrition(result)
     assert reading.per_100g.fibre_g == 6.0
     assert reading.per_100g.protein_g == 8.0
@@ -210,8 +228,10 @@ def test_six_value_rows_leave_fibre_unknown():
 def test_more_than_seven_rows_keep_todays_mapping():
     """Polyols or starch beside fibre put the count past seven, and nothing
     in a count says which optional row ran. Guessing would invent a mapping;
-    this keeps the behaviour the six-row order already had.
+    this keeps the six-row order.
     """
-    result = _label("1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "6 g", "3 g", "8 g", "1,2 g")
+    result = _label(
+        "1046kJ/250 Kcal", "10 g", "4 g", "30 g", "12 g", "6 g", "3 g", "8 g", "1,2 g"
+    )
     reading = parse_nutrition(result)
     assert reading.per_100g.fibre_g is None

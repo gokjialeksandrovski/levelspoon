@@ -5,7 +5,7 @@ import { enterNutritionManually, signUp, startCapture, truncateAll } from "./sup
 // similarity('Snickers Bar', 'Snickers') = 0.6923 (well above the 0.35 floor)
 // and similarity('Bella Farm Yoghurt', 'Candy Bar') = 0.0357 - the two tiers
 // this spec exercises need opposite name-similarity outcomes, so the pairs are
-// not interchangeable (per task-6-brief.md's fixture note).
+// not interchangeable.
 const FIGURES = {
   energyKcal: "484", fatG: "24.1", saturatesG: "9", carbohydrateG: "59.8",
   sugarsG: "48.6", proteinG: "7.9", saltG: "0.6", fibreG: "",
@@ -50,9 +50,8 @@ test("files an unrelated product once the identical figures are acknowledged", a
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
 });
 
-// Tier 1's escape (the fix for the regression QA found): same figures, a
-// name similar enough to trip DuplicateProductError, and no way past it
-// before this fix. "Use Snickers Bar instead" stays the primary action;
+// Tier 1's escape: same figures and a name similar enough to trip
+// DuplicateProductError must still leave a way past it. "Use Snickers Bar instead" stays the primary action;
 // ticking the acknowledgement checkbox and saving again is the alternative.
 test("files a similarly-named product once the same figures are acknowledged", async ({ page }) => {
   await signUp(page);

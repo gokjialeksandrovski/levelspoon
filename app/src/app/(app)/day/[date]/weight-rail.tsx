@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/weight-rail.tsx
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";

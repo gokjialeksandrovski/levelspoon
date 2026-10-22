@@ -7,8 +7,7 @@ const hasKnownDensity = (context: MeasureContext): boolean =>
   context.densityGMl !== null || seededDensity(context.productName) !== null;
 
 // Cup last: it is the largest and rarest of the four, and a label prints tbsp
-// or ml far more often. Cup is in VOLUME_UNITS_TO_ML and has always been
-// convertible - it was only ever missing from the picker.
+// or ml far more often.
 //
 // Withheld from a dry good whose only density is the seeded cooking-table
 // figure, because that figure cannot say how hard the cup was packed. A

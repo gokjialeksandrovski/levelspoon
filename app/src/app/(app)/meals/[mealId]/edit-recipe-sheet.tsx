@@ -82,8 +82,8 @@ const DraftRowField = ({ row, onQuantity, onRemove }: DraftRowFieldProps) => (
     name={`draft-${row.mealIngredientId}`}
     unit={row.quantityUnit}
     // Holds the raw typed text, not a parsed number - see DraftRow.
-    // Round-tripping through Number() on every keystroke is what
-    // made "2." collapse back to "2" before the "." could land.
+    // Round-tripping through Number() on every keystroke would
+    // collapse "2." back to "2" before the next digit could land.
     value={row.quantity}
     onChange={(event) => onQuantity(event.target.value)}
     detail={`About ${Math.round(draftKcal([row]))} kcal`}

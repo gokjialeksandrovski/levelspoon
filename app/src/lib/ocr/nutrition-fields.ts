@@ -59,8 +59,8 @@ const toDisplayValue = (value: number | null): string =>
 
 // Walks the known fields, not the object's own keys: the real OCR service
 // omits a figure the label never printed (fibre, most often), and a missing
-// key left that field undefined - toNutritionValues' .trim() then threw, and
-// the confirm step could neither revalidate nor save.
+// key would leave that field undefined - toNutritionValues' .trim() would
+// throw, and the confirm step could neither revalidate nor save.
 export const toFieldValues = (parsed: NullableNutritionValues): FieldValues => {
   const fields = Object.keys(FIELD_LABELS) as (keyof NullableNutritionValues)[];
   return Object.fromEntries(fields.map((field) => [field, toDisplayValue(parsed[field] ?? null)])) as FieldValues;

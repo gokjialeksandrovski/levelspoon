@@ -1,4 +1,3 @@
-// app/src/features/weight/actions/weight.errors.ts
 import { MAX_WEIGHT_KG, MIN_WEIGHT_KG, type InvalidGoalReason } from "./weight.utils";
 
 // Named because the action tests discriminate them with .rejects.toThrow, and

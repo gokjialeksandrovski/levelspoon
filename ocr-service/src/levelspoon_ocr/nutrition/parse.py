@@ -19,10 +19,21 @@ from .us_label import is_us_label, read_us_label
 # Fibre is optional in that regulation and prints between sugars and protein,
 # so a label carrying it yields one more value row than one that does not.
 EU_ROW_ORDER = (
-    "fat_g", "saturates_g", "carbohydrate_g", "sugars_g", "protein_g", "salt_g",
+    "fat_g",
+    "saturates_g",
+    "carbohydrate_g",
+    "sugars_g",
+    "protein_g",
+    "salt_g",
 )
 EU_ROW_ORDER_WITH_FIBRE = (
-    "fat_g", "saturates_g", "carbohydrate_g", "sugars_g", "fibre_g", "protein_g", "salt_g",
+    "fat_g",
+    "saturates_g",
+    "carbohydrate_g",
+    "sugars_g",
+    "fibre_g",
+    "protein_g",
+    "salt_g",
 )
 
 MISSING_VALUE = math.nan

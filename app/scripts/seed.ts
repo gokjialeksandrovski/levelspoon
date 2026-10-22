@@ -11,8 +11,7 @@ import { addCalendarDays, todayLocalDateString } from "../src/lib/date/day-bound
 const SEED_USER_EMAIL = "seed-user@levelspoon.local";
 
 // The deliberate variant pair tier-2's own matchProduct test seeds
-// independently for isolation - this is for interactive local dev only,
-// e.g. exercising the (future, M2b) capture flow UI by hand.
+// independently for isolation - this copy is for interactive local dev only.
 //
 // Deliberate exception to "never mint a photo key any other way"
 // (app/src/lib/db/photo-keys.ts, CLAUDE.md): these two literal strings are

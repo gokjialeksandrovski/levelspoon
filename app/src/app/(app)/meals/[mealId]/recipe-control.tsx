@@ -23,7 +23,7 @@ export const RecipeSubtitle = ({ recipe }: { recipe: MealRecipeLink | null }) =>
  * Suppressed when the recipe is merely a subset of the meal - picking a
  * recipe into a meal that already held something else is exactly what the
  * user asked for, not drift, and the line would otherwise fire on that
- * happy path (found in review). A genuine change - an amount edited, a row
+ * happy path. A genuine change - an amount edited, a row
  * removed - still fails `matches` and is not a subset either, so the line
  * still fires for it. */
 export const RecipeDivergence = ({ recipe }: { recipe: MealRecipeLink | null }) =>
@@ -48,7 +48,7 @@ export const RecipeControl = ({ mealId, recipe, ingredients, onChanged, onAnnoun
   // seeded once at mount from the `ingredients` prop - so without a fresh key
   // per open, editing or removing an ingredient and then reopening the sheet
   // would show the stale pre-edit draft, and Save would silently overwrite
-  // the edit right back (found in review).
+  // the edit right back.
   const [openKey, setOpenKey] = useState(0);
 
   if (ingredients.length === 0) {

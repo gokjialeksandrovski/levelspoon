@@ -34,7 +34,7 @@ test("describe, consent, adjust, log, save as recipe from the meal page", async 
   await page.getByRole("button", { name: "Save", exact: true }).click();
   // Substring "AI estimate" also matches the recipe subtitle's "(AI estimate)",
   // so this counts the item tag's own rendered text (" · AI estimate"), not
-  // every occurrence of the substring on the page (controller ruling 1).
+  // every occurrence of the substring on the page.
   await expect(page.getByText("· AI estimate")).toHaveCount(2);
   await expect(page.getByText("From your saved recipes: Chicken rice bowl (AI estimate)")).toBeVisible();
   await expect(page.getByRole("link", { name: /Correct values/ })).toHaveCount(0);
@@ -89,10 +89,9 @@ test("Escape on review writes nothing and keeps the text", async ({ page }) => {
   await openLazyTrack(page);
   await describeAndEstimate(page);
   await page.getByRole("button", { name: "I agree" }).click();
-  // No .focus() on a Grams field first (controller ruling 2): this covers the
-  // arrival case - Escape fired right after the review step mounts, with
-  // nothing on it yet given focus - which is the bug the document-level
-  // keydown listener (vs. a since-removed div onKeyDown) was fixed for.
+  // No .focus() on a Grams field first: this covers the arrival case -
+  // Escape fired right after the review step mounts, with nothing on it yet
+  // given focus - which only a document-level keydown listener catches.
   await expect(page.getByRole("heading", { name: "Chicken rice bowl" })).toBeVisible();
 
   const posts: string[] = [];

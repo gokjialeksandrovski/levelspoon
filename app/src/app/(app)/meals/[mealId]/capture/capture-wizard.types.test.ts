@@ -259,9 +259,9 @@ describe("wizardReducer", () => {
     // Unlike MATCH_RESOLVED/NONE_OF_THESE, this path starts from the amount
     // step - which never had a front-panel net weight to begin with (a
     // SelectedProduct only ever carries id/name/its learned measures) - so
-    // there is nothing to thread forward. A pending barcode, added to the
-    // amount step by this same ticket, does carry forward: switching match
-    // here must not silently drop the still-unlinked scanned code (T4).
+    // there is nothing to thread forward. A pending barcode does carry
+    // forward: switching match here must not silently drop the still-unlinked
+    // scanned code.
     const next = wizardReducer(
       { kind: "amount", product: { id: "p1", name: "Olympus Greek Yogurt 2% Fat", ...NO_MEASURES }, alternatives: [], pendingBarcode: "0000000000000" },
       {

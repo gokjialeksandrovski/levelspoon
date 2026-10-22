@@ -28,7 +28,7 @@ import {
 } from "./meals";
 import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 
-// Every meal now names the day it counts towards, so the tests that are not
+// Every meal names the day it counts towards, so the tests that are not
 // about that day say "today" once here rather than restating it per call.
 const TODAY = todayLocalDateString("UTC");
 const YESTERDAY = addCalendarDays(TODAY, -1);
@@ -500,7 +500,7 @@ describe("getDayLog", () => {
     expect(yesterdayLog.dayTotal.energyKcal).toBeCloseTo(140, 5);
   });
 
-  // The day is a stored calendar date now, so it reads the same wherever the
+  // The day is a stored calendar date, so it reads the same wherever the
   // reader is - a flight does not move a meal to the day before.
   it("reads the same day whatever timezone the request carries", async () => {
     const userId = await seedUser();
@@ -1027,7 +1027,7 @@ describe("getMealDetail recipe link", () => {
     expect(meal?.recipe?.recipeIsSubset).toBe(false);
   });
 
-  // [Finding 3] The recipe survives whole, plus this extra row - the "picked
+  // The recipe survives whole, plus this extra row - the "picked
   // a recipe into a meal that already held something" shape the divergence
   // line must not fire on, even though `matches` is still (correctly) false.
   it("still reports the recipe as a subset once an ingredient is added on top of it", async () => {

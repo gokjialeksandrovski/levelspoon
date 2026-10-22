@@ -239,8 +239,8 @@ export const appendItemsToMeal = async (
       // "manual" for a recipe item (no source of its own) and for a freshly
       // typed row alike. An edit sheet's untouched row supplies its own
       // preserved source instead, so a fresh ai_estimated amount survives a
-      // save the user made no changes to (CLAUDE.md, "Manual gram entry is
-      // first-class").
+      // save the user made no changes to (docs/AMOUNTS.md, "Manual gram
+      // entry is first-class").
       quantitySource: item.quantitySource ?? "manual",
     })),
   );

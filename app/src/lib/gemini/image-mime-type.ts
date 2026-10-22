@@ -15,8 +15,7 @@ const WEBP_FORMAT_TAG_HEX_OFFSET = 16;
 
 // Gemini's inline image parts accept these three formats. The browser's
 // Blob.type is deliberately not trusted: it is frequently empty for camera
-// captures, and the previous implementation hardcoded image/jpeg for every
-// upload, mislabelling PNGs.
+// captures.
 const IMAGE_SIGNATURES = [
   { mimeType: "image/jpeg", matches: (header: string) => header.startsWith("ffd8ff") },
   { mimeType: "image/png", matches: (header: string) => header.startsWith("89504e47") },

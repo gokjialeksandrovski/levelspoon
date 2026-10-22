@@ -521,8 +521,6 @@ const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValue
 const DEFAULT_NUTRITION_BASIS_UNIT = "g";
 const DEFAULT_NUTRITION_BASIS_QUANTITY = 100;
 
-// The default-filling pair was inlined at three call sites (findSameFigures,
-// assertNotDuplicate, here) - one helper so the default lives in one place.
 const basisOf = (input: CreateProductInput): { basisUnit: string; basisQuantity: number } => ({
   basisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
   basisQuantity: input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY,
@@ -717,33 +715,30 @@ const fetchOverridePhotoKey = async (userId: string, productId: string): Promise
  * `saveNutritionOverride`'s outcome, as data rather than a throw - the same
  * reason `createProduct` returns `CreateProductResult` instead of letting
  * `LabelPhotoAlreadyUsedError` cross the Server Action boundary. This is the
- * write path's other photo-key mint site; it went without this for a while
- * because only createProduct had an earlier good path (the nutrition step's
- * own probe) to fall back on - this path has none, so a caller that only
- * catches never sees which refusal happened.
+ * other photo-key mint site, and unlike createProduct it has no earlier good
+ * path (the nutrition step's own probe) to fall back on, so a caller that only
+ * catches would never see which refusal happened.
  */
 export type SaveNutritionOverrideResult =
   | { kind: "saved" }
   | { kind: "photo_already_used"; ownerName: string | null };
 
+// Demo label photos are never stored.
+const storableClaimPhoto = (isGuest: boolean, photo: Blob | undefined): Blob | undefined => (isGuest ? undefined : photo);
+
 /**
  * One user's correction to one product, written to product_overrides rather
- * than onto the shared row.
- *
- * Before this, a correction rewrote the canonical figures for every user and,
- * because meal_ingredients stores no nutrition snapshot, retroactively rewrote
- * every past meal that referenced the product. The upsert's ON CONFLICT is what
- * keeps exactly one live correction per (user, product): a second edit replaces
- * the first rather than accumulating rows nothing reads.
+ * than onto the shared row: meal_ingredients stores no nutrition snapshot, so
+ * rewriting the canonical figures would retroactively rewrite every user's
+ * past meals that reference the product. The upsert's ON CONFLICT keeps
+ * exactly one live correction per (user, product): a second edit replaces the
+ * first rather than accumulating rows nothing reads.
  *
  * The photo is optional and independent of the figures. Omitting it leaves any
  * photo already attached in place - "I corrected a typo" must not silently
  * withdraw "the label changed" - while supplying one replaces the previous
  * claim and deletes the object it replaced.
  */
-// Demo label photos are never stored.
-const storableClaimPhoto = (isGuest: boolean, photo: Blob | undefined): Blob | undefined => (isGuest ? undefined : photo);
-
 export const saveNutritionOverride = async (
   productId: string,
   nutritionPer100g: NutritionValues,
@@ -1024,6 +1019,8 @@ const fetchOverrideRow = async (userId: string, productId: string): Promise<Over
 // 404s instead.
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
   const userId = await requireUserId();
+  // Auth gate runs before any read, so an anonymous request costs no query.
+  // eslint-disable-next-line clean-code/no-sequential-independent-await
   const [product] = await db.select().from(products).where(eq(products.id, productId));
   if (!product || product.source === STANDARD_SOURCE || product.nutritionOrigin === AI_ESTIMATE_ORIGIN) {
     return null;

@@ -41,8 +41,8 @@ def cluster_columns(
 ) -> tuple[tuple[Box, ...], ...]:
     """Group boxes into columns by horizontal gaps, left to right.
 
-    Replaces the spike's absolute `x > 800` threshold, which silently broke
-    on any photo of a different resolution, crop, or zoom level (spec §4.2).
+    Relative, not an absolute pixel threshold such as `x > 800`, which
+    breaks on any photo of a different resolution, crop, or zoom (spec §4.2).
     """
     if not boxes:
         return ()

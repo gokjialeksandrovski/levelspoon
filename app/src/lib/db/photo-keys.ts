@@ -22,8 +22,7 @@ const PNG_SIGNATURE = Buffer.from("89504e47", "hex");
 // file (borrowed-label.jpg saved as .png) would otherwise mint a second key
 // for bytes the UNIQUE index already holds under the first one - the
 // extension has to be canonical for the index to be the actual guard.
-// Everything but PNG's own signature is treated as jpg, matching the old
-// MIME-based default.
+// Everything but PNG's own signature is treated as jpg.
 export const extensionFromBytes = (buffer: Buffer): string =>
   buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ? PNG_EXTENSION : JPEG_EXTENSION;
 

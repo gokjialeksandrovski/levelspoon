@@ -24,10 +24,9 @@ export interface PhotoOwner {
  * table, not a cross-table one, so the same key string could in principle
  * match a row in both at once - the `products` arm wins whenever it matches,
  * because it is the only arm that can ever name an owner. Each arm also has
- * its own `LIMIT 1`: the docstring's own "don't rely on caller discipline"
- * argument applies to a caller passing keys from two different buffers just
- * as much as to the two-table tie above, and an un-limited scalar subquery
- * matching more than one row raises rather than returns.
+ * its own `LIMIT 1`: a caller may pass keys from two different buffers, and an
+ * un-limited scalar subquery matching more than one row raises rather than
+ * returns.
  *
  * An override's own author is named, never anonymized: attaching a claim
  * photo to product X and then trying the same bytes on product Y is that

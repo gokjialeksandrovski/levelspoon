@@ -604,12 +604,10 @@ describe("createProduct", () => {
     await expect(rejection).rejects.toMatchObject({ ownerName: "Bella Farm Yoghurt" });
   });
 
-  // The finding this pins: extensionFromMimeType used to derive the key's
-  // extension from the caller-declared Blob type, so identical bytes minted
-  // two different keys depending on what a renamed file's <input
-  // type="file"> reported. The extension now comes from the bytes'
-  // own signature (extensionFromBytes), so a lying declared type can no
-  // longer evade the reuse ban.
+  // The key's extension comes from the bytes' own signature
+  // (extensionFromBytes), never the caller-declared Blob type, so identical
+  // bytes mint one key whatever a renamed file's <input type="file">
+  // reports, and a lying declared type cannot evade the reuse ban.
   it("refuses a second product carrying the first product's photo even under a different declared image type", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
@@ -1455,7 +1453,7 @@ describe("replacement label photos", () => {
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
     // A distinct photo, not a second newLabelPhoto() - two different users'
-    // claim rows now collide on the same UNIQUE column if their bytes match.
+    // claim rows collide on the same UNIQUE column if their bytes match.
     await saveNutritionOverride(productId, CORRECTED_AGAIN, otherLabelPhoto());
 
     const debt = await fetchPhotoDebt();

@@ -56,11 +56,10 @@ describe("photoKeysFor", () => {
     expect(claimKey).toBe(toPhotoKey(bytesOf("label-a"), CLAIM_PHOTO_PREFIX, "jpg"));
   });
 
-  // The finding this pins: a <input type="file"> reports its MIME type from
-  // the file's name, so a borrowed label renamed from .jpg to .png used to
-  // mint a different key for the identical bytes - evading the UNIQUE index
-  // that is supposed to be the actual guard. There is no MIME parameter left
-  // to lie with; the extension now comes only from the bytes' own signature.
+  // A <input type="file"> reports its MIME type from the file's name, so a
+  // borrowed label renamed from .jpg to .png must not mint a different key
+  // for the identical bytes and evade the UNIQUE index. The extension comes
+  // only from the bytes' own signature; there is no MIME parameter to lie with.
   it("derives the identical key for identical bytes carrying a PNG signature or not", () => {
     const jpegLikeBytes = bytesOf("shared-label-bytes");
     const pngLikeBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), bytesOf("shared-label-bytes")]);

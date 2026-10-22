@@ -24,10 +24,10 @@ test("editing an ingredient amount recalculates its contribution", async ({ page
   await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();
 });
 
-// Regression: a failed save (amount resolves to 0g, which resolveGrams
-// treats as unresolved) used to leave its error message rendered forever,
-// even after a subsequent save succeeded - saveIngredientQuantity never
-// cleared editing.error on a new attempt (ingredient-row.tsx).
+// A failed save (amount resolves to 0g, which resolveGrams treats as
+// unresolved) must not leave its error rendered after a later save succeeds:
+// saveIngredientQuantity clears editing.error on each attempt
+// (ingredient-row.tsx).
 test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
@@ -164,7 +164,7 @@ test("the cooking-fat control is optional and adds nothing until used", async ({
 });
 
 // Olive oil's real USDA per-100g figures (884 kcal, 0.92 g/mL density) so the
-// expected kcal rise matches the spec's own worked example (spec §8 T4):
+// expected kcal rise matches the spec's own worked example (spec §8):
 // 1 tbsp = 15ml * 0.92 = 13.8g; 884 * 13.8/100 = 121.99 -> rounds to 122.
 test("adding a cooking fat raises the meal total by its own contribution", async ({ page }) => {
   await seedConfidentProduct();

@@ -94,7 +94,7 @@ describe("defaultUnit", () => {
   });
 
   it("is already the basis unit for a non-grams product, since servingUnit mirrors it", () => {
-    // No change needed in defaultUnit itself (spec §6) - this locks in why.
+    // defaultUnit needs no special case for this (spec §6); this locks that in.
     const context = contextFor({ nutritionBasisUnit: "tbsp", servingUnit: "tbsp" });
     expect(defaultUnit(context)).toBe("tbsp");
   });

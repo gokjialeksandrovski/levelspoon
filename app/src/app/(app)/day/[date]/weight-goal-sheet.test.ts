@@ -1,12 +1,10 @@
-// app/src/app/(app)/day/[date]/weight-goal-sheet.test.ts
 import { describe, expect, it, vi } from "vitest";
 
 import { cadenceLabel, weightGoalInputError } from "@/features/weight/actions/weight.utils";
 
 // The component imports the Server Action, whose chain reaches next-auth and
-// its bare `next/server` specifier - which vitest cannot resolve, so this file
-// collected as "0 test" and its cases never ran. Nothing here calls the
-// action; only the pure draft functions beside it are under test.
+// its bare `next/server` specifier, which vitest cannot resolve. Nothing here
+// calls the action; only the pure draft functions beside it are under test.
 vi.mock("@/features/weight/actions/weight", () => ({ saveWeightGoal: vi.fn() }));
 
 import { draftToInput, type GoalDraft } from "./weight-goal-sheet";

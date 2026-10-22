@@ -312,19 +312,12 @@ interface StepViewProps {
   onDone: () => void;
 }
 
-// One case per line, like wizardReducer's switch - delegating each case's
-// JSX to a named render* function keeps the switch scannable as a state
-// map, not a line-count workaround (kept even after the line-count rule
-// was dropped).
-// One branch per wizard step. CLAUDE.md requires a switch here: TypeScript
-// narrows the discriminated union per case, which a Record lookup cannot do
-// without an unsafe cast.
-// Exhaustive switch over a discriminated union scores one per case, and
-// every case here already delegates to a named render* function - there is
-// no un-extracted work left to pull out. Splitting the table across two
-// functions to clear the threshold would fragment the one thing this switch
-// exists to keep scannable: the state map. Same argument wizardReducer's own
-// directive carries; this is the repo's second, not a first exception.
+// One branch per wizard step, one case per line. A switch, not a Record
+// lookup: TypeScript narrows the discriminated union per case, which a lookup
+// cannot do without an unsafe cast. The switch scores one per case, and every
+// case already delegates to a named render* function; splitting the table to
+// clear the threshold would fragment the state map it exists to show. Same
+// argument as wizardReducer's directive - the repo's second exception.
 // eslint-disable-next-line complexity
 const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
@@ -417,7 +410,7 @@ interface UseCaptureWizardResult {
 }
 
 // Bundles path/save-count state and exit strategy so CaptureWizard's body
-// stays under the line budget.
+// reads as layout only.
 const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
   const [savedCount, setSavedCount] = useState(0);

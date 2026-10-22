@@ -180,12 +180,12 @@ export const earlierMealsFromRecipe = async (mealId: string, timezone: string): 
     return [];
   }
 
-  const [recipeItemRows, numbers, kcals] = await Promise.all([
+  const [recipeItemRows, numbers, kcals, siblingRows] = await Promise.all([
     fetchRecipeItems(meal.recipeId),
     fetchMealNumbers(userId, meal.logDate),
     fetchMealKcals(userId, siblingIds),
+    Promise.all(siblingIds.map((id) => fetchMealItems(id))),
   ]);
-  const siblingRows = await Promise.all(siblingIds.map((id) => fetchMealItems(id)));
 
   return siblingIds.map((id, index) => ({
     mealId: id,
@@ -338,11 +338,12 @@ export const saveRecipeEdit = async (
     // the recipe is overwritten there is nothing left to compare against: a
     // re-check done afterwards would silently pass every meal.
     const oldItems = meal.recipeId ? await fetchRecipeItems(meal.recipeId) : [];
-    const { updatable, skipped } =
+    const [{ updatable, skipped }, numbers] = await Promise.all([
       mode.kind === "overwrite" && isToday
-        ? await partitionTickedMeals(userId, meal, mode.alsoUpdateMealIds, oldItems)
-        : { updatable: [], skipped: [] };
-    const numbers = await fetchMealNumbers(userId, meal.logDate);
+        ? partitionTickedMeals(userId, meal, mode.alsoUpdateMealIds, oldItems)
+        : { updatable: [], skipped: [] },
+      fetchMealNumbers(userId, meal.logDate),
+    ]);
 
     const recipeId = await db.transaction((tx) => writeRecipeEdit(tx, userId, mealId, draft, mode, meal, updatable));
 

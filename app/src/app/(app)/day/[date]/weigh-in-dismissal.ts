@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/weigh-in-dismissal.ts
 // Per-device (localStorage), like levelspoon:ai-photo-consent. Dismissing a prompt
 // is not a fact about the account, and a server round trip to say "not now"
 // would be a write the exit is supposed to avoid.

@@ -316,7 +316,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result).toMatchObject({ flags: ["energy_kcal"] });
   });
 
-  // Pins the ordering the whole of Task 3 rests on: the photo-owner probe
+  // Pins the ordering the photo-reuse guard rests on: the photo-owner probe
   // must run before the OCR call, or the answer handed back would be the
   // other product's figures - reading them is what makes the mistake look
   // right. mockExtractNutritionTable not being called is the actual proof;

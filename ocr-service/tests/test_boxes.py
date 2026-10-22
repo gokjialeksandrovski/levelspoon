@@ -12,7 +12,9 @@ def test_box_is_immutable():
 
 
 def test_ocr_result_carries_image_dimensions():
-    result = OcrResult(boxes=(Box("a", 1.0, 2.0, 0.9),), image_width=1200, image_height=1600)
+    result = OcrResult(
+        boxes=(Box("a", 1.0, 2.0, 0.9),), image_width=1200, image_height=1600
+    )
     assert result.image_width == 1200
     assert len(result.boxes) == 1
 

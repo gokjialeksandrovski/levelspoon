@@ -41,7 +41,7 @@ describe("mealMatchesRecipe", () => {
     expect(mealMatchesRecipe([...recipe, amount("oil", 10)], recipe)).toBe(false);
   });
 
-  // [RF-1] A meal can hold two rows of the same product - the user logged
+  // A meal can hold two rows of the same product - the user logged
   // olive oil twice, or entered this very recipe into the meal a second time.
   // Comparing sets instead of multisets would call the doubled meal
   // "matching" and let a wholesale retro-update silently halve it. The
@@ -64,7 +64,7 @@ describe("mealMatchesRecipe", () => {
     expect(mealMatchesRecipe([], [])).toBe(true);
   });
 
-  // [RF-2a] Postgres hands `quantity` back as "180.00". Every caller is
+  // Postgres hands `quantity` back as "180.00". Every caller is
   // expected to Number() before calling this, and a fractional gram is a real
   // amount, so the comparison is on numbers with a tolerance below the
   // column's own scale rather than on strings.
@@ -155,8 +155,8 @@ describe("draftIsSaveable", () => {
 
 describe("draftRowToAmountRow", () => {
   // The real shape a chip-sourced row carries: entryUnit ("slice") never
-  // equals quantityUnit ("g"), even when the row is untouched - so the old
-  // entryUnit === quantityUnit check nulled the echo on every row like this.
+  // equals quantityUnit ("g"), even when the row is untouched - so an
+  // entryUnit === quantityUnit check would null the echo on every row like this.
   it("keeps the entry echo and source on a row the user never touched", () => {
     const row = draftRow({
       quantity: "60",

@@ -99,8 +99,8 @@ interface ChipClusterProps {
 /**
  * One labelled group of chips.
  *
- * The label is what a sighted first-timer was missing: the row was an
- * aria-label only, so it read as unexplained bubbles above the amount field.
+ * The label is visible, not an aria-label alone: without it a sighted
+ * first-timer reads the row as unexplained bubbles above the amount field.
  * A cluster with no chips renders nothing at all - a product with no history
  * should not show an empty "Your last amounts" heading.
  *

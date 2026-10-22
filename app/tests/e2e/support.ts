@@ -56,7 +56,7 @@ export const seedProductFor = async (userId: string, name = "Test Product") => {
   return product;
 };
 
-// The e2e equivalent of T1's barcode.test.ts seedProduct - a product row
+// The e2e equivalent of barcode.test.ts's seedProduct - a product row
 // with a product_barcodes row already pointing at it, for the internal_match
 // wizard scenario.
 export const seedProductWithBarcode = async (barcode: string, name = "Existing Scanned Product") => {

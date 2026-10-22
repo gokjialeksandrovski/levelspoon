@@ -173,9 +173,8 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
   );
 
   // Same three groups and the same four-distance ladder as the capture amount
-  // step (see AmountStepFields): 6/12/16/24. The 16px gaps make this body 16px
-  // taller than the flat gap-4 one it replaced; Sheet scrolls at 85dvh, so
-  // that buys grouping without costing reachable content.
+  // step (see AmountStepFields): 6/12/16/24. Sheet scrolls at 85dvh, so the
+  // grouping costs no reachable content.
   return (
     <div className="flex flex-col gap-6">
       {/* "Pick another", the same words the capture step's escape uses: both
@@ -264,7 +263,7 @@ const useCookingFatControl = (onIngredientChanged: () => void) => {
   return { isOpen, stage, search, ...buildCookingFatActions(setIsOpen, setStage, onIngredientChanged) };
 };
 
-// The meal-detail affordance itself (spec §8 T4): optional, defaults to
+// The meal-detail affordance itself (spec §8): optional, defaults to
 // nothing added, sits between "Add ingredient" and "Delete meal".
 export const CookingFatControl = ({ mealId, onIngredientChanged }: CookingFatControlProps) => {
   const control = useCookingFatControl(onIngredientChanged);

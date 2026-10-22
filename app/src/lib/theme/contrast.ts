@@ -15,7 +15,6 @@ const LUMINANCE_WEIGHT_B = 0.0722;
 // pure black and matching the spec's own (L1 + 0.05) / (L2 + 0.05) form.
 const CONTRAST_OFFSET = 0.05;
 
-// Hex color parsing constants
 const HEX_RADIX = 16;
 const HEX_CHANNEL_MAX = 255;
 const HEX_CHANNEL_R_START = 0;

@@ -1,7 +1,11 @@
 import pytest
 
 from levelspoon_ocr.boxes import Box
-from levelspoon_ocr.nutrition.normalize import NormalizationError, split_energy_row, to_grams
+from levelspoon_ocr.nutrition.normalize import (
+    NormalizationError,
+    split_energy_row,
+    to_grams,
+)
 
 
 @pytest.mark.parametrize(
@@ -37,7 +41,7 @@ def _box(text: str, y: float) -> Box:
 
 
 def test_reads_energy_merged_into_one_box():
-    """The spike's lucky case: '295kJ/70 Kcal' arrives as a single detection."""
+    """The easy case: '295kJ/70 Kcal' arrives as a single detection."""
     boxes = (_box("295kJ/70 Kcal", 100.0), _box("2,0 g", 200.0))
     kcal, kj, remaining = split_energy_row(boxes)
     assert (kcal, kj) == (70.0, 295.0)

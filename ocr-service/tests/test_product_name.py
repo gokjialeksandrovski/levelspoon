@@ -15,7 +15,7 @@ def test_joins_detections_top_to_bottom():
 
 
 def test_drops_low_confidence_logo_artefacts():
-    """'weere' is the mountain-logo artefact the spike hardcoded by name."""
+    """'weere' is a mountain-logo artefact, dropped by rule rather than by name."""
     result = _result(
         Box("OLYMPUS", 600.0, 200.0, 0.99),
         Box("weere", 300.0, 250.0, 0.42),
@@ -65,8 +65,8 @@ def _snickers_front() -> OcrResult:
 
 
 def test_reads_the_brand_and_product_type_off_a_real_wrapper_front():
-    """Defect: the calorie badge and net-weight declaration used to join
-    straight into the name. "SNICKERS" must survive alongside "BAR" (a
+    """The calorie badge and net-weight declaration must not join straight
+    into the name. "SNICKERS" must survive alongside "BAR" (a
     genuine product-type word, not noise), with nothing else."""
     assert extract_product_name(_snickers_front()) == "SNICKERS BAR"
 

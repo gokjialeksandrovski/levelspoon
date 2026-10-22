@@ -3,8 +3,13 @@ import dataclasses
 from levelspoon_ocr.nutrition.validate import NutritionValues, validate
 
 GOLDEN = NutritionValues(
-    energy_kcal=70.0, fat_g=2.0, saturates_g=1.2,
-    carbohydrate_g=4.0, sugars_g=4.0, protein_g=9.0, salt_g=0.18,
+    energy_kcal=70.0,
+    fat_g=2.0,
+    saturates_g=1.2,
+    carbohydrate_g=4.0,
+    sugars_g=4.0,
+    protein_g=9.0,
+    salt_g=0.18,
 )
 
 
@@ -29,15 +34,22 @@ def test_admits_rounding_drift_just_over_one_hundred_grams():
     as unreadable is a false alarm the confirm step shows as an error.
     """
     values = dataclasses_replace(
-        energy_kcal=540.5, fat_g=32.4, saturates_g=10.8,
-        carbohydrate_g=62.2, sugars_g=56.8, protein_g=5.4, salt_g=0.1,
+        energy_kcal=540.5,
+        fat_g=32.4,
+        saturates_g=10.8,
+        carbohydrate_g=62.2,
+        sugars_g=56.8,
+        protein_g=5.4,
+        salt_g=0.1,
     )
     assert validate(values, energy_kj=None) == ()
 
 
 def test_still_flags_components_past_the_rounding_tolerance():
     """The rule must keep catching a genuine misread, not just wave it through."""
-    flags = validate(dataclasses_replace(fat_g=60.0, carbohydrate_g=50.0), energy_kj=None)
+    flags = validate(
+        dataclasses_replace(fat_g=60.0, carbohydrate_g=50.0), energy_kj=None
+    )
     assert "fat_g" in flags and "carbohydrate_g" in flags
 
 
@@ -58,7 +70,9 @@ def test_flags_energy_failing_the_atwater_check():
 
 def test_atwater_tolerance_admits_fibre_and_polyols():
     """4*4 + 9*2 + 4*9 = 70; 85 is inside the +-30% band (spec §4.4)."""
-    assert "energy_kcal" not in validate(dataclasses_replace(energy_kcal=85.0), energy_kj=None)
+    assert "energy_kcal" not in validate(
+        dataclasses_replace(energy_kcal=85.0), energy_kj=None
+    )
 
 
 def test_flags_kj_inconsistent_with_kcal():
@@ -91,7 +105,9 @@ def test_flags_negative_fibre():
 
 def test_component_total_counts_known_fibre():
     """Fibre sits outside the EU carbohydrate figure, so it adds to the sum."""
-    values = dataclasses_replace(fat_g=30.0, carbohydrate_g=40.0, protein_g=25.0, salt_g=1.0, fibre_g=30.0)
+    values = dataclasses_replace(
+        fat_g=30.0, carbohydrate_g=40.0, protein_g=25.0, salt_g=1.0, fibre_g=30.0
+    )
     flags = validate(values)
     assert "fibre_g" in flags
     assert "carbohydrate_g" in flags
@@ -100,12 +116,19 @@ def test_component_total_counts_known_fibre():
 def test_component_total_ignores_absent_fibre():
     """energy_kcal set to match Atwater so only the component-total rule is under test."""
     values = dataclasses_replace(
-        energy_kcal=530.0, fat_g=30.0, carbohydrate_g=40.0, protein_g=25.0, salt_g=1.0, fibre_g=None
+        energy_kcal=530.0,
+        fat_g=30.0,
+        carbohydrate_g=40.0,
+        protein_g=25.0,
+        salt_g=1.0,
+        fibre_g=None,
     )
     assert validate(values) == ()
 
 
 def test_fibre_above_carbohydrate_is_not_flagged():
     """EU convention puts fibre outside carbohydrate, so bran is legal."""
-    values = dataclasses_replace(carbohydrate_g=20.0, fibre_g=40.0, fat_g=5.0, protein_g=15.0, salt_g=0.5)
+    values = dataclasses_replace(
+        carbohydrate_g=20.0, fibre_g=40.0, fat_g=5.0, protein_g=15.0, salt_g=0.5
+    )
     assert "fibre_g" not in validate(values)

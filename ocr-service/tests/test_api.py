@@ -46,6 +46,7 @@ def client_with(request):
         app.dependency_overrides[get_engine] = lambda: StubEngine(result)
         request.addfinalizer(app.dependency_overrides.clear)
         return TestClient(app)
+
     return _build
 
 
@@ -57,22 +58,31 @@ def test_health_reports_model_state(client_with):
 
 def test_nutrition_endpoint_returns_the_spec_contract(client_with):
     client = client_with(_nutrition_result())
-    response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
+    response = client.post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["per_100g"]["energy_kcal"] == 70.0
     assert body["per_100g"]["salt_g"] == 0.18
     assert body["flags"] == []
     assert set(body["per_100g"]) == {
-        "energy_kcal", "fat_g", "saturates_g", "carbohydrate_g",
-        "sugars_g", "protein_g", "salt_g", "fibre_g",
+        "energy_kcal",
+        "fat_g",
+        "saturates_g",
+        "carbohydrate_g",
+        "sugars_g",
+        "protein_g",
+        "salt_g",
+        "fibre_g",
     }
 
 
 def test_product_name_endpoint_returns_text(client_with):
     result = OcrResult(
         boxes=(Box("OLYMPUS", 600.0, 200.0, 0.99), Box("Greek", 600.0, 300.0, 0.99)),
-        image_width=1200, image_height=1600,
+        image_width=1200,
+        image_height=1600,
     )
     response = client_with(result).post(
         "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
@@ -86,17 +96,23 @@ def test_product_name_endpoint_reports_a_printed_net_weight(client_with):
             Box("SNICKERS", 334.5, 397.0, 1.0),
             Box("NET WT 1.86 0Z (52.7g)", 178.0, 464.0, 0.978),
         ),
-        image_width=800, image_height=800,
+        image_width=800,
+        image_height=800,
     )
     response = client_with(result).post(
         "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
-    assert response.json() == {"text": "SNICKERS", "net_weight_text": "NET WT 1.86 0Z (52.7g)"}
+    assert response.json() == {
+        "text": "SNICKERS",
+        "net_weight_text": "NET WT 1.86 0Z (52.7g)",
+    }
 
 
 def test_unreadable_nutrition_table_returns_422_not_zeroes(client_with):
     """No per-100g header: fail loudly rather than invent values."""
-    blank = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
+    blank = OcrResult(
+        boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400
+    )
     response = client_with(blank).post(
         "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
@@ -129,8 +145,13 @@ def test_validate_endpoint_returns_no_flags_for_golden_values():
         "/validate",
         json={
             "values": {
-                "energy_kcal": 70.0, "fat_g": 2.0, "saturates_g": 1.2,
-                "carbohydrate_g": 4.0, "sugars_g": 4.0, "protein_g": 9.0, "salt_g": 0.18,
+                "energy_kcal": 70.0,
+                "fat_g": 2.0,
+                "saturates_g": 1.2,
+                "carbohydrate_g": 4.0,
+                "sugars_g": 4.0,
+                "protein_g": 9.0,
+                "salt_g": 0.18,
             },
             "energy_kj": 295.0,
         },
@@ -145,8 +166,13 @@ def test_validate_endpoint_flags_saturates_above_fat():
         "/validate",
         json={
             "values": {
-                "energy_kcal": 70.0, "fat_g": 2.0, "saturates_g": 5.0,
-                "carbohydrate_g": 4.0, "sugars_g": 4.0, "protein_g": 9.0, "salt_g": 0.18,
+                "energy_kcal": 70.0,
+                "fat_g": 2.0,
+                "saturates_g": 5.0,
+                "carbohydrate_g": 4.0,
+                "sugars_g": 4.0,
+                "protein_g": 9.0,
+                "salt_g": 0.18,
             },
         },
     )
@@ -164,7 +190,9 @@ def test_validate_endpoint_rejects_a_missing_field():
 
 def test_eu_label_response_carries_per_100g_and_null_serving_fields(client_with):
     client = client_with(_nutrition_result())
-    response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
+    response = client.post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["format"] == "eu"
@@ -188,7 +216,9 @@ def test_us_label_response_carries_the_servings_per_container_count(client_with)
         "Total Sugars 9g",
         "Protein 3g",
     ]
-    boxes = tuple(Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts))
+    boxes = tuple(
+        Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts)
+    )
     result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)
     response = client_with(result).post(
         "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
@@ -196,11 +226,15 @@ def test_us_label_response_carries_the_servings_per_container_count(client_with)
     assert response.json()["servings_per_container"] == 48.0
 
 
-def test_us_label_without_a_gram_weight_returns_200_with_a_null_serving_grams(client_with):
-    """A serving with no printed weight is ordinary data, not a failure. The
-    422 that used to carry it is what produced the reported OcrServiceError."""
+def test_us_label_without_a_gram_weight_returns_200_with_a_null_serving_grams(
+    client_with,
+):
+    """A serving with no printed weight is ordinary data, not a failure - a
+    422 here surfaces in the app as OcrServiceError."""
     client = client_with(_us_label_result_without_grams())
-    response = client.post("/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")})
+    response = client.post(
+        "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["format"] == "us"
@@ -222,7 +256,9 @@ def test_us_label_with_a_printed_gram_weight_reports_it(client_with):
         "Total Sugars 9g",
         "Protein 3g",
     ]
-    boxes = tuple(Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts))
+    boxes = tuple(
+        Box(text, 100.0, 100.0 + i * 50.0, 0.95) for i, text in enumerate(texts)
+    )
     result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)
     response = client_with(result).post(
         "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
@@ -233,7 +269,9 @@ def test_us_label_with_a_printed_gram_weight_reports_it(client_with):
 
 
 def test_an_unreadable_photo_still_returns_422(client_with):
-    blank = OcrResult(boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400)
+    blank = OcrResult(
+        boxes=(Box("Masti", 200.0, 200.0, 0.9),), image_width=1000, image_height=1400
+    )
     response = client_with(blank).post(
         "/ocr/nutrition-table", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )

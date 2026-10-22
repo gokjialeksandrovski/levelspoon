@@ -7,8 +7,7 @@ export const SLIDE_OFFSET_PX = 24;
 
 const TRANSITION_DURATION_SECONDS = 0.26; // matches globals.css --duration-step
 
-// Mirrors globals.css's --ease-out-quart cubic-bezier control points exactly,
-// broken into named constants so neither counts as an unexplained magic number.
+// Mirrors globals.css's --ease-out-quart cubic-bezier control points exactly.
 const EASE_OUT_QUART_X1 = 0.16;
 const EASE_OUT_QUART_Y1 = 1;
 const EASE_OUT_QUART_X2 = 0.3;

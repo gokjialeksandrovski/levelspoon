@@ -13,8 +13,8 @@ export const weightGoalModeEnum = pgEnum("weight_goal_mode", ["target", "hold"])
 const WEIGHT_COLUMN_PRECISION = 6;
 const WEIGHT_COLUMN_SCALE = 2;
 
-// kg/week. Four digits, not three: the pace is a typed figure now, and 9.99
-// was a ceiling nobody chose.
+// kg/week. Four digits, not three: the pace is a typed figure, and 9.99 is a
+// ceiling nobody chose.
 const RATE_COLUMN_PRECISION = 4;
 const RATE_COLUMN_SCALE = 2;
 

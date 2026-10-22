@@ -35,8 +35,8 @@ const useDialogSync = (ref: React.RefObject<HTMLDialogElement | null>, open: boo
 // is the settled state, and @starting-style supplies the entrance's first
 // frame. The exit needs transition-discrete on `display` and `overlay` too -
 // close() drops the open attribute, and without allow-discrete the UA's
-// `display: none` and the top-layer exit both land on frame one, which is
-// what made dismissing instant no matter what transform was declared.
+// `display: none` and the top-layer exit both land on frame one, which
+// makes dismissing instant no matter what transform is declared.
 // open:flex (not bare flex) is required: a bare `flex` would beat the UA's
 // `dialog:not([open]){display:none}` and leave the closed sheet clickable.
 const DIALOG_CLASS =

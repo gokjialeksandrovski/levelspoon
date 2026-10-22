@@ -425,7 +425,7 @@ describe("enterRecipe", () => {
     expect(rows).toHaveLength(2);
   });
 
-  // [RF-4a] A meal reached through History is on a past day. Entering a
+  // A meal reached through History is on a past day. Entering a
   // recipe into it must write to that meal and leave today alone.
   it("enters into a past day's meal without touching today", async () => {
     const userId = await seedUser();
@@ -443,7 +443,7 @@ describe("enterRecipe", () => {
     expect(todayRows).toHaveLength(0);
   });
 
-  // [RF-5] The picker's list was fetched once on mount. A recipe deleted in
+  // The picker's list was fetched once on mount. A recipe deleted in
   // another tab since then must leave the meal exactly as it was.
   it("refuses a deleted recipe and writes nothing", async () => {
     const userId = await seedUser();
@@ -622,7 +622,7 @@ describe("earlierMealsFromRecipe", () => {
     expect(earlier.mealNumber).toBe(2);
   });
 
-  // [RF-4b] A closed day's total is a figure the user already read.
+  // A closed day's total is a figure the user already read.
   it("never offers a meal from another day, matching or not", async () => {
     const userId = await seedUser();
     signedInAs(userId);
@@ -679,7 +679,7 @@ describe("earlierMealsFromRecipe", () => {
     expect((await liveRows(origin)).map((row) => Number(row.quantity))).toEqual([250]);
   });
 
-  // [Critical] The meal page has no day guard - a linked meal logged for
+  // The meal page has no day guard - a linked meal logged for
   // yesterday is reachable by id today, same as one logged today. Nothing
   // here may be offered: the prompt's own copy says "earlier today", and
   // yesterday's total is a figure the user already read and closed out.
@@ -725,11 +725,11 @@ describe("saveRecipeEdit", () => {
     expect(rows.map((row) => Number(row.quantity))).toEqual([250]);
   });
 
-  // [Finding 1] Built through draftRowToAmountRow, the same conversion the
+  // Built through draftRowToAmountRow, the same conversion the
   // edit sheet runs on its draft - so this pins the full path, not just the
   // store's own pass-through. The bread row's amount is retyped to the exact
-  // same digits Number() would parse from 60 either way, so this only proves
-  // the fix if quantity comparison is by string (initialQuantity), not value.
+  // same digits Number() would parse from 60 either way, so this only passes
+  // if quantity comparison is by string (initialQuantity), not value.
   it("preserves an untouched row's entry echo and source, and nulls only the edited row's", async () => {
     const userId = await seedUser();
     signedInAs(userId);
@@ -879,7 +879,7 @@ describe("saveRecipeEdit", () => {
     expect((await liveRows(yesterdayMeal)).map((row) => Number(row.quantity))).toEqual([200]);
   });
 
-  // [Critical] The predicate above only pins the cross-day case where the
+  // The predicate above only pins the cross-day case where the
   // *open* meal is on today. The case that actually decides the rule is an
   // open meal that is itself not on today: nothing may be offered or
   // retro-updated, but the recipe edit itself - the open meal's own rows,
@@ -967,7 +967,7 @@ describe("saveRecipeEdit", () => {
     expect((await liveRows(open)).map((row) => Number(row.quantity))).toEqual([200]);
   });
 
-  // [RF-3] The Save button is disabled client-side, which is not a guard.
+  // The Save button is disabled client-side, which is not a guard.
   it("refuses an empty draft and writes nothing", async () => {
     const userId = await seedUser();
     signedInAs(userId);
@@ -1032,7 +1032,7 @@ describe("saveRecipeEdit", () => {
     ).toEqual({ kind: "meal_missing" });
   });
 
-  // [RF-2b] Postgres hands `quantity` back as a string ("250.00"), not the
+  // Postgres hands `quantity` back as a string ("250.00"), not the
   // number every downstream comparison needs. A "same figure, written at a
   // different scale" scenario cannot discriminate a forgotten Number() here:
   // meal_ingredients.quantity and recipe_items.quantity are both

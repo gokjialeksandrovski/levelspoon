@@ -11,10 +11,10 @@ import { SettleNumber } from "@/components/ui/settle-number";
 // and what a product is per its own basis. Both sit on MacroLine so the accent
 // roles and the P/C/F redundant cue stay identical wherever figures appear.
 
-// Says what the slot is for while it has no figure to show. The height was
-// always reserved so a Save button below never jumps the moment a typed count
-// becomes resolvable, but reserving it empty read as a hole in the column - and
-// this is the one place that can say where a kcal figure comes from. True of
+// Says what the slot is for while it has no figure to show. The height is
+// reserved so a Save button below never jumps the moment a typed count becomes
+// resolvable, and an empty reserved slot reads as a hole in the column - this
+// is the one place that can say where a kcal figure comes from. True of
 // both unavailable cases: nothing entered yet, and an amount that did not
 // resolve (see previewContribution).
 const PREVIEW_PLACEHOLDER = "Enter an amount to see what it adds up to.";

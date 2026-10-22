@@ -1,4 +1,3 @@
-// app/src/features/weight/actions/weight.ts
 "use server";
 
 import { and, desc, eq } from "drizzle-orm";

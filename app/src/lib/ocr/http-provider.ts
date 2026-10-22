@@ -20,9 +20,9 @@ class OcrResponseShapeError extends Error {
 
 // ocr-service's actual wire shape (per-field, per-100g) - snake_case, matching
 // its validate.py flag naming that confirm-step.tsx's FLAG_TO_FIELD already
-// documents. This never matched NullableNutritionValues's camelCase shape at
-// runtime; only tier-5 (real ocr-service, no mock) can catch that, since
-// MockOcrProvider hardcodes the camelCase shape directly.
+// documents - not NullableNutritionValues's camelCase shape. Only tier-5 (real
+// ocr-service, no mock) catches a mismatch, since MockOcrProvider hardcodes the
+// camelCase shape directly.
 interface RawNutritionValues {
   energy_kcal: number | null;
   fat_g: number | null;

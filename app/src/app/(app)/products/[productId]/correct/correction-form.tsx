@@ -141,12 +141,11 @@ const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProp
   </>
 );
 
-// Name and figures are two different writes now: a correction is private to
-// this user, a rename still lands on the shared row and only its author may
-// make one. The refusable write runs first: saveNutritionOverride can now
-// refuse a borrowed claim photo (photo_already_used) as data rather than a
-// throw, so running the rename first would leave it committed beside a
-// rejected correction - the refusable one goes first, same reasoning as
+// Name and figures are two different writes: a correction is private to this
+// user, a rename lands on the shared row and only its author may make one.
+// The refusable write runs first: saveNutritionOverride can refuse a borrowed
+// claim photo (photo_already_used) as data, so running the rename first would
+// leave it committed beside a rejected correction - same reasoning as
 // createProduct's own upload-after-check ordering.
 const applyCorrection = async (
   product: ProductForCorrection,
@@ -227,9 +226,9 @@ export const revertCorrection = async (productId: string, callbacks: RevertCallb
 // this holds the confirmation, it does not hold the write.
 const CONFIRMATION_HOLD_MS = 900;
 
-// The screen used to vanish the instant the save resolved, leaving the write
-// with no feedback at all. React owns the timer so an early manual back
-// cancels it.
+// Holds the screen past the save so the write gets feedback rather than the
+// screen vanishing the instant it resolves. React owns the timer so an early
+// manual back cancels it.
 const useConfirmedExit = (isSaved: boolean, router: ReturnType<typeof useRouter>): void => {
   useEffect(() => {
     if (!isSaved) return;
@@ -305,9 +304,8 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   };
 };
 
-// Answers the question the old warning raised: this used to overwrite the
-// product for everyone, including in meals already saved. It no longer can.
-// Shown only when someone else can actually be offered this row, and named
+// Answers the worry that a correction overwrites the product for everyone,
+// including in meals already saved: it cannot. Shown only when someone else can actually be offered this row, and named
 // after the proof they would see - a hand-typed product with no photo and no
 // barcode is nobody else's, so claiming a shared copy survives is a fiction.
 const SHARED_NOTICE = {

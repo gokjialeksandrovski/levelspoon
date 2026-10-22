@@ -263,8 +263,8 @@ test("opening the sheet after an inline edit shows the new amount, not a stale d
   await logOneIngredient(page);
   await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
 
-  // The sheet stays mounted across this in-place reload (Task 9 review,
-  // Critical): without a fresh key per open, its draft would still read the
+  // The sheet stays mounted across this in-place reload: without a fresh
+  // key per open, its draft would still read the
   // 200 g it was first mounted with, and Save would silently revert this edit.
   await page.getByRole("button", { name: /amount$/ }).click();
   await page.getByLabel("Amount", { exact: true }).fill("150");
@@ -369,7 +369,7 @@ test("overwrite updates a matching earlier meal and leaves a diverged one named"
 
   // Exact copy, not an alternation: a partition that came back backwards
   // (offering the hand-edited Meal 2, excusing the two matching meals) would
-  // fail both of these, where the old alternation would have passed either way.
+  // fail both of these, where an alternation would pass either way.
   const tick = sheet.getByRole("checkbox", {
     name: "Also update Meal 1 and Meal 3 from earlier today (+70 kcal)",
   });

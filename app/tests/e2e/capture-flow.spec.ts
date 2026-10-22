@@ -60,8 +60,8 @@ test("ambiguous match: pick a candidate, reach the amount step", async ({ page }
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByLabel(/product photo/i).setInputFiles("tests/e2e/fixtures/ambiguous-product.jpg");
   // The step's own <h2>, not a looser /which product/i: the wizard header
-  // now titles the screen with an <h1> ("Which product?") too, and a
-  // substring match would hit both (found via /accessibility, 2026-09-10).
+  // titles the screen with an <h1> ("Which product?") too, and a substring
+  // match would hit both.
   await expect(page.getByRole("heading", { name: "Which product is this?" })).toBeVisible();
   await page.getByRole("button", { name: "Olympus Greek Yogurt 2% Fat" }).click();
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
@@ -139,8 +139,7 @@ test("per-unit product (household measure, no printed grams): capture, log, and 
 
   // No printed grams and no known density for this name - the label's own
   // "2 Tablespoon" serving becomes the product's basis instead of asking a
-  // question with no answer ("how many grams is 2 tbsp?"). This is the
-  // reported bug's fix (spec §1/§5).
+  // question with no answer ("how many grams is 2 tbsp?") (spec §1/§5).
   await expect(page.getByRole("heading", { name: "Nutrition per 1 tbsp" })).toBeVisible();
   await expect(page.getByLabel("Energy (kcal)")).toHaveValue("95");
   await page.getByRole("button", { name: /save product/i }).click();

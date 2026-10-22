@@ -131,7 +131,7 @@ export type CheckBarcodeBindingResult =
   | { kind: "rejected" };
 
 // Internal-only counterpart to lookupBarcode - no external call needed,
-// the product doesn't exist yet so OFF data is moot (barcode spec §7, T4).
+// the product doesn't exist yet so OFF data is moot (barcode spec §7).
 export const checkBarcodeBinding = async (rawCode: string): Promise<CheckBarcodeBindingResult> => {
   const userId = await requireUserId();
   const normalized = normalizeBarcode(rawCode);

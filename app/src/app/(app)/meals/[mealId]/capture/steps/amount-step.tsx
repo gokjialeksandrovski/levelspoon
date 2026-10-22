@@ -36,7 +36,7 @@ interface AmountStepProps {
   alternatives: SelectedProduct[];
   /** Non-null only when arriving via a confident/chosen match after an
    * earlier not_found scan - renders the link-this-barcode offer (barcode
-   * spec §7, T4, Task 3). */
+   * spec §7). */
   pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
   onSaved: () => void;
@@ -68,9 +68,8 @@ interface AmountStepCallbacks {
   setIsBusy: (isBusy: boolean) => void;
 }
 
-// Standalone, not a hook, so useAmountStepForm's body stays under the line
-// budget - bundled callbacks object, mirroring ingredient-row.tsx's shape.
-// Separate from setIsBusy, which also covers the save: otherwise saving would
+// Standalone with a bundled callbacks object, mirroring ingredient-row.tsx's
+// shape. Separate from setIsBusy, which also covers the save: otherwise saving would
 // light the photo overlay with nothing being read.
 const estimateAmount = async (
   photo: File,

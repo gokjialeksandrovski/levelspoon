@@ -11,9 +11,8 @@ def _box(text: str, y: float, x: float = 100.0) -> Box:
 
 
 # Rows sit 70px apart on a 1600px-tall image (4.4% of height), the spacing
-# measured off a real photographed FDA label via POST /debug/boxes. Earlier
-# revisions of this fixture spaced rows at 2.5% of height - closer together
-# than any real label prints them - which made row grouping look broken.
+# measured off a real photographed FDA label via POST /debug/boxes. Tighter
+# spacing than any real label prints makes row grouping look broken.
 ROW_PITCH = 70.0
 
 
@@ -59,7 +58,9 @@ def test_is_us_label_true_for_nutrition_facts_marker():
 
 
 def test_is_us_label_false_for_an_eu_label():
-    result = OcrResult(boxes=(_box("100 g", 100.0),), image_width=1000, image_height=1400)
+    result = OcrResult(
+        boxes=(_box("100 g", 100.0),), image_width=1000, image_height=1400
+    )
     assert not is_us_label(result)
 
 
@@ -204,7 +205,7 @@ def test_reads_a_row_split_across_three_boxes():
 
 
 def test_ignores_a_percent_daily_value_standing_where_the_gram_figure_belongs():
-    """"Protein 4%" is a %DV, not 4 grams - the gram figure must win."""
+    """ "Protein 4%" is a %DV, not 4 grams - the gram figure must win."""
     boxes = (
         _box("Nutrition Facts", ROW_PITCH * 1, x=100.0),
         _box("Serving Size 2 Tbsp (30g)", ROW_PITCH * 2, x=100.0),
@@ -249,7 +250,9 @@ def _snickers_linear_label() -> OcrResult:
         Box("Calories", x=69.0, y=244.0, confidence=0.99),
         Box(
             "Vitamin D 0mog 0% • Calcium 40mg 4% • Iron 0mg 0% • Potassium 150mg 4%",
-            x=266.0, y=244.0, confidence=0.95,
+            x=266.0,
+            y=244.0,
+            confidence=0.95,
         ),
         Box("250", x=118.0, y=246.0, confidence=0.99),
         Box("per serving", x=67.0, y=252.0, confidence=0.99),
@@ -279,8 +282,8 @@ def test_reads_every_field_off_the_linear_two_column_label():
 
 def test_energy_reads_the_prominent_calories_figure_not_a_vitamin_milligram():
     """Defect 3: the Calories box carries no figure, and the vitamins box sits
-    on the same printed line. Mutual nearest neighbour must pick '250' - the
-    old rule preferred a unit-carrying figure and silently returned 0.04."""
+    on the same printed line. Mutual nearest neighbour must pick '250' - a
+    rule preferring a unit-carrying figure would silently return 0.04."""
     reading = read_us_label(_snickers_linear_label())
     assert reading.per_serving.energy_kcal == pytest.approx(250.0)
 
@@ -300,8 +303,8 @@ def test_serving_grams_is_none_when_the_label_prints_no_gram_weight():
 
 
 def test_a_trans_fat_zero_never_becomes_the_serving_gram_weight():
-    """Defect 2's second half: the merged row used to hand '0g' to the serving
-    size regex, producing a non-positive gram weight error."""
+    """Defect 2's second half: a merged row must not hand '0g' to the serving
+    size regex, which would produce a non-positive gram weight error."""
     assert read_us_label(_snickers_linear_label()).serving_grams != 0
 
 
@@ -389,7 +392,9 @@ def _snickers_stacked_label_with_detached_weight() -> OcrResult:
     can - the parenthesized weight detaching from the measure it belongs to.
     Reproduces the reported behaviour of asking the user for a weight the
     label already printed."""
-    kept = tuple(box for box in _snickers_stacked_label().boxes if box.text != "1 bar (47g)")
+    kept = tuple(
+        box for box in _snickers_stacked_label().boxes if box.text != "1 bar (47g)"
+    )
     return OcrResult(
         boxes=kept
         + (
@@ -426,7 +431,9 @@ def test_servings_per_container_is_none_when_not_printed():
 
 def test_raises_when_a_marker_resolves_to_no_figure_at_all():
     boxes = tuple(
-        box for box in _us_label("2 Tbsp (30g)").boxes if not box.text.startswith("Protein")
+        box
+        for box in _us_label("2 Tbsp (30g)").boxes
+        if not box.text.startswith("Protein")
     )
     result = OcrResult(boxes=boxes, image_width=1000, image_height=1600)
     with pytest.raises(NormalizationError, match="protein"):
@@ -437,14 +444,18 @@ def test_total_carbohydrate_is_reported_without_its_fibre():
     """21 CFR 101.9(c)(6)(i) counts fibre inside Total Carbohydrate; the EU
     figure this service reports excludes it, same normalisation sodium gets.
     """
-    reading = read_us_label(us_label_boxes(total_carbohydrate="25g", dietary_fiber="3g"))
+    reading = read_us_label(
+        us_label_boxes(total_carbohydrate="25g", dietary_fiber="3g")
+    )
     assert reading.per_serving.carbohydrate_g == 22.0
     assert reading.per_serving.fibre_g == 3.0
 
 
 def test_label_without_a_fibre_row_still_reads():
     """An obscured or pre-2016 label degrades to unknown fibre, never a raise."""
-    reading = read_us_label(us_label_boxes(total_carbohydrate="25g", dietary_fiber=None))
+    reading = read_us_label(
+        us_label_boxes(total_carbohydrate="25g", dietary_fiber=None)
+    )
     assert reading.per_serving.fibre_g is None
     assert reading.per_serving.carbohydrate_g == 25.0
 
@@ -453,6 +464,8 @@ def test_fibre_larger_than_carbohydrate_leaves_a_negative_for_the_rules_to_flag(
     """A misread fibre must surface, not be clamped away. validate()'s
     negative rule is what shows it to the user on the confirm step.
     """
-    reading = read_us_label(us_label_boxes(total_carbohydrate="3g", dietary_fiber="25g"))
+    reading = read_us_label(
+        us_label_boxes(total_carbohydrate="3g", dietary_fiber="25g")
+    )
     assert reading.per_serving.carbohydrate_g == -22.0
     assert "carbohydrate_g" in validate(reading.per_serving)

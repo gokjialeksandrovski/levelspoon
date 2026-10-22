@@ -18,7 +18,7 @@ import { FOCUS_RING } from "@/components/ui/tap-target";
 // not a CTA, so it stays a raw button (CLAUDE.md, "App conventions").
 // Two lines on a grid: name and kcal on the first, macros under the name on
 // the second. The second line's right cell is left empty on purpose - the
-// row icons sit over it, away from the kcal figure they used to crowd.
+// row icons sit over it, clear of the kcal figure.
 const RECIPE_ROW_CLASS = `grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 px-1 py-3 text-left transition-colors hover:bg-surface-raised active:bg-surface-raised disabled:opacity-50 ${FOCUS_RING}`;
 
 // Escape is the keyboard half of the exit for the inline row modes below

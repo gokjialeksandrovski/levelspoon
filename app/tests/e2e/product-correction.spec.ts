@@ -7,8 +7,8 @@ test.beforeEach(truncateAll);
 
 // The correction screen is reached from a real meal detail page (itself
 // reached through the /capture wizard) via its "Values look wrong?" link,
-// whose accessible name is "Correct values for <product name>" (accessibility
-// pass, commit b4391ed) rather than its visible text.
+// whose accessible name is "Correct values for <product name>" rather than
+// its visible text.
 const logOneIngredientThenOpenCorrection = async (page: Page) => {
   const mealUrl = await logOneIngredient(page);
   await page.getByRole("link", { name: /Correct values for/ }).click();
@@ -87,7 +87,7 @@ test("correcting a per-unit product shows its own basis heading and saves in tha
 
   await page.getByRole("link", { name: /Correct values for/ }).click();
   // The correction screen's heading is basis-aware, not a hardcoded
-  // "per 100g" (spec §6, T3's correction-form.tsx change).
+  // "per 100g" (spec §6).
   await expect(page.getByRole("heading", { name: "Correct nutrition (per 1 tbsp)" })).toBeVisible();
 
   await page.getByLabel("Energy (kcal)").fill("100");

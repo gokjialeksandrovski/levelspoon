@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/weight-row.tsx
 "use client";
 
 import { CaretDownIcon, XIcon } from "@phosphor-icons/react";
@@ -199,7 +198,7 @@ interface ProgressLineProps {
 }
 
 // -my-2/py-2 reaches the 44px tap floor without growing the row, the same
-// trick MacroFigures uses.
+// trick MacroToggle uses.
 const ProgressLine = ({ progress, goal, unit, panelId, expanded, onToggle }: ProgressLineProps) => {
   const reduceMotion = useReducedMotion();
 

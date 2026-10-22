@@ -534,8 +534,7 @@ const refusal = (input: IntakeInput, age: number): RefusalReason | null => {
 };
 
 // Assumes intakeInputError(input, currentYear) returned null. `measured`
-// defaults to null so every existing caller keeps working while the browser's
-// timezone is still in flight.
+// defaults to null for a caller whose measured burn is still in flight.
 export const estimateIntake = (
   input: IntakeInput,
   currentYear: number,

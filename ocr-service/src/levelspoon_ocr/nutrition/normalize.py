@@ -71,5 +71,7 @@ def split_energy_row(boxes: tuple[Box, ...]) -> tuple[float, float, tuple[Box, .
     if "kj" not in figures:
         raise NormalizationError(f"Energy row has no kJ figure: {figures}")
 
-    remaining = tuple(box for index, box in enumerate(boxes) if index not in consumed_indices)
+    remaining = tuple(
+        box for index, box in enumerate(boxes) if index not in consumed_indices
+    )
     return figures["kcal"], figures["kj"], remaining
