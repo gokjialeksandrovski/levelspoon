@@ -26,8 +26,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: "light dark",
   // These hexes must be kept in sync with --raw-bg in globals.css by hand -
-  // a <meta> viewport value can't reference a CSS custom property, which is
-  // exactly how this pair drifted stale after the last re-theme.
+  // a <meta> viewport value can't reference a CSS custom property.
   themeColor: [
     { media: "(prefers-color-scheme: dark)", color: "#1a1816" },
     { media: "(prefers-color-scheme: light)", color: "#fdfbf7" },
@@ -45,11 +44,7 @@ const RootLayout = async ({ children }: Readonly<{ children: React.ReactNode }>)
     </head>
     <body className="min-h-dvh bg-bg font-sans text-text antialiased">
       <Providers session={await auth()}>{children}</Providers>
-    {/* impeccable-live-start */}
-{/* eslint-disable-next-line @next/next/no-sync-scripts */}
-<script src="http://localhost:8400/live.js?token=REDACTED"></script>
-{/* impeccable-live-end */}
-</body>
+    </body>
   </html>
 );
 
