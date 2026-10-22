@@ -3,6 +3,7 @@
 import { BarcodeIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
+import { DEMO_SCAN_LIMIT_MESSAGE } from "@/features/demo/demo.messages";
 import { linkBarcode, lookupBarcode } from "@/features/products/actions/barcode";
 import type { LookupBarcodeResult } from "@/features/products/actions/barcode";
 import { ocrNutritionTable } from "@/features/products/actions/ocr";
@@ -103,6 +104,8 @@ export const reviewLabelRead = (read: NutritionRead, current: FieldValues): Figu
   switch (read.kind) {
     case "photo-already-used":
       return { kind: "error", message: photoReuseError(read.ownerName) };
+    case "demo-limit":
+      return { kind: "error", message: DEMO_SCAN_LIMIT_MESSAGE };
     case "needs-serving-size":
       return { kind: "error", message: PER_SERVING_ERROR };
     case "per100g": {

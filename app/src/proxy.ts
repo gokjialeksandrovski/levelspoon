@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 
-const PUBLIC_ROUTES = ["/signin", "/signup"];
+const PUBLIC_ROUTES = ["/signin", "/signup", "/demo"];
 
 export const proxy = auth((req) => {
   const isPublicRoute = PUBLIC_ROUTES.includes(req.nextUrl.pathname);

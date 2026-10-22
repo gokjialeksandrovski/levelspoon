@@ -4,6 +4,8 @@ import { type ChangeEvent, useState } from "react";
 
 import { BarcodeIcon, BookmarkSimpleIcon, CameraIcon, CarrotIcon, FeatherIcon, PencilSimpleIcon, type Icon } from "@phosphor-icons/react";
 
+import { DEMO_SCAN_LIMIT_MESSAGE } from "@/features/demo/demo.messages";
+import { useIsGuest } from "@/features/demo/hooks/use-is-guest";
 import { ocrProductName } from "@/features/products/actions/ocr";
 import { matchProduct, searchUserProducts } from "@/features/products/actions/products";
 import type { MatchResult } from "@/features/products/actions/products";
@@ -54,8 +56,12 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
   callbacks.onError(null);
   callbacks.onBusy(READING_NAME_LABEL);
   try {
-    const { text, netWeightText } = await ocrProductName(photo);
-    await resolveProductMatch(text, netWeightText, callbacks.pendingBarcode, callbacks.dispatch);
+    const read = await ocrProductName(photo);
+    if (read.kind === "demo-limit") {
+      callbacks.onError(DEMO_SCAN_LIMIT_MESSAGE);
+      return;
+    }
+    await resolveProductMatch(read.text, read.netWeightText, callbacks.pendingBarcode, callbacks.dispatch);
   } catch {
     callbacks.onError(
       "Couldn't read a name in that photo. Try a closer shot, or type the name.",
@@ -356,24 +362,29 @@ interface AddMealsRowsProps {
   onLazyTrack: () => void;
 }
 
-const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe, onLazyTrack }: AddMealsRowsProps) => (
-  <>
-    <EntryOptionRow
-      icon={BookmarkSimpleIcon}
-      title="Use one of your recipes"
-      description={hasRecipes ? RECIPE_ROW_DESCRIPTION : RECIPE_ROW_LOCKED_DESCRIPTION}
-      onClick={onPickRecipe}
-      disabled={isLoading || !hasRecipes}
-    />
-    <EntryOptionRow
-      icon={FeatherIcon}
-      title="Lazy track"
-      description={LAZY_TRACK_DESCRIPTION}
-      onClick={onLazyTrack}
-      disabled={isLoading}
-    />
-  </>
-);
+const LAZY_TRACK_DEMO_DESCRIPTION = "Needs AI, which the demo leaves out. Self-host with your own AI key to use it.";
+
+const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe, onLazyTrack }: AddMealsRowsProps) => {
+  const isGuest = useIsGuest();
+  return (
+    <>
+      <EntryOptionRow
+        icon={BookmarkSimpleIcon}
+        title="Use one of your recipes"
+        description={hasRecipes ? RECIPE_ROW_DESCRIPTION : RECIPE_ROW_LOCKED_DESCRIPTION}
+        onClick={onPickRecipe}
+        disabled={isLoading || !hasRecipes}
+      />
+      <EntryOptionRow
+        icon={FeatherIcon}
+        title="Lazy track"
+        description={isGuest ? LAZY_TRACK_DEMO_DESCRIPTION : LAZY_TRACK_DESCRIPTION}
+        onClick={onLazyTrack}
+        disabled={isLoading || isGuest}
+      />
+    </>
+  );
+};
 
 interface OptionSectionProps {
   title: string;

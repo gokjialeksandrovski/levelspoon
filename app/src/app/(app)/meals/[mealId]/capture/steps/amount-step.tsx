@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useIsGuest } from "@/features/demo/hooks/use-is-guest";
 import { linkBarcode } from "@/features/products/actions/barcode";
 import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
@@ -585,6 +586,7 @@ export const AmountStep = ({
   dispatch,
   onSaved,
 }: AmountStepProps) => {
+  const isGuest = useIsGuest();
   const form = useAmountStepForm(
     mealId,
     product,
@@ -602,7 +604,7 @@ export const AmountStep = ({
           hasAlternatives={alternatives.length > 0}
           onChangeMatch={form.changeMatch}
         />
-        {pendingBarcode && (
+        {pendingBarcode && !isGuest && (
           <BarcodeLinkOffer
             pendingBarcode={pendingBarcode}
             productId={product.id}
@@ -610,7 +612,7 @@ export const AmountStep = ({
             dispatch={dispatch}
           />
         )}
-        {form.units.includes("g") && (
+        {form.units.includes("g") && !isGuest && (
           <AmountPhotoField
             onSelect={form.handlePhoto}
             isEstimating={form.isEstimating}

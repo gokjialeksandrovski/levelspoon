@@ -190,6 +190,13 @@
       "when": 1790365064351,
       "tag": "0026_add-reported-intake",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792664618680,
+      "tag": "0027_add-demo-mode",
+      "breakpoints": true
     }
   ]
 }

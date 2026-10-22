@@ -3,6 +3,7 @@
 import { PencilSimpleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
+import { DEMO_SCAN_LIMIT_MESSAGE } from "@/features/demo/demo.messages";
 import { ocrNutritionTable } from "@/features/products/actions/ocr";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
@@ -76,6 +77,11 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
         // `photo` forward, which would smuggle the borrowed photo to confirm.
         setPhoto(null);
         setError(photoReuseError(read.ownerName));
+        return;
+      }
+      if (read.kind === "demo-limit") {
+        setPhoto(null);
+        setError(DEMO_SCAN_LIMIT_MESSAGE);
         return;
       }
       if (read.kind === "needs-serving-size") {

@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAccountUserId } from "@/lib/auth/require-user";
 import { GeminiQuantityProvider } from "@/lib/quantity/gemini-provider";
 import { MockQuantityProvider } from "@/lib/quantity/mock-provider";
 import type { QuantityProvider } from "@/lib/quantity/provider";
@@ -11,6 +12,7 @@ const getProvider = (): QuantityProvider => {
 };
 
 export const estimateQuantity = async (photo: Blob): Promise<{ grams: number }> => {
+  await requireAccountUserId();
   const provider = getProvider();
   const buffer = Buffer.from(await photo.arrayBuffer());
   const grams = await provider.estimateGrams(buffer);

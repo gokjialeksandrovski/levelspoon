@@ -3,6 +3,8 @@ import { Bricolage_Grotesque, Karla } from "next/font/google";
 
 import "./globals.css";
 
+import { auth } from "@/auth";
+
 import { Providers } from "./providers";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/theme";
 
@@ -32,7 +34,7 @@ export const viewport: Viewport = {
   ],
 };
 
-const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
+const RootLayout = async ({ children }: Readonly<{ children: React.ReactNode }>) => (
   // suppressHydrationWarning: the init script below sets data-theme before
   // React hydrates, which the server-rendered markup can't know about.
   <html lang="en" className={`${bricolage.variable} ${karla.variable}`} suppressHydrationWarning>
@@ -42,8 +44,12 @@ const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
     </head>
     <body className="min-h-dvh bg-bg font-sans text-text antialiased">
-      <Providers>{children}</Providers>
-    </body>
+      <Providers session={await auth()}>{children}</Providers>
+    {/* impeccable-live-start */}
+{/* eslint-disable-next-line @next/next/no-sync-scripts */}
+<script src="http://localhost:8400/live.js?token=REDACTED"></script>
+{/* impeccable-live-end */}
+</body>
   </html>
 );
 

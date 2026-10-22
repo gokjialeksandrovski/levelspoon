@@ -2,7 +2,7 @@
 
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 
-import { requireUserId } from "@/lib/auth/require-user";
+import { requireAccountUserId, requireUser, requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
@@ -656,8 +656,13 @@ const insertProductRow = async (
   }
 };
 
-export const createProduct = async (input: CreateProductInput): Promise<CreateProductResult> => {
-  const userId = await requireUserId();
+// A demo product stays private to its guest: no stored photo and no barcode,
+// the two things visibleToUser offers to everyone else.
+const withoutSharedProof = (input: CreateProductInput): CreateProductInput => ({ ...input, photo: undefined, barcode: undefined });
+
+export const createProduct = async (rawInput: CreateProductInput): Promise<CreateProductResult> => {
+  const { id: userId, isGuest } = await requireUser();
+  const input = isGuest ? withoutSharedProof(rawInput) : rawInput;
   // Before the upload: a rejected barcode or duplicate must not leave an
   // orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
@@ -736,13 +741,17 @@ export type SaveNutritionOverrideResult =
  * withdraw "the label changed" - while supplying one replaces the previous
  * claim and deletes the object it replaced.
  */
+// Demo label photos are never stored.
+const storableClaimPhoto = (isGuest: boolean, photo: Blob | undefined): Blob | undefined => (isGuest ? undefined : photo);
+
 export const saveNutritionOverride = async (
   productId: string,
   nutritionPer100g: NutritionValues,
-  photo?: Blob,
+  claimPhoto?: Blob,
 ): Promise<SaveNutritionOverrideResult> => {
-  const userId = await requireUserId();
+  const { id: userId, isGuest } = await requireUser();
   await assertUserProduct(userId, productId);
+  const photo = storableClaimPhoto(isGuest, claimPhoto);
 
   const supersededPhotoKey = photo ? await fetchOverridePhotoKey(userId, productId) : null;
   // Uploaded before the write so a storage failure leaves no row claiming a
@@ -874,7 +883,7 @@ export const attachLabelProof = async (
   photo: Blob,
   figures: LabelProofFigures,
 ): Promise<AttachLabelProofResult> => {
-  const userId = await requireUserId();
+  const userId = await requireAccountUserId();
   if (!(await isProofless(userId, productId))) {
     return { kind: "not_attachable" };
   }

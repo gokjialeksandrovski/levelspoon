@@ -2,7 +2,11 @@ import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
   interface Session {
-    user: { id: string } & DefaultSession["user"];
+    user: { id: string; isGuest?: boolean } & DefaultSession["user"];
+  }
+
+  interface User {
+    isGuest?: boolean;
   }
 }
 
@@ -16,5 +20,6 @@ declare module "next-auth" {
 declare module "@auth/core/jwt" {
   interface JWT {
     id: string;
+    isGuest?: boolean;
   }
 }

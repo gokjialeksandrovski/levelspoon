@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useIsGuest } from "@/features/demo/hooks/use-is-guest";
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { clearNutritionOverride, renameOwnProduct, saveNutritionOverride } from "@/features/products/actions/products";
 import type { ProductForCorrection, SaveNutritionOverrideResult } from "@/features/products/actions/products";
@@ -397,6 +398,33 @@ interface CorrectionFormBodyProps {
   proof: UseProofAttachmentResult;
 }
 
+// Demo label photos are never stored, so a guest is offered neither control.
+const PhotoProofControls = ({ product, form, proof }: Omit<CorrectionFormBodyProps, "labelPhotoUrl">) => {
+  const isGuest = useIsGuest();
+  if (isGuest) {
+    return null;
+  }
+  return (
+    <>
+      <ProofDisclosure
+        product={product}
+        values={form.values}
+        callbacks={{ onAdoptValues: form.adoptValues, onAttached: proof.onAttached }}
+      />
+      {/* Nothing to compare a new label against until something vouches for the
+          old figures - on a hand-typed product this asked the user to prove a
+          change to values nobody ever printed. */}
+      {product.sharedProof !== null && (
+        <LabelChangedDisclosure
+          hasOverridePhoto={product.hasOverridePhoto}
+          selectedName={form.newLabelPhoto?.name ?? null}
+          onSelect={form.setNewLabelPhoto}
+        />
+      )}
+    </>
+  );
+};
+
 const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionFormBodyProps) => (
   <div className="flex flex-col gap-4">
     {labelPhotoUrl && <LabelPhotoStrip url={labelPhotoUrl} />}
@@ -417,21 +445,7 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionF
       onFieldBlur={form.revalidateNow}
     />
     {proof.message && <InlineMessage tone="info">{proof.message}</InlineMessage>}
-    <ProofDisclosure
-      product={product}
-      values={form.values}
-      callbacks={{ onAdoptValues: form.adoptValues, onAttached: proof.onAttached }}
-    />
-    {/* Nothing to compare a new label against until something vouches for the
-        old figures - on a hand-typed product this asked the user to prove a
-        change to values nobody ever printed. */}
-    {product.sharedProof !== null && (
-      <LabelChangedDisclosure
-        hasOverridePhoto={product.hasOverridePhoto}
-        selectedName={form.newLabelPhoto?.name ?? null}
-        onSelect={form.setNewLabelPhoto}
-      />
-    )}
+    <PhotoProofControls product={product} form={form} proof={proof} />
     <CorrectionPreview nameChange={form.nameChange} changes={form.changes} />
     <CorrectionFeedback saveError={form.saveError} validateError={form.validateError} />
     {/* The visible line is aria-hidden and this carries the announcement: a

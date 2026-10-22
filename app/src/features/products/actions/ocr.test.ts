@@ -44,11 +44,12 @@ const PER_SERVING_VALUES = {
 describe("ocrProductName", () => {
   it("returns the marker-matched product name from the mock provider", async () => {
     const result = await ocrProductName(new Blob(["confident"]));
-    expect(result.text).toBe("Olympus Greek Yogurt 2% Fat");
+    expect(result).toMatchObject({ kind: "read", text: "Olympus Greek Yogurt 2% Fat" });
   });
 
   it("falls back to a default when the marker is unrecognized", async () => {
     const result = await ocrProductName(new Blob(["not-a-marker"]));
+    if (result.kind !== "read") throw new Error("expected read");
     expect(result.text.length).toBeGreaterThan(0);
   });
 });

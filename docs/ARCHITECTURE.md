@@ -9,7 +9,7 @@ Stack, layout, data, routes, env vars, local commands and test setup.
 | `app/` | Next.js 16 (App Router), React 19, TypeScript 5. UI, auth, business logic. |
 | `ocr-service/` | FastAPI + PaddleOCR (Python 3.12). Warm, always-on. |
 | Database | Postgres via Drizzle ORM. Migrations in `app/drizzle/`. |
-| Auth | Auth.js v5, Credentials provider (email/password), JWT sessions. |
+| Auth | Auth.js v5, Credentials providers (email/password; `guest` for demo mode), JWT sessions. |
 | Photo storage | One S3-compatible client (`app/src/lib/s3.ts`). MinIO locally. `S3_ENDPOINT` only difference between environments, no branching in app code. Prod host undecided (`docs/ROADMAP.md`). |
 | AI | Gemini, direct call, pinned model. Two jobs only (see CLAUDE.md). |
 
@@ -52,11 +52,22 @@ Import boundaries are ESLint-enforced (`app/eslint.config.mjs`, vendored `app/cl
 | `/calories/estimate` | Intake estimate, reached only from goal sheet |
 | `/dev/barcode-scanner` | Dev harness for `BarcodeScanner` |
 | `/signin`, `/signup` | Credentials auth |
+| `/demo` | Demo disclaimer, starts guest session |
 | `/api/auth/[...nextauth]` | Auth.js handler |
 
 ## Server/client boundary
 
 Server Actions only path from browser to Postgres, storage or Gemini. Files under `app/src/lib/db/`, `app/src/lib/s3.ts`, `app/src/features/*/actions/*`, `app/src/auth.ts` start with `"use server"` or are imported only by files that do. `*.store.ts` files take a userId and carry no `"use server"`: exposing one as an action would let a browser write any user's rows.
+
+## Demo mode
+
+Guest = `users` row with `is_guest`, signed in by `guest` provider (`app/src/auth.ts`); `session.user.isGuest` carries it. Server enforces, UI only hides:
+
+- `requireAccountUserId` (`app/src/lib/auth/require-user.ts`) refuses guests: `estimateQuantity`, `estimateMeal`, `logLazyMeal`, `linkBarcode`, `attachLabelProof`.
+- `createProduct` drops photo and barcode, `saveNutritionOverride` drops claim photo: guest rows stay private by `visibleToUser`.
+- `ocrProductName` / `ocrNutritionTable` take a scan from `demo_quota` (`app/src/lib/db/demo-quota.ts`) for guests, else return `demo-limit`. Per-IP and all-guests counters, plus per-IP demo starts. IP keyed by HMAC with `AUTH_SECRET`.
+- Limits in `app/src/lib/demo/limits.ts`, printed by `DemoTerms` (`features/demo/components/`). Change both sides together.
+- Client reads guest flag via `useIsGuest`; root layout seeds `SessionProvider` so first paint is right.
 
 ## Provider seams
 

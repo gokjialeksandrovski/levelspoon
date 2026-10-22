@@ -523,6 +523,24 @@ describe("createProduct", () => {
     expect(barcodeRow.createdByUserId).toBe(userId);
   });
 
+  it("stores neither photo nor barcode for a demo user, so the product stays private", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId, isGuest: true } });
+
+    const { productId } = await createdProduct({
+      name: "Demo Cereal",
+      nutritionPer100g: {
+        energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1, fibreG: null,
+      },
+      photo: new Blob([Buffer.from("demo-jpeg-bytes")], { type: "image/jpeg" }),
+      barcode: "5901234123457",
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionPhotoKey).toBeNull();
+    expect(await db.select().from(productBarcodes).where(eq(productBarcodes.productId, productId))).toEqual([]);
+  });
+
   it("rejects an invalid barcode before writing anything or uploading a photo", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
