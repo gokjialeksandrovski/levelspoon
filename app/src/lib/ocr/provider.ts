@@ -7,12 +7,12 @@ export type NullableNutritionValues = {
 /**
  * One nutrition label as ocr-service read it.
  *
- * An EU label is already per-100g. A US label reports per-serving figures plus
+ * An EU label is already per 100 of `basisUnit` ("g", or "ml" for a drink). A US label reports per-serving figures plus
  * its serving line as printed; `servingGrams` is non-null only when the label
  * actually printed a weight, and resolving the rest is the app's job.
  */
 export type NutritionTableRead =
-  | { format: "eu"; per100g: NullableNutritionValues; flags: string[] }
+  | { format: "eu"; per100g: NullableNutritionValues; basisUnit: string; flags: string[] }
   | {
       format: "us";
       perServing: NutritionValues;

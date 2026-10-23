@@ -31,6 +31,7 @@ def test_parses_the_golden_label():
     assert reading.per_100g.salt_g == 0.18
     assert reading.energy_kj == 295.0
     assert reading.flags == ()
+    assert reading.basis_unit == "g"
 
 
 def test_parses_a_label_with_energy_split_across_two_boxes():
@@ -235,3 +236,19 @@ def test_more_than_seven_rows_keep_todays_mapping():
     )
     reading = parse_nutrition(result)
     assert reading.per_100g.fibre_g is None
+
+
+def test_reads_a_per_100ml_label_and_reports_its_basis():
+    boxes = [_box("Average nutritional values per 100 ml", 100.0, x=100.0)]
+    boxes += [
+        _box(text, 200.0 + index * 100.0)
+        for index, text in enumerate(
+            ("192kJ/46 kcal", "1,5 g", "0,9 g", "4,8 g", "4,8 g", "3,2 g", "0,1 g")
+        )
+    ]
+    reading = parse_nutrition(
+        OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1400)
+    )
+    assert reading.basis_unit == "ml"
+    assert reading.per_100g.fat_g == 1.5
+    assert reading.per_100g.salt_g == 0.1

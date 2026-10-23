@@ -21,7 +21,7 @@ const PRODUCT_NAME_BY_MARKER: Record<string, string> = {
 };
 const DEFAULT_PRODUCT_NAME = "Olympus Greek Yogurt 2% Fat";
 
-const DEFAULT_NUTRITION_TABLE: NutritionTableRead = { format: "eu", per100g: MOCK_NUTRITION, flags: [] };
+const DEFAULT_NUTRITION_TABLE: NutritionTableRead = { format: "eu", per100g: MOCK_NUTRITION, basisUnit: "g", flags: [] };
 
 // A household-measure US label with no printed gram weight and no bracket
 // weight either - the Nutella-shaped case (spec 2026-09-12-per-unit-

@@ -43,7 +43,7 @@ def test_recognises_header_spellings(header):
 def test_raises_when_no_header_is_found():
     """Fail loudly rather than guess which column holds per-100g values."""
     result = _result(_box("Masti", 200.0, 200.0), _box("2,0 g", 900.0, 200.0))
-    with pytest.raises(ColumnDetectionError, match="per-100g header"):
+    with pytest.raises(ColumnDetectionError, match="per-100 header"):
         find_per_100g_values(result)
 
 
@@ -108,4 +108,22 @@ def test_does_not_reclaim_a_label_fragment_that_happens_to_sit_in_the_gap():
         "4,0 g",
         "9,0 g",
         "0,18 g",
+    ]
+
+
+def test_a_heading_line_between_the_columns_does_not_merge_them():
+    """Real carton defect: an "Average nutritional values in" line, centred
+    between the description and value columns above the table, chained both
+    into one column, and the header's own "100" was read as the fat figure."""
+    result = _result(
+        _box("Vlerat ne 100 ml/", 560.0, 90.0),
+        _box("Average nutritional values in", 610.0, 120.0),
+        _box("Energy", 560.0, 200.0),
+        _box("192kJ/46 kcal", 660.0, 200.0),
+        _box("Fat", 560.0, 300.0),
+        _box("1,5 g", 660.0, 300.0),
+    )
+    assert [box.text for box in find_per_100g_values(result)] == [
+        "192kJ/46 kcal",
+        "1,5 g",
     ]

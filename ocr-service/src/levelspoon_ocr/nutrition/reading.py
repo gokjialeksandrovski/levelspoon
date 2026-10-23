@@ -31,3 +31,6 @@ class NutritionReading:
     serving_size_text: str | None
     serving_grams: float | None
     servings_per_container: float | None
+    # "g" or "ml" on an EU label, the unit its per-100 figures are stated in;
+    # None on a US label, which states figures per serving instead.
+    basis_unit: str | None

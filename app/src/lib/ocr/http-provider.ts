@@ -41,6 +41,7 @@ interface RawNutritionTableResponse {
   serving_size_text: string | null;
   serving_grams: number | null;
   servings_per_container: number | null;
+  basis_unit: string | null;
   flags: string[];
 }
 
@@ -77,10 +78,10 @@ const toPerServingValues = (raw: RawNutritionValues): NutritionValues => ({
 
 const toNutritionTableRead = (raw: RawNutritionTableResponse): NutritionTableRead => {
   if (raw.format === "eu") {
-    if (raw.per_100g === null) {
-      throw new OcrResponseShapeError("an EU reading with no per_100g block");
+    if (raw.per_100g === null || raw.basis_unit === null) {
+      throw new OcrResponseShapeError("an EU reading with no per_100g block or basis_unit");
     }
-    return { format: "eu", per100g: toNullableNutritionValues(raw.per_100g), flags: raw.flags };
+    return { format: "eu", per100g: toNullableNutritionValues(raw.per_100g), basisUnit: raw.basis_unit, flags: raw.flags };
   }
   if (raw.per_serving === null || raw.serving_size_text === null) {
     throw new OcrResponseShapeError("a US reading with no per_serving block");

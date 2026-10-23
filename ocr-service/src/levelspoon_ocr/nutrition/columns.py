@@ -13,7 +13,9 @@ import re
 from ..boxes import Box, OcrResult, cluster_columns
 from .normalize import ENERGY_FIGURE
 
-PER_100G_HEADER = re.compile(r"/?\s*100\s*g", re.IGNORECASE)
+# "ml" first: a drink's label states its figures per 100 ml. No word boundary
+# after "g", so "100 gr" still counts; "100 mg" matches neither.
+PER_100_HEADER = re.compile(r"100\s*(ml|g)", re.IGNORECASE)
 
 # Kept in sync with parse.py's EU_ROW_ORDER (fat/saturates/
 # carbohydrate/sugars/protein/salt - EU Reg 1169/2011's fixed six-row
@@ -38,14 +40,24 @@ class ColumnDetectionError(Exception):
     """The per-100g value column could not be identified."""
 
 
-def _header_box(result: OcrResult) -> Box:
-    headers = [box for box in result.boxes if PER_100G_HEADER.search(box.text)]
+def _header(result: OcrResult) -> tuple[Box, str]:
+    """The topmost per-100 header box, and the unit ("g" or "ml") it names."""
+    headers = [
+        (box, match.group(1).lower())
+        for box in result.boxes
+        if (match := PER_100_HEADER.search(box.text))
+    ]
     if not headers:
         raise ColumnDetectionError(
-            "No per-100g header (e.g. '100 g', '/100') found among "
+            "No per-100 header (e.g. '100 g', '100 ml') found among "
             f"{len(result.boxes)} detected boxes"
         )
-    return min(headers, key=lambda box: box.y)
+    return min(headers, key=lambda header: header[0].y)
+
+
+def per_100_basis_unit(result: OcrResult) -> str:
+    """The unit, "g" or "ml", that the label states its figures per 100 of."""
+    return _header(result)[1]
 
 
 def _energy_box(boxes: tuple[Box, ...]) -> Box | None:
@@ -109,9 +121,14 @@ def _reclaim_missing_rows(
 
 def find_per_100g_values(result: OcrResult) -> tuple[Box, ...]:
     """Value boxes belonging to the per-100g column, ordered top to bottom."""
-    header = _header_box(result)
-    columns = cluster_columns(result.boxes, result.image_width)
+    header, _ = _header(result)
     anchor = _energy_box(result.boxes) or header
+    # Clustered from the first table row down: a heading line above it
+    # ("Average nutritional values in", centred between the description and
+    # value columns on a real multilingual carton) otherwise bridges the gap
+    # and merges both into one column.
+    table_boxes = tuple(box for box in result.boxes if box.y >= anchor.y)
+    columns = cluster_columns(table_boxes, result.image_width)
 
     for column in columns:
         if anchor in column:

@@ -107,6 +107,7 @@ async def read_nutrition_table(
         "serving_size_text": reading.serving_size_text,
         "serving_grams": reading.serving_grams,
         "servings_per_container": reading.servings_per_container,
+        "basis_unit": reading.basis_unit,
         "flags": list(reading.flags),
     }
 

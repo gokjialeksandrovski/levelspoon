@@ -8,7 +8,7 @@ that layout instead. Each step lives in its own module.
 import math
 
 from ..boxes import OcrResult
-from .columns import ColumnDetectionError, find_per_100g_values
+from .columns import ColumnDetectionError, find_per_100g_values, per_100_basis_unit
 from .decimals import decimal_candidates, resolve_decimals
 from .normalize import NormalizationError, split_energy_row
 from .reading import LabelFormat, NutritionReading
@@ -88,6 +88,7 @@ def _parse_eu_label(result: OcrResult) -> NutritionReading:
         serving_size_text=None,
         serving_grams=None,
         servings_per_container=None,
+        basis_unit=per_100_basis_unit(result),
     )
 
 
@@ -108,6 +109,7 @@ def _parse_us_label(result: OcrResult) -> NutritionReading:
         serving_size_text=reading.serving_size_text,
         serving_grams=reading.serving_grams,
         servings_per_container=reading.servings_per_container,
+        basis_unit=None,
     )
 
 

@@ -76,9 +76,10 @@ Deterministic: photo → boxes → normalize → parse (EU-first, US-fallback) �
 - EU parser maps values positionally. Two named row orders, 7-row (with fibre) and 6-row, picked by value count. No label-text inference: value column drifts on curved packaging. Ceiling: a label printing another optional row (polyols, starch) still shifts.
 - US label: two-pass geometric marker→figure association. `dietary fib(?:er|re)` is the only optional marker (absent → `None`, never `NormalizationError`). Total Carbohydrate normalised to EU convention: `carbohydrate_g = total − fibre_g` (21 CFR 101.9(c)(6)(i)), same shape as `SODIUM_TO_SALT_FACTOR`.
 - `engine.py` only impure module (PaddleOCR wrapper). Everything else pure and directly testable.
-- EU per-100g column detection anchors on energy figure.
+- EU per-100 column detection anchors on energy figure, and clusters columns only from energy row down: a heading line above table ("Average nutritional values in", centred between description and value columns) otherwise chains both into one column.
+- Header `100 g` or `100 ml`; reading reports which as `basis_unit`, stored as product's `nutrition_basis_unit` (drinks per 100 ml, same as Open Food Facts path).
 - Decimal-separator recovery runs **only when provably needed** (EU decimal comma; PaddleOCR drops separators).
-- No per-100g header → **fail loudly**, never invent values: `ColumnDetectionError`.
+- No per-100 header → **fail loudly**, never invent values: `ColumnDetectionError`.
 - Validation: deterministic sanity rules (Atwater ±30%, kJ↔kcal, component total incl. known fibre, negatives; `fibre_g` `None` exempt). No fibre ≤ carbohydrate rule: under EU convention fibre sits outside carbohydrate.
 - FDA-locked unit constants (`fl oz = 30`, not `29.5735`).
 - Constants derived from measurement carry a comment naming evidence.

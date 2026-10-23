@@ -64,6 +64,25 @@ describe("ocrNutritionTable — EU label via the mock provider", () => {
   });
 });
 
+describe("ocrNutritionTable — EU drink label (HttpOcrProvider mocked)", () => {
+  beforeEach(() => {
+    vi.stubEnv("OCR_PROVIDER", "real");
+    mockExtractNutritionTable.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps the label's per-100 ml basis instead of assuming grams", async () => {
+    mockExtractNutritionTable.mockResolvedValue({ format: "eu", per100g: PER_SERVING_VALUES, basisUnit: "ml", flags: [] });
+    const result = await ocrNutritionTable(new Blob([crypto.randomUUID()]), "Milk");
+    if (result.kind !== "per100g") throw new Error("expected per100g");
+    expect(result.nutritionBasisUnit).toBe("ml");
+    expect(result.nutritionBasisQuantity).toBe(100);
+  });
+});
+
 describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)", () => {
   beforeEach(() => {
     vi.stubEnv("OCR_PROVIDER", "real");

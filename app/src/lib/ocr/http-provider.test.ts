@@ -55,6 +55,7 @@ describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
       per_serving: null,
       serving_size_text: null,
       serving_grams: null,
+      basis_unit: "ml",
       flags: [],
     });
 
@@ -66,6 +67,7 @@ describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
         energyKcal: 70, fatG: 2.0, saturatesG: 1.2, carbohydrateG: 4.0,
         sugarsG: 4.0, proteinG: 9.0, saltG: 0.18,
       },
+      basisUnit: "ml",
       flags: [],
     });
   });
@@ -77,6 +79,7 @@ describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
       per_serving: null,
       serving_size_text: null,
       serving_grams: null,
+      basis_unit: "g",
       flags: ["energy_kcal"],
     });
 

@@ -91,7 +91,7 @@ export const ocrProductName = async (photo: Blob): Promise<ProductNameRead> => {
 type ScaledRead = Exclude<NutritionRead, { kind: "photo-already-used" | "demo-limit" }>;
 
 const GRAM_BASIS_UNIT = "g";
-const GRAM_BASIS_QUANTITY = 100;
+const PER_100_BASIS_QUANTITY = 100;
 const PER_UNIT_BASIS_QUANTITY = 1;
 
 const scaledRead = async (
@@ -107,7 +107,7 @@ const scaledRead = async (
     flags,
     learned,
     nutritionBasisUnit: GRAM_BASIS_UNIT,
-    nutritionBasisQuantity: GRAM_BASIS_QUANTITY,
+    nutritionBasisQuantity: PER_100_BASIS_QUANTITY,
   };
 };
 
@@ -244,8 +244,8 @@ export const ocrNutritionTable = async (
       values: read.per100g,
       flags: read.flags,
       learned: NOTHING_LEARNED,
-      nutritionBasisUnit: GRAM_BASIS_UNIT,
-      nutritionBasisQuantity: GRAM_BASIS_QUANTITY,
+      nutritionBasisUnit: read.basisUnit,
+      nutritionBasisQuantity: PER_100_BASIS_QUANTITY,
     };
   }
   return fromUsLabel(read, productNameGuess, netWeightText);
