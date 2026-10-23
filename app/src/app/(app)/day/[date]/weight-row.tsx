@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { SettleNumber } from "@/components/ui/settle-number";
+import { preloadSheetProps } from "@/components/ui/sheet";
 import { FOCUS_RING, ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 import { dismissWeighIn, isWeighInDismissed } from "./weigh-in-dismissal";
@@ -29,7 +30,11 @@ import { WeightRail } from "./weight-rail";
 import { lastChangeText, nextCheckinLineText, progressLineText, projectionLineText } from "./weight-row.utils";
 
 // Loaded on first open, not with the page: most visits never open it.
-const WeightGoalSheet = dynamic(() => import("./weight-goal-sheet").then((mod) => mod.WeightGoalSheet));
+// `loading` gives the chunk its own Suspense boundary. Without one the first
+// open suspends the day view's boundary, which hides the whole day.
+const loadWeightGoalSheet = () => import("./weight-goal-sheet").then((mod) => mod.WeightGoalSheet);
+const WeightGoalSheet = dynamic(loadWeightGoalSheet, { loading: () => null });
+const weightGoalSheetPreload = preloadSheetProps(loadWeightGoalSheet);
 
 const CHEVRON_ROTATE_DURATION_SECONDS = 0.26;
 const CHEVRON_OPEN_ROTATE_DEGREES = 180;
@@ -41,7 +46,7 @@ const currentTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().ti
 // One muted line, no rail: discoverable without nagging, and with nothing
 // stored there is nothing to dismiss.
 const UnsetRow = ({ onOpen }: { onOpen: () => void }) => (
-  <button type="button" onClick={onOpen} className={`-my-2 mt-2 flex w-full items-center gap-1 py-2 text-left text-sm text-text-muted ${FOCUS_RING}`}>
+  <button type="button" onClick={onOpen} {...weightGoalSheetPreload} className={`-my-2 mt-2 flex w-full items-center gap-1 py-2 text-left text-sm text-text-muted ${FOCUS_RING}`}>
     Track a weight goal
     <CaretDownIcon size={CHEVRON_ICON_SIZE} weight="bold" className="-rotate-90" />
   </button>
@@ -149,7 +154,7 @@ const PanelActions = ({ isDeleting, isArmed, onLogRequest, onEdit, onArm, onDisa
       <Button variant="primary" link onClick={onLogRequest}>
         Log weight
       </Button>
-      <Button variant="ghost" link onClick={onEdit}>
+      <Button variant="ghost" link onClick={onEdit} {...weightGoalSheetPreload}>
         Edit goal
       </Button>
       <Button variant="ghost" link onClick={onArm}>

@@ -10,6 +10,7 @@ import { calorieRemaining } from "@/features/goals/actions/goals.utils";
 import { gramTargets, type MacroTargets } from "@/features/goals/actions/macro-targets.utils";
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import { SettleNumber } from "@/components/ui/settle-number";
+import { preloadSheetProps } from "@/components/ui/sheet";
 import { slideTransition } from "@/lib/motion/step-transition";
 import { formatNumber } from "@/lib/nutrition/format-number";
 import type { FibreCoverage } from "@/lib/nutrition/totals";
@@ -18,7 +19,11 @@ import type { NutritionValues } from "@/types/nutrition";
 import { DayMacros } from "./day-macros";
 
 // Loaded on first open, not with the page: most visits never open it.
-const GoalSheet = dynamic(() => import("./goal-sheet").then((mod) => mod.GoalSheet));
+// `loading` gives the chunk its own Suspense boundary. Without one the first
+// open suspends the day view's boundary, which hides the whole day.
+const loadGoalSheet = () => import("./goal-sheet").then((mod) => mod.GoalSheet);
+const GoalSheet = dynamic(loadGoalSheet, { loading: () => null });
+const goalSheetPreload = preloadSheetProps(loadGoalSheet);
 
 interface GoalPillProps {
   goal: number | null;
@@ -44,7 +49,7 @@ const PILL_ICON_SIZE = 16;
 // rather than shoving the headline figure off screen. The ring draws on the
 // pill, not the invisible hit box.
 const GoalPill = ({ goal, hasTargets, onOpen }: GoalPillProps) => (
-  <button type="button" onClick={onOpen} className="group -my-2 min-w-0 shrink py-2 focus-visible:outline-none">
+  <button type="button" onClick={onOpen} {...goalSheetPreload} className="group -my-2 min-w-0 shrink py-2 focus-visible:outline-none">
     <span className="flex items-center gap-1 overflow-hidden rounded-full bg-surface-raised px-2.5 py-1.5 text-sm font-medium text-text-muted transition-colors group-hover:bg-border group-focus-visible:outline group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-text">
       <span className="truncate">{pillLabel(goal, hasTargets)}</span>
       <PencilSimpleIcon size={PILL_ICON_SIZE} className="shrink-0" />

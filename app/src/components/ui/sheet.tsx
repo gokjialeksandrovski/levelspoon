@@ -85,6 +85,17 @@ const SheetBody = ({ titleId, title, children, footer, onClose }: Pick<SheetProp
   </>
 );
 
+/** Spread on the control that opens a sheet loaded with next/dynamic: the
+ * chunk starts downloading on hover, focus or the start of a tap, so the open
+ * doesn't wait on the network. A failed preload is dropped on purpose: the
+ * open runs the import again and its failure surfaces there. */
+export const preloadSheetProps = (load: () => Promise<unknown>) => {
+  const preload = (): void => {
+    load().catch(() => undefined);
+  };
+  return { onPointerEnter: preload, onFocus: preload };
+};
+
 // Nothing renders until the first open: a sheet opens only on a tap, so its
 // body is not built on every render of the page behind it. After that it
 // stays mounted, which is what lets the close transition play.

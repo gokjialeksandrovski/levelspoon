@@ -9,10 +9,17 @@ import { divergenceLine } from "@/features/recipes/actions/recipes.utils";
 import { withAiEstimateTag } from "@/features/lazy-track/actions/lazy-track.utils";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { preloadSheetProps } from "@/components/ui/sheet";
 
 // Loaded on first open, not with the page: most visits never open either.
-const EditRecipeSheet = dynamic(() => import("./edit-recipe-sheet").then((mod) => mod.EditRecipeSheet));
-const SaveRecipeSheet = dynamic(() => import("./save-recipe-sheet").then((mod) => mod.SaveRecipeSheet));
+// `loading` gives each chunk its own Suspense boundary, so the first open
+// cannot suspend the nearest page boundary and hide everything inside it.
+const loadEditRecipeSheet = () => import("./edit-recipe-sheet").then((mod) => mod.EditRecipeSheet);
+const loadSaveRecipeSheet = () => import("./save-recipe-sheet").then((mod) => mod.SaveRecipeSheet);
+const EditRecipeSheet = dynamic(loadEditRecipeSheet, { loading: () => null });
+const SaveRecipeSheet = dynamic(loadSaveRecipeSheet, { loading: () => null });
+const editRecipeSheetPreload = preloadSheetProps(loadEditRecipeSheet);
+const saveRecipeSheetPreload = preloadSheetProps(loadSaveRecipeSheet);
 
 /** The line under the header on a linked meal. The header itself stays
  * ordinal - a meal is still "Meal 2", whatever it was made from. */
@@ -64,7 +71,7 @@ export const RecipeControl = ({ mealId, recipe, ingredients, onAnnounce }: Recip
   if (recipe) {
     return (
       <>
-        <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={open}>
+        <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={open} {...editRecipeSheetPreload}>
           <BookmarkSimpleIcon size={20} />
           Edit this recipe
         </Button>
@@ -85,7 +92,7 @@ export const RecipeControl = ({ mealId, recipe, ingredients, onAnnounce }: Recip
 
   return (
     <>
-      <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={open}>
+      <Button variant="ghost" className="inline-flex items-center justify-center gap-2" onClick={open} {...saveRecipeSheetPreload}>
         <BookmarkSimpleIcon size={20} />
         Save as recipe
       </Button>
