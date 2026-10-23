@@ -7,6 +7,7 @@ import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 
 import { ScanningOverlay } from "@/components/ui/scanning-overlay";
 import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
+import { downscalePhoto } from "@/lib/photo/downscale";
 
 interface UsePreviewUrlResult {
   previewUrl: string | null;
@@ -103,6 +104,42 @@ interface DropzoneProps {
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
+// Clears the input so re-picking the same file still fires `change` -
+// otherwise a retry after declining consent or a failed estimate does nothing.
+export const takePickedPhoto = (event: ChangeEvent<HTMLInputElement>, onPhoto: (photo: File) => void): void => {
+  const input = event.target;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) {
+    return;
+  }
+  void downscalePhoto(file).then(onPhoto);
+};
+
+interface SavedPhotoLinkProps {
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  /** Names the photo when one screen offers several, e.g. "the barcode". */
+  subject?: string;
+  disabled?: boolean;
+}
+
+// The camera control's partner. `capture` opens the camera directly, and
+// Android's photo picker offers no camera at all, so each source gets its
+// own input. Ring on focus-within: the hidden input, not the label, takes focus.
+export const SavedPhotoLink = ({ onChange, subject, disabled }: SavedPhotoLinkProps) => (
+  <label className="relative -mx-1 -my-3 self-start px-1 py-3 text-sm text-text-muted underline decoration-1 hover:text-text hover:decoration-2 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text has-disabled:opacity-50">
+    <span>Or choose a saved photo</span>
+    <input
+      type="file"
+      accept="image/*"
+      aria-label={subject ? `Or choose a saved photo of ${subject}` : undefined}
+      disabled={disabled}
+      onChange={onChange}
+      className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+    />
+  </label>
+);
+
 // The label wraps the (visually hidden) file input, so the label text is
 // the input's accessible name; the camera glyph is decorative. A raised tile
 // that presses like a Button, not the stock dashed upload box.
@@ -118,6 +155,7 @@ const Dropzone = ({ label, icon: DropzoneIcon, describedBy, onChange }: Dropzone
     <input
       type="file"
       accept="image/*"
+      capture="environment"
       aria-describedby={describedBy}
       onChange={onChange}
       className="absolute inset-0 cursor-pointer opacity-0"
@@ -125,38 +163,21 @@ const Dropzone = ({ label, icon: DropzoneIcon, describedBy, onChange }: Dropzone
   </label>
 );
 
-// Standalone handler, not a hook: previewUrl is the component's only state.
-const handlePhotoChange = (
-  event: ChangeEvent<HTMLInputElement>,
-  onSelect: (photo: File) => void,
-  showPreview: (photo: File) => void,
-): void => {
-  const input = event.target;
-  const file = input.files?.[0];
-  if (!file) {
-    return;
-  }
-  showPreview(file);
-  onSelect(file);
-  // Clears the input so re-picking the same file still fires `change` -
-  // otherwise a retry after declining consent or a failed estimate does nothing.
-  input.value = "";
-};
-
 export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = CameraIcon }: PhotoInputProps) => {
   const { previewUrl, showPreview } = usePreviewUrl();
   const hintId = useId();
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) =>
+    takePickedPhoto(event, (photo) => {
+      showPreview(photo);
+      onSelect(photo);
+    });
 
   return (
     <div className="flex flex-col gap-2">
       {!scanningLabel && (
         <>
-          <Dropzone
-            label={label}
-            icon={icon}
-            describedBy={hint ? hintId : undefined}
-            onChange={(event) => handlePhotoChange(event, onSelect, showPreview)}
-          />
+          <Dropzone label={label} icon={icon} describedBy={hint ? hintId : undefined} onChange={handleChange} />
+          <SavedPhotoLink onChange={handleChange} />
           {hint && (
             <p id={hintId} className="text-sm/relaxed text-text-muted">
               {hint}

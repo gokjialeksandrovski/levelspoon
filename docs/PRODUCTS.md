@@ -26,6 +26,7 @@ Why: trigram similarity cannot separate variants ("Olympus Greek Yogurt 2% Fat" 
 Photo key **is** content hash (`app/src/lib/db/photo-keys.ts`), so `UNIQUE` on `products.nutrition_photo_key` and `product_overrides.nutrition_photo_key` enforces it in Postgres. Never mint a photo key another way: a `randomUUID()` key silently opts that row out of the ban.
 
 - Key extension is sniffed from bytes (`extensionFromBytes`: PNG signature, else jpg), never from caller-declared MIME type. Browser `<input type="file">` reports type from file name, so trusting it lets a renamed file mint a second key. `photo.type` stays correct for upload content-type header only.
+- Hash covers bytes as uploaded, not as shot: browser downscales any photo over 2048 px and re-encodes JPEG (`lib/photo/downscale.ts`), so same shot picked on two browsers can mint two keys.
 - Reuse refused at three points: `ocrNutritionTable` (earliest; both entry paths funnel there; returns `NutritionRead`'s `photo-already-used` variant), `createProduct`, `saveNutritionOverride` (`assertPhotoUnused` + `findPhotoOwner`, probing both proof and claim key forms of same bytes).
 - Refuse **before** upload, else orphaned object.
 - Never `deletePhoto` a key equal to the one about to be written: same bytes, same key, delete takes live object. `saveNutritionOverride` guard: `supersededPhotoKey !== pendingPhoto?.key`.

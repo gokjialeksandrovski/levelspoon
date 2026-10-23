@@ -13,7 +13,7 @@ import { lookupBarcode } from "@/features/products/actions/barcode";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { PhotoPreview, usePreviewUrl } from "@/components/ui/photo-input";
+import { PhotoPreview, SavedPhotoLink, takePickedPhoto, usePreviewUrl } from "@/components/ui/photo-input";
 import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 
 import type { PathAction } from "../capture-wizard.path";
@@ -229,15 +229,6 @@ export const EntryOptionRow = ({
   </button>
 );
 
-const handlePhotoRowChange = (event: ChangeEvent<HTMLInputElement>, onSelect: (photo: File) => void): void => {
-  const file = event.target.files?.[0];
-  if (!file) {
-    return;
-  }
-  onSelect(file);
-  event.target.value = "";
-};
-
 interface PhotoOptionRowProps {
   icon: Icon;
   title: string;
@@ -246,31 +237,41 @@ interface PhotoOptionRowProps {
    * supply - kept separate because the title names the task ("Scan the
    * barcode") and this names the file being asked for. */
   inputLabel: string;
+  /** What the saved-photo link's accessible name says the photo is of. */
+  subject: string;
   isLoading: boolean;
   onSelect: (photo: File) => void;
 }
 
-// No `capture` attribute: pinning it to "environment" sends a phone straight
-// into its camera app with no way back to a picture already taken, and takes
-// the shot through the gallery on the way. Without it the platform offers
-// camera and library together, which is the choice this row actually means.
-const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, isLoading, onSelect }: PhotoOptionRowProps) => (
-  <label className={OPTION_ROW_LABEL}>
-    <RowIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
-    <span className="flex flex-col gap-0.5">
-      <span className="text-sm font-medium text-text">{title}</span>
-      <span className="text-xs text-text-muted">{description}</span>
-    </span>
-    <input
-      type="file"
-      accept="image/*"
-      aria-label={inputLabel}
-      disabled={isLoading}
-      onChange={(event) => handlePhotoRowChange(event, onSelect)}
-      className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-    />
-  </label>
-);
+// Wrapped with its own "saved photo" link: the row opens the camera
+// directly, so the gallery needs a second input (see SavedPhotoLink).
+// pl-10 lines the link up under the title (px-1 + 24px icon + gap-3).
+const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject, isLoading, onSelect }: PhotoOptionRowProps) => {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => takePickedPhoto(event, onSelect);
+  return (
+    <div className="flex flex-col pb-3">
+      <label className={OPTION_ROW_LABEL}>
+        <RowIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-text">{title}</span>
+          <span className="text-xs text-text-muted">{description}</span>
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          aria-label={inputLabel}
+          disabled={isLoading}
+          onChange={handleChange}
+          className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        />
+      </label>
+      <div className="flex pl-10">
+        <SavedPhotoLink subject={subject} disabled={isLoading} onChange={handleChange} />
+      </div>
+    </div>
+  );
+};
 
 const PHOTO_ROW_DESCRIPTION =
   "For when the barcode isn't found. We read the name off the package instead.";
@@ -314,6 +315,7 @@ const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode }: Barco
       title="Scan the barcode"
       description={BARCODE_ROW_DESCRIPTION}
       inputLabel="Barcode photo"
+      subject="the barcode"
       isLoading={isLoading}
       onSelect={onSelectBarcode}
     />
@@ -322,6 +324,7 @@ const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode }: Barco
       title="Photograph the product name"
       description={PHOTO_ROW_DESCRIPTION}
       inputLabel="Product photo"
+      subject="the product"
       isLoading={isLoading}
       onSelect={onSelectName}
     />
