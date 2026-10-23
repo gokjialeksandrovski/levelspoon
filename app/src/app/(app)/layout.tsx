@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { SessionProvider } from "next-auth/react";
+
+import { requestSession } from "@/lib/auth/require-user";
 
 // First Tab stop, off-screen until focused, so a keyboard user can skip the
 // header's controls straight to content. Each screen's <main> carries the
@@ -16,11 +19,16 @@ const SkipToContentLink = () => (
 // overflow-x-clip contains the slide-in transition's horizontal flash.
 // `clip` (not `hidden`) leaves vertical scroll and the sticky action bar
 // alone - it doesn't create a scroll container.
-const AppLayout = ({ children }: { children: ReactNode }) => (
-  <div className="mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip">
-    <SkipToContentLink />
-    {children}
-  </div>
+// The session is read here, not in the root layout, so signin, signup and
+// demo stay static. Seeding SessionProvider keeps useSession filled on first
+// paint: a demo user would otherwise see AI controls flash and vanish.
+const AppLayout = async ({ children }: { children: ReactNode }) => (
+  <SessionProvider session={await requestSession()}>
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip">
+      <SkipToContentLink />
+      {children}
+    </div>
+  </SessionProvider>
 );
 
 export default AppLayout;

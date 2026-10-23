@@ -256,9 +256,8 @@ export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingFork, setIsLoadingFork] = useState(false);
-  // Sourced once per render, same as meal-detail.tsx's own "today" - both
-  // actions below need it to tell the open meal's day from the user's actual
-  // today, never the server's.
+  // Both actions below need it to tell the open meal's day from the user's
+  // actual today, never the server's.
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // Cancel drops the draft; it does not re-fetch to undo it, and it never

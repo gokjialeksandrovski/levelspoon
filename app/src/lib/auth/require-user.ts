@@ -1,4 +1,10 @@
+import { cache } from "react";
+
 import { auth } from "@/auth";
+
+// One JWT decrypt per request: the (app) layout and every data read in the
+// same render ask for the session.
+export const requestSession = cache(() => auth());
 
 export class NotAuthenticatedError extends Error {
   constructor() {
@@ -22,7 +28,7 @@ export interface SessionUser {
 }
 
 export const requireUser = async (): Promise<SessionUser> => {
-  const session = await auth();
+  const session = await requestSession();
   if (!session?.user?.id) {
     throw new NotAuthenticatedError();
   }

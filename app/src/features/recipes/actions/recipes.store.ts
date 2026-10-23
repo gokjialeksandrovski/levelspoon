@@ -90,6 +90,27 @@ export const fetchMealItems = async (mealId: string): Promise<AmountRow[]> => {
   return rows.map(toAmountRow);
 };
 
+/** fetchMealItems for several meals in one query, keyed by meal id. A meal
+ * with no live rows maps to an empty list. */
+export const fetchMealItemsByMeal = async (mealIds: readonly string[]): Promise<Map<string, AmountRow[]>> => {
+  if (mealIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({
+      mealId: mealIngredients.mealId,
+      productId: mealIngredients.productId,
+      quantity: mealIngredients.quantity,
+      quantityUnit: mealIngredients.quantityUnit,
+      entryCount: mealIngredients.entryCount,
+      entryUnit: mealIngredients.entryUnit,
+    })
+    .from(mealIngredients)
+    .where(and(inArray(mealIngredients.mealId, [...mealIds]), isNull(mealIngredients.deletedAt)))
+    .orderBy(asc(mealIngredients.createdAt));
+  return new Map(mealIds.map((id) => [id, rows.filter((row) => row.mealId === id).map(toAmountRow)]));
+};
+
 export const fetchOwnedMeal = async (userId: string, mealId: string): Promise<OwnedMeal | null> => {
   const [meal] = await db
     .select({ id: meals.id, logDate: meals.logDate, recipeId: meals.recipeId })

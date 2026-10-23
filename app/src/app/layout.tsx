@@ -3,8 +3,6 @@ import { Bricolage_Grotesque, Karla } from "next/font/google";
 
 import "./globals.css";
 
-import { auth } from "@/auth";
-
 import { Providers } from "./providers";
 import { TIMEZONE_INIT_SCRIPT } from "@/lib/date/timezone-cookie";
 import { THEME_COLORS, THEME_INIT_SCRIPT } from "@/lib/theme/theme";
@@ -32,7 +30,7 @@ export const viewport: Viewport = {
   ],
 };
 
-const RootLayout = async ({ children }: Readonly<{ children: React.ReactNode }>) => (
+const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
   // suppressHydrationWarning: the init script below sets data-theme before
   // React hydrates, which the server-rendered markup can't know about.
   <html lang="en" className={`${bricolage.variable} ${karla.variable}`} suppressHydrationWarning>
@@ -43,7 +41,7 @@ const RootLayout = async ({ children }: Readonly<{ children: React.ReactNode }>)
       <script dangerouslySetInnerHTML={{ __html: TIMEZONE_INIT_SCRIPT }} />
     </head>
     <body className="min-h-dvh bg-bg font-sans text-text antialiased">
-      <Providers session={await auth()}>{children}</Providers>
+      <Providers>{children}</Providers>
     </body>
   </html>
 );

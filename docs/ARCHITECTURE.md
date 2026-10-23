@@ -79,7 +79,7 @@ Guest = `users` row with `is_guest`, signed in by `guest` provider (`app/src/aut
 - `createProduct` drops photo and barcode, `saveNutritionOverride` drops claim photo: guest rows stay private by `visibleToUser`.
 - `ocrProductName` / `ocrNutritionTable` take a scan from `demo_quota` (`app/src/lib/db/demo-quota.ts`) for guests, else return `demo-limit`. Per-IP and all-guests counters, plus per-IP demo starts. IP keyed by HMAC with `AUTH_SECRET`.
 - Limits in `app/src/lib/demo/limits.ts`, printed by `DemoTerms` (`features/demo/components/`). Change both sides together.
-- Client reads guest flag via `useIsGuest`; root layout seeds `SessionProvider` so first paint is right.
+- Client reads guest flag via `useIsGuest`; `(app)/layout.tsx` seeds `SessionProvider` so first paint is right. Root layout reads no session, so signin, signup and demo stay static. `requestSession()` (`lib/auth/require-user.ts`) is `React.cache`d: one JWT decode per request.
 
 ## Provider seams
 

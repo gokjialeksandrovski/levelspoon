@@ -17,6 +17,7 @@ import {
 import {
   appendItemsToMeal,
   fetchMealItems,
+  fetchMealItemsByMeal,
   fetchMealKcals,
   fetchMealNumbers,
   fetchOwnedMeal,
@@ -193,14 +194,14 @@ export const earlierMealsFromRecipe = async (mealId: string, timezone: string): 
     fetchRecipeItems(meal.recipeId),
     fetchMealNumbers(userId, meal.logDate),
     fetchMealKcals(userId, siblingIds),
-    Promise.all(siblingIds.map((id) => fetchMealItems(id))),
+    fetchMealItemsByMeal(siblingIds),
   ]);
 
-  return siblingIds.map((id, index) => ({
+  return siblingIds.map((id) => ({
     mealId: id,
     mealNumber: numbers.get(id) ?? 0,
     currentKcal: kcals.get(id) ?? 0,
-    matches: mealMatchesRecipe(siblingRows[index], recipeItemRows),
+    matches: mealMatchesRecipe(siblingRows.get(id) ?? [], recipeItemRows),
   }));
 };
 
@@ -235,10 +236,10 @@ const partitionTickedMeals = async (
   // another day's meal, another user's, or one invented by hand - is not
   // skipped, it is not there at all.
   const eligible = [...new Set(tickedIds)].filter((id) => siblingIds.includes(id));
-  const rows = await Promise.all(eligible.map((id) => fetchMealItems(id)));
+  const rows = await fetchMealItemsByMeal(eligible);
   return eligible.reduce<{ updatable: string[]; skipped: string[] }>(
-    (split, id, index) => {
-      const target = mealMatchesRecipe(rows[index], recipeItemRows) ? split.updatable : split.skipped;
+    (split, id) => {
+      const target = mealMatchesRecipe(rows.get(id) ?? [], recipeItemRows) ? split.updatable : split.skipped;
       target.push(id);
       return split;
     },
