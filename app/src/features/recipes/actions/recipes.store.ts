@@ -339,7 +339,7 @@ export const fetchSiblingMealIds = async (userId: string, meal: OwnedMeal): Prom
  * Replaces a meal's live rows with the given items.
  *
  * The old rows are soft-deleted rather than dropped, matching every other
- * removal in the app: purgeSoftDeleted collects them, and nothing else in the
+ * removal in the app: sweepEmptyMeals collects them, and nothing else in the
  * schema hard-deletes an ingredient.
  */
 export const replaceMealIngredients = async (

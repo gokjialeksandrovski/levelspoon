@@ -5,13 +5,13 @@ import { useState } from "react";
 
 import { deleteRecipe, enterRecipe, renameRecipe } from "@/features/recipes/actions/recipes";
 import type { RecipeSummary } from "@/features/recipes/actions/recipes.store";
-import { isValidRecipeName, RECIPE_NAME_MAX_LENGTH, recipeMatchesQuery, recipeNameHint } from "@/features/recipes/actions/recipes.utils";
+import { isValidRecipeName, RECIPE_NAME_MAX_LENGTH, recipeMatchesQuery, recipeNameError, recipeNameHint } from "@/features/recipes/actions/recipes.utils";
 import { withAiEstimateTag } from "@/features/lazy-track/actions/lazy-track.utils";
 import { MacroLine } from "@/features/meals/components/macro-line";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LiveStatus } from "@/components/ui/live-status";
 import { FOCUS_RING } from "@/components/ui/tap-target";
 
 // A full-width list row, structurally the same shape as the entry options -
@@ -31,25 +31,28 @@ const handleEscape = (onCancel: () => void) => (event: React.KeyboardEvent) => {
 interface RenameEditorProps {
   recipe: RecipeSummary;
   onDone: () => void;
-  onRenamed: () => void;
 }
 
 const RENAME_FAILED_MESSAGE = "Couldn't rename it. Try again.";
 
 // Cancel restores the name the editor opened with and fires no request: the
-// draft is local state, and nothing is re-fetched to undo it.
-const RenameEditor = ({ recipe, onDone, onRenamed }: RenameEditorProps) => {
+// draft is local state, and nothing is re-fetched to undo it. A save needs no
+// reload either: renameRecipe refreshes the route, list and all.
+const RenameEditor = ({ recipe, onDone }: RenameEditorProps) => {
   const [draft, setDraft] = useState(recipe.name);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const save = async () => {
+    if (!isValidRecipeName(draft)) {
+      setError(recipeNameError(draft));
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
       const result = await renameRecipe(recipe.id, draft);
       if (result.kind === "renamed") {
-        onRenamed();
         onDone();
         return;
       }
@@ -74,7 +77,7 @@ const RenameEditor = ({ recipe, onDone, onRenamed }: RenameEditorProps) => {
       />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
       <div className="flex gap-2">
-        <Button className="flex-1" disabled={!isValidRecipeName(draft)} pending={isSaving} onClick={() => void save()}>
+        <Button className="flex-1" pending={isSaving} onClick={() => void save()}>
           Save name
         </Button>
         {/* Disabled while saving, not just visually deferred to it - a fast
@@ -146,15 +149,15 @@ const RowIcons = ({ recipe, isArmed, disabled, onRename, onToggleArmed }: RowIco
 interface DeleteConfirmProps {
   recipe: RecipeSummary;
   onKeep: () => void;
-  onDeleted: () => void;
 }
 
 const DELETE_FAILED_MESSAGE = "Couldn't delete it. Try again.";
 const DELETE_PROMPT = "Delete this recipe? Meals already logged keep their food.";
 
 // Arming fires no request, and focus lands on Keep it so a stray Enter takes
-// the non-destructive answer (Rule 21).
-const DeleteConfirm = ({ recipe, onKeep, onDeleted }: DeleteConfirmProps) => {
+// the non-destructive answer (Rule 21). A delete takes the row with it when
+// deleteRecipe refreshes the route.
+const DeleteConfirm = ({ recipe, onKeep }: DeleteConfirmProps) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,7 +166,6 @@ const DeleteConfirm = ({ recipe, onKeep, onDeleted }: DeleteConfirmProps) => {
     setError(null);
     try {
       await deleteRecipe(recipe.id);
-      onDeleted();
     } catch {
       setError(DELETE_FAILED_MESSAGE);
       setIsDeleting(false);
@@ -190,15 +192,14 @@ interface RecipeRowProps {
   recipe: RecipeSummary;
   isEntering: boolean;
   onEnter: () => void;
-  onChanged: () => void;
 }
 
-const RecipeRow = ({ recipe, isEntering, onEnter, onChanged }: RecipeRowProps) => {
+const RecipeRow = ({ recipe, isEntering, onEnter }: RecipeRowProps) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [isArmed, setIsArmed] = useState(false);
 
   if (isRenaming) {
-    return <RenameEditor recipe={recipe} onDone={() => setIsRenaming(false)} onRenamed={onChanged} />;
+    return <RenameEditor recipe={recipe} onDone={() => setIsRenaming(false)} />;
   }
 
   return (
@@ -220,39 +221,24 @@ const RecipeRow = ({ recipe, isEntering, onEnter, onChanged }: RecipeRowProps) =
           onToggleArmed={() => setIsArmed((armed) => !armed)}
         />
       </div>
-      {isArmed && <DeleteConfirm recipe={recipe} onKeep={() => setIsArmed(false)} onDeleted={onChanged} />}
+      {isArmed && <DeleteConfirm recipe={recipe} onKeep={() => setIsArmed(false)} />}
     </div>
   );
 };
 
-const RECIPE_SKELETON_ROWS = 3;
-
-const PickerSkeleton = () => (
-  <div className="flex flex-col gap-4">
-    {Array.from({ length: RECIPE_SKELETON_ROWS }, (_, index) => (
-      <div key={`recipe-skeleton-${index}`} className="flex flex-col gap-2">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-3 w-52" />
-      </div>
-    ))}
-  </div>
-);
-
 const NO_RECIPES_LEFT_MESSAGE = "No recipes left. Save a meal as a recipe to see it here again.";
 const PICKER_HINT = "Tap a recipe to add everything in it to this meal.";
 
-const noMatchMessage = (query: string): string => `No recipe matches "${query.trim()}".`;
+const noMatchMessage = (query: string): string => `No recipe matches “${query.trim()}”.`;
 
 interface RecipeListProps {
-  recipes: RecipeSummary[];
+  matches: RecipeSummary[];
   query: string;
   enteringId: string | null;
   onEnter: (recipeId: string) => void;
-  onChanged: () => void;
 }
 
-const RecipeList = ({ recipes, query, enteringId, onEnter, onChanged }: RecipeListProps) => {
-  const matches = recipes.filter((recipe) => recipeMatchesQuery(recipe.name, query));
+const RecipeList = ({ matches, query, enteringId, onEnter }: RecipeListProps) => {
   if (matches.length === 0) {
     return <p className="text-sm text-text-muted">{noMatchMessage(query)}</p>;
   }
@@ -264,32 +250,41 @@ const RecipeList = ({ recipes, query, enteringId, onEnter, onChanged }: RecipeLi
           recipe={recipe}
           isEntering={enteringId !== null}
           onEnter={() => onEnter(recipe.id)}
-          onChanged={onChanged}
         />
       ))}
     </div>
   );
 };
 
-interface RecipePickerBodyProps extends Omit<RecipeListProps, "query"> {
-  isLoading: boolean;
-}
+type RecipePickerBodyProps = Omit<RecipeListProps, "query" | "matches"> & { recipes: RecipeSummary[] };
 
-// The list is already in hand (useRecipes loads it before the picker opens),
+// Filtering moves no focus, so a screen reader hears how many rows are left.
+const matchesStatus = (query: string, count: number): string => {
+  if (query.trim() === "") return "";
+  return count === 1 ? "1 recipe matches" : `${count} recipes match`;
+};
+
+// The list is already in hand (the page reads it before the picker opens),
 // so search filters it as the user types - no button, no request.
-const RecipePickerBody = ({ recipes, isLoading, ...list }: RecipePickerBodyProps) => {
+const RecipePickerBody = ({ recipes, ...list }: RecipePickerBodyProps) => {
   const [query, setQuery] = useState("");
 
-  if (isLoading) {
-    return <PickerSkeleton />;
-  }
   if (recipes.length === 0) {
     return <p className="text-sm text-text-muted">{NO_RECIPES_LEFT_MESSAGE}</p>;
   }
+  const matches = recipes.filter((recipe) => recipeMatchesQuery(recipe.name, query));
   return (
     <div className="flex flex-col gap-4">
-      <Field label="Search your recipes" name="recipe-search" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <RecipeList recipes={recipes} query={query} {...list} />
+      <Field
+        label="Search your recipes"
+        name="recipe-search"
+        type="search"
+        spellCheck={false}
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      <LiveStatus message={matchesStatus(query, matches.length)} />
+      <RecipeList matches={matches} query={query} {...list} />
     </div>
   );
 };
@@ -298,16 +293,14 @@ const ADD_FAILED_MESSAGE = "Couldn't add it. Try again.";
 interface RecipePickStepProps {
   mealId: string;
   recipes: RecipeSummary[];
-  isLoading: boolean;
-  onRecipesChanged: () => void;
   onEntered: () => void;
 }
 
 // The picker cannot be *entered* empty - the row that opens it stays greyed
 // out until a recipe exists. It can still empty out while open, though:
-// deleting the last recipe from in here refetches to an empty list, which
+// deleting the last recipe from in here refreshes to an empty list, which
 // the branch below states rather than rendering nothing under the heading.
-export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, onEntered }: RecipePickStepProps) => {
+export const RecipePickStep = ({ mealId, recipes, onEntered }: RecipePickStepProps) => {
   const [enteringId, setEnteringId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -320,8 +313,8 @@ export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, o
         onEntered();
         return;
       }
+      // enterRecipe refreshes the route on a missing recipe, so the row goes.
       setError(result.kind === "recipe_missing" ? "That recipe is gone. Your meal is unchanged." : ADD_FAILED_MESSAGE);
-      onRecipesChanged();
     } catch {
       setError(ADD_FAILED_MESSAGE);
     } finally {
@@ -335,10 +328,8 @@ export const RecipePickStep = ({ mealId, recipes, isLoading, onRecipesChanged, o
       <p className="text-sm text-text-muted">{PICKER_HINT}</p>
       <RecipePickerBody
         recipes={recipes}
-        isLoading={isLoading}
         enteringId={enteringId}
         onEnter={(recipeId) => void enter(recipeId)}
-        onChanged={onRecipesChanged}
       />
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
     </div>

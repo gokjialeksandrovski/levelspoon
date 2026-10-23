@@ -14,6 +14,7 @@ import {
   earlierMealsTickLabel,
   isValidRecipeName,
   RECIPE_NAME_MAX_LENGTH,
+  recipeNameError,
   recipeNameHint,
   kcalPerUnit,
   offerableMeals,
@@ -57,6 +58,7 @@ const toDraftRow = (ingredient: MealIngredientDetail): DraftRow => ({
 
 interface AmountPaneProps {
   rows: DraftRow[];
+  isLoadingFork: boolean;
   onChange: (rows: DraftRow[]) => void;
   onContinue: () => void;
   onCancel: () => void;
@@ -97,7 +99,9 @@ const DraftRowField = ({ row, onQuantity, onRemove }: DraftRowFieldProps) => (
 
 // Pane one drafts the OPEN MEAL's rows, because overwriting files what the
 // meal now is. Local state only - nothing is written until Save on pane two.
-const AmountPane = ({ rows, onChange, onContinue, onCancel }: AmountPaneProps) => (
+// The button stays enabled; an unsaveable draft is refused by EditRecipeSheet's
+// toFork, with the reason already sitting above the button.
+const AmountPane = ({ rows, isLoadingFork, onChange, onContinue, onCancel }: AmountPaneProps) => (
   <div className="flex flex-col gap-4">
     <div className="flex flex-col divide-y divide-border">
       {rows.map((row, index) => (
@@ -113,8 +117,8 @@ const AmountPane = ({ rows, onChange, onContinue, onCancel }: AmountPaneProps) =
       <InlineMessage tone="warning">{rows.length === 0 ? EMPTY_DRAFT_HINT : INVALID_AMOUNT_HINT}</InlineMessage>
     )}
     <div className="flex gap-2">
-      <Button className="flex-1" disabled={!draftIsSaveable(rows)} onClick={onContinue}>
-        Continue
+      <Button className="flex-1" pending={isLoadingFork} onClick={onContinue}>
+        Choose how to save
       </Button>
       <Button variant="ghost" className="flex-1" onClick={onCancel}>
         Cancel
@@ -164,14 +168,19 @@ const ForkPane = ({ recipeName, earlier, draftTotalKcal, error, isSaving, onSave
   const [choice, setChoice] = useState<ForkChoice>("overwrite");
   const [newName, setNewName] = useState("");
   const [isTicked, setIsTicked] = useState(false);
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
 
-  const canSave = choice === "overwrite" || isValidRecipeName(newName);
-  const submit = () =>
+  const submit = () => {
+    if (choice === "new" && !isValidRecipeName(newName)) {
+      setNameError(recipeNameError(newName));
+      return;
+    }
     onSave(
       choice === "new"
         ? { kind: "new", name: newName }
         : { kind: "overwrite", alsoUpdateMealIds: isTicked ? offerableMeals(earlier).map((meal) => meal.mealId) : [] },
     );
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -187,9 +196,13 @@ const ForkPane = ({ recipeName, earlier, draftTotalKcal, error, isSaving, onSave
               label="New recipe name"
               name="new-recipe-name"
               value={newName}
-              onChange={(event) => setNewName(event.target.value)}
+              onChange={(event) => {
+                setNewName(event.target.value);
+                setNameError(undefined);
+              }}
               maxLength={RECIPE_NAME_MAX_LENGTH}
               helperText={recipeNameHint(newName)}
+              error={nameError}
               autoFocus
             />
           </div>
@@ -207,7 +220,7 @@ const ForkPane = ({ recipeName, earlier, draftTotalKcal, error, isSaving, onSave
         <Button variant="ghost" className="flex-1" onClick={onBack}>
           Back
         </Button>
-        <Button className="flex-1" disabled={!canSave} pending={isSaving} onClick={submit}>
+        <Button className="flex-1" pending={isSaving} onClick={submit}>
           Save
         </Button>
         <Button variant="ghost" className="flex-1" onClick={onCancel}>
@@ -234,15 +247,15 @@ interface EditRecipeSheetProps {
   open: boolean;
   onClose: () => void;
   onSaved: (message: string) => void;
-  onMealMissing: () => void;
 }
 
-export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose, onSaved, onMealMissing }: EditRecipeSheetProps) => {
+export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose, onSaved }: EditRecipeSheetProps) => {
   const [rows, setRows] = useState<DraftRow[]>(() => ingredients.map(toDraftRow));
   const [pane, setPane] = useState<"amounts" | "fork">("amounts");
   const [earlier, setEarlier] = useState<EarlierMeal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingFork, setIsLoadingFork] = useState(false);
   // Sourced once per render, same as meal-detail.tsx's own "today" - both
   // actions below need it to tell the open meal's day from the user's actual
   // today, never the server's.
@@ -258,13 +271,17 @@ export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose
   };
 
   const toFork = async () => {
+    if (!draftIsSaveable(rows) || isLoadingFork) return;
     setError(null);
+    setIsLoadingFork(true);
     try {
       setEarlier(await earlierMealsFromRecipe(mealId, timezone));
     } catch {
       // The fork still works without it - the tick simply does not render,
       // which is the same thing a user with no earlier meals sees.
       setEarlier([]);
+    } finally {
+      setIsLoadingFork(false);
     }
     setPane("fork");
   };
@@ -283,7 +300,6 @@ export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose
       // an error to read inside it (spec §9).
       if (result.kind === "meal_missing") {
         close();
-        onMealMissing();
         return;
       }
       setError(FAILURE_COPY[result.kind]);
@@ -302,7 +318,7 @@ export const EditRecipeSheet = ({ mealId, recipeName, ingredients, open, onClose
        * what keeps a cancelled draft unfindable by label after close. */}
       {open &&
         (pane === "amounts" ? (
-          <AmountPane rows={rows} onChange={setRows} onContinue={() => void toFork()} onCancel={close} />
+          <AmountPane rows={rows} isLoadingFork={isLoadingFork} onChange={setRows} onContinue={() => void toFork()} onCancel={close} />
         ) : (
           <ForkPane
             recipeName={recipeName}

@@ -4,6 +4,9 @@ import { fieldInputClassName } from "./field";
 import { FOCUS_RING } from "./tap-target";
 
 const UNIT_CHEVRON_SIZE = 14;
+
+// Said on submit rather than by disabling Save: a greyed button gives no reason.
+export const EMPTY_AMOUNT_MESSAGE = "Enter an amount first.";
 const TRAILING_ICON_SIZE = 18;
 
 /**

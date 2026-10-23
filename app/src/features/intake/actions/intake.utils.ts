@@ -129,7 +129,8 @@ export type IntakeEstimate = { kind: "refused"; reason: RefusalReason } | Intake
 // Bump when the consent copy in intake-form.tsx changes, so a stored consent
 // can be traced to the wording it was given against (spec §13).
 // 2: the helper names weight, body fat and intake, once intake was stored.
-export const CONSENT_VERSION = 2;
+// 3: typographic quotes and apostrophes; the wording is unchanged.
+export const CONSENT_VERSION = 3;
 
 // PUBLISHED - Mifflin MD, St Jeor ST et al., Am J Clin Nutr 1990;51:241-7.
 // BMR kcal/day = 10·kg + 6.25·cm − 5·age + s.

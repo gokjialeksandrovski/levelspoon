@@ -14,6 +14,7 @@ import {
   createProduct,
   findStoredMeasures,
   getProductForCorrection,
+  getUserProduct,
   matchProduct,
   saveNutritionOverride,
   searchUserProducts,
@@ -112,6 +113,13 @@ describe("AI rows stay out of every search, match and gate", () => {
     await seedAiProduct(userId);
     signedInAs(userId);
     expect(await searchUserProducts("chicken")).toEqual([]);
+  });
+
+  it("getUserProduct never returns an AI row, even to its author", async () => {
+    const userId = await seedUser();
+    const productId = await seedAiProduct(userId);
+    signedInAs(userId);
+    expect(await getUserProduct(productId)).toBeNull();
   });
 
   it("matchProduct never matches an AI row", async () => {

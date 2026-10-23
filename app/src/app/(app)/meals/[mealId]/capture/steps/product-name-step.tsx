@@ -77,6 +77,10 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
 // looks: the margin rule that makes auto-accept safe is matchProduct's, and it
 // scores whole strings. No photo was taken on this path, so no net weight either.
 const handleManualName = async (manualName: string, callbacks: ProductNameCallbacks): Promise<void> => {
+  if (manualName.trim() === "") {
+    callbacks.onError("Type a product name first.");
+    return;
+  }
   callbacks.onError(null);
   callbacks.onBusy(SEARCHING_NAME_LABEL);
   try {
@@ -159,8 +163,15 @@ interface ManualNameEntryProps {
   onSubmit: () => void;
 }
 
+// A form so Enter in the field searches, same as tapping the button.
 const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: ManualNameEntryProps) => (
-  <div className="flex flex-col gap-4">
+  <form
+    className="flex flex-col gap-4"
+    onSubmit={(event) => {
+      event.preventDefault();
+      if (!isLoading) onSubmit();
+    }}
+  >
     <h2 className="text-lg font-semibold">Type the product name</h2>
     <Field
       label="Product name"
@@ -169,10 +180,10 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: M
       onChange={(event) => onChange(event.target.value)}
     />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <Button disabled={manualName.trim() === ""} pending={isLoading} onClick={onSubmit}>
-      Continue
+    <Button type="submit" pending={isLoading}>
+      Search my products
     </Button>
-  </div>
+  </form>
 );
 
 // No border-radius: this is a full-bleed list row, not a standalone control -

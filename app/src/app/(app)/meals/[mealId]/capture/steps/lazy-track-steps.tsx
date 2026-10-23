@@ -23,6 +23,7 @@ const PHOTO_LABEL = "Photo of the meal (optional, helps a lot)";
 const ATTACHED_PHOTO_LABEL = "Photo of the meal";
 const TOO_LONG_ERROR = `Keep it under ${DESCRIPTION_MAX_LENGTH} characters.`;
 const ESTIMATE_FAILED = "Estimate unavailable right now. Your text is kept, so try again or add items by search.";
+const NOTHING_TO_ESTIMATE = "Describe the meal or add a photo first.";
 
 const ESTIMATE_ERRORS: Record<Exclude<EstimateMealResult["kind"], "estimated">, string> = {
   nothing_found: "Couldn't pick out any food. Say what was on the plate.",
@@ -62,8 +63,15 @@ const useEstimate = (dispatch: (action: PathAction) => void) => {
     }
   };
 
-  const request = (description: string, photo: File | null) =>
-    hasAcceptedAiPhotoConsent() ? void run(description, photo) : setConsentOpen(true);
+  // Validated on tap rather than by disabling Estimate, so the tap says why.
+  const request = (description: string, photo: File | null) => {
+    if (!canEstimate(description, photo !== null)) {
+      setError(isDescriptionTooLong(description) ? TOO_LONG_ERROR : NOTHING_TO_ESTIMATE);
+      return;
+    }
+    if (hasAcceptedAiPhotoConsent()) void run(description, photo);
+    else setConsentOpen(true);
+  };
 
   const agree = (description: string, photo: File | null) => {
     recordAiPhotoConsent();
@@ -96,7 +104,7 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
       />
       {photo ? <AttachedPhoto photo={photo} label={ATTACHED_PHOTO_LABEL} onRemove={() => setPhoto(null)} /> : <PhotoInput label={PHOTO_LABEL} onSelect={setPhoto} />}
       {estimate.error && <InlineMessage tone="error">{estimate.error}</InlineMessage>}
-      <Button disabled={!canEstimate(description, photo !== null)} pending={estimate.isEstimating} onClick={() => estimate.request(description, photo)}>
+      <Button pending={estimate.isEstimating} onClick={() => estimate.request(description, photo)}>
         Estimate
       </Button>
       {/* Add detail's exit (Rule 21): back to the estimate it left, as
@@ -117,6 +125,8 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
 };
 
 const LOG_FAILED = "Couldn't log it. Try again.";
+const NOTHING_TO_LOG = "Nothing left to log. Add detail to estimate again.";
+const FIX_AMOUNTS = "Fix the amounts marked above first.";
 
 const LOG_ERRORS: Record<Exclude<LogLazyMealResult["kind"], "logged">, string> = {
   invalid_items: "Something in this estimate doesn't add up. Estimate again.",
@@ -163,6 +173,10 @@ const useLog = (mealId: string, onLogged: () => void) => {
   const [error, setError] = useState<string | null>(null);
 
   const log = async (rows: readonly ReviewRow[]) => {
+    if (!reviewDraftIsLoggable(rows)) {
+      setError(rows.length === 0 ? NOTHING_TO_LOG : FIX_AMOUNTS);
+      return;
+    }
     setError(null);
     setIsLogging(true);
     try {
@@ -222,7 +236,7 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
     <div className="flex flex-col gap-6">
       <section aria-labelledby="lazy-review-heading" className="flex flex-col">
         <div className="flex flex-col gap-0.5 border-b-2 border-text pb-2">
-          <h2 id="lazy-review-heading" className="text-base font-semibold">
+          <h2 id="lazy-review-heading" className="wrap-break-word text-base font-semibold">
             {estimate.mealName}
           </h2>
           <p className="text-sm tabular-nums text-text-muted">Rough estimate · about {Math.round(totalKcal)} kcal</p>
@@ -239,7 +253,7 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
           <Button variant="ghost" disabled={logging.isLogging} onClick={() => dispatch({ type: "BACK" })}>
             Add detail
           </Button>
-          <Button className="flex-1" disabled={!reviewDraftIsLoggable(rows)} pending={logging.isLogging} onClick={() => void logging.log(rows)}>
+          <Button className="flex-1" pending={logging.isLogging} onClick={() => void logging.log(rows)}>
             Log
           </Button>
         </div>

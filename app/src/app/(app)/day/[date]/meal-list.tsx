@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import Link from "next/link";
 
 import type { DayMealSummary } from "@/features/meals/actions/meals";
@@ -30,8 +31,8 @@ const MealListItem = ({ meal, index }: { meal: DayMealSummary; index: number }) 
       {/* kcal and the macro split share the right column so the day reads as
           one column of figures, not a number floating beside a paragraph. */}
       <Link href={`/meals/${meal.id}`} className={`flex items-baseline justify-between gap-4 py-3 ${FOCUS_RING}`}>
-        <span className="flex flex-col gap-0.5">
-          <span className="font-medium text-text">{heading}</span>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="wrap-break-word font-medium text-text">{heading}</span>
           {subtitle && <span className="text-sm text-text-muted">{subtitle}</span>}
         </span>
         <span className="flex shrink-0 flex-col items-end gap-0.5">

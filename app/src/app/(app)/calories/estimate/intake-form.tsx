@@ -1,11 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   forgetIntakeProfile,
-  getMeasuredBurn,
   saveIntakeEstimate,
   type IntakePrefill,
   type IntakeSaveInput,
@@ -38,7 +37,7 @@ import { CheckboxRow } from "@/components/ui/checkbox-row";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { todayLocalDateString } from "@/lib/date/day-bounds";
+import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 
 import { ChoiceGroup, RequiredMark, type ChoiceOption } from "./intake-choices";
 import {
@@ -138,14 +137,14 @@ const TREND_OPTIONS: ChoiceOption<WeightTrend>[] = [
 ];
 
 const CURRENT_INTAKE_HELPER =
-  "Optional. Leave it empty if you don't know. A figure from a food app, or a typical week added up, works best.";
+  "Optional. Leave it empty if you don’t know. A figure from a food app, or a typical week added up, works best.";
 
 // DRAFT consent copy - pending legal review (spec §13.1). Once approved it is
 // verbatim, same rule as the AI-photo consent, and a change bumps
 // CONSENT_VERSION in intake.utils.ts.
-const CONSENT_LABEL = "Save my answers so I don't have to enter them again.";
+const CONSENT_LABEL = "Save my answers so I don’t have to enter them again.";
 const CONSENT_HELPER =
-  'Your answers include health information, such as your weight, body fat and what you eat. We store them only to fill in this form next time and never share them. Tap "Forget these details" at any time to delete them.';
+  "Your answers include health information, such as your weight, body fat and what you eat. We store them only to fill in this form next time and never share them. Tap “Forget these details” at any time to delete them.";
 
 const browserTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -230,6 +229,7 @@ const AboutYou = ({ draft, update, errorFor }: SectionProps) => (
         }
         required
         name="birth-year"
+        autoComplete="bday-year"
         inputMode="numeric"
         value={draft.birthYearDraft}
         error={errorFor("birth_year")}
@@ -611,33 +611,29 @@ const useSaveIntake = (today: string) => {
   return { isSaving, hasError, save };
 };
 
-// Null until the fetch lands. The formula figure is a valid answer in the
-// meantime, so there is no loading state - the range simply sharpens if a
-// measured figure arrives.
-const useMeasuredBurn = (): MeasuredBurn | null => {
-  const [measured, setMeasured] = useState<MeasuredBurn | null>(null);
-
-  useEffect(() => {
-    getMeasuredBurn(browserTimezone())
-      .then(setMeasured)
-      .catch(() => setMeasured(null));
-  }, []);
-
-  return measured;
-};
-
 const paceHelperOf = (bar: BarState, draft: IntakeDraft): string | undefined =>
   bar.kind === "ready" && draft.paceDraft.trim() === "" ? suggestedPaceText(bar.estimate, draft.unit) : undefined;
 
-export const IntakeForm = ({ prefill }: { prefill: IntakePrefill }) => {
+interface IntakeFormProps {
+  prefill: IntakePrefill;
+  today: string;
+  // Null when there is no measured figure. The formula figure is a valid
+  // answer without one; the range is simply wider.
+  measured: MeasuredBurn | null;
+}
+
+export const IntakeForm = ({ prefill, today, measured }: IntakeFormProps) => {
   const [draft, setDraft] = useState(() => initialDraft(prefill));
   const [stored, setStored] = useState<StoredAnswers>(prefill.profile === null ? "none" : "saved");
-  const today = todayLocalDateString(browserTimezone());
-  const measured = useMeasuredBurn();
+  const [isTouched, setIsTouched] = useState(false);
   const bar = barStateOf(draft, yearOf(today), measured);
   const { isSaving, hasError, save } = useSaveIntake(today);
+  useUnsavedChangesWarning(isTouched && !isSaving);
 
-  const update = (patch: Partial<IntakeDraft>): void => setDraft((current) => ({ ...current, ...patch }));
+  const update = (patch: Partial<IntakeDraft>): void => {
+    setIsTouched(true);
+    setDraft((current) => ({ ...current, ...patch }));
+  };
   const errorFor = (field: IntakeField): string | undefined =>
     bar.kind === "invalid" && bar.field === field ? fieldText(field, draft.primaryGoal) : undefined;
   const use = (): void => {

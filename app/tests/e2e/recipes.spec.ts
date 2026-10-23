@@ -13,7 +13,8 @@ test("saving a meal as a recipe states the privacy fact and adds the subtitle", 
   await expect(page.getByText("Saved to your account only. No one else can see your recipes.")).toBeVisible();
 
   const saveButton = page.getByRole("button", { name: "Save", exact: true });
-  await expect(saveButton).toBeDisabled();
+  await saveButton.click();
+  await expect(page.getByText("Give the recipe a name.")).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Chicken rice bowl");
   await saveButton.click();
 
@@ -188,7 +189,7 @@ test("search narrows the picker as the user types, and each row carries the acce
   await expect(oatsRow).toHaveCount(0);
 
   await search.fill("pizza");
-  await expect(page.getByText('No recipe matches "pizza".')).toBeVisible();
+  await expect(page.getByText("No recipe matches “pizza”.")).toBeVisible();
 
   await search.fill("");
   await expect(chickenRow).toBeVisible();
@@ -299,11 +300,11 @@ test("cancelling either pane leaves the meal untouched and fires no request", as
   await page.getByRole("button", { name: "Edit this recipe" }).click();
   // The draft reopens from the meal, not from the abandoned edit.
   await expect(sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount")).toHaveValue("200");
-  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("button", { name: "Choose how to save" }).click();
   await sheet.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByText(/200 ?g/)).toBeVisible();
 
-  // Exactly one read fires, from earlierMealsFromRecipe on Continue - not
+  // Exactly one read fires, from earlierMealsFromRecipe on "Choose how to save" - not
   // "at most one", which would also pass if that read never fired at all
   // and a Cancel fired something instead.
   expect(requests.length).toBe(1);
@@ -318,13 +319,13 @@ test("Back returns from the fork to the amounts pane", async ({ page }) => {
   const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
   await page.getByRole("button", { name: "Edit this recipe" }).click();
   await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
-  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("button", { name: "Choose how to save" }).click();
   await sheet.getByRole("button", { name: "Back" }).click();
 
   await expect(sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount")).toHaveValue("250");
 });
 
-test("removing every row disables Save with a reason", async ({ page }) => {
+test("removing every row refuses to continue, with a reason", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
   await logOneIngredient(page);
@@ -337,7 +338,8 @@ test("removing every row disables Save with a reason", async ({ page }) => {
   await sheet.getByRole("button", { name: "Remove Olympus Greek Yogurt 2% Fat" }).click();
 
   await expect(page.getByText("A recipe needs at least one ingredient.")).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await sheet.getByRole("button", { name: "Choose how to save" }).click();
+  await expect(sheet.getByText("Save as a new recipe")).toHaveCount(0);
 });
 
 test("overwrite updates a matching earlier meal and leaves a diverged one named", async ({ page }) => {
@@ -365,7 +367,7 @@ test("overwrite updates a matching earlier meal and leaves a diverged one named"
   const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
   await page.getByRole("button", { name: "Edit this recipe" }).click();
   await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
-  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("button", { name: "Choose how to save" }).click();
 
   // Exact copy, not an alternation: a partition that came back backwards
   // (offering the hand-edited Meal 2, excusing the two matching meals) would
@@ -400,7 +402,7 @@ test("saving as a new recipe relinks this meal and leaves the original alone", a
   const sheet = page.getByRole("dialog", { name: "Edit this recipe" });
   await page.getByRole("button", { name: "Edit this recipe" }).click();
   await sheet.getByLabel("Olympus Greek Yogurt 2% Fat amount").fill("250");
-  await sheet.getByRole("button", { name: "Continue" }).click();
+  await sheet.getByRole("button", { name: "Choose how to save" }).click();
   await sheet.getByRole("radio", { name: "Save as a new recipe" }).check();
   await sheet.getByLabel("New recipe name").fill("Bigger bowl");
   await sheet.getByRole("button", { name: "Save", exact: true }).click();
@@ -424,7 +426,7 @@ test("the fork shows no earlier-meals block when there are none", async ({ page 
   await saveCurrentMealAsRecipe(page, "Chicken rice bowl");
 
   await page.getByRole("button", { name: "Edit this recipe" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Choose how to save" }).click();
 
   await expect(page.getByRole("checkbox", { name: /Also update/ })).toHaveCount(0);
   await expect(page.getByText(/was changed after you logged it/)).toHaveCount(0);

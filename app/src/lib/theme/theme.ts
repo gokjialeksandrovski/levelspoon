@@ -5,6 +5,10 @@ export type Theme = "system" | "light" | "dark";
 
 const THEME_STORAGE_KEY = "levelspoon:theme";
 
+// Must match --raw-bg in globals.css by hand: a <meta> value can't read a CSS
+// custom property.
+export const THEME_COLORS = { light: "#fdfbf7", dark: "#1a1816" } as const;
+
 const isTheme = (value: string | null): value is Theme =>
   value === "system" || value === "light" || value === "dark";
 
@@ -31,6 +35,17 @@ export const getThemeSnapshot = (): Theme => {
 // hydration doesn't flip the icon out from under the first paint.
 export const getServerThemeSnapshot = (): Theme => "system";
 
+const themeColorForMedia = (media: string): string =>
+  media.includes("dark") ? THEME_COLORS.dark : THEME_COLORS.light;
+
+// The theme-color metas carry prefers-color-scheme media queries, so an
+// explicit pick must rewrite their content or the browser chrome follows the OS.
+const syncThemeColorMeta = (theme: Theme): void => {
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = theme === "system" ? themeColorForMedia(meta.media) : THEME_COLORS[theme];
+  });
+};
+
 // "system" removes the override so the prefers-color-scheme CSS block takes
 // back over; "light"/"dark" set the attribute that block guards against.
 const applyTheme = (theme: Theme): void => {
@@ -39,6 +54,7 @@ const applyTheme = (theme: Theme): void => {
   } else {
     document.documentElement.dataset.theme = theme;
   }
+  syncThemeColorMeta(theme);
 };
 
 export const setTheme = (theme: Theme): void => {
@@ -71,7 +87,10 @@ export const getServerSystemSchemeSnapshot = (): boolean => false;
 
 // Inlined verbatim into a blocking <script> in layout.tsx so the override
 // applies before first paint (no flash of the wrong theme). Keep in sync by
-// hand - it can't import this module, it runs before any bundle does.
+// hand - it can't import this module, it runs before any bundle does. The
+// theme-color metas may not be parsed yet, so their rewrite waits for the DOM.
 export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY,
-)});if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;}}catch(e){/* localStorage blocked (private mode): keep the prefers-color-scheme default */}})();`;
+)});if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var c=${JSON.stringify(
+  THEME_COLORS,
+)}[t];document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.content=c;});});}}catch(e){/* localStorage blocked (private mode): keep the prefers-color-scheme default */}})();`;

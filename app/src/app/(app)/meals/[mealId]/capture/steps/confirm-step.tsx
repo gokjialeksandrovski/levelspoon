@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { checkBarcodeBinding } from "@/features/products/actions/barcode";
 import { validateNutrition } from "@/features/products/actions/ocr";
-import { createProduct, searchUserProducts } from "@/features/products/actions/products";
+import { createProduct, getUserProduct } from "@/features/products/actions/products";
 import type { CreateProductResult, ProductCandidate } from "@/features/products/actions/products";
 import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 import { Button } from "@/components/ui/button";
@@ -378,7 +378,6 @@ interface UseConfirmStepFormResult {
   error: string | null;
   isSaving: boolean;
   flaggedFields: Set<keyof FieldValues>;
-  canSave: boolean;
   duplicate: { id: string; name: string } | null;
   sameFigures: { ownerName: string | null } | null;
   acknowledgedSameFigures: boolean;
@@ -402,6 +401,8 @@ interface ConfirmFormState {
   setSameFigures: (sameFigures: { ownerName: string | null } | null) => void;
   acknowledgedSameFigures: boolean;
 }
+
+const EMPTY_FLAGGED_ERROR = "Fill in the figures marked above first.";
 
 const MANUAL_ORIGIN: NutritionOrigin = "manual";
 const DEFAULT_ORIGIN: NutritionOrigin = "label_photo";
@@ -457,10 +458,15 @@ const buildConfirmStepActions = (props: ConfirmStepProps, state: ConfirmFormStat
 
   return {
     flaggedFields,
-    canSave,
     setFieldValue,
     revalidateNow: () => state.revalidate(state.values),
-    handleSave: () => saveConfirmedProduct(saveInput, props.dispatch, saveCallbacks),
+    handleSave: async () => {
+      if (!canSave) {
+        state.setError(EMPTY_FLAGGED_ERROR);
+        return;
+      }
+      await saveConfirmedProduct(saveInput, props.dispatch, saveCallbacks);
+    },
   };
 };
 
@@ -599,7 +605,7 @@ const DuplicateNotice = ({ duplicate, acknowledged, onAcknowledge, dispatch }: D
     setIsResolving(true);
     setLookupError(null);
     try {
-      const found = (await searchUserProducts(duplicate.name)).find((row) => row.id === duplicate.id);
+      const found = await getUserProduct(duplicate.id);
       if (found) {
         dispatch({ type: "CANDIDATE_CHOSEN", product: toSelectedProduct(found), alternatives: [], pendingBarcode: null });
       } else {
@@ -739,7 +745,7 @@ export const ConfirmStep = (props: ConfirmStepProps) => {
           />
         )}
         {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
-        <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
+        <Button pending={form.isSaving} onClick={form.handleSave}>
           Save product
         </Button>
       </StickyActionBar>

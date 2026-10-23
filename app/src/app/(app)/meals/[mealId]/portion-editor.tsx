@@ -104,6 +104,39 @@ const usePortionEditor = (
   };
 };
 
+interface RevertControlProps {
+  isArmed: boolean;
+  isBusy: boolean;
+  onArm: () => void;
+  onDisarm: () => void;
+  onRevert: () => void;
+}
+
+// Reverting wipes every size the user set for this product, so the first tap
+// only arms it; Keep is the exit and sends nothing.
+const RevertControl = ({ isArmed, isBusy, onArm, onDisarm, onRevert }: RevertControlProps) => {
+  if (!isArmed) {
+    return (
+      <Button variant="ghost" disabled={isBusy} onClick={onArm}>
+        Use the standard sizes
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-text-muted">Drop every size you set for this product?</p>
+      <div className="flex gap-2">
+        <Button variant="danger" className="flex-1" pending={isBusy} onClick={onRevert}>
+          Reset to standard
+        </Button>
+        <Button variant="ghost" className="flex-1" disabled={isBusy} onClick={onDisarm}>
+          Keep my sizes
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 /**
  * Per-product portion weights, opened from the chip row.
  *
@@ -113,12 +146,14 @@ const usePortionEditor = (
  */
 export const PortionEditor = ({ productId, portions, onSaved }: PortionEditorProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isRevertArmed, setIsRevertArmed] = useState(false);
   const editor = usePortionEditor(productId, portions, async () => {
     await onSaved();
     setIsOpen(false);
   });
   const open = () => {
     editor.reset();
+    setIsRevertArmed(false);
     setIsOpen(true);
   };
 
@@ -146,9 +181,13 @@ export const PortionEditor = ({ productId, portions, onSaved }: PortionEditorPro
             <Button pending={editor.isBusy} onClick={editor.save}>
               Save
             </Button>
-            <Button variant="ghost" disabled={editor.isBusy} onClick={editor.revert}>
-              Use the standard sizes
-            </Button>
+            <RevertControl
+              isArmed={isRevertArmed}
+              isBusy={editor.isBusy}
+              onArm={() => setIsRevertArmed(true)}
+              onDisarm={() => setIsRevertArmed(false)}
+              onRevert={editor.revert}
+            />
           </div>
         }
       >

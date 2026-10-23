@@ -122,7 +122,7 @@ export const startCapture = async (page: Page, name: string) => {
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill(name);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Search my products" }).click();
 };
 
 // The nutrition-photo step's own escape hatch for when no photo is taken -

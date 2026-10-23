@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import * as motion from "motion/react-m";
 
 // Any figure that re-renders in place on a data change (a meal total, a day
 // hero, a goal preview) replays a short fade+rise instead of snapping

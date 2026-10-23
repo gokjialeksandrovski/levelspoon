@@ -1,7 +1,8 @@
 "use client";
 
 import { CheckCircleIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -19,6 +20,7 @@ import { LiveStatus } from "@/components/ui/live-status";
 import { PhotoInput } from "@/components/ui/photo-input";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
+import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 import {
   changedNutritionFields,
   FIELD_LABELS,
@@ -252,7 +254,6 @@ interface UseCorrectionFormResult {
   isReverting: boolean;
   newLabelPhoto: File | null;
   flaggedFields: Set<keyof FieldValues>;
-  canSave: boolean;
   nameChange: { from: string; to: string } | null;
   changes: NutritionFieldChange[];
   setName: (value: string) => void;
@@ -287,7 +288,6 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   useEffect(() => { revalidate(toFieldValues(toNullableNutritionValues(product.nutritionPer100g))); }, [product, revalidate]);
 
   const flaggedFields = flaggedFieldSet(flags);
-  const canSave = flaggedFields.size === 0 || validateError;
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const adoptValues = (next: FieldValues) => { setValues(next); revalidate(next); };
   const revalidateNow = () => revalidate(values);
@@ -296,10 +296,12 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
     revertCorrection(product.id, { setIsReverting, setSaveError, onReverted: () => router.refresh() });
 
   const nameChange = name.trim() === product.name ? null : { from: product.name, to: name.trim() };
+  const changes = changedNutritionFields(original, values);
+  useUnsavedChangesWarning(!isSaved && (nameChange !== null || changes.length > 0 || newLabelPhoto !== null));
 
   return {
     name, values, validateError, saveError, isSaving, isSaved, isReverting, newLabelPhoto,
-    flaggedFields, canSave, nameChange, changes: changedNutritionFields(original, values),
+    flaggedFields, nameChange, changes,
     setName, setFieldValue, adoptValues, setNewLabelPhoto, revalidateNow, handleSave, handleRevert,
   };
 };
@@ -324,12 +326,30 @@ interface RevertControlProps {
 }
 
 // The way back to the label-photo figures, which the override never destroyed -
-// reverting is one DELETE, not a re-entry of eight numbers.
-const RevertControl = ({ onRevert, isReverting }: RevertControlProps) => (
-  <Button variant="ghost" link pending={isReverting} onClick={onRevert}>
-    Use the original values
-  </Button>
-);
+// reverting is one DELETE, not a re-entry of eight numbers. It drops figures
+// the user typed with no undo, so the first tap only arms it; Keep is the
+// exit and fires no request.
+const RevertControl = ({ onRevert, isReverting }: RevertControlProps) => {
+  const [isArmed, setIsArmed] = useState(false);
+  if (!isArmed) {
+    return (
+      <Button variant="ghost" link onClick={() => setIsArmed(true)}>
+        Use the original values
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted">
+      <span>Drop your corrected values?</span>
+      <Button variant="danger" link pending={isReverting} onClick={onRevert}>
+        Use the originals
+      </Button>
+      <Button variant="ghost" link disabled={isReverting} onClick={() => setIsArmed(false)}>
+        Keep mine
+      </Button>
+    </div>
+  );
+};
 
 const LABEL_CHANGED_LABEL = "I think this product's label has changed";
 // Says what the photo is for and what it is not: it does not overwrite the
@@ -453,7 +473,7 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionF
       <CorrectionSaved />
     ) : (
       <>
-        <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
+        <Button pending={form.isSaving} onClick={form.handleSave}>
           Save correction
         </Button>
         {product.hasOverride && <RevertControl onRevert={form.handleRevert} isReverting={form.isReverting} />}

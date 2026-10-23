@@ -37,7 +37,7 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await page.getByLabel("Amount", { exact: true }).fill("0");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
-  const errorMessage = page.getByText('Couldn\'t work out the amount in "g". Try a different unit.');
+  const errorMessage = page.getByText("Couldn’t work out the amount in “g”. Try a different unit.");
   await expect(errorMessage).toBeVisible();
   // A failed resolve doesn't close the editor - the Amount field stays.
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
@@ -145,11 +145,10 @@ test("back from a meal on a past day returns to that meal's own day", async ({ p
   const mealId = await seedBackdatedMeal(email);
 
   await page.goto(`/meals/${mealId}`);
-  // meal-detail.tsx fetches asynchronously on mount and only swaps
-  // backHref from today's fallback to the meal's own date once that
-  // resolves - wait for the loaded ingredient before clicking Back so this
-  // isn't racing the fetch.
-  await expect(page.getByText("Test Product")).toBeVisible();
+  // The meal streams in under Suspense, and the fallback's Back goes to "/" -
+  // wait for the loaded ingredient row before clicking Back. Scoped to the
+  // list: one full-suite run matched a second, transient "Test Product".
+  await expect(page.getByRole("listitem").getByText("Test Product")).toBeVisible();
   await page.getByRole("link", { name: "Back" }).click();
   await page.waitForURL(new RegExp(`/day/${PAST_MEAL_DATE}$`));
 });

@@ -104,15 +104,16 @@ test("Escape on review writes nothing and keeps the text", async ({ page }) => {
   expect(posts).toHaveLength(0);
 });
 
-test("an emptied grams field disables Log", async ({ page }) => {
+test("an emptied grams field refuses Log and says why", async ({ page }) => {
   await signUp(page);
   await openLazyTrack(page);
   await describeAndEstimate(page);
   await page.getByRole("button", { name: "I agree" }).click();
 
   await page.getByLabel(/, grams$/).first().fill("");
-  await expect(page.getByRole("button", { name: "Log" })).toBeDisabled();
   await expect(page.getByText("Enter an amount above 0.")).toBeVisible();
+  await page.getByRole("button", { name: "Log" }).click();
+  await expect(page.getByText("Fix the amounts marked above first.")).toBeVisible();
 });
 
 test("unavailable keeps text", async ({ page }) => {
@@ -128,8 +129,9 @@ test("unavailable keeps text", async ({ page }) => {
   await expect(page.getByLabel("What did you eat, and what was in it?")).toHaveValue(text);
 });
 
-test("Estimate stays disabled with no text and no photo", async ({ page }) => {
+test("Estimate with no text and no photo says what is missing", async ({ page }) => {
   await signUp(page);
   await openLazyTrack(page);
-  await expect(page.getByRole("button", { name: "Estimate" })).toBeDisabled();
+  await page.getByRole("button", { name: "Estimate" }).click();
+  await expect(page.getByText("Describe the meal or add a photo first.")).toBeVisible();
 });

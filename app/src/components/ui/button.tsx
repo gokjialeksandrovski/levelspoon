@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import * as motion from "motion/react-m";
 
 import { TAP_HIT_AREA_SM } from "./tap-target";
 
@@ -38,9 +38,11 @@ const VARIANT: Record<ButtonVariant, string> = {
   fat: "ring-1 ring-inset ring-accent-fat text-accent-fat hover:bg-accent-fat/10",
 };
 
+// Hover thickens the underline (in buttonClassName): a colour shift alone is
+// invisible on the full-strength inks.
 const LINK_VARIANT: Record<ButtonVariant, string> = {
   primary: "text-text",
-  ghost: "text-text-muted",
+  ghost: "text-text-muted hover:text-text",
   danger: "text-danger",
   fat: "text-accent-fat",
 };
@@ -51,7 +53,7 @@ const LINK_VARIANT: Record<ButtonVariant, string> = {
 // the 44px touch-target floor.
 export const buttonClassName = (variant: ButtonVariant = "primary", className = "", link = false): string =>
   link
-    ? `${TAP_HIT_AREA_SM} text-sm underline disabled:cursor-not-allowed disabled:opacity-50 ${LINK_VARIANT[variant]} ${className}`
+    ? `${TAP_HIT_AREA_SM} text-sm underline decoration-1 hover:decoration-2 disabled:cursor-not-allowed disabled:opacity-50 ${LINK_VARIANT[variant]} ${className}`
     : `rounded-(--radius-control) px-4 py-3 text-sm font-medium transition-transform duration-100 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${VARIANT[variant]} ${className}`;
 
 // Press-feedback spring (spec §2.5). Plain JS constants: motion/react's

@@ -35,6 +35,7 @@ import {
   type WeightUnit,
 } from "@/features/weight/actions/weight.utils";
 import { addCalendarDays } from "@/lib/date/day-bounds";
+import { formatNumber } from "@/lib/nutrition/format-number";
 
 export type MetabolismDirection = "up" | "down";
 
@@ -410,16 +411,13 @@ export const hasSharpenAnswers = (draft: IntakeDraft): boolean =>
   draft.metabolismCondition ||
   draft.currentIntakeDraft !== "";
 
-// en-GB, not the browser default, so a figure reads the same in every test
-// run and on every device ("2,320", never "2.320").
-const KCAL_FORMAT = new Intl.NumberFormat("en-GB");
 const DAY_MONTH_FORMAT = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "long",
   timeZone: "UTC",
 });
 
-const kcalText = (kcal: number): string => KCAL_FORMAT.format(roundKcal(kcal));
+const kcalText = (kcal: number): string => formatNumber(roundKcal(kcal));
 
 // U+2212, the same minus the weight panel prints for a signed change.
 const signedKcalText = (kcal: number): string =>

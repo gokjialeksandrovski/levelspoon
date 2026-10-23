@@ -70,7 +70,7 @@ describe("resolveAndSaveCookingFat", () => {
     );
 
     expect(saveMealIngredient).not.toHaveBeenCalled();
-    expect(callbacks.setError).toHaveBeenCalledWith('Couldn\'t work out the amount in "gummies". Try a different unit.');
+    expect(callbacks.setError).toHaveBeenCalledWith("Couldn’t work out the amount in “gummies”. Try a different unit.");
   });
 });
 

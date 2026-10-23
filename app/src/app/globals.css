@@ -70,6 +70,8 @@
 }
 
 :root[data-theme="light"] {
+  /* Pins native controls and scrollbars to the picked theme, not the OS. */
+  color-scheme: light;
   --raw-bg: #fdfbf7;
   --raw-surface: #fffefc;
   --raw-surface-raised: #f5f2ea;
@@ -91,6 +93,10 @@
     oklch(0.99 0.012 85 / 0.62),
     transparent
   );
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* Layer 2: map semantic Tailwind theme tokens to the raw variables above.
@@ -147,6 +153,10 @@
 
 html {
   font-variant-numeric: tabular-nums;
+  /* No double-tap-zoom delay on taps; focus-visible rings replace the grey
+     WebKit tap flash. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   scrollbar-color: var(--raw-border) transparent;
 }
 

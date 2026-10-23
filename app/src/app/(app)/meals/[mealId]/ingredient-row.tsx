@@ -1,9 +1,9 @@
 "use client";
 
 import { XIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { removeMealIngredient, updateMealIngredientQuantity } from "@/features/meals/actions/meals";
@@ -14,7 +14,7 @@ import type { NutritionValues } from "@/types/nutrition";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS, TAP_HIT_AREA_XS } from "@/components/ui/tap-target";
-import { UnitAmountField } from "@/components/ui/unit-amount-field";
+import { EMPTY_AMOUNT_MESSAGE, UnitAmountField } from "@/components/ui/unit-amount-field";
 import { availableUnits } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import { resolveQuantity } from "@/lib/measures/resolve-quantity";
@@ -22,13 +22,11 @@ import { rowEnterVariants } from "@/lib/motion/step-transition";
 
 import { quantityText } from "./amount-chips.utils";
 
+// No reload callback: both actions refresh the route themselves, which is
+// what makes the ingredient list pick up the change.
 interface MutationCallbacks {
-  router: ReturnType<typeof useRouter>;
   onBusyChange: (isBusy: boolean) => void;
   onError: (message: string | null) => void;
-  // router.refresh() is a no-op here (parent is a Client Component); this is
-  // what makes the ingredient list pick up the change.
-  onChanged?: () => void;
   onRemoved?: () => void;
 }
 
@@ -40,8 +38,6 @@ const removeIngredient = async (mealIngredientId: string, callbacks: MutationCal
   try {
     await removeMealIngredient(mealIngredientId);
     callbacks.onRemoved?.();
-    callbacks.router.refresh();
-    callbacks.onChanged?.();
   } catch {
     callbacks.onError("Couldn't remove this ingredient. Try again.");
     callbacks.onBusyChange(false);
@@ -72,8 +68,6 @@ const saveIngredientQuantity = async (
       amount.entryUnit,
     );
     onSaved();
-    callbacks.router.refresh();
-    callbacks.onChanged?.();
   } catch {
     callbacks.onError("Couldn't update this ingredient. Try again.");
   } finally {
@@ -103,9 +97,13 @@ export const resolveAndSaveQuantity = async (
   onSaved: () => void,
   callbacks: MutationCallbacks,
 ): Promise<void> => {
+  if (input.count.trim() === "") {
+    callbacks.onError(EMPTY_AMOUNT_MESSAGE);
+    return;
+  }
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
-    callbacks.onError(`Couldn't work out the amount in "${input.unit}". Try a different unit.`);
+    callbacks.onError(`Couldn’t work out the amount in “${input.unit}”. Try a different unit.`);
     return;
   }
   // An edit re-states the entry, so the echo is what was typed this time.
@@ -187,8 +185,7 @@ const resetDraft = (setters: DraftSetters, seedCount: string, seedUnit: string):
   setters.setError(null);
 };
 
-const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () => void, onRemoved?: () => void): UseIngredientEditingResult => {
-  const router = useRouter();
+const useIngredientEditing = (ingredient: MealIngredientDetail, onRemoved?: () => void): UseIngredientEditingResult => {
   const context = contextFor(ingredient);
   const units = availableUnits(context);
   const { count: seedCount, unit: seedUnit } = editSeed(ingredient, units);
@@ -197,7 +194,7 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onChanged?: () =
   const [unit, setUnit] = useState(seedUnit);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const callbacks: MutationCallbacks = { router, onBusyChange: setIsBusy, onError: setError, onChanged, onRemoved };
+  const callbacks: MutationCallbacks = { onBusyChange: setIsBusy, onError: setError, onRemoved };
 
   // useState setters are referentially stable, so this memo only recomputes
   // once - giving the effect below a stable dependency (same reason as
@@ -268,21 +265,29 @@ interface QuantityEditorProps {
   onCancel: () => void;
 }
 
-const QuantityEditor = ({ ingredientId, cancelLabel, count, unit, units, isBusy, onCountChange, onUnitChange, onSave, onCancel }: QuantityEditorProps) => {
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // Tapping anywhere outside the editor leaves it, the same way the X does.
-  // pointerdown, not click: it fires before focus moves, so the editor is gone
-  // by the time the tapped control takes over. The listener mounts with the
-  // editor, so the click that opened it (whose pointerdown already fired)
-  // cannot close it again.
+// Tapping anywhere outside the editor leaves it, the same way the X does.
+// pointerdown, not click: it fires before focus moves, so the editor is gone
+// by the time the tapped control takes over. The listener mounts with the
+// editor, so the click that opened it (whose pointerdown already fired)
+// cannot close it again. onCancel is a fresh closure every render, so it is
+// read through a ref: the listener binds once per edit, not per keystroke.
+const useOutsidePointerDown = (rootRef: React.RefObject<HTMLDivElement | null>, onOutside: () => void): void => {
+  const onOutsideRef = useRef(onOutside);
+  useEffect(() => {
+    onOutsideRef.current = onOutside;
+  });
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) onCancel();
+      if (!rootRef.current?.contains(event.target as Node)) onOutsideRef.current();
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [onCancel]);
+  }, [rootRef]);
+};
+
+const QuantityEditor = ({ ingredientId, cancelLabel, count, unit, units, isBusy, onCountChange, onUnitChange, onSave, onCancel }: QuantityEditorProps) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useOutsidePointerDown(rootRef, onCancel);
 
   return (
     <div ref={rootRef} className="flex items-end gap-2" onKeyDown={escapeHandler(onCancel)}>
@@ -299,7 +304,7 @@ const QuantityEditor = ({ ingredientId, cancelLabel, count, unit, units, isBusy,
           onUnitChange={onUnitChange}
         />
       </div>
-      <Button disabled={count.trim() === ""} pending={isBusy} onClick={onSave}>
+      <Button pending={isBusy} onClick={onSave}>
         Save
       </Button>
     </div>
@@ -482,7 +487,6 @@ const IngredientRowContent = ({ ingredient, editing, onRequestRemove }: Ingredie
 
 interface IngredientRowProps {
   ingredient: MealIngredientDetail;
-  onChanged?: () => void;
   onRemoved: () => void;
 }
 
@@ -490,8 +494,8 @@ interface IngredientRowProps {
 // entrance rise is timed by the parent's stagger (meal-detail.tsx).
 const rowExit = (reduceMotion: boolean | null) => (reduceMotion ? undefined : { opacity: 0 });
 
-export const IngredientRow = ({ ingredient, onChanged, onRemoved }: IngredientRowProps) => {
-  const editing = useIngredientEditing(ingredient, onChanged, onRemoved);
+export const IngredientRow = ({ ingredient, onRemoved }: IngredientRowProps) => {
+  const editing = useIngredientEditing(ingredient, onRemoved);
   const reduceMotion = useReducedMotion();
 
   return (

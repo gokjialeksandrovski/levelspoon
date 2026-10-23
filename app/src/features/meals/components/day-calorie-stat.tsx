@@ -3,6 +3,7 @@
 import type { CalorieRemaining, CalorieRemainingStatus } from "@/features/goals/actions/goals.utils";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { Stat, type StatTone } from "@/components/ui/stat";
+import { formatNumber } from "@/lib/nutrition/format-number";
 
 const HERO_UNIT: Record<CalorieRemainingStatus, string> = {
   unset: "kcal consumed",
@@ -29,7 +30,7 @@ interface DayCalorieStatProps {
 // saved step, so a save lands on the same number the user checks every day.
 export const DayCalorieStat = ({ consumedKcal, remaining, reduceMotion }: DayCalorieStatProps) => (
   <Stat
-    value={<SettleNumber value={heroValue(remaining, consumedKcal).toLocaleString()} reduceMotion={reduceMotion} />}
+    value={<SettleNumber value={formatNumber(heroValue(remaining, consumedKcal))} reduceMotion={reduceMotion} />}
     unit={HERO_UNIT[remaining.status]}
     tone={HERO_TONE[remaining.status]}
   />

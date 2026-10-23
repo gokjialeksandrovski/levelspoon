@@ -1,6 +1,7 @@
 "use client";
 
 import { BookmarkSimpleIcon } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
 import type { MealIngredientDetail, MealRecipeLink } from "@/features/meals/actions/meals";
@@ -9,8 +10,9 @@ import { withAiEstimateTag } from "@/features/lazy-track/actions/lazy-track.util
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 
-import { EditRecipeSheet } from "./edit-recipe-sheet";
-import { SaveRecipeSheet } from "./save-recipe-sheet";
+// Loaded on first open, not with the page: most visits never open either.
+const EditRecipeSheet = dynamic(() => import("./edit-recipe-sheet").then((mod) => mod.EditRecipeSheet));
+const SaveRecipeSheet = dynamic(() => import("./save-recipe-sheet").then((mod) => mod.SaveRecipeSheet));
 
 /** The line under the header on a linked meal. The header itself stays
  * ordinal - a meal is still "Meal 2", whatever it was made from. */
@@ -33,22 +35,21 @@ interface RecipeControlProps {
   mealId: string;
   recipe: MealRecipeLink | null;
   ingredients: MealIngredientDetail[];
-  onChanged: () => void;
   onAnnounce: (message: string) => void;
 }
 
 // One slot, one control, never both: a meal gets Save as recipe or Edit this
 // recipe. A meal with nothing in it gets neither - there is no recipe to file
 // and none to edit.
-export const RecipeControl = ({ mealId, recipe, ingredients, onChanged, onAnnounce }: RecipeControlProps) => {
+export const RecipeControl = ({ mealId, recipe, ingredients, onAnnounce }: RecipeControlProps) => {
   const [isOpen, setIsOpen] = useState(false);
   // Bumped on every open, then handed to EditRecipeSheet as `key`. That sheet
-  // stays mounted across a reload (useMealDetail never unmounts the ready
-  // subtree, so bumpReload alone does not remount it), and its draft is
-  // seeded once at mount from the `ingredients` prop - so without a fresh key
-  // per open, editing or removing an ingredient and then reopening the sheet
-  // would show the stale pre-edit draft, and Save would silently overwrite
-  // the edit right back.
+  // stays mounted across a refresh (the meal's subtree is never unmounted by
+  // one), and its draft is seeded once at mount from the `ingredients` prop -
+  // so without a fresh key per open, editing or removing an ingredient and
+  // then reopening the sheet would show the stale pre-edit draft, and Save
+  // would silently overwrite the edit right back. Zero until the first open,
+  // which keeps either sheet from loading before anyone asks for it.
   const [openKey, setOpenKey] = useState(0);
 
   if (ingredients.length === 0) {
@@ -67,19 +68,17 @@ export const RecipeControl = ({ mealId, recipe, ingredients, onChanged, onAnnoun
           <BookmarkSimpleIcon size={20} />
           Edit this recipe
         </Button>
-        <EditRecipeSheet
-          key={openKey}
-          mealId={mealId}
-          recipeName={recipe.name}
-          ingredients={ingredients}
-          open={isOpen}
-          onClose={() => setIsOpen(false)}
-          onSaved={(message) => {
-            onAnnounce(message);
-            onChanged();
-          }}
-          onMealMissing={onChanged}
-        />
+        {openKey > 0 && (
+          <EditRecipeSheet
+            key={openKey}
+            mealId={mealId}
+            recipeName={recipe.name}
+            ingredients={ingredients}
+            open={isOpen}
+            onClose={() => setIsOpen(false)}
+            onSaved={onAnnounce}
+          />
+        )}
       </>
     );
   }
@@ -90,16 +89,14 @@ export const RecipeControl = ({ mealId, recipe, ingredients, onChanged, onAnnoun
         <BookmarkSimpleIcon size={20} />
         Save as recipe
       </Button>
-      <SaveRecipeSheet
-        mealId={mealId}
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-        onSaved={(name) => {
-          onAnnounce(`Saved as the recipe ${name}.`);
-          onChanged();
-        }}
-        onMealMissing={onChanged}
-      />
+      {openKey > 0 && (
+        <SaveRecipeSheet
+          mealId={mealId}
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          onSaved={(name) => onAnnounce(`Saved as the recipe ${name}.`)}
+        />
+      )}
     </>
   );
 };

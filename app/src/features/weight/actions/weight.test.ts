@@ -10,7 +10,8 @@ const userId = randomUUID();
 
 vi.mock("@/lib/auth/require-user", () => ({ requireUserId: () => Promise.resolve(userId) }));
 
-const { deleteWeightGoal, fetchWeightView, logWeight, saveWeightGoal } = await import("./weight");
+const { deleteWeightGoal, logWeight, saveWeightGoal } = await import("./weight");
+const { fetchWeightView } = await import("./weight.store");
 
 const TIMEZONE = "Europe/Berlin";
 

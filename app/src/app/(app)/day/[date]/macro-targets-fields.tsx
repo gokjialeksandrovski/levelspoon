@@ -153,19 +153,26 @@ const fieldCaption = (key: MacroKey, targets: MacroTargets | null, draftText: st
   return `${pctToGrams(figure, calorieGoal, key)}g a day`;
 };
 
-// Widths, not flex shares: shares under 100 leave bare track at the end - the
+const sumShares = (shares: number[]): number => shares.reduce((total, share) => total + share, 0);
+
+// Absolute shares, not flex: shares under 100 leave bare track at the end - the
 // part left untracked, or the shortfall - and past 100 run off the clipped edge.
-const SharePreviewBar = ({ targets }: { targets: MacroTargets | null }) => (
-  <div className="flex h-2 w-full overflow-hidden rounded-full bg-border" role="presentation">
-    {MACRO_KEYS.map((key) => (
-      <div
-        key={key}
-        className={`h-full shrink-0 motion-safe:transition-[width] motion-safe:duration-200 ${MACRO_FIELDS[key].accentClass}`}
-        style={{ width: `${targets?.values[key] ?? 0}%` }}
-      />
-    ))}
-  </div>
-);
+// Each segment spans the full track, scaled to its share and shifted past the
+// ones before it, so a change animates on the compositor instead of re-laying out.
+const SharePreviewBar = ({ targets }: { targets: MacroTargets | null }) => {
+  const shares = MACRO_KEYS.map((key) => targets?.values[key] ?? 0);
+  return (
+    <div className="relative h-2 w-full overflow-hidden rounded-full bg-border" role="presentation">
+      {MACRO_KEYS.map((key, index) => (
+        <div
+          key={key}
+          className={`absolute inset-0 origin-left motion-safe:transition-transform motion-safe:duration-200 ${MACRO_FIELDS[key].accentClass}`}
+          style={{ transform: `translateX(${sumShares(shares.slice(0, index))}%) scaleX(${shares[index] / WHOLE_PCT})` }}
+        />
+      ))}
+    </div>
+  );
+};
 
 const TargetsTotal = ({ reading, unit }: { reading: TargetsReading; unit: MacroTargetUnit }) => {
   const message = totalMessage(reading, unit);

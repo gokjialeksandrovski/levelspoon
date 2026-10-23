@@ -116,7 +116,7 @@ describe("resolveAndSaveAmount", () => {
     );
 
     expect(saveMealIngredient).not.toHaveBeenCalled();
-    expect(callbacks.setError).toHaveBeenCalledWith('Could not work out the amount in "gummies" - try a different unit.');
+    expect(callbacks.setError).toHaveBeenCalledWith("Could not work out the amount in “gummies” - try a different unit.");
   });
 });
 

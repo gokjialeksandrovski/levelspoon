@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql, type SQL } from "drizzle-orm";
 
 import { requireAccountUserId, requireUser, requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
@@ -336,18 +336,25 @@ const assertNotDuplicate = async (input: CreateProductInput, userId: string): Pr
   throw new SameFiguresError(match.visible ? match.name : null);
 };
 
+// The columns every candidate query hands to toProductCandidate, and the rows
+// a user may pick: user-contributed, never an AI estimate, visible to them.
+const candidateColumns = (userId: string): SQL => sql`
+  p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
+  p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
+  p.nutrition_basis_unit, p.nutrition_basis_quantity,
+  ${portionOverridesJson("p", userId)}
+`;
+
+const isCandidateFor = (userId: string): SQL => sql`
+  p.source = ${USER_SOURCE} AND ${notAiEstimate} AND ${visibleToUser(userId)}
+`;
+
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
-           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
-           p.nutrition_basis_unit, p.nutrition_basis_quantity,
-           ${portionOverridesJson("p", userId)},
-           similarity(p.name, ${ocrText}) AS score
+    SELECT ${candidateColumns(userId)}, similarity(p.name, ${ocrText}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
-    WHERE p.source = ${USER_SOURCE}
-      AND ${notAiEstimate}
-      AND ${visibleToUser(userId)}
+    WHERE ${isCandidateFor(userId)}
     ORDER BY score DESC
     LIMIT ${CANDIDATE_LIMIT}
   `);
@@ -404,22 +411,30 @@ export const searchUserProducts = async (query: string): Promise<ProductCandidat
 
   const tokenFilters = tokens.map((token) => sql`p.name_search ILIKE ${`%${token}%`}`);
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
-           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
-           p.nutrition_basis_unit, p.nutrition_basis_quantity,
-           ${portionOverridesJson("p", userId)},
-           similarity(p.name_search, ${searchQuery}) AS score
+    SELECT ${candidateColumns(userId)}, similarity(p.name_search, ${searchQuery}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
-    WHERE p.source = ${USER_SOURCE}
-      AND ${notAiEstimate}
-      AND ${visibleToUser(userId)}
+    WHERE ${isCandidateFor(userId)}
       AND (${sql.join(tokenFilters, sql` AND `)}
            OR similarity(p.name_search, ${searchQuery}) >= ${TYPED_SEARCH_MIN_SIMILARITY})
     ORDER BY score DESC, name ASC
     LIMIT ${TYPED_SEARCH_LIMIT}
   `);
   return Promise.all(result.rows.map(toProductCandidate));
+};
+
+// One product by id, under the same rules as a search hit - for a caller that
+// already knows which row it wants (the duplicate notice's "use that one").
+export const getUserProduct = async (productId: string): Promise<ProductCandidate | null> => {
+  const userId = await requireUserId();
+  const result = await db.execute<Omit<CandidateRow, "score">>(sql`
+    SELECT ${candidateColumns(userId)}
+    FROM products p
+    ${overrideJoinSql("p", "o", userId)}
+    WHERE p.id = ${productId} AND ${isCandidateFor(userId)}
+  `);
+  const [row] = result.rows;
+  return row ? toProductCandidate(row) : null;
 };
 
 export interface CreateProductInput {

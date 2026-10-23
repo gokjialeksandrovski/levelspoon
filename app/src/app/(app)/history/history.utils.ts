@@ -139,3 +139,11 @@ export const weekSummary = (entries: DayHistoryEntry[], today: string, hasOlderP
   const total = logged.reduce((sum, kcal) => sum + kcal, 0);
   return { days, loggedDays: logged.length, averageKcal: Math.round(total / logged.length) };
 };
+
+// The URL records how deep "Load more" went, so Back lands on the same rows.
+export const HISTORY_PAGES_PARAM = "pages";
+
+export const parsePageCount = (raw: string | string[] | undefined): number => {
+  const count = Number(Array.isArray(raw) ? raw[0] : raw);
+  return Number.isInteger(count) && count > 1 ? count : 1;
+};

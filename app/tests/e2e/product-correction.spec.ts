@@ -16,7 +16,7 @@ const logOneIngredientThenOpenCorrection = async (page: Page) => {
   return mealUrl;
 };
 
-test("correcting a product from the meal detail page: an invalid value blocks save until fixed", async ({ page }) => {
+test("correcting a product from the meal detail page: an invalid value refuses save until fixed", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
 
@@ -24,7 +24,8 @@ test("correcting a product from the meal detail page: an invalid value blocks sa
 
   await page.getByLabel("Saturates (g)").fill("5");
   await page.getByLabel("Saturates (g)").blur();
-  await expect(page.getByRole("button", { name: "Save correction" })).toBeDisabled();
+  await page.getByRole("button", { name: "Save correction" }).click();
+  await expect(page.getByText("Please fix the flagged values before saving.")).toBeVisible();
 
   await page.getByLabel("Saturates (g)").fill("1.2");
   await page.getByLabel("Saturates (g)").blur();

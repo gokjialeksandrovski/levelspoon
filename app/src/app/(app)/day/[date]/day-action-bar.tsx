@@ -39,7 +39,7 @@ const startMeal = async (
 const newMealLabel = (date: string, today: string): string => {
   if (date === today) return "New meal";
   if (date === addCalendarDays(today, -1)) return "New meal for yesterday";
-  return `New meal for ${formatDayLabel(date)}`;
+  return `New meal for ${formatDayLabel(date, today)}`;
 };
 
 // Single entry point deliberately: a separate "Quick log" button only

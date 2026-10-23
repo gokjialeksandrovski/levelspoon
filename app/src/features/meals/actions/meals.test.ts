@@ -583,6 +583,21 @@ describe("removeMealIngredient", () => {
     expect(await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId))).toEqual([]);
   });
 
+  it("drops a meal in the same sweep that purges its last ingredient", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal(TODAY, "UTC");
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
+    });
+    await db.update(mealIngredients).set({ deletedAt: sql`now() - interval '2 days'` }).where(eq(mealIngredients.id, mealIngredientId));
+
+    await createMeal(TODAY, "UTC");
+
+    expect(await db.select().from(meals).where(eq(meals.id, mealId))).toEqual([]);
+  });
+
   it("throws NotAuthorizedError when a different user owns the meal", async () => {
     const ownerId = await seedUser();
     const intruderId = await seedUser();

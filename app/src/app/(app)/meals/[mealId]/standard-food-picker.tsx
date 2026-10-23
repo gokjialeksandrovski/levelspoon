@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { LiveStatus } from "@/components/ui/live-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FOCUS_RING } from "@/components/ui/tap-target";
 
@@ -48,6 +49,8 @@ export interface UseStandardFoodPickerResult {
   handleSearch: (event: SubmitEvent<HTMLFormElement>) => void;
 }
 
+const EMPTY_QUERY_ERROR = "Type a food name first.";
+
 // Shared by the whole-food and cooking-fat pickers - both search the same
 // standardFoods table, filtered by category, and only diverge in copy.
 export const useStandardFoodPicker = (
@@ -62,6 +65,11 @@ export const useStandardFoodPicker = (
 
   const handleSearch = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isLoading) return;
+    if (query.trim() === "") {
+      setError(EMPTY_QUERY_ERROR);
+      return;
+    }
     void runStandardFoodSearch(query, category, searchErrorMessage, callbacks);
   };
 
@@ -78,8 +86,8 @@ interface StandardFoodPickerFormProps {
 
 const StandardFoodPickerForm = ({ fieldName, query, isLoading, onChange, onSubmit }: StandardFoodPickerFormProps) => (
   <form onSubmit={onSubmit} className="flex flex-col gap-3">
-    <Field label="Food name" name={fieldName} value={query} onChange={(event) => onChange(event.target.value)} />
-    <Button type="submit" disabled={query.trim() === ""} pending={isLoading}>
+    <Field label="Food name" name={fieldName} type="search" spellCheck={false} value={query} onChange={(event) => onChange(event.target.value)} />
+    <Button type="submit" pending={isLoading}>
       Search
     </Button>
   </form>
@@ -125,6 +133,13 @@ const StandardFoodResultsList = ({ results, emptyMessage, emptyAction, onChoose 
     </ul>
   );
 
+// The list appears without a focus move, so its size is said politely.
+const resultsStatus = (results: StandardFood[] | null, isLoading: boolean): string => {
+  if (results === null || isLoading) return "";
+  if (results.length === 0) return "No matches";
+  return results.length === 1 ? "1 match" : `${results.length} matches`;
+};
+
 export interface StandardFoodPickerProps {
   fieldName: string;
   picker: UseStandardFoodPickerResult;
@@ -143,6 +158,7 @@ export const StandardFoodPicker = ({ fieldName, picker, emptyMessage, emptyActio
       onSubmit={picker.handleSearch}
     />
     {picker.error && <InlineMessage tone="error">{picker.error}</InlineMessage>}
+    <LiveStatus message={resultsStatus(picker.results, picker.isLoading)} />
     {picker.isLoading && <Skeleton className="h-10 w-full" />}
     {picker.results !== null && !picker.isLoading && (
       <StandardFoodResultsList results={picker.results} emptyMessage={emptyMessage} emptyAction={emptyAction} onChoose={onChoose} />

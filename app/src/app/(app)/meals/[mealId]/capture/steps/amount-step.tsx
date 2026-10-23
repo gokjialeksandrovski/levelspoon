@@ -11,7 +11,7 @@ import { getPortions } from "@/features/products/actions/portions";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { UnitAmountField } from "@/components/ui/unit-amount-field";
+import { EMPTY_AMOUNT_MESSAGE, UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
@@ -53,8 +53,8 @@ const AmountStepHeader = ({
   hasAlternatives,
   onChangeMatch,
 }: AmountStepHeaderProps) => (
-  <div className="flex items-center justify-between">
-    <h2 className="text-lg font-semibold">Using {productName}</h2>
+  <div className="flex items-center justify-between gap-4">
+    <h2 className="min-w-0 wrap-break-word text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
       <Button variant="ghost" link onClick={onChangeMatch}>
         Pick another
@@ -158,10 +158,14 @@ export const resolveAndSaveAmount = async (
   onSaved: () => void,
   callbacks: AmountStepCallbacks,
 ): Promise<void> => {
+  if (input.count.trim() === "") {
+    callbacks.setError(EMPTY_AMOUNT_MESSAGE);
+    return;
+  }
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
     callbacks.setError(
-      `Could not work out the amount in "${input.unit}" - try a different unit.`,
+      `Could not work out the amount in “${input.unit}” - try a different unit.`,
     );
     return;
   }
@@ -426,7 +430,7 @@ const AmountStepFields = ({ form, product }: AmountStepBodyProps) => (
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {/* Spinning Save during an estimate would claim a save is in flight. */}
       <Button
-        disabled={form.count.trim() === "" || form.isEstimating}
+        disabled={form.isEstimating}
         pending={form.isBusy && !form.isEstimating}
         onClick={form.handleSave}
       >

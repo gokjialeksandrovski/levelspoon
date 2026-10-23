@@ -6,7 +6,8 @@ import "./globals.css";
 import { auth } from "@/auth";
 
 import { Providers } from "./providers";
-import { THEME_INIT_SCRIPT } from "@/lib/theme/theme";
+import { TIMEZONE_INIT_SCRIPT } from "@/lib/date/timezone-cookie";
+import { THEME_COLORS, THEME_INIT_SCRIPT } from "@/lib/theme/theme";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -25,11 +26,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
-  // These hexes must be kept in sync with --raw-bg in globals.css by hand -
-  // a <meta> viewport value can't reference a CSS custom property.
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#1a1816" },
-    { media: "(prefers-color-scheme: light)", color: "#fdfbf7" },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
   ],
 };
 
@@ -41,6 +40,7 @@ const RootLayout = async ({ children }: Readonly<{ children: React.ReactNode }>)
       {/* Blocking (not async/defer) - must run before first paint to avoid a
           flash of the wrong theme when the user has an explicit override. */}
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      <script dangerouslySetInnerHTML={{ __html: TIMEZONE_INIT_SCRIPT }} />
     </head>
     <body className="min-h-dvh bg-bg font-sans text-text antialiased">
       <Providers session={await auth()}>{children}</Providers>

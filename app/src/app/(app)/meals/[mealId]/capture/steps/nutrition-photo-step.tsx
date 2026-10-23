@@ -116,7 +116,7 @@ const FRAMING_HINT = "Fit the whole table in the photo, headings included.";
 // "per 100g" as the only label that does. With no printed weight, the
 // serving-size step asks for it.
 const PER_SERVING_NOTE =
-  'Per-serving tables work too. If the serving shows its weight, like "1 bar (40g)", we convert it to per 100g. If not, we ask you for it.';
+  'Per-serving tables work too. If the serving shows its weight, like “1 bar (40g)”, we convert it to per 100g. If not, we ask you for it.';
 
 // Said where the choice is made, not after the save. Shown only when it is
 // true: visibleToUser (products.ts) shares a row that has either a label
@@ -144,7 +144,7 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">{nameGuess}</h2>
+        <h2 className="wrap-break-word text-lg font-semibold">{nameGuess}</h2>
         <p className="text-sm text-text-muted">Take a photo of its nutrition table.</p>
       </div>
       <div className="flex flex-col gap-3">

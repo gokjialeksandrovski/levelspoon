@@ -1,7 +1,9 @@
 "use client";
 
 import { PencilSimpleIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
 import { calorieRemaining } from "@/features/goals/actions/goals.utils";
@@ -9,11 +11,14 @@ import { gramTargets, type MacroTargets } from "@/features/goals/actions/macro-t
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { slideTransition } from "@/lib/motion/step-transition";
+import { formatNumber } from "@/lib/nutrition/format-number";
 import type { FibreCoverage } from "@/lib/nutrition/totals";
 import type { NutritionValues } from "@/types/nutrition";
 
 import { DayMacros } from "./day-macros";
-import { GoalSheet } from "./goal-sheet";
+
+// Loaded on first open, not with the page: most visits never open it.
+const GoalSheet = dynamic(() => import("./goal-sheet").then((mod) => mod.GoalSheet));
 
 interface GoalPillProps {
   goal: number | null;
@@ -24,7 +29,7 @@ interface GoalPillProps {
 // "Set goal" would misread for someone who chose macro targets and no kcal
 // goal: they have goals, just not that one.
 const pillLabel = (goal: number | null, hasTargets: boolean): string => {
-  if (goal !== null) return `Goal: ${goal.toLocaleString()}`;
+  if (goal !== null) return `Goal: ${formatNumber(goal)}`;
   return hasTargets ? "Goals" : "Set goal";
 };
 
@@ -123,7 +128,8 @@ interface CalorieHeroProps {
 }
 
 // Owns the goal and targets locally (seeded from the server-fetched values) so
-// saving in the sheet updates the hero immediately, with no full day refetch.
+// saving in the sheet updates the hero the moment the save returns, before
+// the route refresh that follows it lands.
 // Renders DayMacros too: a share-of-kcal target needs the kcal goal to become
 // grams, and both live here.
 export const CalorieHero = ({ total, fibreCoverage, initialGoal, initialTargets }: CalorieHeroProps) => {
@@ -143,14 +149,16 @@ export const CalorieHero = ({ total, fibreCoverage, initialGoal, initialTargets 
         <CalorieGoalProgress consumedKcal={consumedKcal} goal={goal} isOver={remaining.status === "over"} reduceMotion={reduceMotion} />
       )}
       <DayMacros total={total} fibreCoverage={fibreCoverage} targets={targets === null ? null : gramTargets(targets, goal)} />
-      <GoalSheet
-        key={openToken}
-        open={sheetOpen}
-        initialGoal={goal}
-        initialTargets={targets}
-        onClose={closeSheet}
-        onSaved={setGoals}
-      />
+      {openToken > 0 && (
+        <GoalSheet
+          key={openToken}
+          open={sheetOpen}
+          initialGoal={goal}
+          initialTargets={targets}
+          onClose={closeSheet}
+          onSaved={setGoals}
+        />
+      )}
     </div>
   );
 };

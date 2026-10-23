@@ -13,7 +13,7 @@ import { fetchPhotoDebt } from "@/lib/db/photo-debt";
 import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { getPhotoUrl } from "@/lib/s3";
 
-import { attachLabelProof, clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
+import { attachLabelProof, clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, getUserProduct, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
 import type { CandidateRow, CreateProductInput, CreateProductResult } from "./products";
 import {
   LabelPhotoAlreadyUsedError,
@@ -307,6 +307,25 @@ describe("searchStandardFoods", () => {
     mockAuth.mockResolvedValue(null);
 
     await expect(searchStandardFoods("banana")).rejects.toThrow();
+  });
+});
+
+describe("getUserProduct", () => {
+  it("returns the user's own product by id", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg", { nutritionPhotoKey: null });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect((await getUserProduct(productId))?.name).toBe("Bella Farm YOGHURT 2,8% m.m 1kr/kg");
+  });
+
+  it("returns null for another user's private product", async () => {
+    const ownerId = await seedUser();
+    const otherId = await seedUser();
+    const productId = await seedProduct(ownerId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg", { nutritionPhotoKey: null });
+    mockAuth.mockResolvedValue({ user: { id: otherId } });
+
+    expect(await getUserProduct(productId)).toBeNull();
   });
 });
 

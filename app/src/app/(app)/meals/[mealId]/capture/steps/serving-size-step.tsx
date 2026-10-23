@@ -32,12 +32,14 @@ const PREFILL_DECIMALS = 2;
 const measurementSuggestion = (unitName: string | null): string =>
   unitName === null
     ? "Accepts 52g, 1.8 oz, or 2 tbsp"
-    : `We don't know this product's weight for "${unitName}" yet - enter a weight instead, like 52g or 1.8 oz`;
+    : `We don’t know this product’s weight for “${unitName}” yet - enter a weight instead, like 52g or 1.8 oz`;
 
 const measurementHelpText = (unitName: string | null, hasPrefill: boolean): string =>
   hasPrefill
     ? `Estimated from the package's net weight - ${measurementSuggestion(unitName)}`
     : measurementSuggestion(unitName);
+
+const EMPTY_ANSWER_ERROR = "Enter the serving size first.";
 
 const unresolvedAnswerError = (unitName: string | null): string =>
   unitName === null ? UNPARSEABLE_ANSWER_ERROR : measurementSuggestion(unitName);
@@ -69,6 +71,10 @@ const useServingSizeStep = (
   const [isResolving, setIsResolving] = useState(false);
 
   const handleSubmit = async (): Promise<void> => {
+    if (answer.trim() === "") {
+      setError(EMPTY_ANSWER_ERROR);
+      return;
+    }
     setError(null);
     setIsResolving(true);
     try {
@@ -112,13 +118,13 @@ export const ServingSizeStep = ({ servingSizeText, perServing, name, photo, pref
     <div className="flex flex-col gap-4">
       {/* Showing the raw OCR text is deliberate: it tells the user what the
           machine saw, so a garbled read is obvious rather than mysterious. */}
-      <h2 className="text-lg font-semibold">
+      <h2 className="wrap-break-word text-lg font-semibold">
         Serving size reads &ldquo;{servingSizeText}&rdquo;
       </h2>
       <p className="text-sm text-text-muted">What&rsquo;s one serving?</p>
       <ServingMeasurementField answer={form.answer} prefillGrams={prefillGrams} unitName={unitName} onChange={form.setAnswer} />
-      <Button disabled={form.answer.trim() === ""} pending={form.isResolving} onClick={form.handleSubmit}>
-        Continue
+      <Button pending={form.isResolving} onClick={form.handleSubmit}>
+        Use this serving size
       </Button>
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
     </div>

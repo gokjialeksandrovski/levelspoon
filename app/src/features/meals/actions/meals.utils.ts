@@ -8,6 +8,9 @@ import type { NutritionValues } from "@/types/nutrition";
 // export async functions.
 export const HISTORY_PAGE_SIZE = 20;
 
+// A hand-edited ?pages= must not read the whole log in one request.
+export const MAX_HISTORY_PAGES = 10;
+
 // Ingredient's share of a meal: product's per-basis-unit figures scaled to
 // the amount logged. basisQuantity is 100 for per-100g, 1 for per-unit.
 export const computeContribution = (

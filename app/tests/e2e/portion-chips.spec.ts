@@ -85,6 +85,7 @@ test("reverts to the standard weight", async ({ page }) => {
 
   await page.getByRole("button", { name: "Edit standard sizes" }).click();
   await page.getByRole("button", { name: "Use the standard sizes" }).click();
+  await page.getByRole("button", { name: "Reset to standard" }).click();
   await expect(page.getByRole("button", { name: "1 slice · 28 g" })).toBeVisible();
 });
 

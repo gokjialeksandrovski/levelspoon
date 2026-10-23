@@ -1,5 +1,7 @@
 "use server";
 
+import { refresh } from "next/cache";
+
 import { requireAccountUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { UnsupportedImageFormatError } from "@/lib/gemini/image-mime-type";
@@ -83,5 +85,6 @@ export const logLazyMeal = async (mealId: string, items: LoggedItem[]): Promise<
     const rows = loggedItems.map((item, index) => toAmountRow(productIds[index], item));
     await appendItemsToMeal(tx, mealId, rows);
   });
+  refresh();
   return { kind: "logged" };
 };
