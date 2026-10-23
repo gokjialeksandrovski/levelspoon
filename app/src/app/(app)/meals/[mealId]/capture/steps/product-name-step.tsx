@@ -272,7 +272,7 @@ const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject
 };
 
 const PHOTO_ROW_DESCRIPTION =
-  "For when the barcode isn't found. We read the name off the package instead.";
+  "For when the barcode isn't found. We read the name off the package, then you add the nutrition values from a label photo or by hand.";
 const BARCODE_ROW_DESCRIPTION =
   "Take a photo of the barcode. It's the quickest, so start here.";
 
