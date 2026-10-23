@@ -131,6 +131,7 @@ Run from repo root unless noted. Docker Desktop must run (installed per-user: `d
 | `pnpm run dev:app` | Next.js dev server |
 | `pnpm run db:migrate` | Apply Drizzle migrations |
 | `pnpm run db:seed` | Test user, 2%/10% variant pair, 232 standard foods |
+| `npx tsx scripts/seed.ts --standard-only` (in `app/`, `DATABASE_URL` set) | System user + 232 standard foods only. For deployed DBs: no dev fixtures in shared table |
 | `pnpm run db:reset` | Drop, migrate, seed |
 | `pnpm run ocr:build` / `ocr:up` / `ocr:down` | OCR image alone (first build slow: bakes model) |
 | `pnpm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |

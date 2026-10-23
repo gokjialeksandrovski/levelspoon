@@ -262,7 +262,17 @@ export const seedStandardFoods = async (systemUserId: string): Promise<number> =
   return rows.length;
 };
 
-const main = async () => {
+// Deployed databases take shared reference data only: the dev fixtures would
+// land in the shared product table with placeholder photo keys.
+const STANDARD_ONLY_FLAG = "--standard-only";
+
+const seedStandardOnly = async () => {
+  const systemUserId = await findOrCreateSystemUser();
+  const standardCount = await seedStandardFoods(systemUserId);
+  console.log(`Seeded system user and ${standardCount} standard foods.`);
+};
+
+const seedDev = async () => {
   const seedUserId = await findOrCreateSeedUser();
   await seedProducts(seedUserId);
   await seedWeightGoal(seedUserId);
@@ -273,6 +283,8 @@ const main = async () => {
   );
 };
 
+const main = (args: readonly string[]) => (args.includes(STANDARD_ONLY_FLAG) ? seedStandardOnly() : seedDev());
+
 // scripts/seed.test.ts imports seedProducts for testing, which executes this
 // module's top level - without this guard, that import alone would also run
 // main() (a real DB write) and this file's own process.exit(), which kills
@@ -281,7 +293,7 @@ const main = async () => {
 const isDirectRun = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
-  main()
+  main(process.argv)
     .catch((error) => {
       console.error(error);
       process.exitCode = 1;
