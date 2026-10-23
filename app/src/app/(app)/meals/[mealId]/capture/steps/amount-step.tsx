@@ -8,7 +8,6 @@ import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
 import type { ProductCandidate } from "@/features/products/actions/products";
 import { getPortions } from "@/features/products/actions/portions";
-import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { EMPTY_AMOUNT_MESSAGE, UnitAmountField } from "@/components/ui/unit-amount-field";
@@ -28,7 +27,7 @@ import { AmountPreview } from "../../nutrition-summary";
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { SelectedProduct, WizardAction } from "../capture-wizard.types";
 
-import { AmountPhotoField } from "./amount-photo-field";
+import { AmountPhotoField, useAmountEstimate, type AmountPhotoState } from "./amount-photo-field";
 
 interface AmountStepProps {
   mealId: string;
@@ -67,30 +66,6 @@ interface AmountStepCallbacks {
   setError: (error: string | null) => void;
   setIsBusy: (isBusy: boolean) => void;
 }
-
-// Standalone with a bundled callbacks object, mirroring ingredient-row.tsx's
-// shape. Separate from setIsBusy, which also covers the save: otherwise saving would
-// light the photo overlay with nothing being read.
-const estimateAmount = async (
-  photo: File,
-  onEstimated: (value: string) => void,
-  callbacks: AmountStepCallbacks,
-  setIsEstimating: (value: boolean) => void,
-): Promise<void> => {
-  setIsEstimating(true);
-  callbacks.setIsBusy(true);
-  callbacks.setError(null);
-  try {
-    const { grams: estimated } = await estimateQuantity(photo);
-    onEstimated(String(estimated));
-  } catch (error) {
-    console.error("Quantity estimation failed", error);
-    callbacks.setError("Could not estimate the amount - enter it manually.");
-  } finally {
-    callbacks.setIsBusy(false);
-    setIsEstimating(false);
-  }
-};
 
 interface SaveAmountInput {
   mealId: string;
@@ -215,11 +190,13 @@ interface UseAmountStepFormResult {
   error: string | null;
   isBusy: boolean;
   isEstimating: boolean;
+  photo: AmountPhotoState;
   setCount: (value: string) => void;
   setUnit: (value: string) => void;
   pickChip: (count: string, unit: string) => void;
   refreshProduct: () => Promise<void>;
   handlePhoto: (photo: File) => Promise<void>;
+  resetPhoto: () => void;
   handleSave: () => Promise<void>;
   changeMatch: () => void;
 }
@@ -233,7 +210,8 @@ interface AmountStepActionDeps {
   dispatch: (action: WizardAction) => void;
   onSaved: () => void;
   callbacks: AmountStepCallbacks;
-  setIsEstimating: (value: boolean) => void;
+  /** Typing over an estimate still in flight means the user has answered. */
+  cancelPendingEstimate: () => void;
 }
 
 interface AmountStepFormState {
@@ -250,20 +228,18 @@ const buildAmountStepActions = (
   state: AmountStepFormState,
 ) => {
   const setCountManually = (value: string) => {
+    deps.cancelPendingEstimate();
     state.setCount(value);
     state.setSource("manual");
   };
   const setUnitManually = (value: string) => {
+    deps.cancelPendingEstimate();
     state.setUnit(value);
     state.setSource("manual");
   };
-  const setCountFromPhoto = (value: string) => {
-    state.setCount(value);
-    state.setUnit("g");
-    state.setSource("ai_estimated");
-  };
 
   const pickChip = (value: string, chipUnit: string) => {
+    deps.cancelPendingEstimate();
     state.setCount(value);
     state.setUnit(chipUnit);
     state.setSource("manual");
@@ -278,13 +254,6 @@ const buildAmountStepActions = (
         type: "PORTIONS_UPDATED",
         portions: await getPortions(deps.product.id),
       }),
-    handlePhoto: (photo: File) =>
-      estimateAmount(
-        photo,
-        setCountFromPhoto,
-        deps.callbacks,
-        deps.setIsEstimating,
-      ),
     handleSave: () =>
       resolveAndSaveAmount(
         {
@@ -326,7 +295,12 @@ const useAmountStepForm = (
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const [isEstimating, setIsEstimating] = useState(false);
+  const estimate = useAmountEstimate((grams) => {
+    setCount(String(grams));
+    setUnit("g");
+    setSource("ai_estimated");
+  });
+  const isEstimating = estimate.state.kind === "estimating";
 
   const actions = buildAmountStepActions(
     {
@@ -338,7 +312,9 @@ const useAmountStepForm = (
       dispatch,
       onSaved,
       callbacks: { setError, setIsBusy },
-      setIsEstimating,
+      cancelPendingEstimate: () => {
+        if (isEstimating) estimate.reset();
+      },
     },
     { count, unit, source, setCount, setUnit, setSource },
   );
@@ -364,6 +340,9 @@ const useAmountStepForm = (
     error,
     isBusy,
     isEstimating,
+    photo: estimate.state,
+    handlePhoto: estimate.start,
+    resetPhoto: estimate.reset,
     ...actions,
   };
 };
@@ -382,7 +361,7 @@ interface AmountStepBodyProps {
 //
 // Four distances, and every gap on this screen is one of them:
 //   6px  gap-1.5  a label to the control it names (Field, UnitAmountField,
-//                 PhotoInput's hint, a chip cluster's heading)
+//                 the photo tile's hint, a chip cluster's heading)
 //   12px gap-3    sibling clusters inside one block (recents, standards)
 //   16px gap-4    distinct controls inside one group
 //   24px gap-6    group to group
@@ -431,7 +410,7 @@ const AmountStepFields = ({ form, product }: AmountStepBodyProps) => (
       {/* Spinning Save during an estimate would claim a save is in flight. */}
       <Button
         disabled={form.isEstimating}
-        pending={form.isBusy && !form.isEstimating}
+        pending={form.isBusy}
         onClick={form.handleSave}
       >
         Save ingredient
@@ -617,8 +596,9 @@ export const AmountStep = ({
         )}
         {form.units.includes("g") && !isGuest && (
           <AmountPhotoField
-            onSelect={form.handlePhoto}
-            isEstimating={form.isEstimating}
+            state={form.photo}
+            onSelect={(photo) => void form.handlePhoto(photo)}
+            onReset={form.resetPhoto}
           />
         )}
       </div>

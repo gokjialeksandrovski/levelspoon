@@ -13,7 +13,7 @@ import { lookupBarcode } from "@/features/products/actions/barcode";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { PhotoPreview, SavedPhotoLink, takePickedPhoto, usePreviewUrl } from "@/components/ui/photo-input";
+import { PhotoPreview, PhotoSourceDivider, SavedPhotoButton, takePickedPhoto, usePreviewUrl } from "@/components/ui/photo-input";
 import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 
 import type { PathAction } from "../capture-wizard.path";
@@ -243,14 +243,13 @@ interface PhotoOptionRowProps {
   onSelect: (photo: File) => void;
 }
 
-// Wrapped with its own "saved photo" link: the row opens the camera
-// directly, so the gallery needs a second input (see SavedPhotoLink).
-// pl-10 lines the link up under the title (px-1 + 24px icon + gap-3).
+// Split row: the row opens the camera directly, so the gallery needs a
+// second input (see SavedPhotoButton), docked at the row's end.
 const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject, isLoading, onSelect }: PhotoOptionRowProps) => {
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => takePickedPhoto(event, onSelect);
   return (
-    <div className="flex flex-col pb-3">
-      <label className={OPTION_ROW_LABEL}>
+    <div className="flex items-stretch">
+      <label className={`${OPTION_ROW_LABEL} min-w-0 flex-1`}>
         <RowIcon size={24} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
         <span className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-text">{title}</span>
@@ -266,9 +265,8 @@ const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject
           className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
         />
       </label>
-      <div className="flex pl-10">
-        <SavedPhotoLink subject={subject} disabled={isLoading} onChange={handleChange} />
-      </div>
+      <PhotoSourceDivider />
+      <SavedPhotoButton subject={subject} disabled={isLoading} onChange={handleChange} className="hover:bg-surface-raised active:bg-surface-raised" />
     </div>
   );
 };

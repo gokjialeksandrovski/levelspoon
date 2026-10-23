@@ -10,6 +10,8 @@ Not fallback. Accepting AI value unedited → `quantity_source = ai_estimated`; 
 
 `estimateQuantity` (`app/src/features/quantity/actions/quantity.ts`) returns grams from an amount-used photo. Provider seam `QuantityProvider` in `app/src/lib/quantity/`. MIME type sniffed from bytes (`imageMimeType`), never hardcoded.
 
+Wait state (`useAmountEstimate`, `amount-photo-field.tsx`): photo shown with scan sweep, Cancel beside status. Cancel, or any typed amount, unit or chip, retires request: late reply dropped unread. Lazy track's estimate wait uses same `AiEstimateProgress`.
+
 ### AI-photo consent
 
 One-time consent sheet (`AiConsentSheet`) before first amount photo, and before any lazy-track request. **Verbatim legal copy, never paraphrase.** Per-device, `localStorage` key `levelspoon:ai-photo-consent`. Wording vendor-neutral; naming Google deliberately not required. Server-recorded consent is an M4 item (`docs/ROADMAP.md`).

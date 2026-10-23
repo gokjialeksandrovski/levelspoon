@@ -1,7 +1,7 @@
 "use client";
 
 import { XIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { estimateMeal, logLazyMeal, type EstimateMealResult, type LogLazyMealResult } from "@/features/lazy-track/actions/lazy-track";
 import { canEstimate, DESCRIPTION_MAX_LENGTH, isDescriptionTooLong, type MealEstimateView } from "@/features/lazy-track/actions/lazy-track.utils";
@@ -14,7 +14,7 @@ import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
 import type { PathAction } from "../capture-wizard.path";
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
-import { AiConsentSheet } from "./amount-photo-field";
+import { AiConsentSheet, AiEstimateProgress } from "./amount-photo-field";
 import { gramsFieldError, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
 
 const DESCRIPTION_LABEL = "What did you eat, and what was in it?";
@@ -24,6 +24,8 @@ const ATTACHED_PHOTO_LABEL = "Photo of the meal";
 const TOO_LONG_ERROR = `Keep it under ${DESCRIPTION_MAX_LENGTH} characters.`;
 const ESTIMATE_FAILED = "Estimate unavailable right now. Your text is kept, so try again or add items by search.";
 const NOTHING_TO_ESTIMATE = "Describe the meal or add a photo first.";
+const ESTIMATING_LABEL = "Estimating your meal";
+const SLOW_HINT = "Taking longer than usual. You can cancel and add items by search instead.";
 
 const ESTIMATE_ERRORS: Record<Exclude<EstimateMealResult["kind"], "estimated">, string> = {
   nothing_found: "Couldn't pick out any food. Say what was on the plate.",
@@ -39,28 +41,39 @@ interface LazyDescribeStepProps {
 }
 
 // Consent gates the request, not the photo: the description goes to Gemini
-// too, so a text-only estimate asks first as well.
+// too, so a text-only estimate asks first as well. Cancel retires the
+// request rather than aborting it (a server action can't be), so a late
+// reply is dropped unread.
 const useEstimate = (dispatch: (action: PathAction) => void) => {
   const [isEstimating, setIsEstimating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentOpen, setConsentOpen] = useState(false);
+  const currentRequest = useRef(0);
 
   const run = async (description: string, photo: File | null) => {
+    const requestId = ++currentRequest.current;
     setError(null);
     setIsEstimating(true);
     try {
       const result = await estimateMeal(description, photo);
+      if (requestId !== currentRequest.current) return;
       if (result.kind === "estimated") {
         dispatch({ type: "LAZY_ESTIMATED", description, photo, estimate: result.estimate });
         return;
       }
       setError(ESTIMATE_ERRORS[result.kind]);
+      setIsEstimating(false);
     } catch (caught) {
+      if (requestId !== currentRequest.current) return;
       console.error("estimateMeal failed", caught);
       setError(ESTIMATE_FAILED);
-    } finally {
       setIsEstimating(false);
     }
+  };
+
+  const cancel = () => {
+    currentRequest.current += 1;
+    setIsEstimating(false);
   };
 
   // Validated on tap rather than by disabling Estimate, so the tap says why.
@@ -79,7 +92,7 @@ const useEstimate = (dispatch: (action: PathAction) => void) => {
     void run(description, photo);
   };
 
-  return { isEstimating, error, consentOpen, request, agree, decline: () => setConsentOpen(false) };
+  return { isEstimating, error, consentOpen, request, agree, cancel, decline: () => setConsentOpen(false) };
 };
 
 // The shell's own <h1> already reads "Lazy track" (STEP_TITLES) for this
@@ -102,11 +115,15 @@ export const LazyDescribeStep = ({ description: initialDescription, photo: initi
         error={tooLong ? TOO_LONG_ERROR : undefined}
         maxLength={DESCRIPTION_MAX_LENGTH + 1}
       />
-      {photo ? <AttachedPhoto photo={photo} label={ATTACHED_PHOTO_LABEL} onRemove={() => setPhoto(null)} /> : <PhotoInput label={PHOTO_LABEL} onSelect={setPhoto} />}
-      {estimate.error && <InlineMessage tone="error">{estimate.error}</InlineMessage>}
-      <Button pending={estimate.isEstimating} onClick={() => estimate.request(description, photo)}>
-        Estimate
-      </Button>
+      {estimate.isEstimating ? (
+        <AiEstimateProgress photo={photo} label={ESTIMATING_LABEL} slowHint={SLOW_HINT} onCancel={estimate.cancel} />
+      ) : (
+        <>
+          {photo ? <AttachedPhoto photo={photo} label={ATTACHED_PHOTO_LABEL} onRemove={() => setPhoto(null)} /> : <PhotoInput label={PHOTO_LABEL} onSelect={setPhoto} />}
+          {estimate.error && <InlineMessage tone="error">{estimate.error}</InlineMessage>}
+          <Button onClick={() => estimate.request(description, photo)}>Estimate</Button>
+        </>
+      )}
       {/* Add detail's exit (Rule 21): back to the estimate it left, as
           Gemini gave it, with the text and photo that produced it and no
           second request. Edits made here are dropped with it. */}

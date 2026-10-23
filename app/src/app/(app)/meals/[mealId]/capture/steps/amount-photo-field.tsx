@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { CameraIcon } from "@phosphor-icons/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
+import Image from "next/image";
+import { useEffect, useId, useRef, useState } from "react";
 
+import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
-import { PhotoInput } from "@/components/ui/photo-input";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { AttachedPhoto, PhotoSourceTile, takePickedPhoto, useDataUrl } from "@/components/ui/photo-input";
+import { ScanSweep } from "@/components/ui/scanning-overlay";
 import { Sheet } from "@/components/ui/sheet";
+import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
 
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
 
@@ -84,10 +92,9 @@ export const AiConsentSheet = ({ open, onAgree, onDecline }: AiConsentSheetProps
 );
 
 // Chosen file is held and only sent for estimation once the user agrees to
-// the terms. "Not now" discards it and remounts PhotoInput via resetKey.
+// the terms. "Not now" discards it; the tile cleared its own input on pick.
 const useAmountPhotoGate = (onSelect: (photo: File) => void) => {
   const [heldPhoto, setHeldPhoto] = useState<File | null>(null);
-  const [resetKey, setResetKey] = useState(0);
   const handleSelect = (photo: File) =>
     hasAcceptedAiPhotoConsent() ? onSelect(photo) : setHeldPhoto(photo);
   const agree = () => {
@@ -95,33 +102,162 @@ const useAmountPhotoGate = (onSelect: (photo: File) => void) => {
     if (heldPhoto) onSelect(heldPhoto);
     setHeldPhoto(null);
   };
-  const decline = () => {
-    setHeldPhoto(null);
-    setResetKey((key) => key + 1);
-  };
-  return { promptOpen: heldPhoto !== null, resetKey, handleSelect, agree, decline };
+  return { promptOpen: heldPhoto !== null, handleSelect, agree, decline: () => setHeldPhoto(null) };
 };
 
-const ESTIMATING_LABEL = "Estimating the amount…";
+export type AmountPhotoState =
+  | { kind: "idle" }
+  | { kind: "failed" }
+  | { kind: "estimating"; photo: File }
+  | { kind: "estimated"; photo: File; grams: number };
 
-interface AmountPhotoFieldProps {
-  onSelect: (photo: File) => void;
-  isEstimating: boolean;
+const IDLE: AmountPhotoState = { kind: "idle" };
+
+// A server action cannot be aborted, so cancelling retires the request
+// instead: a reply whose id is no longer current is dropped unread.
+export const useAmountEstimate = (onEstimated: (grams: number) => void) => {
+  const [state, setState] = useState<AmountPhotoState>(IDLE);
+  const currentRequest = useRef(0);
+
+  const start = async (photo: File) => {
+    const requestId = ++currentRequest.current;
+    setState({ kind: "estimating", photo });
+    try {
+      const { grams } = await estimateQuantity(photo);
+      if (requestId !== currentRequest.current) return;
+      onEstimated(grams);
+      setState({ kind: "estimated", photo, grams });
+    } catch (error) {
+      if (requestId !== currentRequest.current) return;
+      console.error("Quantity estimation failed", error);
+      setState({ kind: "failed" });
+    }
+  };
+
+  const reset = () => {
+    currentRequest.current += 1;
+    setState(IDLE);
+  };
+
+  return { state, start, reset };
+};
+
+// The pinned model answers in about 1.4 s (CLAUDE.md, "Gemini model"); six
+// times that is a stalled request or a slow network, not a busy model.
+const SLOW_ESTIMATE_MS = 8000;
+
+const useIsSlow = (): boolean => {
+  const [isSlow, setIsSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsSlow(true), SLOW_ESTIMATE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return isSlow;
+};
+
+// Each state replaces the last in the same slot: a content swap inside the
+// step, so the step's quieter fade, not a second slide.
+const FadeIn = ({ children, className }: { children: React.ReactNode; className?: string }) => {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.div initial={contentFadeInitial(reduceMotion)} animate={{ opacity: 1 }} transition={contentFadeTransition(reduceMotion)} className={className}>
+      {children}
+    </motion.div>
+  );
+};
+
+// Cropped to fill, unlike PhotoPreview's letterbox: a plate, not a label to
+// read. No veil either, so the sweep crosses the food itself.
+const EstimatingFrame = ({ photo }: { photo: File }) => {
+  const url = useDataUrl(photo);
+  return (
+    <div className="relative aspect-4/3 overflow-hidden rounded-surface bg-surface-raised">
+      {url && <Image src={url} alt="" fill unoptimized className="object-cover" />}
+      <ScanSweep />
+    </div>
+  );
+};
+
+interface AiEstimateProgressProps {
+  /** Null when the request carries no photo, e.g. a text-only lazy track. */
+  photo: File | null;
+  label: string;
+  /** What the user can do instead, shown once the wait runs long. */
+  slowHint: string;
+  onCancel: () => void;
 }
 
-// Gates the amount photo behind a one-time terms acknowledgement.
-export const AmountPhotoField = ({ onSelect, isEstimating }: AmountPhotoFieldProps) => {
-  const gate = useAmountPhotoGate(onSelect);
+// The whole wait in one place: what is being read, that it is being read,
+// and a way out that is not "wait it out".
+export const AiEstimateProgress = ({ photo, label, slowHint, onCancel }: AiEstimateProgressProps) => {
+  const isSlow = useIsSlow();
+  return (
+    <FadeIn className="flex flex-col gap-3">
+      {photo && <EstimatingFrame photo={photo} />}
+      <div className="flex min-h-11 items-center justify-between gap-4 pl-1">
+        <p role="status" className="flex items-center gap-2.5 text-sm font-medium text-text">
+          <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-text-muted" />
+          {label}
+        </p>
+        <Button variant="ghost" link onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      {isSlow && <p className="-mt-2 pl-1 text-sm/relaxed text-text-muted">{slowHint}</p>}
+    </FadeIn>
+  );
+};
 
+const PHOTO_LABEL = "Amount photo (optional)";
+const ESTIMATING_LABEL = "Estimating the grams";
+const SLOW_HINT = "Taking longer than usual. You can type the amount instead.";
+const ESTIMATE_FAILED = "Couldn't estimate from that photo. Type the amount, or try another photo.";
+
+interface AmountPhotoFieldProps {
+  state: AmountPhotoState;
+  onSelect: (photo: File) => void;
+  onReset: () => void;
+}
+
+const AmountPhotoPicker = ({ onSelect, hasFailed }: { onSelect: (photo: File) => void; hasFailed: boolean }) => {
+  const hintId = useId();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <PhotoSourceTile label={PHOTO_LABEL} icon={CameraIcon} describedBy={hintId} onChange={(event) => takePickedPhoto(event, onSelect)} />
+      <p id={hintId} className="text-sm/relaxed text-text-muted">
+        {DISCLAIMER}
+      </p>
+      {hasFailed && <InlineMessage tone="error">{ESTIMATE_FAILED}</InlineMessage>}
+    </div>
+  );
+};
+
+const AmountPhotoBody = ({ state, onSelect, onReset }: AmountPhotoFieldProps) => {
+  switch (state.kind) {
+    case "idle":
+    case "failed":
+      return <AmountPhotoPicker onSelect={onSelect} hasFailed={state.kind === "failed"} />;
+    case "estimating":
+      return <AiEstimateProgress photo={state.photo} label={ESTIMATING_LABEL} slowHint={SLOW_HINT} onCancel={onReset} />;
+    case "estimated":
+      return (
+        <FadeIn>
+          <AttachedPhoto photo={state.photo} label="Amount photo" detail={`AI estimate · ${Math.round(state.grams)} g`} onRemove={onReset} />
+        </FadeIn>
+      );
+    default: {
+      const unreachable: never = state;
+      return unreachable;
+    }
+  }
+};
+
+// Gates the amount photo behind a one-time terms acknowledgement.
+export const AmountPhotoField = ({ state, onSelect, onReset }: AmountPhotoFieldProps) => {
+  const gate = useAmountPhotoGate(onSelect);
   return (
     <>
-      <PhotoInput
-        key={gate.resetKey}
-        label="Amount photo (optional)"
-        hint={DISCLAIMER}
-        onSelect={gate.handleSelect}
-        scanningLabel={isEstimating ? ESTIMATING_LABEL : undefined}
-      />
+      <AmountPhotoBody state={state} onSelect={gate.handleSelect} onReset={onReset} />
       <AiConsentSheet open={gate.promptOpen} onAgree={gate.agree} onDecline={gate.decline} />
     </>
   );

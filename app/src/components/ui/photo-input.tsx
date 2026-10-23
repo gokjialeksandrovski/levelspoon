@@ -1,6 +1,6 @@
 "use client";
 
-import { CameraIcon, XIcon } from "@phosphor-icons/react";
+import { CameraIcon, ImagesIcon, XIcon } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import Image from "next/image";
 import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
@@ -97,7 +97,7 @@ export const PhotoPreview = ({ previewUrl, scanningLabel }: PhotoPreviewProps) =
   </div>
 );
 
-interface DropzoneProps {
+interface PhotoSourceTileProps {
   label: string;
   icon: Icon;
   describedBy: string | undefined;
@@ -116,23 +116,31 @@ export const takePickedPhoto = (event: ChangeEvent<HTMLInputElement>, onPhoto: (
   void downscalePhoto(file).then(onPhoto);
 };
 
-interface SavedPhotoLinkProps {
+// Ring drawn inside the box: both halves sit in a clipped tile or a divided
+// list row, where an outset ring is cut off or collides with the next row.
+const INSET_FOCUS_RING = "focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-text";
+
+interface SavedPhotoButtonProps {
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   /** Names the photo when one screen offers several, e.g. "the barcode". */
   subject?: string;
   disabled?: boolean;
+  /** The hover fill of whatever surface the button docks into. */
+  className?: string;
 }
 
 // The camera control's partner. `capture` opens the camera directly, and
 // Android's photo picker offers no camera at all, so each source gets its
-// own input. Ring on focus-within: the hidden input, not the label, takes focus.
-export const SavedPhotoLink = ({ onChange, subject, disabled }: SavedPhotoLinkProps) => (
-  <label className="relative -mx-1 -my-3 self-start px-1 py-3 text-sm text-text-muted underline decoration-1 hover:text-text hover:decoration-2 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text has-disabled:opacity-50">
-    <span>Or choose a saved photo</span>
+// own input. Docked to the right of the camera control as one split control:
+// an underlined line under it read as a footnote, not a second way in.
+export const SavedPhotoButton = ({ onChange, subject, disabled, className = "" }: SavedPhotoButtonProps) => (
+  <label className={`relative flex w-18 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 py-3 text-xs font-medium text-text-muted transition-colors hover:text-text has-disabled:pointer-events-none has-disabled:opacity-50 ${INSET_FOCUS_RING} ${className}`}>
+    <ImagesIcon size={20} aria-hidden="true" />
+    <span>Photos</span>
     <input
       type="file"
       accept="image/*"
-      aria-label={subject ? `Or choose a saved photo of ${subject}` : undefined}
+      aria-label={subject ? `Choose a saved photo of ${subject}` : "Choose a saved photo"}
       disabled={disabled}
       onChange={onChange}
       className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
@@ -140,27 +148,34 @@ export const SavedPhotoLink = ({ onChange, subject, disabled }: SavedPhotoLinkPr
   </label>
 );
 
+// The hairline between the two halves of a split photo control.
+export const PhotoSourceDivider = () => <span aria-hidden="true" className="my-3 w-px shrink-0 bg-border" />;
+
 // The label wraps the (visually hidden) file input, so the label text is
 // the input's accessible name; the camera glyph is decorative. A raised tile
-// that presses like a Button, not the stock dashed upload box.
+// split in two, camera and saved photos, not the stock dashed upload box.
 //
 // Bare glyph at the option rows' own size/gap/colour (product-name-step's
 // OPTION_ROW_LAYOUT), not a disc behind it: every other icon+label row in the
 // app reads that way, and an icon on a disc on a card is the templated-SaaS
 // tell the design context rejects by name.
-const Dropzone = ({ label, icon: DropzoneIcon, describedBy, onChange }: DropzoneProps) => (
-  <label className="relative flex min-h-16 items-center gap-3 rounded-surface bg-surface-raised p-4 text-left transition-transform duration-100 hover:bg-border active:scale-[0.98] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-text">
-    <DropzoneIcon size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
-    <span className="text-sm font-medium text-text">{label}</span>
-    <input
-      type="file"
-      accept="image/*"
-      capture="environment"
-      aria-describedby={describedBy}
-      onChange={onChange}
-      className="absolute inset-0 cursor-pointer opacity-0"
-    />
-  </label>
+export const PhotoSourceTile = ({ label, icon: TileIcon, describedBy, onChange }: PhotoSourceTileProps) => (
+  <div className="flex min-h-16 items-stretch overflow-hidden rounded-surface bg-surface-raised">
+    <label className={`relative flex min-w-0 flex-1 cursor-pointer items-center gap-3 p-4 text-left transition-colors hover:bg-border ${INSET_FOCUS_RING}`}>
+      <TileIcon size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
+      <span className="text-sm font-medium text-text">{label}</span>
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        aria-describedby={describedBy}
+        onChange={onChange}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      />
+    </label>
+    <PhotoSourceDivider />
+    <SavedPhotoButton onChange={onChange} className="hover:bg-border" />
+  </div>
 );
 
 export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = CameraIcon }: PhotoInputProps) => {
@@ -173,11 +188,10 @@ export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = Camera
     });
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       {!scanningLabel && (
         <>
-          <Dropzone label={label} icon={icon} describedBy={hint ? hintId : undefined} onChange={handleChange} />
-          <SavedPhotoLink onChange={handleChange} />
+          <PhotoSourceTile label={label} icon={icon} describedBy={hint ? hintId : undefined} onChange={handleChange} />
           {hint && (
             <p id={hintId} className="text-sm/relaxed text-text-muted">
               {hint}
@@ -194,6 +208,8 @@ interface AttachedPhotoProps {
   photo: Blob;
   /** What the photo is of - the same words the dropzone it replaced used. */
   label: string;
+  /** The line under the label; what became of the photo, when anything did. */
+  detail?: React.ReactNode;
   onRemove: () => void;
 }
 
@@ -202,7 +218,7 @@ const ATTACHED_THUMB_PX = 96;
 // Takes the dropzone's place once a photo is picked: same raised tile, so the
 // slot reads as "filled" rather than growing a second control under it. The
 // thumbnail says which photo; the X is the one way to take it back.
-export const AttachedPhoto = ({ photo, label, onRemove }: AttachedPhotoProps) => {
+export const AttachedPhoto = ({ photo, label, detail = "Attached", onRemove }: AttachedPhotoProps) => {
   const url = useDataUrl(photo);
   return (
     <div className="flex min-h-16 items-center gap-3 rounded-surface bg-surface-raised py-2 pr-1 pl-2">
@@ -213,7 +229,7 @@ export const AttachedPhoto = ({ photo, label, onRemove }: AttachedPhotoProps) =>
       )}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-sm font-medium text-text">{label}</span>
-        <span className="text-xs text-text-muted">Attached</span>
+        <span className="text-xs text-text-muted">{detail}</span>
       </span>
       <button type="button" aria-label="Remove photo" onClick={onRemove} className={`${ICON_TAP_TARGET_CLASS} text-text-muted`}>
         <XIcon weight="regular" />
