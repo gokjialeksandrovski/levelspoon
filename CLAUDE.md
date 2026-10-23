@@ -15,6 +15,7 @@ Read `docs/ARCHITECTURE.md` before doing anything. It covers stack, repo and app
 | `PRODUCT.md` | Writing UI copy, or adding a feature that states or advises a figure |
 | `docs/DECISIONS.md` | Before proposing an approach: check it wasn't already rejected or deferred |
 | `docs/ROADMAP.md` | Planning next work, or M4 hosting |
+| `docs/DEPLOY.md` | Touching the hosted instance: home-server containers, ports, secrets, migrate/seed/update commands |
 | `docs/superpowers/specs/` | Changing a shipped feature: its approved design spec |
 | `app/AGENTS.md` | Before using any Next.js API (this Next.js differs from training data; read `app/node_modules/next/dist/docs/`) |
 
