@@ -9,8 +9,9 @@ web
 ## Users
 
 One primary user: person logging what they eat, on a phone, one-handed, mid-meal
-or straight after. Multi-user app, but no social, sharing or coach role — each
-account is one person's own log. Products are shared cross-user; logs are not.
+or straight after. Multi-user app, but no social or coach role — each account
+is one person's own log. Products are shared cross-user; logs are not. A meal
+can leave the app as plain text the user sends themselves; nothing comes back in.
 
 Hosted instance: developer and friends. Anyone unwilling to share data with
 developer self-hosts frontend and OCR. No subscriptions. AI features run only on

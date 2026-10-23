@@ -14,7 +14,9 @@ const WEEKDAY_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   month: "short",
 });
 
-const formatOlderDate = (date: string): string => {
+// Also the date in a shared meal's text, where "Today" would be wrong by the
+// time someone reads it.
+export const formatCalendarDate = (date: string): string => {
   const [year, month, day] = date.split("-").map(Number);
   return WEEKDAY_DAY_MONTH_FORMATTER.format(new Date(year, month - 1, day));
 };
@@ -22,5 +24,5 @@ const formatOlderDate = (date: string): string => {
 export const formatDayLabel = (date: string, today: string): string => {
   if (date === today) return "Today";
   if (date === addCalendarDays(today, -1)) return "Yesterday";
-  return formatOlderDate(date);
+  return formatCalendarDate(date);
 };

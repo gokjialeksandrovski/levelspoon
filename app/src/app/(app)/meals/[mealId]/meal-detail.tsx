@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Suspense, use, useEffect, useState } from "react";
 
 import { restoreMealIngredient } from "@/features/meals/actions/meals";
-import type { MealDetail as MealDetailData, MealIngredientDetail, MealRecipeLink } from "@/features/meals/actions/meals";
+import type { MealDetail as MealDetailData, MealIngredientDetail } from "@/features/meals/actions/meals";
 import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import { MacroLine } from "@/features/meals/components/macro-line";
 import { AppHeader } from "@/components/layout/app-header";
@@ -25,6 +25,7 @@ import { CookingFatControl } from "./cooking-fat-control";
 import { DeleteMeal } from "./delete-meal";
 import { IngredientRow, RemovedIngredientRow } from "./ingredient-row";
 import { RecipeControl, RecipeDivergence, RecipeSubtitle } from "./recipe-control";
+import { ShareMealButton } from "./share-meal-button";
 
 // Read on the server and handed down unresolved, so the header and skeleton
 // paint at once. A failed read resolves to "error" rather than rejecting.
@@ -246,17 +247,15 @@ const IngredientsSection = ({ meal, removals }: IngredientsSectionProps) => {
 };
 
 interface MealActionsProps {
+  meal: MealDetailData;
   mealId: string;
-  mealDate: string;
-  recipe: MealRecipeLink | null;
-  ingredients: MealIngredientDetail[];
   onAnnounce: (message: string) => void;
 }
 
-// Two adding actions sit together; deleting the meal is a different kind of
+// The meal's own actions sit together; deleting the meal is a different kind of
 // act, set apart by a hairline rather than a wide empty gap - the rule reads as
 // "end of the meal's actions" and still keeps a thumb reaching for "Add" off it.
-const MealActions = ({ mealId, mealDate, recipe, ingredients, onAnnounce }: MealActionsProps) => (
+const MealActions = ({ meal, mealId, onAnnounce }: MealActionsProps) => (
   <div className="mt-8 flex flex-col gap-6">
     <div className="flex flex-col gap-3">
       {/*
@@ -272,9 +271,10 @@ const MealActions = ({ mealId, mealDate, recipe, ingredients, onAnnounce }: Meal
         Add ingredient
       </Link>
       <CookingFatControl mealId={mealId} />
-      <RecipeControl mealId={mealId} recipe={recipe} ingredients={ingredients} onAnnounce={onAnnounce} />
+      <RecipeControl mealId={mealId} recipe={meal.recipe} ingredients={meal.ingredients} onAnnounce={onAnnounce} />
+      <ShareMealButton meal={meal} onAnnounce={onAnnounce} />
     </div>
-    <DeleteMeal mealId={mealId} mealDate={mealDate} />
+    <DeleteMeal mealId={mealId} mealDate={meal.date} />
   </div>
 );
 
@@ -287,7 +287,7 @@ const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProp
       </div>
     )}
     <IngredientsSection meal={meal} removals={removals} />
-    <MealActions mealId={mealId} mealDate={meal.date} recipe={meal.recipe} ingredients={meal.ingredients} onAnnounce={onAnnounce} />
+    <MealActions meal={meal} mealId={mealId} onAnnounce={onAnnounce} />
   </>
 );
 

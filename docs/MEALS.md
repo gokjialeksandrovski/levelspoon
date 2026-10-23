@@ -1,6 +1,6 @@
 # Meals
 
-Rules for history page, recipes and lazy track. Day model (`meals.log_date`, local day) is in `docs/ARCHITECTURE.md` "Time model".
+Rules for history page, recipes, sharing a meal and lazy track. Day model (`meals.log_date`, local day) is in `docs/ARCHITECTURE.md` "Time model".
 
 ## History
 
@@ -35,6 +35,16 @@ A recipe is a meal the user saved to re-add later, private to that user. Two sur
 - Refusals cross as `SaveRecipeResult` / `EnterRecipeResult` / `SaveRecipeEditResult`, never thrown classes. Each union's `failed` variant declared but never constructed: actions map named errors and rethrow anything else, so a DB failure reaches client as bare `Error`. Both sheets carry a real `catch`, not just the union arm.
 - Imports: `meals → recipes` (store and utils only, never the `"use server"` module) and `recipes → lib` only. `recipes.store.ts` carries no `"use server"`.
 - Spec: `docs/superpowers/specs/2026-09-24-recipes-design.md`.
+
+## Share meal
+
+`Share meal` on meal page (`share-meal-button.tsx`), hidden when meal has no ingredients. Sends plain text built by `mealShareText` (`share-meal.utils.ts`): title (recipe name, else `Meal N`) and calendar date, one line per ingredient in ingredient-row wording (`quantityText`, kcal, `(AI estimate)` tag), then total kcal and P/C/F.
+
+- Text only, no JSON, no import. Readable by someone without app.
+- Carries food only: no sender, no ids, no goal or day remaining (would tell reader sharer's target).
+- Date is calendar date (`formatCalendarDate`), never `Today`: wrong by time someone reads it.
+- `navigator.share` where browser has it; user closing menu (`AbortError`) does nothing. No share menu, or any other refusal, falls back to clipboard: button reads `Copied`, live region says `Meal copied.`
+- Client only: no Server Action, no request.
 
 ## Lazy track (Gemini job 2)
 
