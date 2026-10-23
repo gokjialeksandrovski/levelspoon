@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useIsGuest } from "@/features/demo/hooks/use-is-guest";
 import { linkBarcode } from "@/features/products/actions/barcode";
 import { saveMealIngredient } from "@/features/meals/actions/meals";
 import { previewContribution, type ContributionPreview } from "@/features/meals/actions/meals.utils";
@@ -10,7 +11,7 @@ import { getPortions } from "@/features/products/actions/portions";
 import { estimateQuantity } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { UnitAmountField } from "@/components/ui/unit-amount-field";
+import { EMPTY_AMOUNT_MESSAGE, UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
@@ -35,7 +36,7 @@ interface AmountStepProps {
   alternatives: SelectedProduct[];
   /** Non-null only when arriving via a confident/chosen match after an
    * earlier not_found scan - renders the link-this-barcode offer (barcode
-   * spec §7, T4, Task 3). */
+   * spec §7). */
   pendingBarcode: string | null;
   dispatch: (action: WizardAction) => void;
   onSaved: () => void;
@@ -52,8 +53,8 @@ const AmountStepHeader = ({
   hasAlternatives,
   onChangeMatch,
 }: AmountStepHeaderProps) => (
-  <div className="flex items-center justify-between">
-    <h2 className="text-lg font-semibold">Using {productName}</h2>
+  <div className="flex items-center justify-between gap-4">
+    <h2 className="min-w-0 wrap-break-word text-lg font-semibold">Using {productName}</h2>
     {hasAlternatives && (
       <Button variant="ghost" link onClick={onChangeMatch}>
         Pick another
@@ -67,9 +68,8 @@ interface AmountStepCallbacks {
   setIsBusy: (isBusy: boolean) => void;
 }
 
-// Standalone, not a hook, so useAmountStepForm's body stays under the line
-// budget - bundled callbacks object, mirroring ingredient-row.tsx's shape.
-// Separate from setIsBusy, which also covers the save: otherwise saving would
+// Standalone with a bundled callbacks object, mirroring ingredient-row.tsx's
+// shape. Separate from setIsBusy, which also covers the save: otherwise saving would
 // light the photo overlay with nothing being read.
 const estimateAmount = async (
   photo: File,
@@ -158,10 +158,14 @@ export const resolveAndSaveAmount = async (
   onSaved: () => void,
   callbacks: AmountStepCallbacks,
 ): Promise<void> => {
+  if (input.count.trim() === "") {
+    callbacks.setError(EMPTY_AMOUNT_MESSAGE);
+    return;
+  }
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
     callbacks.setError(
-      `Could not work out the amount in "${input.unit}" - try a different unit.`,
+      `Could not work out the amount in “${input.unit}” - try a different unit.`,
     );
     return;
   }
@@ -426,7 +430,7 @@ const AmountStepFields = ({ form, product }: AmountStepBodyProps) => (
       {form.error && <InlineMessage tone="error">{form.error}</InlineMessage>}
       {/* Spinning Save during an estimate would claim a save is in flight. */}
       <Button
-        disabled={form.count.trim() === "" || form.isEstimating}
+        disabled={form.isEstimating}
         pending={form.isBusy && !form.isEstimating}
         onClick={form.handleSave}
       >
@@ -585,6 +589,7 @@ export const AmountStep = ({
   dispatch,
   onSaved,
 }: AmountStepProps) => {
+  const isGuest = useIsGuest();
   const form = useAmountStepForm(
     mealId,
     product,
@@ -602,7 +607,7 @@ export const AmountStep = ({
           hasAlternatives={alternatives.length > 0}
           onChangeMatch={form.changeMatch}
         />
-        {pendingBarcode && (
+        {pendingBarcode && !isGuest && (
           <BarcodeLinkOffer
             pendingBarcode={pendingBarcode}
             productId={product.id}
@@ -610,7 +615,7 @@ export const AmountStep = ({
             dispatch={dispatch}
           />
         )}
-        {form.units.includes("g") && (
+        {form.units.includes("g") && !isGuest && (
           <AmountPhotoField
             onSelect={form.handlePhoto}
             isEstimating={form.isEstimating}

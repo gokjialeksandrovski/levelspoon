@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { saveMealAsRecipe, type SaveRecipeResult } from "@/features/recipes/actions/recipes";
-import { isValidRecipeName, RECIPE_NAME_MAX_LENGTH, recipeNameHint } from "@/features/recipes/actions/recipes.utils";
+import { isValidRecipeName, RECIPE_NAME_MAX_LENGTH, recipeNameError, recipeNameHint } from "@/features/recipes/actions/recipes.utils";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -24,12 +24,9 @@ interface SaveRecipeSheetProps {
   open: boolean;
   onClose: () => void;
   onSaved: (name: string) => void;
-  /** The meal went away under the sheet: close and let the page refetch into
-   * its own not-found state (spec §9). */
-  onMealMissing: () => void;
 }
 
-export const SaveRecipeSheet = ({ mealId, open, onClose, onSaved, onMealMissing }: SaveRecipeSheetProps) => {
+export const SaveRecipeSheet = ({ mealId, open, onClose, onSaved }: SaveRecipeSheetProps) => {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -43,6 +40,10 @@ export const SaveRecipeSheet = ({ mealId, open, onClose, onSaved, onMealMissing 
   };
 
   const save = async () => {
+    if (!isValidRecipeName(name)) {
+      setError(recipeNameError(name));
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
@@ -54,10 +55,9 @@ export const SaveRecipeSheet = ({ mealId, open, onClose, onSaved, onMealMissing 
         return;
       }
       // A meal soft-deleted in another tab is not an error to read inside a
-      // sheet about it: close, and let the page's own refetch show not-found.
+      // sheet about it: close, and the action's refresh shows not-found.
       if (result.kind === "meal_missing") {
         close();
-        onMealMissing();
         return;
       }
       setError(FAILURE_COPY[result.kind]);
@@ -90,7 +90,7 @@ export const SaveRecipeSheet = ({ mealId, open, onClose, onSaved, onMealMissing 
           <InlineMessage tone="info">{PRIVACY_LINE}</InlineMessage>
           {error && <InlineMessage tone="error">{error}</InlineMessage>}
           <div className="flex gap-2">
-            <Button className="flex-1" disabled={!isValidRecipeName(name)} pending={isSaving} onClick={() => void save()}>
+            <Button className="flex-1" pending={isSaving} onClick={() => void save()}>
               Save
             </Button>
             <Button variant="ghost" className="flex-1" onClick={close}>

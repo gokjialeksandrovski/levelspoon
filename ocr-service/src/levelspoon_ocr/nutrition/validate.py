@@ -53,7 +53,13 @@ COMPONENT_TOTAL_FIELDS = ("fat_g", "carbohydrate_g", "protein_g", "salt_g")
 
 def _component_total_flags(values: NutritionValues) -> tuple[str, ...]:
     fibre_g = 0.0 if values.fibre_g is None else values.fibre_g
-    total = values.fat_g + values.carbohydrate_g + values.protein_g + values.salt_g + fibre_g
+    total = (
+        values.fat_g
+        + values.carbohydrate_g
+        + values.protein_g
+        + values.salt_g
+        + fibre_g
+    )
     if total <= MAX_COMPONENT_TOTAL_G + COMPONENT_TOTAL_TOLERANCE_G:
         return ()
     if values.fibre_g is None:
@@ -93,7 +99,9 @@ def _atwater_flags(values: NutritionValues) -> tuple[str, ...]:
     return ("energy_kcal",)
 
 
-def _energy_unit_flags(values: NutritionValues, energy_kj: float | None) -> tuple[str, ...]:
+def _energy_unit_flags(
+    values: NutritionValues, energy_kj: float | None
+) -> tuple[str, ...]:
     if energy_kj is None:
         return ()
     expected_kj = values.energy_kcal * KJ_PER_KCAL
@@ -108,11 +116,14 @@ def _negative_flags(values: NutritionValues) -> tuple[str, ...]:
     return tuple(
         name
         for name, value in vars(values).items()
-        if (value is None and name not in OPTIONAL_FIELDS) or (value is not None and value < 0)
+        if (value is None and name not in OPTIONAL_FIELDS)
+        or (value is not None and value < 0)
     )
 
 
-def validate(values: NutritionValues, energy_kj: float | None = None) -> tuple[str, ...]:
+def validate(
+    values: NutritionValues, energy_kj: float | None = None
+) -> tuple[str, ...]:
     """Return the names of fields that failed a rule. Empty means all passed."""
     flags = (
         _negative_flags(values)

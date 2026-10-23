@@ -4,7 +4,6 @@ import Link from "next/link";
 import { CaretLeftIcon, CalendarBlankIcon } from "@phosphor-icons/react";
 
 import { formatDayLabel } from "@/lib/date/format";
-import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { AccountMenu } from "@/features/auth/components/account-menu";
 import { InstallAppButton } from "@/components/layout/install-app-button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -16,20 +15,25 @@ import {
 } from "@/components/ui/tap-target";
 
 type AppHeaderProps =
-  | { variant: "day"; date: string }
+  | { variant: "day"; date: string; today: string }
   | { variant: "back"; title: string; backHref: string }
   | { variant: "back"; title: string; onBack: () => void };
 
 const HEADER_CLASS = "flex h-16 items-center justify-between border-b border-border px-4";
 
-const browserToday = (): string => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+interface DayLabelProps {
+  date: string;
+  // Server-computed from the timezone cookie: reading the browser zone here
+  // would render a different element on the server than on hydration.
+  today: string;
+}
 
 // Away from today the label is the way back. The visible text leads the accessible name (WCAG 2.5.3).
-const DayLabel = ({ date }: { date: string }) => {
-  const label = formatDayLabel(date);
-  if (date >= browserToday()) return label;
+const DayLabel = ({ date, today }: DayLabelProps) => {
+  const label = formatDayLabel(date, today);
+  if (date >= today) return label;
   return (
-    <Link href={`/day/${browserToday()}`} className={`flex min-h-11 items-center underline decoration-border decoration-2 underline-offset-4 ${FOCUS_RING}`}>
+    <Link href={`/day/${today}`} className={`flex min-h-11 items-center underline decoration-border decoration-2 underline-offset-4 ${FOCUS_RING}`}>
       {label}
       <span className="sr-only">(go to today)</span>
     </Link>
@@ -52,10 +56,10 @@ const HeaderActions = () => (
 
 // Day label is the h1, matching BackHeader's screens-title convention. The
 // prev/next arrows live in the day view's bottom bar, within thumb reach.
-const DayHeader = ({ date }: { date: string }) => (
+const DayHeader = ({ date, today }: DayLabelProps) => (
   <header className={HEADER_CLASS}>
     <h1 className="whitespace-nowrap font-display text-xl font-semibold">
-      <DayLabel date={date} />
+      <DayLabel date={date} today={today} />
     </h1>
     <HeaderActions />
   </header>
@@ -88,7 +92,7 @@ const BackHeader = (props: BackHeaderProps) => (
 
 export const AppHeader = (props: AppHeaderProps) => {
   if (props.variant === "day") {
-    return <DayHeader date={props.date} />;
+    return <DayHeader date={props.date} today={props.today} />;
   }
   return <BackHeader {...props} />;
 };

@@ -16,6 +16,7 @@ import type { MacroTargets, MacroTargetUnit } from "@/features/goals/actions/mac
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
+import { formatNumber } from "@/lib/nutrition/format-number";
 
 import { MacroTargetsFields, useMacroTargetsDraft, type MacroTargetsDraftState } from "./macro-targets-fields";
 
@@ -81,7 +82,7 @@ const GoalNumberInput = ({ draft, openingGoal, hasMoved, onType, onCommit, onSub
           recommending an intake, and without it a couple of chip taps leave
           no way back but memory. */}
       {hasMoved && (
-        <p className="text-center text-sm tabular-nums text-text-muted">was {openingGoal.toLocaleString()}</p>
+        <p className="text-center text-sm tabular-nums text-text-muted">was {formatNumber(openingGoal)}</p>
       )}
     </div>
   );

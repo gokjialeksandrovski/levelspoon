@@ -159,6 +159,10 @@ export const isValidRecipeName = (name: string): boolean => {
   return length > 0 && length <= RECIPE_NAME_MAX_LENGTH;
 };
 
+// Said when Save is tapped: Save stays enabled, so a refusal needs words.
+export const recipeNameError = (name: string): string =>
+  name.trim().length === 0 ? "Give the recipe a name." : `Shorten the name to ${RECIPE_NAME_MAX_LENGTH} characters.`;
+
 /** Silent until the limit is near, so the field only speaks when the count
  * matters. A name saved before the limit existed can start over it; the hint
  * then says why Save stays off. */

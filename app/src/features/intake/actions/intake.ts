@@ -1,9 +1,9 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { refresh } from "next/cache";
 
-import { fetchWeightView } from "@/features/weight/actions/weight";
-import { fetchLatestWeightKg, upsertWeightEntry, writeWeightGoal } from "@/features/weight/actions/weight.store";
+import { fetchLatestWeightKg, fetchWeightView, upsertWeightEntry, writeWeightGoal } from "@/features/weight/actions/weight.store";
 import {
   DEFAULT_CHECKIN_INTERVAL_DAYS,
   fromKg,
@@ -276,6 +276,7 @@ export const saveIntakeEstimate = async (input: IntakeSaveInput, timezone: strin
     // A new goal starts from today's reading, same as the weight sheet.
     writesReading: weightGoal !== null || isNewReading(input.weightKg, latestKg),
   });
+  refresh();
   return { kind: "saved", calorieGoal };
 };
 

@@ -8,7 +8,6 @@ describe("macroGramShares", () => {
     // directly, the same unit the P/C/F figures themselves display.
     const shares = macroGramShares({ proteinG: 34, carbohydrateG: 120, fatG: 45 });
 
-    // total = 34 + 120 + 45 = 199
     expect(shares.protein).toBeCloseTo(34 / 199, 5);
     expect(shares.carbs).toBeCloseTo(120 / 199, 5);
     expect(shares.fat).toBeCloseTo(45 / 199, 5);

@@ -1,9 +1,8 @@
-/* app/src/app/globals.css */
 @import "tailwindcss";
 
 /* Layer 1: raw values, one per mode. Dark is the default (no media
-   condition) - preserves current behavior; a full-bleed light screen must
-   never be sprung on someone with no stated preference (spec §2.1). */
+   condition): a full-bleed light screen must never be sprung on someone
+   with no stated preference (spec §2.1). */
 :root {
   --raw-bg: #1a1816;
   --raw-surface: #201d1a;
@@ -42,10 +41,9 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --raw-bg: #fdfbf7;
-    /* Not #fff - pure white never appears in nature, and impeccable's own
-       color rules ban it outright. Tinted a hair warmer than white (255/254/252)
-       so the card-vs-page contrast against --raw-bg barely moves (found via
-       /critique on the motion-sketch artifact, 2026-09-09). */
+    /* Not #fff - pure white never appears in nature. Tinted a hair warmer
+       than white (255/254/252) so the card-vs-page contrast against --raw-bg
+       barely moves. */
     --raw-surface: #fffefc;
     --raw-surface-raised: #f5f2ea;
     --raw-border: #e8e2d4;
@@ -72,6 +70,8 @@
 }
 
 :root[data-theme="light"] {
+  /* Pins native controls and scrollbars to the picked theme, not the OS. */
+  color-scheme: light;
   --raw-bg: #fdfbf7;
   --raw-surface: #fffefc;
   --raw-surface-raised: #f5f2ea;
@@ -93,6 +93,10 @@
     oklch(0.99 0.012 85 / 0.62),
     transparent
   );
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* Layer 2: map semantic Tailwind theme tokens to the raw variables above.
@@ -149,6 +153,10 @@
 
 html {
   font-variant-numeric: tabular-nums;
+  /* No double-tap-zoom delay on taps; focus-visible rings replace the grey
+     WebKit tap flash. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   scrollbar-color: var(--raw-border) transparent;
 }
 

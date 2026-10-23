@@ -1,7 +1,8 @@
 "use client";
 
 import { CaretDownIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import { useId, useState } from "react";
 
 import type { MacroValues } from "@/features/goals/actions/macro-targets.utils";
@@ -110,7 +111,6 @@ const MacroToggle = ({ expanded, detailsId, onToggle, className, children }: Mac
     onClick={onToggle}
     aria-expanded={expanded}
     aria-controls={detailsId}
-    aria-label="Macro breakdown"
     className={`-my-2 -mx-1 rounded-control px-1 py-2 text-left transition-colors hover:bg-surface-raised active:bg-surface-raised ${FOCUS_RING} ${className}`}
   >
     {children}

@@ -69,9 +69,14 @@ const SignInPage = () => {
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-6">
       <Wordmark />
       <SignInCard error={error} pending={pending} onSubmit={handleSubmit} />
-      <Link href="/signup" className="text-center text-sm text-text-muted underline">
-        Need an account? Sign up
-      </Link>
+      <div className="flex flex-col items-center gap-3">
+        <Link href="/signup" className="text-sm text-text-muted underline">
+          Need an account? Sign up
+        </Link>
+        <Link href="/demo" className="text-sm text-text-muted underline">
+          Try without an account
+        </Link>
+      </div>
     </main>
   );
 };

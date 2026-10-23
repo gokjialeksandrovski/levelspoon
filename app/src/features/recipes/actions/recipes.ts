@@ -1,5 +1,7 @@
 "use server";
 
+import { refresh } from "next/cache";
+
 import { requireUserId } from "@/lib/auth/require-user";
 import { db, type DbTransaction } from "@/lib/db";
 import { todayLocalDateString } from "@/lib/date/day-bounds";
@@ -34,6 +36,13 @@ import {
   type OwnedMeal,
   type RecipeSummary,
 } from "./recipes.store";
+
+// A missing meal or recipe refreshes too: the page then shows it gone rather
+// than offering it again.
+const refreshed = <Result>(result: Result): Result => {
+  refresh();
+  return result;
+};
 
 export type SaveRecipeResult =
   | { kind: "saved"; recipeId: string; name: string }
@@ -72,10 +81,10 @@ export const saveMealAsRecipe = async (mealId: string, name: string): Promise<Sa
       await setMealRecipe(tx, mealId, id);
       return id;
     });
-    return { kind: "saved", recipeId, name: name.trim() };
+    return refreshed({ kind: "saved", recipeId, name: name.trim() });
   } catch (error) {
     if (error instanceof InvalidRecipeNameError) return { kind: "invalid_name" };
-    if (error instanceof MealNotFoundError) return { kind: "meal_missing" };
+    if (error instanceof MealNotFoundError) return refreshed({ kind: "meal_missing" });
     if (error instanceof EmptyRecipeError) return { kind: "empty_meal" };
     throw error;
   }
@@ -112,10 +121,10 @@ export const enterRecipe = async (mealId: string, recipeId: string): Promise<Ent
       await touchRecipe(tx, recipeId);
       return count;
     });
-    return { kind: "entered", addedCount };
+    return refreshed({ kind: "entered", addedCount });
   } catch (error) {
-    if (error instanceof MealNotFoundError) return { kind: "meal_missing" };
-    if (error instanceof RecipeNotFoundError) return { kind: "recipe_missing" };
+    if (error instanceof MealNotFoundError) return refreshed({ kind: "meal_missing" });
+    if (error instanceof RecipeNotFoundError) return refreshed({ kind: "recipe_missing" });
     throw error;
   }
 };
@@ -126,10 +135,10 @@ export const renameRecipe = async (recipeId: string, name: string): Promise<Rena
     if (!isValidRecipeName(name)) throw new InvalidRecipeNameError();
     if (!(await fetchOwnedRecipe(userId, recipeId))) throw new RecipeNotFoundError();
     await db.transaction((tx) => renameRecipeRow(tx, recipeId, name));
-    return { kind: "renamed", name: name.trim() };
+    return refreshed({ kind: "renamed", name: name.trim() });
   } catch (error) {
     if (error instanceof InvalidRecipeNameError) return { kind: "invalid_name" };
-    if (error instanceof RecipeNotFoundError) return { kind: "recipe_missing" };
+    if (error instanceof RecipeNotFoundError) return refreshed({ kind: "recipe_missing" });
     throw error;
   }
 };
@@ -141,13 +150,13 @@ export const renameRecipe = async (recipeId: string, name: string): Promise<Rena
 export const deleteRecipe = async (recipeId: string): Promise<DeleteRecipeResult> => {
   const userId = await requireUserId();
   if (!(await fetchOwnedRecipe(userId, recipeId))) {
-    return { kind: "recipe_missing" };
+    return refreshed({ kind: "recipe_missing" });
   }
   await db.transaction(async (tx) => {
     await unlinkMealsFromRecipe(tx, recipeId);
     await softDeleteRecipe(tx, recipeId);
   });
-  return { kind: "deleted" };
+  return refreshed({ kind: "deleted" });
 };
 
 /**
@@ -180,12 +189,12 @@ export const earlierMealsFromRecipe = async (mealId: string, timezone: string): 
     return [];
   }
 
-  const [recipeItemRows, numbers, kcals] = await Promise.all([
+  const [recipeItemRows, numbers, kcals, siblingRows] = await Promise.all([
     fetchRecipeItems(meal.recipeId),
     fetchMealNumbers(userId, meal.logDate),
     fetchMealKcals(userId, siblingIds),
+    Promise.all(siblingIds.map((id) => fetchMealItems(id))),
   ]);
-  const siblingRows = await Promise.all(siblingIds.map((id) => fetchMealItems(id)));
 
   return siblingIds.map((id, index) => ({
     mealId: id,
@@ -302,8 +311,8 @@ const resolveEditTarget = async (
 const mapSaveRecipeEditError = (error: unknown): SaveRecipeEditResult => {
   if (error instanceof EmptyRecipeError) return { kind: "empty_draft" };
   if (error instanceof InvalidRecipeNameError) return { kind: "invalid_name" };
-  if (error instanceof MealNotFoundError) return { kind: "meal_missing" };
-  if (error instanceof RecipeNotFoundError) return { kind: "recipe_missing" };
+  if (error instanceof MealNotFoundError) return refreshed({ kind: "meal_missing" });
+  if (error instanceof RecipeNotFoundError) return refreshed({ kind: "recipe_missing" });
   throw error;
 };
 
@@ -338,21 +347,22 @@ export const saveRecipeEdit = async (
     // the recipe is overwritten there is nothing left to compare against: a
     // re-check done afterwards would silently pass every meal.
     const oldItems = meal.recipeId ? await fetchRecipeItems(meal.recipeId) : [];
-    const { updatable, skipped } =
+    const [{ updatable, skipped }, numbers] = await Promise.all([
       mode.kind === "overwrite" && isToday
-        ? await partitionTickedMeals(userId, meal, mode.alsoUpdateMealIds, oldItems)
-        : { updatable: [], skipped: [] };
-    const numbers = await fetchMealNumbers(userId, meal.logDate);
+        ? partitionTickedMeals(userId, meal, mode.alsoUpdateMealIds, oldItems)
+        : { updatable: [], skipped: [] },
+      fetchMealNumbers(userId, meal.logDate),
+    ]);
 
     const recipeId = await db.transaction((tx) => writeRecipeEdit(tx, userId, mealId, draft, mode, meal, updatable));
 
-    return {
+    return refreshed({
       kind: "saved",
       recipeId,
       name: mode.kind === "new" ? mode.name.trim() : (existingName as string),
       updatedMealNumbers: numbersFor(updatable, numbers),
       skippedMealNumbers: numbersFor(skipped, numbers),
-    };
+    });
   } catch (error) {
     return mapSaveRecipeEditError(error);
   }

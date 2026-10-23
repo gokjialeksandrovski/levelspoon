@@ -1,4 +1,3 @@
-// app/tests/e2e/weight-goal.spec.ts
 import { expect, test } from "@playwright/test";
 
 import { todayLocalDateString } from "../../src/lib/date/day-bounds";

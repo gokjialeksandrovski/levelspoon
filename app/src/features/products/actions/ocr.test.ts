@@ -44,11 +44,12 @@ const PER_SERVING_VALUES = {
 describe("ocrProductName", () => {
   it("returns the marker-matched product name from the mock provider", async () => {
     const result = await ocrProductName(new Blob(["confident"]));
-    expect(result.text).toBe("Olympus Greek Yogurt 2% Fat");
+    expect(result).toMatchObject({ kind: "read", text: "Olympus Greek Yogurt 2% Fat" });
   });
 
   it("falls back to a default when the marker is unrecognized", async () => {
     const result = await ocrProductName(new Blob(["not-a-marker"]));
+    if (result.kind !== "read") throw new Error("expected read");
     expect(result.text.length).toBeGreaterThan(0);
   });
 });
@@ -315,7 +316,7 @@ describe("ocrNutritionTable — US label orchestration (HttpOcrProvider mocked)"
     expect(result).toMatchObject({ flags: ["energy_kcal"] });
   });
 
-  // Pins the ordering the whole of Task 3 rests on: the photo-owner probe
+  // Pins the ordering the photo-reuse guard rests on: the photo-owner probe
   // must run before the OCR call, or the answer handed back would be the
   // other product's figures - reading them is what makes the mistake look
   // right. mockExtractNutritionTable not being called is the actual proof;

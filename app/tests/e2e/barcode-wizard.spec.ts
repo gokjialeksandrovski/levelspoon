@@ -6,9 +6,27 @@ import { productBarcodes } from "../../src/lib/db/schema";
 
 import { seedConfidentProduct, seedProductWithBarcode, signUp, truncateAll } from "./support";
 
-test.beforeEach(async ({ context }) => {
-  await truncateAll();
-  await context.clearPermissions();
+test.beforeEach(truncateAll);
+
+test("a photo with no barcode says so, decoded by the self-hosted WASM", async ({ page }) => {
+  // Without the path check this passes even if locateFile regressed to the
+  // library's CDN fallback: decoding would still work.
+  const wasmUrls: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith(".wasm")) {
+      wasmUrls.push(request.url());
+    }
+  });
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByLabel(/barcode photo/i).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
+
+  await expect(page.getByText(/no barcode found/i)).toBeVisible();
+  expect(wasmUrls.length).toBeGreaterThan(0);
+  for (const url of wasmUrls) {
+    expect(new URL(url).pathname).toMatch(/^\/zxing\//);
+  }
 });
 
 test("scanning an already-linked barcode skips straight to the amount step", async ({ page }) => {
@@ -49,7 +67,7 @@ test("a barcode neither source has falls through to the normal flow and surfaces
 
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Search my products" }).click();
 
   await expect(page.getByRole("heading", { name: "Nutrition label" })).toBeVisible();
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
@@ -73,7 +91,7 @@ test("unchecking the pre-scanned barcode opt-in saves the product with no barcod
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Search my products" }).click();
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
 
   await page.getByLabel("Use the barcode you just scanned for this product").uncheck();
@@ -91,7 +109,7 @@ test("a pre-scanned code already bound elsewhere shows that product at confirm a
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Loose Bread Roll");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Search my products" }).click();
 
   // Simulates another user linking this exact code to a different product
   // while this capture was in flight (barcode spec §7's race case).
@@ -155,7 +173,7 @@ test("a not-found-then-name-matched flow shows the link offer, and accepting it 
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Search my products" }).click();
 
   // A typed name never auto-accepts, however exact - it always lands on the
   // pick list (product-name-step.tsx's handleManualName), so pick the hit.
@@ -180,7 +198,7 @@ test("accepting the amount-step link offer after another user just bound the cod
   await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/not-found-barcode.png");
   await page.getByRole("button", { name: "Type a packaged product's name" }).click();
   await page.getByLabel("Product name").fill("Olympus Greek Yogurt 2% Fat");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Search my products" }).click();
 
   // A typed name never auto-accepts, however exact - it always lands on the
   // pick list (product-name-step.tsx's handleManualName), so pick the hit.

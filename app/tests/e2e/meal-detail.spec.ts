@@ -24,10 +24,10 @@ test("editing an ingredient amount recalculates its contribution", async ({ page
   await expect(page.getByText(/100 ?g.*70 kcal/)).toBeVisible();
 });
 
-// Regression: a failed save (amount resolves to 0g, which resolveGrams
-// treats as unresolved) used to leave its error message rendered forever,
-// even after a subsequent save succeeded - saveIngredientQuantity never
-// cleared editing.error on a new attempt (ingredient-row.tsx).
+// A failed save (amount resolves to 0g, which resolveGrams treats as
+// unresolved) must not leave its error rendered after a later save succeeds:
+// saveIngredientQuantity clears editing.error on each attempt
+// (ingredient-row.tsx).
 test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await seedConfidentProduct();
   await signUp(page);
@@ -37,7 +37,7 @@ test("a stale error clears once a retried save succeeds", async ({ page }) => {
   await page.getByLabel("Amount", { exact: true }).fill("0");
   await page.getByRole("button", { name: "Save", exact: true }).click();
 
-  const errorMessage = page.getByText('Couldn\'t work out the amount in "g". Try a different unit.');
+  const errorMessage = page.getByText("Couldn’t work out the amount in “g”. Try a different unit.");
   await expect(errorMessage).toBeVisible();
   // A failed resolve doesn't close the editor - the Amount field stays.
   await expect(page.getByLabel("Amount", { exact: true })).toBeVisible();
@@ -145,11 +145,10 @@ test("back from a meal on a past day returns to that meal's own day", async ({ p
   const mealId = await seedBackdatedMeal(email);
 
   await page.goto(`/meals/${mealId}`);
-  // meal-detail.tsx fetches asynchronously on mount and only swaps
-  // backHref from today's fallback to the meal's own date once that
-  // resolves - wait for the loaded ingredient before clicking Back so this
-  // isn't racing the fetch.
-  await expect(page.getByText("Test Product")).toBeVisible();
+  // The meal streams in under Suspense, and the fallback's Back goes to "/" -
+  // wait for the loaded ingredient row before clicking Back. Scoped to the
+  // list: one full-suite run matched a second, transient "Test Product".
+  await expect(page.getByRole("listitem").getByText("Test Product")).toBeVisible();
   await page.getByRole("link", { name: "Back" }).click();
   await page.waitForURL(new RegExp(`/day/${PAST_MEAL_DATE}$`));
 });
@@ -164,7 +163,7 @@ test("the cooking-fat control is optional and adds nothing until used", async ({
 });
 
 // Olive oil's real USDA per-100g figures (884 kcal, 0.92 g/mL density) so the
-// expected kcal rise matches the spec's own worked example (spec §8 T4):
+// expected kcal rise matches the spec's own worked example (spec §8):
 // 1 tbsp = 15ml * 0.92 = 13.8g; 884 * 13.8/100 = 121.99 -> rounds to 122.
 test("adding a cooking fat raises the meal total by its own contribution", async ({ page }) => {
   await seedConfidentProduct();

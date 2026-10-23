@@ -1,9 +1,10 @@
-// app/src/app/(app)/day/[date]/weight-row.tsx
 "use client";
 
 import { CaretDownIcon, XIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
-import { useId, useState } from "react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
+import dynamic from "next/dynamic";
+import { useId, useState, useSyncExternalStore } from "react";
 
 import { deleteWeightGoal, logWeight } from "@/features/weight/actions/weight";
 import {
@@ -23,10 +24,12 @@ import { InlineMessage } from "@/components/ui/inline-message";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { FOCUS_RING, ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 
-import { WeightGoalSheet } from "./weight-goal-sheet";
 import { dismissWeighIn, isWeighInDismissed } from "./weigh-in-dismissal";
 import { WeightRail } from "./weight-rail";
 import { lastChangeText, nextCheckinLineText, progressLineText, projectionLineText } from "./weight-row.utils";
+
+// Loaded on first open, not with the page: most visits never open it.
+const WeightGoalSheet = dynamic(() => import("./weight-goal-sheet").then((mod) => mod.WeightGoalSheet));
 
 const CHEVRON_ROTATE_DURATION_SECONDS = 0.26;
 const CHEVRON_OPEN_ROTATE_DEGREES = 180;
@@ -85,7 +88,9 @@ const WeighInPrompt = ({ isSaving, hasError, unit, placeholder, onLog, onDismiss
             the field's own, wired by htmlFor. */}
         <input
           id={fieldId}
+          name="weight"
           type="text"
+          autoComplete="off"
           inputMode="decimal"
           value={draft}
           placeholder={placeholder}
@@ -167,14 +172,16 @@ interface WeightPanelProps {
 // Every line is a stored fact or arithmetic over stored facts. Nothing judges
 // the pace, and no line converts a rate into calories.
 const WeightPanel = ({ view, panelId, expanded, today, deletion, onEdit, onLogRequest }: WeightPanelProps) => {
-  const countdown = checkinCountdown(view.nextCheckinDate, new Date(), currentTimezone());
+  // Read only once opened: the panel starts closed on server and client
+  // alike, so the clock and browser zone never reach hydrated markup.
+  const countdown = expanded ? checkinCountdown(view.nextCheckinDate, new Date(), currentTimezone()) : null;
   const projection = view.latest ? projectionLineText(view.goal, view.latest.weightKg, today, view.unit) : null;
 
   return (
     <div id={panelId} className={`mt-2 flex flex-col gap-1 text-sm text-text-muted ${expanded ? "" : "hidden"}`}>
       {view.latest && <p>{lastChangeText(view.latest, view.previous, view.goal, view.unit)}</p>}
       {projection && <p>{projection}</p>}
-      {countdown.kind !== "due" && <p>{nextCheckinLineText(view.nextCheckinDate, countdown, view.goal, view.unit)}</p>}
+      {countdown && countdown.kind !== "due" && <p>{nextCheckinLineText(view.nextCheckinDate, countdown, view.goal, view.unit)}</p>}
       <PanelActions
         isDeleting={deletion.isDeleting}
         isArmed={deletion.isArmed}
@@ -199,7 +206,7 @@ interface ProgressLineProps {
 }
 
 // -my-2/py-2 reaches the 44px tap floor without growing the row, the same
-// trick MacroFigures uses.
+// trick MacroToggle uses.
 const ProgressLine = ({ progress, goal, unit, panelId, expanded, onToggle }: ProgressLineProps) => {
   const reduceMotion = useReducedMotion();
 
@@ -209,10 +216,11 @@ const ProgressLine = ({ progress, goal, unit, panelId, expanded, onToggle }: Pro
       onClick={onToggle}
       aria-expanded={expanded}
       aria-controls={panelId}
-      aria-label="Weight goal"
       className={`-my-2 -mx-1 flex w-full items-center justify-between gap-2 rounded-control px-1 py-2 text-left text-sm text-text-muted transition-colors hover:bg-surface-raised active:bg-surface-raised ${FOCUS_RING}`}
     >
       <span className="truncate tabular-nums">
+        {/* Names the control without replacing the figures it shows. */}
+        <span className="sr-only">Weight goal: </span>
         <SettleNumber value={progressLineText(progress, goal, unit)} reduceMotion={reduceMotion} />
       </span>
       <motion.span
@@ -298,14 +306,18 @@ interface WeighInPromptState {
   dismiss: () => void;
 }
 
-// Dismissal is read here rather than in an effect: isWeighInDismissed only
-// touches localStorage, and a miss returns false, so there is no state to
-// hydrate and no flash to avoid.
+// localStorage never notifies, so the store has nothing to subscribe to;
+// dismissedDate carries a dismissal made this session.
+const subscribeToNothing = (): (() => void) => () => {};
+
+// useSyncExternalStore, not a direct read: the server has no localStorage,
+// so hydration renders the server's "not dismissed" first, then the stored one.
 const useWeighInPrompt = (today: string, nextCheckinDate: string | null): WeighInPromptState => {
   const [isOpenByRequest, setIsOpenByRequest] = useState(false);
   const [dismissedDate, setDismissedDate] = useState<string | null>(null);
+  const isStoredDismissed = useSyncExternalStore(subscribeToNothing, () => isWeighInDismissed(today), () => false);
 
-  const isDismissed = dismissedDate === today || (dismissedDate === null && isWeighInDismissed(today));
+  const isDismissed = dismissedDate === today || isStoredDismissed;
   const isDue = nextCheckinDate !== null && isCheckinDue(nextCheckinDate, today);
 
   return {
@@ -337,7 +349,7 @@ interface WeightRowProps {
 }
 
 // Owns the view locally, seeded from the server-fetched value, so a log or a
-// goal edit updates the row without a day refetch - the same pattern
+// goal edit updates the row the moment the save returns - the same pattern
 // CalorieHero uses for the calorie goal.
 export const WeightRow = ({ initialView, today }: WeightRowProps) => {
   const [view, setView] = useState(initialView);
@@ -367,7 +379,7 @@ export const WeightRow = ({ initialView, today }: WeightRowProps) => {
     return (
       <div className="mt-4">
         <UnsetRow onOpen={openSheet} />
-        <WeightGoalSheet key={sheetToken} open={sheetOpen} view={null} onClose={() => setSheetOpen(false)} onSaved={setView} />
+        {sheetToken > 0 && <WeightGoalSheet key={sheetToken} open={sheetOpen} view={null} onClose={() => setSheetOpen(false)} onSaved={setView} />}
       </div>
     );
   }
@@ -400,7 +412,7 @@ export const WeightRow = ({ initialView, today }: WeightRowProps) => {
           />
         </>
       )}
-      <WeightGoalSheet key={sheetToken} open={sheetOpen} view={view} onClose={() => setSheetOpen(false)} onSaved={setView} />
+      {sheetToken > 0 && <WeightGoalSheet key={sheetToken} open={sheetOpen} view={view} onClose={() => setSheetOpen(false)} onSaved={setView} />}
     </div>
   );
 };

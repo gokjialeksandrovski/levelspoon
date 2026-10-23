@@ -65,7 +65,7 @@ Fires **only** for brand-new product about to write to shared table, or ambiguou
 
 ## Barcode
 
-Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then photo/manual flow. Camera or photo only, no barcode typing. Entry row is a file input decoded by `readBarcodeFromPhoto` (`barcode-detector` WASM); live `BarcodeScanner` only on confirm-step's fresh-scan attachment and dev harness. Spec: `docs/superpowers/specs/2026-09-15-barcode-scanning-design.md`.
+Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then photo/manual flow. Camera or photo only, no barcode typing. Every barcode is read from a photo by `readBarcodeFromPhoto` (`lib/barcode/read-photo.ts`, `barcode-detector` WASM self-hosted under `public/zxing/`); no live camera scanning. Spec: `docs/superpowers/specs/2026-09-15-barcode-scanning-design.md`.
 
 ## Nutrition pipeline (`ocr-service/src/levelspoon_ocr/nutrition/`)
 

@@ -16,7 +16,7 @@ Anti-references (rejected):
 
 - Light and dark both real. Default follows `prefers-color-scheme`; **dark is no-preference default** (bare `:root`).
 - Header `ThemeToggle` (`components/layout/theme-toggle.tsx`) sets a per-device override: `localStorage` `levelspoon:theme`, applied as `data-theme` on root (`app/src/lib/theme/theme.ts`). Light values live in both the media-query and the attribute blocks of `globals.css`.
-- Surfaces: warm cream `--raw-bg: #fdfbf7` light / `#1a1816` dark.
+- Surfaces: warm cream `--raw-bg: #fdfbf7` light / `#1a1816` dark. `THEME_COLORS` (`theme.ts`) mirrors them for the `theme-color` metas, which `applyTheme` rewrites on an explicit pick; `color-scheme` is pinned per `data-theme` so native controls follow the pick, not the OS.
 
 ## Colors
 
@@ -34,11 +34,13 @@ Anti-references (rejected):
 - Radii: `--radius-control: 16px`, `--radius-surface: 24px`. Not called "squircle".
 - 44px minimum tap targets.
 - No modals. `Sheet` (`<dialog>` bottom sheet) is the only overlay.
+- Commit buttons stay enabled while a form is incomplete; the tap refuses with an inline reason. Disabled only while a request is in flight.
+- An irreversible action with no undo (end demo, reset portion sizes, drop a correction) arms on the first tap and commits on a second, beside a non-committal Keep.
 - Project wrappers over raw HTML: list in CLAUDE.md "Project conventions".
 
 ## Motion
 
-One shared recipe: `--ease-out-quart` + `--duration-step: 260ms` (day-view/wizard slide). `motion/react` wrapped app-wide in `MotionConfig reducedMotion="user"` (`app/src/app/providers.tsx`).
+One shared recipe: `--ease-out-quart` + `--duration-step: 260ms` (day-view/wizard slide). `motion/react` wrapped app-wide in `MotionConfig reducedMotion="user"` (`app/src/app/providers.tsx`). Animated elements come from `motion/react-m` under `LazyMotion strict`: never import `motion` from `motion/react`.
 
 Principles:
 
@@ -50,7 +52,7 @@ Principles:
 Numeric defaults (deviate only with a reason):
 
 - Timing: 150–300ms micro-interactions, up to ~400ms orchestrated, never over ~700ms for content checked dozens of times a day.
-- Animate `transform` and `opacity` only. Height changes transition `grid-template-rows`, not `height`.
+- Animate `transform` and `opacity` only. Bars and markers move by `scaleX`/`translateX`, never `width`/`left`. Height changes transition `grid-template-rows`, not `height`.
 - `ease-out` entering, `ease-in` exiting. Spring (stiffness ~300 / damping ~20) for the one organic moment in a sequence, not every moment.
 - Stagger list items 30–50ms. Exits ~60–70% of entrance duration.
 

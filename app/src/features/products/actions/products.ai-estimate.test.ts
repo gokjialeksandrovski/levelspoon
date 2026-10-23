@@ -14,6 +14,7 @@ import {
   createProduct,
   findStoredMeasures,
   getProductForCorrection,
+  getUserProduct,
   matchProduct,
   saveNutritionOverride,
   searchUserProducts,
@@ -114,6 +115,13 @@ describe("AI rows stay out of every search, match and gate", () => {
     expect(await searchUserProducts("chicken")).toEqual([]);
   });
 
+  it("getUserProduct never returns an AI row, even to its author", async () => {
+    const userId = await seedUser();
+    const productId = await seedAiProduct(userId);
+    signedInAs(userId);
+    expect(await getUserProduct(productId)).toBeNull();
+  });
+
   it("matchProduct never matches an AI row", async () => {
     const userId = await seedUser();
     await seedAiProduct(userId);
@@ -158,7 +166,7 @@ describe("AI rows stay out of every search, match and gate", () => {
     expect(await searchUserProducts("chicken")).toEqual([]);
   });
 
-  // Controller ruling: a same-name AI row could win findStoredMeasures's
+  // A same-name AI row could win findStoredMeasures's
   // `ORDER BY p.id LIMIT 1` tiebreak and mask a real row's learned serving
   // weight. Explicit ids force the AI row to sort first without the fence.
   it("findStoredMeasures ignores an AI row that would otherwise win the id tiebreak", async () => {

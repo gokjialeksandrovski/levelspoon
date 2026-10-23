@@ -2,7 +2,7 @@
 
 import { sql } from "drizzle-orm";
 
-import { requireUserId } from "@/lib/auth/require-user";
+import { requireAccountUserId, requireUserId } from "@/lib/auth/require-user";
 import { normalizeBarcode, toCanonicalBarcode } from "@/lib/barcode/normalize";
 import type { BarcodeLookupProvider } from "@/lib/barcode/lookup-provider";
 import { MockBarcodeLookupProvider } from "@/lib/barcode/mock-lookup-provider";
@@ -107,7 +107,7 @@ export const lookupBarcode = async (rawCode: string): Promise<LookupBarcodeResul
 };
 
 export const linkBarcode = async (rawCode: string, productId: string): Promise<LinkBarcodeResult> => {
-  const userId = await requireUserId();
+  const userId = await requireAccountUserId();
   await assertNotAiEstimate(productId);
   const barcode = toCanonicalBarcode(rawCode);
   try {
@@ -131,7 +131,7 @@ export type CheckBarcodeBindingResult =
   | { kind: "rejected" };
 
 // Internal-only counterpart to lookupBarcode - no external call needed,
-// the product doesn't exist yet so OFF data is moot (barcode spec §7, T4).
+// the product doesn't exist yet so OFF data is moot (barcode spec §7).
 export const checkBarcodeBinding = async (rawCode: string): Promise<CheckBarcodeBindingResult> => {
   const userId = await requireUserId();
   const normalized = normalizeBarcode(rawCode);

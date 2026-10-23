@@ -29,8 +29,8 @@ export type NutritionOrigin = "label_photo" | "manual" | "open_food_facts";
 export type WizardStep =
   | { kind: "product-photo"; pendingBarcode: string | null }
   /** A step, not a local mode of product-photo: only what sits on the path
-   * can be popped by "Back", and as local state this left Back exiting the
-   * wizard entirely. */
+   * can be popped by "Back"; as local state, Back would exit the wizard
+   * entirely. */
   | { kind: "product-manual"; pendingBarcode: string | null }
   | { kind: "standard-food-search" }
   /** The recipe list. Picking one writes immediately and navigates to the
@@ -46,7 +46,7 @@ export type WizardStep =
       netWeightText: string | null;
       /** A barcode scanned earlier that neither source recognised - carried
        * so choosing a candidate here still offers linking it (barcode spec
-       * §7, T4). */
+       * §7). */
       pendingBarcode: string | null;
     }
   | { kind: "nutrition-photo"; nameGuess: string; netWeightText: string | null; pendingBarcode: string | null }
@@ -78,8 +78,7 @@ export type WizardStep =
       nutritionBasisQuantity: number;
       /** A barcode scanned earlier in this capture that neither levelspoon nor
        * Open Food Facts recognised - shown at confirm as a declinable
-       * opt-in, never auto-attached (barcode spec §7; T4 renders the
-       * checkbox, this step shape only carries the value there). */
+       * opt-in, never auto-attached (barcode spec §7). */
       pendingBarcode: string | null;
       /** A barcode already confirmed (internal or Open Food Facts match) -
        * attaches on save with no opt-out, since the user's own scan already
@@ -97,7 +96,7 @@ export type WizardStep =
       alternatives: SelectedProduct[];
       /** Non-null only when arriving via a confident/chosen match after an
        * earlier not_found scan - AmountStep offers linking it to `product`
-       * (barcode spec §7, T4). Null on every other arrival (whole food,
+       * (barcode spec §7). Null on every other arrival (whole food,
        * freshly-created product, internal-match scan) - nothing left to
        * offer. */
       pendingBarcode: string | null;
@@ -218,7 +217,7 @@ const applyNutritionParsed = (action: Extract<WizardAction, { type: "NUTRITION_P
 
 const applyChangeMatch = (action: Extract<WizardAction, { type: "CHANGE_MATCH" }>): WizardStep => ({
   // From the amount step, which never carried a net weight - nothing to
-  // forward there. A pending barcode does carry forward (T4).
+  // forward there. A pending barcode does carry forward.
   kind: "match-result",
   nameGuess: action.nameGuess,
   candidates: action.candidates,
@@ -232,8 +231,8 @@ const EXTERNAL_MATCH_BASIS_QUANTITY = 100;
 
 // A barcode already known-good (internal or Open Food Facts) attaches on
 // save with no opt-out; a barcode neither source recognised threads through
-// as pendingBarcode instead, surfaced at confirm as a declinable checkbox
-// (T4) - the two never overlap on the same step (barcode spec §3, §7).
+// as pendingBarcode instead, surfaced at confirm as a declinable checkbox -
+// the two never overlap on the same step (barcode spec §3, §7).
 const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
   switch (result.kind) {
     case "internal_match":
@@ -251,12 +250,9 @@ const applyBarcodeScanned = (result: ResolvedBarcodeLookup): WizardStep => {
 const applyPortionsUpdated = (state: WizardStep, portions: readonly Portion[]): WizardStep =>
   state.kind === "amount" ? { ...state, product: { ...state.product, portions } } : state;
 
-// One case per line, not this repo's usual two-line style - keeps the state
-// transition table scannable at a glance (kept even after the line-count
-// rule was dropped).
-// One branch per action, same reason as StepView: the switch IS the state
-// transition table, and every case needing real work already delegates to a
-// named apply* function.
+// One branch per action, one case per line, same reason as StepView: the
+// switch IS the state transition table, and every case needing real work
+// already delegates to a named apply* function.
 // eslint-disable-next-line complexity
 export const wizardReducer = (state: WizardStep, action: WizardAction): WizardStep => {
   switch (action.type) {

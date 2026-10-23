@@ -51,8 +51,8 @@ ROW_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 # The one marker whose absence is not a failure. The FDA mandates printing
-# dietary fibre, but an obscured or pre-2016 label must not start failing
-# outright where it used to read - it degrades to "fibre not known", which
+# dietary fibre, but an obscured or pre-2016 label must not fail outright -
+# it degrades to "fibre not known", which
 # every reader downstream already handles.
 OPTIONAL_ROW_FIELDS = frozenset({"fibre_g"})
 
@@ -68,7 +68,9 @@ SERVING_SIZE_FIELD = "serving_size"
 # Captures the count too (not just the phrase) - it's the one place a US
 # label states how many servings the whole package holds, needed to turn a
 # front panel's total net weight into a per-serving guess.
-SERVINGS_PER_CONTAINER = re.compile(r"(\d+(?:[.,]\d+)?)\s*servings?\s+per\s+container", re.IGNORECASE)
+SERVINGS_PER_CONTAINER = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*servings?\s+per\s+container", re.IGNORECASE
+)
 
 # "%" is captured only so a %DV can be told apart from a gram figure and
 # skipped - a %DV is never a value.
@@ -187,11 +189,13 @@ def _self_contained_serving(box: Box) -> str | None:
     "Serving size" does not, and hands the job to pass 2.
     """
     match = SERVING_SIZE_MARKER.search(box.text)
-    remainder = box.text[match.end():].strip() if match else ""
+    remainder = box.text[match.end() :].strip() if match else ""
     return remainder or None
 
 
-def _figure_pool(boxes: tuple[Box, ...], marker_boxes: dict[str, Box]) -> tuple[Box, ...]:
+def _figure_pool(
+    boxes: tuple[Box, ...], marker_boxes: dict[str, Box]
+) -> tuple[Box, ...]:
     """Every box that could stand in for a value, markers themselves excluded."""
     claimed = {id(box) for box in marker_boxes.values()}
     return tuple(box for box in boxes if _is_figure_box(box) and id(box) not in claimed)
@@ -219,14 +223,20 @@ def _mutual_pairs(
 def _associate(
     boxes: tuple[Box, ...], marker_boxes: dict[str, Box], resolved: set[str]
 ) -> dict[str, Box]:
-    unresolved = {field: box for field, box in marker_boxes.items() if field not in resolved}
-    return _mutual_pairs(unresolved, _figure_pool(boxes, marker_boxes), tuple(marker_boxes.values()))
+    unresolved = {
+        field: box for field, box in marker_boxes.items() if field not in resolved
+    }
+    return _mutual_pairs(
+        unresolved, _figure_pool(boxes, marker_boxes), tuple(marker_boxes.values())
+    )
 
 
 def _value_of(box: Box) -> float:
     figure = _figure_after(box.text, 0)
     if figure is None:
-        raise NormalizationError(f"No figure in the box claimed as a value: {box.text!r}")
+        raise NormalizationError(
+            f"No figure in the box claimed as a value: {box.text!r}"
+        )
     return figure
 
 
@@ -271,7 +281,9 @@ def _eu_convention_carbohydrate(readings: dict[str, float]) -> dict[str, float]:
 
 
 def _build_reading(
-    readings: dict[str, float], serving_size_text: str | None, servings_per_container: float | None
+    readings: dict[str, float],
+    serving_size_text: str | None,
+    servings_per_container: float | None,
 ) -> UsLabelReading:
     for field, marker in ROW_MARKERS:
         if field not in readings and field not in OPTIONAL_ROW_FIELDS:
@@ -291,7 +303,9 @@ def _build_reading(
     )
 
 
-def _detached_weight(marker_boxes: dict[str, Box], boxes: tuple[Box, ...], claimed: set[int]) -> Box | None:
+def _detached_weight(
+    marker_boxes: dict[str, Box], boxes: tuple[Box, ...], claimed: set[int]
+) -> Box | None:
     """The box mutually nearest to the serving-size marker among what pass 2
     left unclaimed - the exact reciprocal check pass 2 already applies to
     every field, run once more now that the marker's first match is spoken
@@ -300,9 +314,13 @@ def _detached_weight(marker_boxes: dict[str, Box], boxes: tuple[Box, ...], claim
     leftover box on the page, but it is never mutually nearest back to the
     serving-size marker specifically once its own row's marker is closer.
     """
-    remaining = tuple(box for box in _figure_pool(boxes, marker_boxes) if id(box) not in claimed)
+    remaining = tuple(
+        box for box in _figure_pool(boxes, marker_boxes) if id(box) not in claimed
+    )
     target = {SERVING_SIZE_FIELD: marker_boxes[SERVING_SIZE_FIELD]}
-    return _mutual_pairs(target, remaining, tuple(marker_boxes.values())).get(SERVING_SIZE_FIELD)
+    return _mutual_pairs(target, remaining, tuple(marker_boxes.values())).get(
+        SERVING_SIZE_FIELD
+    )
 
 
 def _with_detached_weight(
@@ -341,6 +359,8 @@ def read_us_label(result: OcrResult) -> UsLabelReading:
 
     if serving_size_text is not None:
         claimed = {id(box) for box in paired.values()}
-        serving_size_text = _with_detached_weight(serving_size_text, marker_boxes, boxes, claimed)
+        serving_size_text = _with_detached_weight(
+            serving_size_text, marker_boxes, boxes, claimed
+        )
 
     return _build_reading(readings, serving_size_text, _servings_per_container(boxes))

@@ -1,4 +1,3 @@
-// app/src/features/weight/actions/weight.test.ts
 import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
@@ -11,7 +10,8 @@ const userId = randomUUID();
 
 vi.mock("@/lib/auth/require-user", () => ({ requireUserId: () => Promise.resolve(userId) }));
 
-const { deleteWeightGoal, fetchWeightView, logWeight, saveWeightGoal } = await import("./weight");
+const { deleteWeightGoal, logWeight, saveWeightGoal } = await import("./weight");
+const { fetchWeightView } = await import("./weight.store");
 
 const TIMEZONE = "Europe/Berlin";
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { CheckCircleIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useIsGuest } from "@/features/demo/hooks/use-is-guest";
 import { validateNutrition } from "@/features/products/actions/ocr";
 import { clearNutritionOverride, renameOwnProduct, saveNutritionOverride } from "@/features/products/actions/products";
 import type { ProductForCorrection, SaveNutritionOverrideResult } from "@/features/products/actions/products";
@@ -18,6 +20,7 @@ import { LiveStatus } from "@/components/ui/live-status";
 import { PhotoInput } from "@/components/ui/photo-input";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
+import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 import {
   changedNutritionFields,
   FIELD_LABELS,
@@ -140,12 +143,11 @@ const CorrectionFeedback = ({ saveError, validateError }: CorrectionFeedbackProp
   </>
 );
 
-// Name and figures are two different writes now: a correction is private to
-// this user, a rename still lands on the shared row and only its author may
-// make one. The refusable write runs first: saveNutritionOverride can now
-// refuse a borrowed claim photo (photo_already_used) as data rather than a
-// throw, so running the rename first would leave it committed beside a
-// rejected correction - the refusable one goes first, same reasoning as
+// Name and figures are two different writes: a correction is private to this
+// user, a rename lands on the shared row and only its author may make one.
+// The refusable write runs first: saveNutritionOverride can refuse a borrowed
+// claim photo (photo_already_used) as data, so running the rename first would
+// leave it committed beside a rejected correction - same reasoning as
 // createProduct's own upload-after-check ordering.
 const applyCorrection = async (
   product: ProductForCorrection,
@@ -226,9 +228,9 @@ export const revertCorrection = async (productId: string, callbacks: RevertCallb
 // this holds the confirmation, it does not hold the write.
 const CONFIRMATION_HOLD_MS = 900;
 
-// The screen used to vanish the instant the save resolved, leaving the write
-// with no feedback at all. React owns the timer so an early manual back
-// cancels it.
+// Holds the screen past the save so the write gets feedback rather than the
+// screen vanishing the instant it resolves. React owns the timer so an early
+// manual back cancels it.
 const useConfirmedExit = (isSaved: boolean, router: ReturnType<typeof useRouter>): void => {
   useEffect(() => {
     if (!isSaved) return;
@@ -252,7 +254,6 @@ interface UseCorrectionFormResult {
   isReverting: boolean;
   newLabelPhoto: File | null;
   flaggedFields: Set<keyof FieldValues>;
-  canSave: boolean;
   nameChange: { from: string; to: string } | null;
   changes: NutritionFieldChange[];
   setName: (value: string) => void;
@@ -287,7 +288,6 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
   useEffect(() => { revalidate(toFieldValues(toNullableNutritionValues(product.nutritionPer100g))); }, [product, revalidate]);
 
   const flaggedFields = flaggedFieldSet(flags);
-  const canSave = flaggedFields.size === 0 || validateError;
   const setFieldValue = (field: keyof FieldValues, value: string) => setValues({ ...values, [field]: value });
   const adoptValues = (next: FieldValues) => { setValues(next); revalidate(next); };
   const revalidateNow = () => revalidate(values);
@@ -296,17 +296,18 @@ const useCorrectionForm = (product: ProductForCorrection): UseCorrectionFormResu
     revertCorrection(product.id, { setIsReverting, setSaveError, onReverted: () => router.refresh() });
 
   const nameChange = name.trim() === product.name ? null : { from: product.name, to: name.trim() };
+  const changes = changedNutritionFields(original, values);
+  useUnsavedChangesWarning(!isSaved && (nameChange !== null || changes.length > 0 || newLabelPhoto !== null));
 
   return {
     name, values, validateError, saveError, isSaving, isSaved, isReverting, newLabelPhoto,
-    flaggedFields, canSave, nameChange, changes: changedNutritionFields(original, values),
+    flaggedFields, nameChange, changes,
     setName, setFieldValue, adoptValues, setNewLabelPhoto, revalidateNow, handleSave, handleRevert,
   };
 };
 
-// Answers the question the old warning raised: this used to overwrite the
-// product for everyone, including in meals already saved. It no longer can.
-// Shown only when someone else can actually be offered this row, and named
+// Answers the worry that a correction overwrites the product for everyone,
+// including in meals already saved: it cannot. Shown only when someone else can actually be offered this row, and named
 // after the proof they would see - a hand-typed product with no photo and no
 // barcode is nobody else's, so claiming a shared copy survives is a fiction.
 const SHARED_NOTICE = {
@@ -325,12 +326,30 @@ interface RevertControlProps {
 }
 
 // The way back to the label-photo figures, which the override never destroyed -
-// reverting is one DELETE, not a re-entry of eight numbers.
-const RevertControl = ({ onRevert, isReverting }: RevertControlProps) => (
-  <Button variant="ghost" link pending={isReverting} onClick={onRevert}>
-    Use the original values
-  </Button>
-);
+// reverting is one DELETE, not a re-entry of eight numbers. It drops figures
+// the user typed with no undo, so the first tap only arms it; Keep is the
+// exit and fires no request.
+const RevertControl = ({ onRevert, isReverting }: RevertControlProps) => {
+  const [isArmed, setIsArmed] = useState(false);
+  if (!isArmed) {
+    return (
+      <Button variant="ghost" link onClick={() => setIsArmed(true)}>
+        Use the original values
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted">
+      <span>Drop your corrected values?</span>
+      <Button variant="danger" link pending={isReverting} onClick={onRevert}>
+        Use the originals
+      </Button>
+      <Button variant="ghost" link disabled={isReverting} onClick={() => setIsArmed(false)}>
+        Keep mine
+      </Button>
+    </div>
+  );
+};
 
 const LABEL_CHANGED_LABEL = "I think this product's label has changed";
 // Says what the photo is for and what it is not: it does not overwrite the
@@ -397,6 +416,33 @@ interface CorrectionFormBodyProps {
   proof: UseProofAttachmentResult;
 }
 
+// Demo label photos are never stored, so a guest is offered neither control.
+const PhotoProofControls = ({ product, form, proof }: Omit<CorrectionFormBodyProps, "labelPhotoUrl">) => {
+  const isGuest = useIsGuest();
+  if (isGuest) {
+    return null;
+  }
+  return (
+    <>
+      <ProofDisclosure
+        product={product}
+        values={form.values}
+        callbacks={{ onAdoptValues: form.adoptValues, onAttached: proof.onAttached }}
+      />
+      {/* Nothing to compare a new label against until something vouches for the
+          old figures - on a hand-typed product this asked the user to prove a
+          change to values nobody ever printed. */}
+      {product.sharedProof !== null && (
+        <LabelChangedDisclosure
+          hasOverridePhoto={product.hasOverridePhoto}
+          selectedName={form.newLabelPhoto?.name ?? null}
+          onSelect={form.setNewLabelPhoto}
+        />
+      )}
+    </>
+  );
+};
+
 const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionFormBodyProps) => (
   <div className="flex flex-col gap-4">
     {labelPhotoUrl && <LabelPhotoStrip url={labelPhotoUrl} />}
@@ -417,21 +463,7 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionF
       onFieldBlur={form.revalidateNow}
     />
     {proof.message && <InlineMessage tone="info">{proof.message}</InlineMessage>}
-    <ProofDisclosure
-      product={product}
-      values={form.values}
-      callbacks={{ onAdoptValues: form.adoptValues, onAttached: proof.onAttached }}
-    />
-    {/* Nothing to compare a new label against until something vouches for the
-        old figures - on a hand-typed product this asked the user to prove a
-        change to values nobody ever printed. */}
-    {product.sharedProof !== null && (
-      <LabelChangedDisclosure
-        hasOverridePhoto={product.hasOverridePhoto}
-        selectedName={form.newLabelPhoto?.name ?? null}
-        onSelect={form.setNewLabelPhoto}
-      />
-    )}
+    <PhotoProofControls product={product} form={form} proof={proof} />
     <CorrectionPreview nameChange={form.nameChange} changes={form.changes} />
     <CorrectionFeedback saveError={form.saveError} validateError={form.validateError} />
     {/* The visible line is aria-hidden and this carries the announcement: a
@@ -441,7 +473,7 @@ const CorrectionFormBody = ({ product, labelPhotoUrl, form, proof }: CorrectionF
       <CorrectionSaved />
     ) : (
       <>
-        <Button disabled={!form.canSave} pending={form.isSaving} onClick={form.handleSave}>
+        <Button pending={form.isSaving} onClick={form.handleSave}>
           Save correction
         </Button>
         {product.hasOverride && <RevertControl onRevert={form.handleRevert} isReverting={form.isReverting} />}

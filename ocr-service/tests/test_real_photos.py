@@ -21,7 +21,9 @@ pytestmark = pytest.mark.real
 
 @pytest.fixture(scope="module")
 def golden(fixtures_dir):
-    return json.loads((fixtures_dir / "golden" / "olympus-greek-2pct.json").read_text("utf-8"))
+    return json.loads(
+        (fixtures_dir / "golden" / "olympus-greek-2pct.json").read_text("utf-8")
+    )
 
 
 def _post(endpoint: str, photo_path):
@@ -41,11 +43,21 @@ def test_service_is_healthy_with_its_model_loaded():
 
 
 def test_reads_every_nutrition_value_from_the_real_label(fixtures_dir, golden):
-    body = _post("/ocr/nutrition-table", fixtures_dir / "photos" / "olympus-greek-2pct-nutrition.jpg")
+    body = _post(
+        "/ocr/nutrition-table",
+        fixtures_dir / "photos" / "olympus-greek-2pct-nutrition.jpg",
+    )
     expected = golden["nutrition_per_100g"]
 
-    for field in ("energy_kcal", "fat_g", "saturates_g", "carbohydrate_g",
-                  "sugars_g", "protein_g", "salt_g"):
+    for field in (
+        "energy_kcal",
+        "fat_g",
+        "saturates_g",
+        "carbohydrate_g",
+        "sugars_g",
+        "protein_g",
+        "salt_g",
+    ):
         assert body["per_100g"][field] == pytest.approx(expected[field]), (
             f"{field}: read {body['per_100g'][field]}, expected {expected[field]}"
         )
@@ -53,7 +65,10 @@ def test_reads_every_nutrition_value_from_the_real_label(fixtures_dir, golden):
 
 def test_real_label_raises_no_validation_flags(fixtures_dir, golden):
     """These values satisfy every §4.4 rule, so any flag is a parser defect."""
-    body = _post("/ocr/nutrition-table", fixtures_dir / "photos" / "olympus-greek-2pct-nutrition.jpg")
+    body = _post(
+        "/ocr/nutrition-table",
+        fixtures_dir / "photos" / "olympus-greek-2pct-nutrition.jpg",
+    )
     assert body["flags"] == golden["expected_flags"]
 
 
@@ -61,10 +76,11 @@ def test_reads_a_product_name_close_enough_to_match_on(fixtures_dir, golden):
     """Asserted on similarity, not equality.
 
     Word order need only be stable enough for trigram matching (spec §4.2),
-    so demanding an exact string would re-introduce exactly the overfitting
-    this milestone removes.
+    so demanding an exact string would overfit to one photo.
     """
-    text = _post("/ocr/product-name", fixtures_dir / "photos" / "olympus-greek-2pct-front.jpg")["text"]
+    text = _post(
+        "/ocr/product-name", fixtures_dir / "photos" / "olympus-greek-2pct-front.jpg"
+    )["text"]
     upper = text.upper()
 
     for token in golden["name_tokens_required"]:

@@ -8,7 +8,15 @@ import { startRecompProtein } from "@/features/goals/actions/macro-targets.store
 import { db, type DbTransaction } from "@/lib/db";
 import { users, weightEntries, weightGoals } from "@/lib/db/schema";
 
-import { roundToHundredth, type WeightGoalInput } from "./weight.utils";
+import {
+  nextCheckinDate,
+  roundToHundredth,
+  type WeightEntry,
+  type WeightGoal,
+  type WeightGoalInput,
+  type WeightUnit,
+  type WeightView,
+} from "./weight.utils";
 
 // numeric(6,2) / numeric(4,2): the scale every stored kg figure is written at.
 const STORED_DECIMALS = 2;
@@ -94,4 +102,83 @@ export const fetchWeightReadings = async (
     .orderBy(weightEntries.measuredOn);
   // numeric arrives as a string; this is the point of arithmetic.
   return rows.map((row) => ({ date: row.measuredOn, weightKg: Number(row.weightKg) }));
+};
+
+// Two rows: the reading on screen and the one before it, which is all the
+// panel's "last change" line needs. A trend needs more; there is no trend yet.
+const RECENT_ENTRY_LIMIT = 2;
+
+interface GoalRow {
+  mode: "target" | "hold";
+  unit: WeightUnit;
+  startWeightKg: string;
+  startDate: string;
+  targetWeightKg: string | null;
+  rateKgPerWeek: string | null;
+  holdBandKg: string | null;
+  recomp: boolean;
+  checkinIntervalDays: number;
+}
+
+// numeric arrives as a string - the column type protects stored precision, and
+// this is the point of arithmetic where it becomes a number.
+const toGoal = (row: GoalRow): WeightGoal => ({
+  mode: row.mode,
+  startWeightKg: Number(row.startWeightKg),
+  startDate: row.startDate,
+  targetWeightKg: row.targetWeightKg === null ? null : Number(row.targetWeightKg),
+  rateKgPerWeek: row.rateKgPerWeek === null ? null : Number(row.rateKgPerWeek),
+  holdBandKg: row.holdBandKg === null ? null : Number(row.holdBandKg),
+  recomp: row.recomp,
+  checkinIntervalDays: row.checkinIntervalDays,
+});
+
+const toEntry = (row: { measuredOn: string; weightKg: string }): WeightEntry => ({
+  measuredOn: row.measuredOn,
+  weightKg: Number(row.weightKg),
+});
+
+// No timezone parameter: the cadence is calendar arithmetic over stored local
+// dates, and the only caller that needs "today" already has it.
+export const fetchWeightView = async (userId: string): Promise<WeightView | null> => {
+  // Both reads key on userId alone, so they run together; the entries go
+  // unused when there is no goal, which costs one indexed read.
+  const [[goalRow], entryRows] = await Promise.all([
+    db
+      .select({
+        mode: weightGoals.mode,
+        startWeightKg: weightGoals.startWeightKg,
+        startDate: weightGoals.startDate,
+        targetWeightKg: weightGoals.targetWeightKg,
+        rateKgPerWeek: weightGoals.rateKgPerWeek,
+        holdBandKg: weightGoals.holdBandKg,
+        recomp: weightGoals.recomp,
+        checkinIntervalDays: weightGoals.checkinIntervalDays,
+        unit: users.weightUnit,
+      })
+      .from(weightGoals)
+      // The display unit lives on the user row; joining it here keeps the view
+      // one round trip, which is what lets it ride getDayLog's Promise.all.
+      .innerJoin(users, eq(users.id, weightGoals.userId))
+      .where(eq(weightGoals.userId, userId)),
+    db
+      .select({ measuredOn: weightEntries.measuredOn, weightKg: weightEntries.weightKg })
+      .from(weightEntries)
+      .where(eq(weightEntries.userId, userId))
+      .orderBy(desc(weightEntries.measuredOn))
+      .limit(RECENT_ENTRY_LIMIT),
+  ]);
+
+  if (!goalRow) return null;
+
+  const goal = toGoal(goalRow);
+  const [latestRow, previousRow] = entryRows;
+  const latest = latestRow ? toEntry(latestRow) : null;
+  return {
+    goal,
+    unit: goalRow.unit,
+    latest,
+    previous: previousRow ? toEntry(previousRow) : null,
+    nextCheckinDate: nextCheckinDate(goal, latest),
+  };
 };

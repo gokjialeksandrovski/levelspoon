@@ -1,8 +1,8 @@
 "use server";
 
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql, type SQL } from "drizzle-orm";
 
-import { requireUserId } from "@/lib/auth/require-user";
+import { requireAccountUserId, requireUser, requireUserId } from "@/lib/auth/require-user";
 import { toCanonicalBarcode } from "@/lib/barcode/normalize";
 import { db } from "@/lib/db";
 import { toLikeTokens } from "@/lib/db/like-tokens";
@@ -336,18 +336,25 @@ const assertNotDuplicate = async (input: CreateProductInput, userId: string): Pr
   throw new SameFiguresError(match.visible ? match.name : null);
 };
 
+// The columns every candidate query hands to toProductCandidate, and the rows
+// a user may pick: user-contributed, never an AI estimate, visible to them.
+const candidateColumns = (userId: string): SQL => sql`
+  p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
+  p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
+  p.nutrition_basis_unit, p.nutrition_basis_quantity,
+  ${portionOverridesJson("p", userId)}
+`;
+
+const isCandidateFor = (userId: string): SQL => sql`
+  p.source = ${USER_SOURCE} AND ${notAiEstimate} AND ${visibleToUser(userId)}
+`;
+
 const fetchCandidateRows = async (ocrText: string, userId: string): Promise<CandidateRow[]> => {
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
-           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
-           p.nutrition_basis_unit, p.nutrition_basis_quantity,
-           ${portionOverridesJson("p", userId)},
-           similarity(p.name, ${ocrText}) AS score
+    SELECT ${candidateColumns(userId)}, similarity(p.name, ${ocrText}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
-    WHERE p.source = ${USER_SOURCE}
-      AND ${notAiEstimate}
-      AND ${visibleToUser(userId)}
+    WHERE ${isCandidateFor(userId)}
     ORDER BY score DESC
     LIMIT ${CANDIDATE_LIMIT}
   `);
@@ -404,22 +411,30 @@ export const searchUserProducts = async (query: string): Promise<ProductCandidat
 
   const tokenFilters = tokens.map((token) => sql`p.name_search ILIKE ${`%${token}%`}`);
   const result = await db.execute<CandidateRow>(sql`
-    SELECT p.id, p.name, p.brand, p.name_search, p.standard_slug, ${effectiveNutritionSql("p", "o")},
-           p.nutrition_photo_key, p.density_g_ml, p.serving_unit, p.serving_grams,
-           p.nutrition_basis_unit, p.nutrition_basis_quantity,
-           ${portionOverridesJson("p", userId)},
-           similarity(p.name_search, ${searchQuery}) AS score
+    SELECT ${candidateColumns(userId)}, similarity(p.name_search, ${searchQuery}) AS score
     FROM products p
     ${overrideJoinSql("p", "o", userId)}
-    WHERE p.source = ${USER_SOURCE}
-      AND ${notAiEstimate}
-      AND ${visibleToUser(userId)}
+    WHERE ${isCandidateFor(userId)}
       AND (${sql.join(tokenFilters, sql` AND `)}
            OR similarity(p.name_search, ${searchQuery}) >= ${TYPED_SEARCH_MIN_SIMILARITY})
     ORDER BY score DESC, name ASC
     LIMIT ${TYPED_SEARCH_LIMIT}
   `);
   return Promise.all(result.rows.map(toProductCandidate));
+};
+
+// One product by id, under the same rules as a search hit - for a caller that
+// already knows which row it wants (the duplicate notice's "use that one").
+export const getUserProduct = async (productId: string): Promise<ProductCandidate | null> => {
+  const userId = await requireUserId();
+  const result = await db.execute<Omit<CandidateRow, "score">>(sql`
+    SELECT ${candidateColumns(userId)}
+    FROM products p
+    ${overrideJoinSql("p", "o", userId)}
+    WHERE p.id = ${productId} AND ${isCandidateFor(userId)}
+  `);
+  const [row] = result.rows;
+  return row ? toProductCandidate(row) : null;
 };
 
 export interface CreateProductInput {
@@ -521,8 +536,6 @@ const fromNutritionColumns = (row: typeof products.$inferSelect): NutritionValue
 const DEFAULT_NUTRITION_BASIS_UNIT = "g";
 const DEFAULT_NUTRITION_BASIS_QUANTITY = 100;
 
-// The default-filling pair was inlined at three call sites (findSameFigures,
-// assertNotDuplicate, here) - one helper so the default lives in one place.
 const basisOf = (input: CreateProductInput): { basisUnit: string; basisQuantity: number } => ({
   basisUnit: input.nutritionBasisUnit ?? DEFAULT_NUTRITION_BASIS_UNIT,
   basisQuantity: input.nutritionBasisQuantity ?? DEFAULT_NUTRITION_BASIS_QUANTITY,
@@ -656,8 +669,13 @@ const insertProductRow = async (
   }
 };
 
-export const createProduct = async (input: CreateProductInput): Promise<CreateProductResult> => {
-  const userId = await requireUserId();
+// A demo product stays private to its guest: no stored photo and no barcode,
+// the two things visibleToUser offers to everyone else.
+const withoutSharedProof = (input: CreateProductInput): CreateProductInput => ({ ...input, photo: undefined, barcode: undefined });
+
+export const createProduct = async (rawInput: CreateProductInput): Promise<CreateProductResult> => {
+  const { id: userId, isGuest } = await requireUser();
+  const input = isGuest ? withoutSharedProof(rawInput) : rawInput;
   // Before the upload: a rejected barcode or duplicate must not leave an
   // orphaned photo.
   const barcode = input.barcode ? toCanonicalBarcode(input.barcode) : null;
@@ -712,24 +730,24 @@ const fetchOverridePhotoKey = async (userId: string, productId: string): Promise
  * `saveNutritionOverride`'s outcome, as data rather than a throw - the same
  * reason `createProduct` returns `CreateProductResult` instead of letting
  * `LabelPhotoAlreadyUsedError` cross the Server Action boundary. This is the
- * write path's other photo-key mint site; it went without this for a while
- * because only createProduct had an earlier good path (the nutrition step's
- * own probe) to fall back on - this path has none, so a caller that only
- * catches never sees which refusal happened.
+ * other photo-key mint site, and unlike createProduct it has no earlier good
+ * path (the nutrition step's own probe) to fall back on, so a caller that only
+ * catches would never see which refusal happened.
  */
 export type SaveNutritionOverrideResult =
   | { kind: "saved" }
   | { kind: "photo_already_used"; ownerName: string | null };
 
+// Demo label photos are never stored.
+const storableClaimPhoto = (isGuest: boolean, photo: Blob | undefined): Blob | undefined => (isGuest ? undefined : photo);
+
 /**
  * One user's correction to one product, written to product_overrides rather
- * than onto the shared row.
- *
- * Before this, a correction rewrote the canonical figures for every user and,
- * because meal_ingredients stores no nutrition snapshot, retroactively rewrote
- * every past meal that referenced the product. The upsert's ON CONFLICT is what
- * keeps exactly one live correction per (user, product): a second edit replaces
- * the first rather than accumulating rows nothing reads.
+ * than onto the shared row: meal_ingredients stores no nutrition snapshot, so
+ * rewriting the canonical figures would retroactively rewrite every user's
+ * past meals that reference the product. The upsert's ON CONFLICT keeps
+ * exactly one live correction per (user, product): a second edit replaces the
+ * first rather than accumulating rows nothing reads.
  *
  * The photo is optional and independent of the figures. Omitting it leaves any
  * photo already attached in place - "I corrected a typo" must not silently
@@ -739,10 +757,11 @@ export type SaveNutritionOverrideResult =
 export const saveNutritionOverride = async (
   productId: string,
   nutritionPer100g: NutritionValues,
-  photo?: Blob,
+  claimPhoto?: Blob,
 ): Promise<SaveNutritionOverrideResult> => {
-  const userId = await requireUserId();
+  const { id: userId, isGuest } = await requireUser();
   await assertUserProduct(userId, productId);
+  const photo = storableClaimPhoto(isGuest, claimPhoto);
 
   const supersededPhotoKey = photo ? await fetchOverridePhotoKey(userId, productId) : null;
   // Uploaded before the write so a storage failure leaves no row claiming a
@@ -874,7 +893,7 @@ export const attachLabelProof = async (
   photo: Blob,
   figures: LabelProofFigures,
 ): Promise<AttachLabelProofResult> => {
-  const userId = await requireUserId();
+  const userId = await requireAccountUserId();
   if (!(await isProofless(userId, productId))) {
     return { kind: "not_attachable" };
   }
@@ -1015,6 +1034,8 @@ const fetchOverrideRow = async (userId: string, productId: string): Promise<Over
 // 404s instead.
 export const getProductForCorrection = async (productId: string): Promise<ProductForCorrection | null> => {
   const userId = await requireUserId();
+  // Auth gate runs before any read, so an anonymous request costs no query.
+  // eslint-disable-next-line clean-code/no-sequential-independent-await
   const [product] = await db.select().from(products).where(eq(products.id, productId));
   if (!product || product.source === STANDARD_SOURCE || product.nutritionOrigin === AI_ESTIMATE_ORIGIN) {
     return null;

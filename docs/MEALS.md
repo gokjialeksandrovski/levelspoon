@@ -6,6 +6,8 @@ Rules for history page, recipes and lazy track. Day model (`meals.log_date`, loc
 
 One row per day user logged, newest first, paged at `HISTORY_PAGE_SIZE`. `history.utils.ts` shapes rows; query stays one row per logged day.
 
+- **Load more depth lives in the URL** (`?pages=N`, written with native `history.replaceState` so the rows on screen are not re-fetched). The page reads all N pages in its first read (`getDayHistory(0, pageCount)`, capped at `MAX_HISTORY_PAGES`), so Back returns to the same rows.
+
 - **Days between two loaded rows put back client-side** (`withUnloggedDays`), never by query. Up to `MAX_GAP_FILL_DAYS` blank days list one row each and link to that day: a missed day is somewhere to go, not a hole. Longer stretch collapses to one non-linking row. Nothing filled above newest row or below oldest: first is the day user came from, second may be next page.
 - Rows group by month (`toHistoryMonths`), sticky heading, year dropped inside current year.
 - Rail on a logged row is day hero `CalorieBar` pair one tier quieter (`h-1`, `bg-border` track, `bg-text` fill, `danger` at or past goal). Drawn only with a kcal goal, `role="presentation"`: every figure it encodes is printed above it. No accent colour: four accents each own a macro, a day's kcal is not one.

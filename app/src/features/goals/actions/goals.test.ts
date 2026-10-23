@@ -7,7 +7,8 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
-import { fetchCalorieGoal, fetchMacroTargets, getCalorieGoal, saveDailyGoals } from "./goals";
+import { getCalorieGoal, saveDailyGoals } from "./goals";
+import { fetchCalorieGoal, fetchMacroTargets } from "./goals.store";
 import { InvalidCalorieGoalError, InvalidMacroTargetsError } from "./goals.errors";
 import { GOAL_STORAGE_CEILING, MIN_CALORIE_GOAL } from "./goals.utils";
 

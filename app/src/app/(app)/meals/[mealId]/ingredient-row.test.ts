@@ -18,7 +18,7 @@ describe("resolveAndSaveQuantity", () => {
   it("resolves a mass unit and saves the computed grams", async () => {
     vi.mocked(updateMealIngredientQuantity).mockResolvedValue(undefined);
     const onSaved = vi.fn();
-    const callbacks = { router: { refresh: vi.fn() } as never, onBusyChange: vi.fn(), onError: vi.fn() };
+    const callbacks = { onBusyChange: vi.fn(), onError: vi.fn() };
 
     await resolveAndSaveQuantity(
       { ingredientId: "ingredient-1", count: "150", unit: "g", context: GRAMS_CONTEXT },
@@ -32,7 +32,7 @@ describe("resolveAndSaveQuantity", () => {
   it("saves a per-unit-basis product's count directly, in its own unit", async () => {
     vi.mocked(updateMealIngredientQuantity).mockResolvedValue(undefined);
     const onSaved = vi.fn();
-    const callbacks = { router: { refresh: vi.fn() } as never, onBusyChange: vi.fn(), onError: vi.fn() };
+    const callbacks = { onBusyChange: vi.fn(), onError: vi.fn() };
     const context = { ...GRAMS_CONTEXT, servingUnit: "tbsp", nutritionBasisUnit: "tbsp" };
 
     await resolveAndSaveQuantity(
@@ -45,7 +45,7 @@ describe("resolveAndSaveQuantity", () => {
 
   it("sets an error and never saves when the unit cannot be resolved", async () => {
     const onSaved = vi.fn();
-    const callbacks = { router: { refresh: vi.fn() } as never, onBusyChange: vi.fn(), onError: vi.fn() };
+    const callbacks = { onBusyChange: vi.fn(), onError: vi.fn() };
 
     await resolveAndSaveQuantity(
       { ingredientId: "ingredient-1", count: "2", unit: "gummies", context: GRAMS_CONTEXT },
@@ -53,7 +53,7 @@ describe("resolveAndSaveQuantity", () => {
     );
 
     expect(updateMealIngredientQuantity).not.toHaveBeenCalled();
-    expect(callbacks.onError).toHaveBeenCalledWith('Couldn\'t work out the amount in "gummies". Try a different unit.');
+    expect(callbacks.onError).toHaveBeenCalledWith("Couldn’t work out the amount in “gummies”. Try a different unit.");
   });
 });
 

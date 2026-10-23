@@ -23,7 +23,7 @@ def test_finds_values_under_the_100g_header():
 
 
 def test_picks_the_100g_column_not_the_per_serving_column():
-    """The failure the spike's positional slice could not survive."""
+    """The layout a positional slice would misread."""
     result = _result(
         _box("Masti", 100.0, 200.0),
         _box("100 g", 500.0, 100.0),
@@ -58,7 +58,10 @@ def test_anchors_on_the_energy_figure_when_the_header_sits_with_the_labels():
         _box("233kJ/56kcal", 900.0, 150.0),
         _box("2,0 g", 900.0, 200.0),
     )
-    assert [box.text for box in find_per_100g_values(result)] == ["233kJ/56kcal", "2,0 g"]
+    assert [box.text for box in find_per_100g_values(result)] == [
+        "233kJ/56kcal",
+        "2,0 g",
+    ]
 
 
 def test_reunites_a_value_ocr_mis_clustered_into_the_label_column():
@@ -76,7 +79,14 @@ def test_reunites_a_value_ocr_mis_clustered_into_the_label_column():
         _box("0,18 g", 900.0, 700.0),
     )
     values = find_per_100g_values(result)
-    assert [box.text for box in values] == ["233kJ/56kcal", "2,0 g", "1,2 g", "4,0 g", "9,0 g", "0,18 g"]
+    assert [box.text for box in values] == [
+        "233kJ/56kcal",
+        "2,0 g",
+        "1,2 g",
+        "4,0 g",
+        "9,0 g",
+        "0,18 g",
+    ]
 
 
 def test_does_not_reclaim_a_label_fragment_that_happens_to_sit_in_the_gap():
@@ -92,4 +102,10 @@ def test_does_not_reclaim_a_label_fragment_that_happens_to_sit_in_the_gap():
         _box("0,18 g", 900.0, 700.0),
     )
     values = find_per_100g_values(result)
-    assert [box.text for box in values] == ["233kJ/56kcal", "2,0 g", "4,0 g", "9,0 g", "0,18 g"]
+    assert [box.text for box in values] == [
+        "233kJ/56kcal",
+        "2,0 g",
+        "4,0 g",
+        "9,0 g",
+        "0,18 g",
+    ]

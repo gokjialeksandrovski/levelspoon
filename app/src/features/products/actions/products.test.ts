@@ -13,7 +13,7 @@ import { fetchPhotoDebt } from "@/lib/db/photo-debt";
 import { findPhotoOwner } from "@/lib/db/photo-owner";
 import { getPhotoUrl } from "@/lib/s3";
 
-import { attachLabelProof, clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
+import { attachLabelProof, clearNutritionOverride, createProduct, findStoredMeasures, getProductForCorrection, getUserProduct, matchProduct, renameOwnProduct, saveNutritionOverride, searchStandardFoods, searchUserProducts, topTwoScores } from "./products";
 import type { CandidateRow, CreateProductInput, CreateProductResult } from "./products";
 import {
   LabelPhotoAlreadyUsedError,
@@ -310,6 +310,25 @@ describe("searchStandardFoods", () => {
   });
 });
 
+describe("getUserProduct", () => {
+  it("returns the user's own product by id", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg", { nutritionPhotoKey: null });
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+
+    expect((await getUserProduct(productId))?.name).toBe("Bella Farm YOGHURT 2,8% m.m 1kr/kg");
+  });
+
+  it("returns null for another user's private product", async () => {
+    const ownerId = await seedUser();
+    const otherId = await seedUser();
+    const productId = await seedProduct(ownerId, "Bella Farm YOGHURT 2,8% m.m 1kr/kg", { nutritionPhotoKey: null });
+    mockAuth.mockResolvedValue({ user: { id: otherId } });
+
+    expect(await getUserProduct(productId)).toBeNull();
+  });
+});
+
 describe("searchUserProducts", () => {
   it("finds a product from a single keyword in the middle of its name", async () => {
     const userId = await seedUser();
@@ -523,6 +542,24 @@ describe("createProduct", () => {
     expect(barcodeRow.createdByUserId).toBe(userId);
   });
 
+  it("stores neither photo nor barcode for a demo user, so the product stays private", async () => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId, isGuest: true } });
+
+    const { productId } = await createdProduct({
+      name: "Demo Cereal",
+      nutritionPer100g: {
+        energyKcal: 380, fatG: 5, saturatesG: 1, carbohydrateG: 70, sugarsG: 20, proteinG: 8, saltG: 1.1, fibreG: null,
+      },
+      photo: new Blob([Buffer.from("demo-jpeg-bytes")], { type: "image/jpeg" }),
+      barcode: "5901234123457",
+    });
+
+    const [row] = await db.select().from(products).where(eq(products.id, productId));
+    expect(row.nutritionPhotoKey).toBeNull();
+    expect(await db.select().from(productBarcodes).where(eq(productBarcodes.productId, productId))).toEqual([]);
+  });
+
   it("rejects an invalid barcode before writing anything or uploading a photo", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
@@ -586,12 +623,10 @@ describe("createProduct", () => {
     await expect(rejection).rejects.toMatchObject({ ownerName: "Bella Farm Yoghurt" });
   });
 
-  // The finding this pins: extensionFromMimeType used to derive the key's
-  // extension from the caller-declared Blob type, so identical bytes minted
-  // two different keys depending on what a renamed file's <input
-  // type="file"> reported. The extension now comes from the bytes'
-  // own signature (extensionFromBytes), so a lying declared type can no
-  // longer evade the reuse ban.
+  // The key's extension comes from the bytes' own signature
+  // (extensionFromBytes), never the caller-declared Blob type, so identical
+  // bytes mint one key whatever a renamed file's <input type="file">
+  // reports, and a lying declared type cannot evade the reuse ban.
   it("refuses a second product carrying the first product's photo even under a different declared image type", async () => {
     const userId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: userId } });
@@ -1437,7 +1472,7 @@ describe("replacement label photos", () => {
     const otherUserId = await seedUser();
     mockAuth.mockResolvedValue({ user: { id: otherUserId } });
     // A distinct photo, not a second newLabelPhoto() - two different users'
-    // claim rows now collide on the same UNIQUE column if their bytes match.
+    // claim rows collide on the same UNIQUE column if their bytes match.
     await saveNutritionOverride(productId, CORRECTED_AGAIN, otherLabelPhoto());
 
     const debt = await fetchPhotoDebt();

@@ -47,7 +47,9 @@ class OcrEngine:
         boxes: list[Box] = []
         for prediction in self._ocr.predict(numpy.array(image)):
             for text, poly, score in zip(
-                prediction["rec_texts"], prediction["rec_polys"], prediction["rec_scores"]
+                prediction["rec_texts"],
+                prediction["rec_polys"],
+                prediction["rec_scores"],
             ):
                 xs = [point[0] for point in poly]
                 ys = [point[1] for point in poly]

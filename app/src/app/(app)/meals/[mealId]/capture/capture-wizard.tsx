@@ -1,18 +1,17 @@
 "use client";
 
 import { CheckCircleIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
-import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
-import { discardEmptyMeal, getDayLog } from "@/features/meals/actions/meals";
+import { discardEmptyMeal, getDayEnergy, type DayEnergy } from "@/features/meals/actions/meals";
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
-import { listRecipes } from "@/features/recipes/actions/recipes";
 import type { RecipeSummary } from "@/features/recipes/actions/recipes.store";
 import { Button } from "@/components/ui/button";
-import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
+import { formatNumber } from "@/lib/nutrition/format-number";
 
 import { pathReducer, type PathAction } from "./capture-wizard.path";
 import { INITIAL_WIZARD_STEP, type WizardStep } from "./capture-wizard.types";
@@ -62,11 +61,9 @@ const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "lazy-review": 0.8,
 };
 
-interface DaySnapshot {
-  consumedKcal: number;
-  remaining: CalorieRemaining;
-  // The savedCount this fetch answered, so the step can tell a fresh total
-  // from the one fetched before the save landed.
+interface DaySnapshot extends DayEnergy {
+  // The savedCount this read answered, so the step can tell a fresh total
+  // from the one read before the save landed.
   savedCount: number;
 }
 
@@ -76,46 +73,21 @@ interface SavedMoment {
 }
 
 // Ingredients count toward the day they are logged on, which is always today.
-// Fetched on open and after every save; the last two are kept so the step can
-// settle from the old total to the new one.
-const useTodaySnapshots = (today: string, savedCount: number): DaySnapshot[] => {
-  const [snapshots, setSnapshots] = useState<DaySnapshot[]>([]);
+// The page reads the opening total on the server; each save reads it again,
+// and the last two are kept so the step can settle from the old total to the
+// new one.
+const useTodaySnapshots = (today: string, savedCount: number, initialEnergy: DayEnergy | null): DaySnapshot[] => {
+  const [snapshots, setSnapshots] = useState<DaySnapshot[]>(initialEnergy ? [{ ...initialEnergy, savedCount: 0 }] : []);
 
   useEffect(() => {
-    getDayLog(today, Intl.DateTimeFormat().resolvedOptions().timeZone)
-      .then((log) =>
-        setSnapshots((list) => [...list.slice(-1), { consumedKcal: log.dayTotal.energyKcal, remaining: log.calorieRemaining, savedCount }]),
-      )
+    if (savedCount === 0) return;
+    getDayEnergy(today)
+      .then((energy) => setSnapshots((list) => [...list.slice(-1), { ...energy, savedCount }]))
       // Harmless: the step still says "Ingredient saved." without the total.
       .catch((error) => console.error("Loading today's total failed", error));
   }, [today, savedCount]);
 
   return snapshots;
-};
-
-// One request, both jobs: the length decides whether the recipe row in `Add a meal` is
-// greyed, and the list itself is handed to the picker, so tapping opens
-// instantly instead of spinning. `reloadCounter` re-runs it after a rename or
-// a delete.
-const useRecipes = (reloadCounter: number): { recipes: RecipeSummary[]; isLoading: boolean } => {
-  const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    listRecipes()
-      .then((list) => {
-        setRecipes(list);
-        setIsLoading(false);
-      })
-      // Harmless: the row stays greyed, which is what a user with no recipes
-      // sees anyway - never a picker that opens onto nothing.
-      .catch((error) => {
-        console.error("Loading recipes failed", error);
-        setIsLoading(false);
-      });
-  }, [reloadCounter]);
-
-  return { recipes, isLoading };
 };
 
 const SAVE_PULSE_SCALE = 1.04;
@@ -143,7 +115,7 @@ const TodayTotal = ({ moment }: { moment: SavedMoment }) => {
         <DayCalorieStat consumedKcal={current.consumedKcal} remaining={current.remaining} reduceMotion={reduceMotion} />
       </motion.div>
       <p aria-live="polite" className="mt-2 min-h-5 tabular-nums text-sm text-text-muted">
-        {addedKcal !== null && `+${addedKcal.toLocaleString()} kcal from this ingredient`}
+        {addedKcal !== null && `+${formatNumber(addedKcal)} kcal from this ingredient`}
       </p>
     </div>
   );
@@ -181,20 +153,8 @@ const renderProductPhotoStep = (
   dispatch: (action: PathAction) => void,
 ) => <ProductNameStep pendingBarcode={step.pendingBarcode} hasRecipes={hasRecipes} dispatch={dispatch} />;
 
-const renderRecipePickStep = (
-  mealId: string,
-  recipes: RecipeSummary[],
-  isLoading: boolean,
-  onRecipesChanged: () => void,
-  onEntered: () => void,
-) => (
-  <RecipePickStep
-    mealId={mealId}
-    recipes={recipes}
-    isLoading={isLoading}
-    onRecipesChanged={onRecipesChanged}
-    onEntered={onEntered}
-  />
+const renderRecipePickStep = (mealId: string, recipes: RecipeSummary[], onEntered: () => void) => (
+  <RecipePickStep mealId={mealId} recipes={recipes} onEntered={onEntered} />
 );
 
 const renderManualNameStep = (
@@ -304,34 +264,25 @@ interface StepViewProps {
   mealId: string;
   moment: SavedMoment;
   recipes: RecipeSummary[];
-  isRecipesLoading: boolean;
-  onRecipesChanged: () => void;
   onEnteredMeal: () => void;
   dispatch: (action: PathAction) => void;
   onSaved: () => void;
   onDone: () => void;
 }
 
-// One case per line, like wizardReducer's switch - delegating each case's
-// JSX to a named render* function keeps the switch scannable as a state
-// map, not a line-count workaround (kept even after the line-count rule
-// was dropped).
-// One branch per wizard step. CLAUDE.md requires a switch here: TypeScript
-// narrows the discriminated union per case, which a Record lookup cannot do
-// without an unsafe cast.
-// Exhaustive switch over a discriminated union scores one per case, and
-// every case here already delegates to a named render* function - there is
-// no un-extracted work left to pull out. Splitting the table across two
-// functions to clear the threshold would fragment the one thing this switch
-// exists to keep scannable: the state map. Same argument wizardReducer's own
-// directive carries; this is the repo's second, not a first exception.
+// One branch per wizard step, one case per line. A switch, not a Record
+// lookup: TypeScript narrows the discriminated union per case, which a lookup
+// cannot do without an unsafe cast. The switch scores one per case, and every
+// case already delegates to a named render* function; splitting the table to
+// clear the threshold would fragment the state map it exists to show. Same
+// argument as wizardReducer's directive - the repo's second exception.
 // eslint-disable-next-line complexity
-const StepView = ({ step, mealId, moment, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal, dispatch, onSaved, onDone }: StepViewProps) => {
+const StepView = ({ step, mealId, moment, recipes, onEnteredMeal, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
-    case "recipe-pick": return renderRecipePickStep(mealId, recipes, isRecipesLoading, onRecipesChanged, onEnteredMeal);
+    case "recipe-pick": return renderRecipePickStep(mealId, recipes, onEnteredMeal);
     case "match-result": return renderMatchResultStep(step, dispatch);
     case "nutrition-photo": return renderNutritionPhotoStep(step, dispatch);
     case "serving-size": return renderServingSizeStep(step, dispatch);
@@ -417,14 +368,13 @@ interface UseCaptureWizardResult {
 }
 
 // Bundles path/save-count state and exit strategy so CaptureWizard's body
-// stays under the line budget.
-const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
+// reads as layout only.
+const useCaptureWizard = (mealId: string, today: string, initialEnergy: DayEnergy | null): UseCaptureWizardResult => {
   const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
   const [savedCount, setSavedCount] = useState(0);
   const step = path[path.length - 1];
-  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const exit = useWizardExit(mealId, savedCount, today);
-  const snapshots = useTodaySnapshots(today, savedCount);
+  const snapshots = useTodaySnapshots(today, savedCount, initialEnergy);
 
   return {
     step,
@@ -441,12 +391,20 @@ const useCaptureWizard = (mealId: string): UseCaptureWizardResult => {
   };
 };
 
-export const CaptureWizard = ({ mealId }: { mealId: string }) => {
+interface CaptureWizardProps {
+  mealId: string;
+  today: string;
+  initialEnergy: DayEnergy | null;
+  // Read on the server and refreshed by every recipe write, so the picker
+  // opens on a list already in hand. Its length decides whether the recipe
+  // row in `Add a meal` is greyed.
+  recipes: RecipeSummary[];
+}
+
+export const CaptureWizard = ({ mealId, today, initialEnergy, recipes }: CaptureWizardProps) => {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
-  const [recipesReload, setRecipesReload] = useState(0);
-  const { recipes, isLoading: isRecipesLoading } = useRecipes(recipesReload);
-  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId);
+  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId, today, initialEnergy);
 
   return (
     <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack} exits={backExits}>
@@ -456,8 +414,6 @@ export const CaptureWizard = ({ mealId }: { mealId: string }) => {
           mealId={mealId}
           moment={moment}
           recipes={recipes}
-          isRecipesLoading={isRecipesLoading}
-          onRecipesChanged={() => setRecipesReload((count) => count + 1)}
           // Entering a recipe, or logging a lazy-tracked meal, is already
           // written, so this leaves the wizard for the meal page rather than
           // landing on the "saved" step - that step means "product saved, add

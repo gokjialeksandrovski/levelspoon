@@ -1,7 +1,7 @@
-// app/src/app/(app)/day/[date]/weight-rail.tsx
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 
 import { slideTransition } from "@/lib/motion/step-transition";
 
@@ -35,13 +35,17 @@ export const WeightRail = ({ railShare, fillShare }: WeightRailProps) => {
         transition={slideTransition(reduceMotion)}
       />
       {/* The marker is what a hold goal has instead of a fill, and what a
-          target goal gains at the head of its fill. */}
+          target goal gains at the head of its fill. It rides the right edge of
+          a full-width layer slid in from the left: x animates on the compositor
+          where left re-lays out, and leftward overflow never adds page scroll. */}
       <motion.div
-        className={`absolute top-1/2 ${MARKER_SIZE_CLASS} -translate-1/2  rounded-full bg-text ring-2 ring-bg`}
+        className="absolute inset-0"
         initial={false}
-        animate={{ left: `${railShare * PERCENT}%` }}
+        animate={{ x: `${(railShare - 1) * PERCENT}%` }}
         transition={slideTransition(reduceMotion)}
-      />
+      >
+        <div className={`absolute top-1/2 right-0 ${MARKER_SIZE_CLASS} translate-x-1/2 -translate-y-1/2 rounded-full bg-text ring-2 ring-bg`} />
+      </motion.div>
     </div>
   );
 };

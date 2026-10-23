@@ -9,8 +9,7 @@ export const productSource = pgEnum("product_source", ["user", "standard"]);
 
 // "whole" = a whole food shown in the no-label search step.
 // "fat" = a cooking oil/butter/spray, the meal-detail cooking-materials filter.
-// Null on user rows. (spec §5 — not in the §4 table; added because §6's
-// searchStandardFoods category filter needs a stored column.)
+// Null on user rows. Stored because searchStandardFoods filters on it.
 export const productCategory = pgEnum("product_category", ["whole", "fat"]);
 
 // ODbL (OFF's license) requires derived-database share-alike; keeping

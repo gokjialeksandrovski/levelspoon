@@ -1,5 +1,5 @@
 // Resolves .venv's Python explicitly so `pnpm run` scripts work regardless of
-// PATH - a system Python with none of the project's deps was resolving first.
+// PATH - a system Python with none of the project's deps can resolve first.
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 

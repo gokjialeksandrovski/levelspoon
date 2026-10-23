@@ -28,7 +28,7 @@ import {
 } from "./meals";
 import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 
-// Every meal now names the day it counts towards, so the tests that are not
+// Every meal names the day it counts towards, so the tests that are not
 // about that day say "today" once here rather than restating it per call.
 const TODAY = todayLocalDateString("UTC");
 const YESTERDAY = addCalendarDays(TODAY, -1);
@@ -500,7 +500,7 @@ describe("getDayLog", () => {
     expect(yesterdayLog.dayTotal.energyKcal).toBeCloseTo(140, 5);
   });
 
-  // The day is a stored calendar date now, so it reads the same wherever the
+  // The day is a stored calendar date, so it reads the same wherever the
   // reader is - a flight does not move a meal to the day before.
   it("reads the same day whatever timezone the request carries", async () => {
     const userId = await seedUser();
@@ -581,6 +581,21 @@ describe("removeMealIngredient", () => {
     await createMeal(TODAY, "UTC");
 
     expect(await db.select().from(mealIngredients).where(eq(mealIngredients.id, mealIngredientId))).toEqual([]);
+  });
+
+  it("drops a meal in the same sweep that purges its last ingredient", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal(TODAY, "UTC");
+    const { mealIngredientId } = await saveMealIngredient({
+      mealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g",
+    });
+    await db.update(mealIngredients).set({ deletedAt: sql`now() - interval '2 days'` }).where(eq(mealIngredients.id, mealIngredientId));
+
+    await createMeal(TODAY, "UTC");
+
+    expect(await db.select().from(meals).where(eq(meals.id, mealId))).toEqual([]);
   });
 
   it("throws NotAuthorizedError when a different user owns the meal", async () => {
@@ -1027,7 +1042,7 @@ describe("getMealDetail recipe link", () => {
     expect(meal?.recipe?.recipeIsSubset).toBe(false);
   });
 
-  // [Finding 3] The recipe survives whole, plus this extra row - the "picked
+  // The recipe survives whole, plus this extra row - the "picked
   // a recipe into a meal that already held something" shape the divergence
   // line must not fire on, even though `matches` is still (correctly) false.
   it("still reports the recipe as a subset once an ingredient is added on top of it", async () => {

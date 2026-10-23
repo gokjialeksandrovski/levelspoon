@@ -4,9 +4,8 @@ import { signUp, truncateAll } from "./support";
 
 // This local dev Postgres persists across runs (it's not re-created per
 // suite), so without this the products table accumulates rows across
-// sessions and pollutes matchProduct's global similarity search - the exact
-// failure mode that already bit the tier-3 suite (capture-flow.spec.ts's
-// beforeEach) before this same fix was applied there.
+// sessions and pollutes matchProduct's global similarity search -
+// capture-flow.spec.ts's beforeEach truncates for the same reason.
 test.beforeEach(async () => {
   await truncateAll();
 });
@@ -32,9 +31,9 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   await expect(page.getByLabel("Carbohydrate (g)")).toHaveValue("4");
   await expect(page.getByLabel("Sugars (g)")).toHaveValue("4");
   await expect(page.getByLabel("Protein (g)")).toHaveValue("9");
-  // The label prints 0.18, and nutrition-fields.ts's toDisplayValue now
-  // rounds to two decimals precisely so a real label figure like this one
-  // reproduces exactly, rather than collapsing to 0.2.
+  // The label prints 0.18, and nutrition-fields.ts rounds to two decimals
+  // precisely so a real label figure like this one reproduces exactly,
+  // rather than collapsing to 0.2.
   await expect(page.getByLabel("Salt (g)")).toHaveValue("0.18");
 
   await page.getByRole("button", { name: "Save product" }).click();
@@ -52,7 +51,7 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
   // 150g at 70kcal/100g = 105 kcal - read this off the ingredient row
   // (IngredientRow's "<qty>g · <kcal> kcal" summary line) and the meal total
   // (MealTotal's "Meal total <kcal> kcal" line), matching the current
-  // meal-detail markup (Task 12/meal-detail.spec.ts's precedent).
+  // meal-detail markup (same as meal-detail.spec.ts).
   await expect(page.getByText(/150 ?g.*105 kcal/)).toBeVisible();
   await expect(page.getByText(/Meal total\s+105 kcal/)).toBeVisible();
 });

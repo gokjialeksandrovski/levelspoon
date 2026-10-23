@@ -9,7 +9,7 @@ Stack, layout, data, routes, env vars, local commands and test setup.
 | `app/` | Next.js 16 (App Router), React 19, TypeScript 5. UI, auth, business logic. |
 | `ocr-service/` | FastAPI + PaddleOCR (Python 3.12). Warm, always-on. |
 | Database | Postgres via Drizzle ORM. Migrations in `app/drizzle/`. |
-| Auth | Auth.js v5, Credentials provider (email/password), JWT sessions. |
+| Auth | Auth.js v5, Credentials providers (email/password; `guest` for demo mode), JWT sessions. |
 | Photo storage | One S3-compatible client (`app/src/lib/s3.ts`). MinIO locally. `S3_ENDPOINT` only difference between environments, no branching in app code. Prod host undecided (`docs/ROADMAP.md`). |
 | AI | Gemini, direct call, pinned model. Two jobs only (see CLAUDE.md). |
 
@@ -33,7 +33,7 @@ Nothing deployed. No CI.
 | `app/` | Routing shell. Route-specific UI colocates in its route folder (capture wizard steps, day and meal views) until a second route needs it. |
 | `features/<domain>/actions/` | Server Actions, `*.utils.ts` (pure maths), `*.store.ts` (userId-taking DB writers, no `"use server"`). Domains: `auth`, `goals`, `intake`, `lazy-track`, `meals`, `products` (incl. `ocr.ts`), `quantity`, `recipes`, `weight`. |
 | `components/ui/` | Dumb presentational primitives. Never import `features/`. |
-| `components/layout/` | Global chrome: `app-header.tsx`, `theme-toggle.tsx`, `install-app-button.tsx` (PWA install; manifest in `app/manifest.ts`). Never import `features/`. |
+| `components/layout/` | Global chrome: `app-header.tsx`, `theme-toggle.tsx`, `install-app-button.tsx` (PWA install; manifest in `app/manifest.ts`), `timezone-refresh.tsx`. Never import `features/`. |
 | `lib/` | Shared infra: `db/` (schema, search text, photo keys, effective nutrition), `measures/`, `nutrition/`, `ocr/`, `quantity/`, `meal-estimate/`, `barcode/`, `gemini/`, `theme/`, `date/`, `s3.ts`. Never imports `features/` or `app/`. |
 | `types/` | Cross-domain shared types (`NutritionValues`) |
 
@@ -43,20 +43,43 @@ Import boundaries are ESLint-enforced (`app/eslint.config.mjs`, vendored `app/cl
 
 | Route | Page |
 |---|---|
-| `/` | Client redirect to `/day/<today local>` |
+| `/` | Server redirect to `/day/<today local>` |
 | `/day/[date]` | Day view: kcal hero, macros, meal list, weight row (today only), new-meal bar |
 | `/meals/[mealId]` | Meal detail, recipe controls |
 | `/meals/[mealId]/capture` | Capture wizard: add ingredient (photo, barcode, name search, standard food, recipe, lazy track) |
 | `/products/[productId]/correct` | Per-user nutrition override / label proof |
 | `/history` | One row per logged day, month groups, week summary |
 | `/calories/estimate` | Intake estimate, reached only from goal sheet |
-| `/dev/barcode-scanner` | Dev harness for `BarcodeScanner` |
 | `/signin`, `/signup` | Credentials auth |
+| `/demo` | Demo disclaimer, starts guest session |
 | `/api/auth/[...nextauth]` | Auth.js handler |
 
 ## Server/client boundary
 
-Server Actions only path from browser to Postgres, storage or Gemini. Files under `app/src/lib/db/`, `app/src/lib/s3.ts`, `app/src/features/*/actions/*`, `app/src/auth.ts` start with `"use server"` or are imported only by files that do. `*.store.ts` files take a userId and carry no `"use server"`: exposing one as an action would let a browser write any user's rows.
+Server Actions only path from browser to Postgres, storage or Gemini. Files under `app/src/lib/db/`, `app/src/lib/s3.ts`, `app/src/features/*/actions/*`, `app/src/auth.ts` start with `"use server"` or are imported only by files that do. `*.store.ts` files take a userId and carry no `"use server"`: exposing one as an action would let a browser read or write any user's rows. Every export of a `"use server"` file is a callable endpoint, so a userId-taking reader (`fetchCalorieGoal`, `fetchWeightView`) lives in a store too.
+
+## Data loading
+
+- **Page reads run on server.** Day, meal, history, capture and intake pages read in `page.tsx` and pass data down. Never a Server Action called from `useEffect` on mount: Next dispatches actions one at a time per client, so mount reads queue behind each other and behind any save.
+- **Day, meal, history stream.** Page starts read, passes unresolved promise (`DayLoad`, `MealLoad`, `HistoryLoad`) to client view, which `use()`s it under `Suspense` with `DelayedFallback`. Failed read resolves to `{ status: "error" }`, never rejects. `LiveStatus` sits outside boundary: live region must exist before its text changes.
+- **Capture and intake await** both reads with `Promise.all`; each is a convenience, so a failure degrades to null/empty.
+- **Writes call `refresh()`** (`next/cache`) when a page shows their data: meal ingredient writes, `restoreMeal`, goals, weight, intake save, recipe writes, `logLazyMeal`. Open page re-renders in same response and client cache drops every other page, so Back never lands on pre-write figures. No client reload callbacks. `deleteMeal` does not refresh: it navigates away, and refresh would first repaint meal as not found. Product corrections refresh client-side (`router.refresh()` in `correction-form.tsx`), keyed remount there depends on it. Vitest mocks `next/cache` in `vitest.setup.ts`.
+- Reads triggered by interaction stay client actions: load-more history, recent amounts, search, `getDayEnergy` after a capture save.
+
+## Bundle
+
+- Animated elements use `motion/react-m` (imported as `motion`). `LazyMotion strict` in `providers.tsx` loads `domMax` (`lib/motion/features.ts`) after first paint and throws on a full `motion` component.
+- Tap-only sheets: `Sheet` renders nothing until first open, then stays mounted for close transition. Large sheets (`GoalSheet`, `WeightGoalSheet`, `EditRecipeSheet`, `SaveRecipeSheet`) load through `next/dynamic` and mount on first open (open token > 0).
+
+## Demo mode
+
+Guest = `users` row with `is_guest`, signed in by `guest` provider (`app/src/auth.ts`); `session.user.isGuest` carries it. Server enforces, UI only hides:
+
+- `requireAccountUserId` (`app/src/lib/auth/require-user.ts`) refuses guests: `estimateQuantity`, `estimateMeal`, `logLazyMeal`, `linkBarcode`, `attachLabelProof`.
+- `createProduct` drops photo and barcode, `saveNutritionOverride` drops claim photo: guest rows stay private by `visibleToUser`.
+- `ocrProductName` / `ocrNutritionTable` take a scan from `demo_quota` (`app/src/lib/db/demo-quota.ts`) for guests, else return `demo-limit`. Per-IP and all-guests counters, plus per-IP demo starts. IP keyed by HMAC with `AUTH_SECRET`.
+- Limits in `app/src/lib/demo/limits.ts`, printed by `DemoTerms` (`features/demo/components/`). Change both sides together.
+- Client reads guest flag via `useIsGuest`; root layout seeds `SessionProvider` so first paint is right.
 
 ## Provider seams
 
@@ -89,6 +112,8 @@ Template: `.env.example` (git-tracked, placeholders only). App reads `app/.env.l
 ## Time model
 
 Day boundaries are user's **local** calendar day (browser IANA timezone, per request), never server UTC day.
+
+Timezone reaches server components through `levelspoon-tz` cookie, written by blocking `TIMEZONE_INIT_SCRIPT` in root layout `<head>` on every full load (`lib/date/timezone-cookie.ts`). `requestTimezone()` (`lib/date/request-timezone.ts`) reads and validates it; unknown zone counts as missing. Page needing "today" renders `TimezoneRefresh` when cookie missing (first request before script ran): it calls `router.refresh()` once cookie exists. Server Actions still take timezone as argument from browser.
 
 `meals.log_date` is day a meal counts towards: browser's local date when meal started, stored, never derived from `created_at`. Every day read filters on it: `getDayLog`, `getDayHistory`, `dailyKcalTotals`, meal numbering. `created_at` means only "when row written": ordering inside a day, `recentAmounts`, soft-delete sweep. Stored because a meal eaten yesterday can be entered today, and a timestamp cannot tell those apart. A day reads the same wherever reader is.
 

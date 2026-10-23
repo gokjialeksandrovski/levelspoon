@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, integer, pgEnum, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, integer, pgEnum, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 // Display preference, not storage: every weight column stays kg, and this
 // decides which unit the figures are entered and printed in. One field with
@@ -17,6 +17,10 @@ export const users = pgTable("user", {
   emailVerified: timestamp("email_verified", { mode: "date" }),
   image: text("image"),
   passwordHash: text("password_hash"),
+  // Demo-mode user: no password, placeholder email, signed in through the
+  // "guest" provider. Every action runs on the row unchanged; the few that
+  // would share data or spend money refuse it (lib/auth/require-user.ts).
+  isGuest: boolean("is_guest").default(false).notNull(),
   // Null until the user sets one - home page falls back to consumed-only
   // display (no target concept) until then.
   dailyCalorieGoal: integer("daily_calorie_goal"),

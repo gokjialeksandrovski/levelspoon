@@ -1,21 +1,22 @@
 "use client";
 
 import { XIcon } from "@phosphor-icons/react";
-import { motion, useDragControls, useReducedMotion, type HTMLMotionProps, type PanInfo } from "motion/react";
+import { useDragControls, useReducedMotion, type HTMLMotionProps, type PanInfo } from "motion/react";
+import * as motion from "motion/react-m";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 
-import { getDayLog, restoreMeal } from "@/features/meals/actions/meals";
+import { restoreMeal } from "@/features/meals/actions/meals";
 import type { DayLog } from "@/features/meals/actions/meals";
 import { AppHeader } from "@/components/layout/app-header";
 import { Button } from "@/components/ui/button";
+import { DelayedFallback } from "@/components/ui/delayed-fallback";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LiveStatus } from "@/components/ui/live-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ICON_ROW_EDGE_PULL_RIGHT, ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
-import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
+import { addCalendarDays } from "@/lib/date/day-bounds";
 import { contentFadeInitial, contentFadeTransition, slideInitial, slideTransition } from "@/lib/motion/step-transition";
-import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
 
 import { CalorieHero } from "./calorie-hero";
 import { DayActionBar } from "./day-action-bar";
@@ -23,35 +24,17 @@ import { DayEmptyState } from "./day-empty-state";
 import { MealList } from "./meal-list";
 import { WeightRow } from "./weight-row";
 
+// Read on the server and handed down unresolved, so the page shell paints at
+// once and the day streams in. A failed read resolves to "error" rather than
+// rejecting: the view keeps its header and action bar and says so inline.
+export type DayLoad = { status: "ready"; log: DayLog } | { status: "error" };
+
 interface DayViewProps {
   date: string;
+  today: string;
   deletedMealId: string | null;
+  load: Promise<DayLoad>;
 }
-
-type DayViewState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; log: DayLog; isToday: boolean };
-
-// setState only inside .then/.catch, never synchronously in the effect body -
-// react-hooks/set-state-in-effect flags that as an error even for a "reset to
-// loading" call.
-const useDayLog = (date: string, reloadCounter: number): DayViewState => {
-  const [state, setState] = useState<DayViewState>({ status: "loading" });
-
-  const load = useCallback(() => {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    getDayLog(date, timezone)
-      .then((log) => setState({ status: "ready", log, isToday: date === todayLocalDateString(timezone) }))
-      .catch(() => setState({ status: "error" }));
-  }, [date]);
-
-  useEffect(() => {
-    load();
-  }, [load, reloadCounter]);
-
-  return state;
-};
 
 interface DeletedMeal {
   mealId: string | null;
@@ -63,7 +46,7 @@ interface DeletedMeal {
 
 // The id is copied into state and the ?deleted= param dropped from the URL at
 // once, so a reload or a shared link never offers Undo for a stale delete.
-const useDeletedMeal = (date: string, deletedMealId: string | null, onRestored: () => void): DeletedMeal => {
+const useDeletedMeal = (date: string, deletedMealId: string | null): DeletedMeal => {
   const [mealId, setMealId] = useState(deletedMealId);
   const [isRestoring, setIsRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,11 +59,9 @@ const useDeletedMeal = (date: string, deletedMealId: string | null, onRestored: 
     if (!mealId) return;
     setIsRestoring(true);
     setError(null);
+    // restoreMeal refreshes the route itself, so the meal reappears with it.
     restoreMeal(mealId)
-      .then(() => {
-        setMealId(null);
-        onRestored();
-      })
+      .then(() => setMealId(null))
       .catch(() => setError("Couldn't bring the meal back. Try again."))
       .finally(() => setIsRestoring(false));
   };
@@ -124,16 +105,6 @@ const DeletedMealNotice = ({ deleted }: { deleted: DeletedMeal }) => {
   );
 };
 
-// A future day has nothing to log and the header offers no way forward to it,
-// so a typed or stale URL lands on today instead of an empty tomorrow.
-const useFutureDayRedirect = (date: string): void => {
-  const router = useRouter();
-  useEffect(() => {
-    const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    if (date > today) router.replace(`/day/${today}`);
-  }, [date, router]);
-};
-
 // Only the kcal stat placeholder, the one piece whose size never depends on
 // the day's data - a guessed macro/meal-row shape collapsed on arrival of
 // real (often emptier) data, a jump-cut rather than a loading state.
@@ -142,30 +113,37 @@ const DayViewSkeleton = () => <Skeleton className="h-11 w-32" />;
 interface DayViewReadyProps {
   log: DayLog;
   isToday: boolean;
+  today: string;
   deleted: DeletedMeal;
 }
 
-const DayViewReady = ({ log, isToday, deleted }: DayViewReadyProps) => (
+const DayViewReady = ({ log, isToday, today, deleted }: DayViewReadyProps) => (
   <>
     <CalorieHero total={log.dayTotal} fibreCoverage={log.dayFibreCoverage} initialGoal={log.calorieGoal} initialTargets={log.macroTargets} />
     {/* Today only, and outside DayMacros' zero-macro early return: a weight
         goal is about weeks and does not disappear on a day with no meals. */}
-    {isToday && <WeightRow initialView={log.weight} today={todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone)} />}
+    {isToday && <WeightRow initialView={log.weight} today={today} />}
     <DeletedMealNotice deleted={deleted} />
     {log.meals.length === 0 ? <DayEmptyState isToday={isToday} /> : <MealList meals={log.meals} />}
   </>
 );
 
-// Skeleton only shows past useDelayedSkeleton's fast-load threshold, so a
-// quick fetch fades straight to real content instead of flashing a
-// placeholder that's about to be wrong.
-const DayViewBody = ({ state, deleted }: { state: DayViewState; deleted: DeletedMeal }) => {
-  const reduceMotion = useReducedMotion();
-  const showSkeleton = useDelayedSkeleton(state.status === "loading");
+interface DayContentProps {
+  load: Promise<DayLoad>;
+  isToday: boolean;
+  today: string;
+  deleted: DeletedMeal;
+  onLoaded: (isLoaded: boolean) => void;
+}
 
-  if (state.status === "loading") {
-    return showSkeleton ? <DayViewSkeleton /> : null;
-  }
+// Fades in once, on first reveal. A refresh after a write hands down a new
+// promise, but inside a transition, so the day on screen stays until the
+// new one is ready and nothing remounts.
+const DayContent = ({ load, isToday, today, deleted, onLoaded }: DayContentProps) => {
+  const result = use(load);
+  const reduceMotion = useReducedMotion();
+  const isReady = result.status === "ready";
+  useEffect(() => onLoaded(isReady), [isReady, onLoaded]);
 
   return (
     <motion.div
@@ -173,10 +151,10 @@ const DayViewBody = ({ state, deleted }: { state: DayViewState; deleted: Deleted
       animate={{ opacity: 1 }}
       transition={contentFadeTransition(reduceMotion)}
     >
-      {state.status === "error" ? (
+      {result.status === "error" ? (
         <InlineMessage tone="error">Could not load this day. Please try again.</InlineMessage>
       ) : (
-        <DayViewReady log={state.log} isToday={state.isToday} deleted={deleted} />
+        <DayViewReady log={result.log} isToday={isToday} today={today} deleted={deleted} />
       )}
     </motion.div>
   );
@@ -241,7 +219,9 @@ const useDaySwipe = (date: string, today: string, reduceMotion: boolean | null):
 };
 
 interface DaySlideProps {
-  state: DayViewState;
+  load: Promise<DayLoad>;
+  isToday: boolean;
+  today: string;
   deleted: DeletedMeal;
   reduceMotion: boolean | null;
   swipe: SwipeProps;
@@ -250,39 +230,43 @@ interface DaySlideProps {
 // Slide timing lives in lib/motion/step-transition.ts, shared with the
 // wizard. id/tabIndex are the skip link's landing target. touch-action keeps
 // vertical scroll and pinch-zoom native; only the horizontal pan is handled.
-const DaySlide = ({ state, deleted, reduceMotion, swipe }: DaySlideProps) => (
-  <motion.main
-    id="main-content"
-    tabIndex={-1}
-    className="flex-1 touch-pan-y touch-pinch-zoom px-4 py-6 focus:outline-none"
-    {...swipe}
-    initial={slideInitial(reduceMotion)}
-    animate={{ opacity: 1, x: 0 }}
-    transition={slideTransition(reduceMotion)}
-  >
-    {/* The skeleton -> content swap is silent otherwise: the error branch
-        announces through InlineMessage's role="alert", the ready one had
-        nothing. */}
-    <LiveStatus message={state.status === "ready" ? "Day loaded" : ""} />
-    <DayViewBody state={state} deleted={deleted} />
-  </motion.main>
-);
+// LiveStatus sits outside the Suspense boundary: a live region has to exist
+// before its text changes, and the content mounts only once the day is read.
+const DaySlide = ({ load, isToday, today, deleted, reduceMotion, swipe }: DaySlideProps) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <motion.main
+      id="main-content"
+      tabIndex={-1}
+      className="flex-1 touch-pan-y touch-pinch-zoom px-4 py-6 focus:outline-none"
+      {...swipe}
+      initial={slideInitial(reduceMotion)}
+      animate={{ opacity: 1, x: 0 }}
+      transition={slideTransition(reduceMotion)}
+    >
+      {/* The skeleton -> content swap is silent otherwise: the error branch
+          announces through InlineMessage's role="alert", the ready one had
+          nothing. */}
+      <LiveStatus message={isLoaded ? "Day loaded" : ""} />
+      <Suspense fallback={<DelayedFallback><DayViewSkeleton /></DelayedFallback>}>
+        <DayContent load={load} isToday={isToday} today={today} deleted={deleted} onLoaded={setIsLoaded} />
+      </Suspense>
+    </motion.main>
+  );
+};
 
 // Keyed on `date` so day navigation remounts DaySlide and replays its slide.
 // Action bar sits outside it: stays pinned while content slides underneath.
-export const DayView = ({ date, deletedMealId }: DayViewProps) => {
-  useFutureDayRedirect(date);
-  const [reloadCounter, setReloadCounter] = useState(0);
-  const state = useDayLog(date, reloadCounter);
-  const deleted = useDeletedMeal(date, deletedMealId, () => setReloadCounter((count) => count + 1));
+export const DayView = ({ date, today, deletedMealId, load }: DayViewProps) => {
+  const deleted = useDeletedMeal(date, deletedMealId);
   const reduceMotion = useReducedMotion();
-  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const swipe = useDaySwipe(date, today, reduceMotion);
 
   return (
     <>
-      <AppHeader variant="day" date={date} />
-      <DaySlide key={date} state={state} deleted={deleted} reduceMotion={reduceMotion} swipe={swipe} />
+      <AppHeader variant="day" date={date} today={today} />
+      <DaySlide key={date} load={load} isToday={date === today} today={today} deleted={deleted} reduceMotion={reduceMotion} swipe={swipe} />
       <DayActionBar date={date} today={today} />
     </>
   );

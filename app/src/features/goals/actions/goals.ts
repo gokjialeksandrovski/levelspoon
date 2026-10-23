@@ -1,32 +1,16 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { refresh } from "next/cache";
 
 import { requireUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
 import { InvalidCalorieGoalError, InvalidMacroTargetsError } from "./goals.errors";
+import { fetchCalorieGoal } from "./goals.store";
 import { isValidCalorieGoal } from "./goals.utils";
 import { isValidMacroTargets, type MacroTargets } from "./macro-targets.utils";
-
-// Exported (not just internal) so meals.ts can pull a goal alongside a day's
-// totals without a second requireUserId() round trip - the caller already
-// knows which user it's fetching for.
-export const fetchCalorieGoal = async (userId: string): Promise<number | null> => {
-  const [row] = await db.select({ dailyCalorieGoal: users.dailyCalorieGoal }).from(users).where(eq(users.id, userId));
-  return row?.dailyCalorieGoal ?? null;
-};
-
-// The unit CHECK guarantees a unit exactly when some macro is tracked.
-export const fetchMacroTargets = async (userId: string): Promise<MacroTargets | null> => {
-  const [row] = await db
-    .select({ unit: users.macroTargetUnit, protein: users.macroProtein, carbs: users.macroCarbs, fat: users.macroFat })
-    .from(users)
-    .where(eq(users.id, userId));
-  if (!row || row.unit === null) return null;
-  return { unit: row.unit, values: { protein: row.protein, carbs: row.carbs, fat: row.fat } };
-};
 
 export const getCalorieGoal = async (): Promise<number | null> => {
   const userId = await requireUserId();
@@ -70,4 +54,5 @@ export const saveDailyGoals = async (goal: number | null, targets: MacroTargets 
       ...targetColumns(targets),
     })
     .where(eq(users.id, userId));
+  refresh();
 };

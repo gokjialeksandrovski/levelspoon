@@ -13,7 +13,7 @@ vi.mock("@/features/products/actions/products", () => ({
 // Reached through the proof disclosure this form renders: barcode.ts pulls
 // next-auth in, which will not resolve under the node test env either.
 vi.mock("@/features/products/actions/barcode", () => ({ linkBarcode: vi.fn(), lookupBarcode: vi.fn() }));
-vi.mock("@/components/ui/barcode-scanner", () => ({ readBarcodeFromPhoto: vi.fn() }));
+vi.mock("@/lib/barcode/read-photo", () => ({ readBarcodeFromPhoto: vi.fn() }));
 vi.mock("@/lib/haptics/log-success", () => ({ triggerLogSuccessHaptic: vi.fn() }));
 
 import { validateNutrition } from "@/features/products/actions/ocr";

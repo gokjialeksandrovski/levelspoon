@@ -35,9 +35,9 @@ const isNonNegative = (value: unknown): value is number => typeof value === "num
 
 // Fibre excluded on purpose: EU-style carbohydrateG already excludes it, and
 // US-style carbohydrateG already includes it, so EU carbs + fibre <= US total
-// carbs always holds. Summing fibre again on top of a US-style reply
-// double-counted it and dropped real foods - peanut butter (fat 50, carbs 20
-// incl. 6 fibre, protein 25) is 95 g, not the 101 g the old sum read.
+// carbs always holds. Summing fibre again on top of a US-style reply would
+// double-count it and drop real foods - peanut butter (fat 50, carbs 20
+// incl. 6 fibre, protein 25) is 95 g, not 101 g.
 const massPer100g = (figures: NutritionValues): number => figures.fatG + figures.carbohydrateG + figures.proteinG;
 
 const crossFieldsArePlausible = (figures: NutritionValues): boolean =>

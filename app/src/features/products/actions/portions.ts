@@ -59,6 +59,8 @@ export const clearPortionGrams = async (productId: string, portionLabel: string)
  */
 export const getPortions = async (productId: string): Promise<readonly Portion[]> => {
   const userId = await requireUserId();
+  // Auth gate runs before any read, so an anonymous request costs no query.
+  // eslint-disable-next-line clean-code/no-sequential-independent-await
   const [row] = await db
     .select({
       nameSearch: products.nameSearch,

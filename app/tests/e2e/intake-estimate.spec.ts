@@ -57,7 +57,7 @@ test("answers are kept only with consent, and come back prefilled", async ({ pag
   await signUp(page);
   await openEstimate(page);
   await fillRequired(page);
-  await page.getByLabel("Save my answers so I don't have to enter them again.").check();
+  await page.getByLabel("Save my answers so I don’t have to enter them again.").check();
   await page.getByRole("button", { name: "Use 2,320" }).click();
   await expect(page.getByRole("button", { name: "Goal: 2,320" })).toBeVisible();
 
@@ -96,7 +96,7 @@ test("forgetting deletes the stored answers after a confirm", async ({ page }) =
   await signUp(page);
   await openEstimate(page);
   await fillRequired(page);
-  await page.getByLabel("Save my answers so I don't have to enter them again.").check();
+  await page.getByLabel("Save my answers so I don’t have to enter them again.").check();
   await page.getByRole("button", { name: "Use 2,320" }).click();
   await expect(page.getByRole("button", { name: "Goal: 2,320" })).toBeVisible();
 

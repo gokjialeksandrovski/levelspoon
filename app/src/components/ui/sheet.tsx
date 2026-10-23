@@ -1,7 +1,7 @@
 "use client";
 
 import { XIcon } from "@phosphor-icons/react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 interface SheetProps {
   open: boolean;
@@ -35,8 +35,8 @@ const useDialogSync = (ref: React.RefObject<HTMLDialogElement | null>, open: boo
 // is the settled state, and @starting-style supplies the entrance's first
 // frame. The exit needs transition-discrete on `display` and `overlay` too -
 // close() drops the open attribute, and without allow-discrete the UA's
-// `display: none` and the top-layer exit both land on frame one, which is
-// what made dismissing instant no matter what transform was declared.
+// `display: none` and the top-layer exit both land on frame one, which
+// makes dismissing instant no matter what transform is declared.
 // open:flex (not bare flex) is required: a bare `flex` would beat the UA's
 // `dialog:not([open]){display:none}` and leave the closed sheet clickable.
 const DIALOG_CLASS =
@@ -77,7 +77,7 @@ const SheetBody = ({ titleId, title, children, footer, onClose }: Pick<SheetProp
         scroll it. */}
     <div
       tabIndex={footer ? 0 : undefined}
-      className="-m-1 min-h-0 flex-1 overflow-y-auto p-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
+      className="-m-1 min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 scrollbar-none [&::-webkit-scrollbar]:hidden"
     >
       {children}
     </div>
@@ -85,12 +85,24 @@ const SheetBody = ({ titleId, title, children, footer, onClose }: Pick<SheetProp
   </>
 );
 
+// Nothing renders until the first open: a sheet opens only on a tap, so its
+// body is not built on every render of the page behind it. After that it
+// stays mounted, which is what lets the close transition play.
+const useWasShown = (open: boolean): boolean => {
+  const [wasShown, setWasShown] = useState(open);
+  if (open && !wasShown) setWasShown(true);
+  return wasShown || open;
+};
+
 export const Sheet = ({ open, onClose, title, children, footer }: SheetProps) => {
   const ref = useRef<HTMLDialogElement>(null);
   // showModal() gives the element role="dialog"; without this the title is
   // just text inside it and the dialog announces with no name (WCAG 4.1.2).
   const titleId = useId();
+  const wasShown = useWasShown(open);
   useDialogSync(ref, open);
+
+  if (!wasShown) return null;
 
   return (
     <dialog

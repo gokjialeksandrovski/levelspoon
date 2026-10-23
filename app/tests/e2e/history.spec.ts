@@ -1,4 +1,3 @@
-// app/tests/e2e/history.spec.ts
 import { expect, test } from "@playwright/test";
 import { eq } from "drizzle-orm";
 

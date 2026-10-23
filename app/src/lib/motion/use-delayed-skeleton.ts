@@ -1,7 +1,8 @@
-// Shared by the day view and history: both used to show a skeleton shaped
-// like a guess at the data, then jump-cut to the real, usually smaller
-// shape the instant a fast fetch resolved. Delaying it past a threshold
-// means the common fast case shows nothing and fades straight to real content.
+// Shared by DelayedFallback (day, meal, history) and the amount chips. A
+// skeleton shaped like a guess at the data jump-cuts to the real, usually
+// smaller shape the instant a fast fetch resolves; delaying it past a
+// threshold means the common fast case shows nothing and fades straight to
+// real content.
 "use client";
 
 import { useEffect, useState } from "react";

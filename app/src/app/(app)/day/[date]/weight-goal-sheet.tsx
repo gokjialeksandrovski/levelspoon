@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/weight-goal-sheet.tsx
 "use client";
 
 import { useState } from "react";

@@ -1,4 +1,3 @@
-// app/src/app/(app)/day/[date]/weight-row.utils.test.ts
 import { describe, expect, it } from "vitest";
 
 import type { WeightGoal } from "@/features/weight/actions/weight.utils";

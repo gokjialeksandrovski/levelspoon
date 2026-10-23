@@ -3,6 +3,7 @@
 import { PencilSimpleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 
+import { DEMO_SCAN_LIMIT_MESSAGE } from "@/features/demo/demo.messages";
 import { ocrNutritionTable } from "@/features/products/actions/ocr";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
@@ -78,6 +79,11 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
         setError(photoReuseError(read.ownerName));
         return;
       }
+      if (read.kind === "demo-limit") {
+        setPhoto(null);
+        setError(DEMO_SCAN_LIMIT_MESSAGE);
+        return;
+      }
       if (read.kind === "needs-serving-size") {
         dispatch({ type: "SERVING_SIZE_NEEDED", servingSizeText: read.servingSizeText, perServing: read.perServing, name: nameGuess, photo: selected, prefillGrams: read.prefillGrams, unitName: read.unitName, pendingBarcode });
         return;
@@ -110,7 +116,7 @@ const FRAMING_HINT = "Fit the whole table in the photo, headings included.";
 // "per 100g" as the only label that does. With no printed weight, the
 // serving-size step asks for it.
 const PER_SERVING_NOTE =
-  'Per-serving tables work too. If the serving shows its weight, like "1 bar (40g)", we convert it to per 100g. If not, we ask you for it.';
+  'Per-serving tables work too. If the serving shows its weight, like “1 bar (40g)”, we convert it to per 100g. If not, we ask you for it.';
 
 // Said where the choice is made, not after the save. Shown only when it is
 // true: visibleToUser (products.ts) shares a row that has either a label
@@ -138,7 +144,7 @@ export const NutritionPhotoStep = ({ nameGuess, netWeightText, pendingBarcode, d
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">{nameGuess}</h2>
+        <h2 className="wrap-break-word text-lg font-semibold">{nameGuess}</h2>
         <p className="text-sm text-text-muted">Take a photo of its nutrition table.</p>
       </div>
       <div className="flex flex-col gap-3">

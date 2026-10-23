@@ -15,7 +15,10 @@ interface FieldProps {
   flagged?: boolean;
   inputMode?: "numeric" | "decimal" | "text";
   helperText?: string;
+  /** Defaults to "off": a product field named `name` otherwise gets the
+   * user's own name offered by autofill. Auth fields pass a real token. */
   autoComplete?: string;
+  spellCheck?: boolean;
   autoFocus?: boolean;
   /** Keeps the value focusable and announced while refusing edits - the
    * state a field earns when its helperText explains why it cannot change. */
@@ -99,7 +102,7 @@ const FieldMessage = ({ name, helperText, error, flagged }: FieldMessageProps) =
 
 export const Field = ({
   label, name, type = "text", defaultValue, value, onChange, onBlur,
-  required = false, minLength, maxLength, error, flagged = false, inputMode, helperText, autoComplete, autoFocus = false,
+  required = false, minLength, maxLength, error, flagged = false, inputMode, helperText, autoComplete = "off", spellCheck, autoFocus,
   readOnly = false,
   trailing,
   trailingReserveClass = DEFAULT_TRAILING_RESERVE,
@@ -115,6 +118,7 @@ export const Field = ({
         type={type}
         inputMode={inputMode}
         autoComplete={autoComplete}
+        spellCheck={spellCheck}
         // True only when a caller mounts this in direct response to a user action
         // (e.g. ingredient row's inline Edit) - never a page-load focus steal.
         autoFocus={autoFocus}

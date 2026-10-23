@@ -35,6 +35,7 @@ import {
   type WeightUnit,
 } from "@/features/weight/actions/weight.utils";
 import { addCalendarDays } from "@/lib/date/day-bounds";
+import { formatNumber } from "@/lib/nutrition/format-number";
 
 export type MetabolismDirection = "up" | "down";
 
@@ -410,16 +411,13 @@ export const hasSharpenAnswers = (draft: IntakeDraft): boolean =>
   draft.metabolismCondition ||
   draft.currentIntakeDraft !== "";
 
-// en-GB, not the browser default, so a figure reads the same in every test
-// run and on every device ("2,320", never "2.320").
-const KCAL_FORMAT = new Intl.NumberFormat("en-GB");
 const DAY_MONTH_FORMAT = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "long",
   timeZone: "UTC",
 });
 
-const kcalText = (kcal: number): string => KCAL_FORMAT.format(roundKcal(kcal));
+const kcalText = (kcal: number): string => formatNumber(roundKcal(kcal));
 
 // U+2212, the same minus the weight panel prints for a signed change.
 const signedKcalText = (kcal: number): string =>
@@ -444,10 +442,9 @@ export const REFUSAL_TEXT: Record<RefusalReason, string> = {
     "This estimate doesn't cover pregnancy or breastfeeding. Your midwife or doctor can give you a figure.",
 };
 
-// The last sentence describes the measured burn (spec 2026-09-23). It used to
-// say "about 2 weeks", which that spec's §4.7 shows is not enough for most
-// users to clear the error ceiling - the copy was corrected rather than the
-// ceiling loosened.
+// The last sentence describes the measured burn. Not "about 2 weeks": spec
+// 2026-09-23 §4.7 shows that is not enough for most users to clear the error
+// ceiling, and the ceiling stays where it is.
 export const DISCLAIMER_TEXT =
   "An estimate from published formulas, not medical advice. Real needs can differ by 10% or more. Log your meals and weight for a few weeks and the app will work out your real calorie burn from them.";
 

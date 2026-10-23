@@ -22,7 +22,7 @@ test("empty today and empty past day show distinct copy", async ({ page }) => {
 });
 
 test("a seeded single-ingredient meal renders as its ingredient's name, with its total", async ({ page }) => {
-  // Ruling F10: local inline signup (mirrors history.spec.ts) because this test
+  // Local inline signup (mirrors history.spec.ts) because this test
   // needs the created user's id afterward - the shared signUp() doesn't return it.
   const email = freshEmail("e2e-day");
   await page.goto("/signup");

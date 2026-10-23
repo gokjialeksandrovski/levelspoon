@@ -1,45 +1,50 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 
 import { getDayHistory } from "@/features/meals/actions/meals";
+import { HISTORY_PAGE_SIZE } from "@/features/meals/actions/meals.utils";
 import type { DayHistoryEntry, DayHistoryPage } from "@/features/meals/actions/meals";
 import { calorieRemaining } from "@/features/goals/actions/goals.utils";
 import type { CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import { AppHeader } from "@/components/layout/app-header";
 import { Button, buttonClassName } from "@/components/ui/button";
+import { DelayedFallback } from "@/components/ui/delayed-fallback";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LiveStatus } from "@/components/ui/live-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FOCUS_RING } from "@/components/ui/tap-target";
-import { todayLocalDateString } from "@/lib/date/day-bounds";
 import { formatDayLabel } from "@/lib/date/format";
 import { contentFadeInitial, contentFadeTransition } from "@/lib/motion/step-transition";
-import { useDelayedSkeleton } from "@/lib/motion/use-delayed-skeleton";
+import { formatNumber } from "@/lib/nutrition/format-number";
 
-import { toHistoryMonths, weekSummary } from "./history.utils";
+import { HISTORY_PAGES_PARAM, toHistoryMonths, weekSummary } from "./history.utils";
 import type { HistoryMonth, HistoryRow, WeekDay, WeekSummary } from "./history.utils";
 
-type HistoryState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; entries: DayHistoryEntry[]; nextOffset: number | null; calorieGoal: number | null };
+// The first page is read on the server and handed down unresolved; a failed
+// read resolves to "error" rather than rejecting.
+export type HistoryLoad = { status: "ready"; page: DayHistoryPage } | { status: "error" };
 
-const firstPage = (page: DayHistoryPage): HistoryState => ({
-  status: "ready",
-  entries: page.entries,
-  nextOffset: page.nextOffset,
-  calorieGoal: page.calorieGoal,
-});
+interface HistoryState {
+  entries: DayHistoryEntry[];
+  nextOffset: number | null;
+  calorieGoal: number | null;
+}
 
 const appendPage = (previous: HistoryState, page: DayHistoryPage): HistoryState => ({
-  status: "ready",
-  entries: previous.status === "ready" ? [...previous.entries, ...page.entries] : page.entries,
+  entries: [...previous.entries, ...page.entries],
   nextOffset: page.nextOffset,
   calorieGoal: page.calorieGoal,
 });
+
+// The native call, not router.replace: Next syncs it without a server
+// round-trip, so the rows on screen stay put. Back then reloads this depth.
+const recordLoadedPages = (loadedThrough: number): void => {
+  window.history.replaceState(null, "", `?${HISTORY_PAGES_PARAM}=${Math.ceil(loadedThrough / HISTORY_PAGE_SIZE)}`);
+};
 
 interface UseHistoryStateResult {
   state: HistoryState;
@@ -48,22 +53,20 @@ interface UseHistoryStateResult {
   loadMoreFailed: boolean;
 }
 
-const useHistoryState = (): UseHistoryStateResult => {
-  const [state, setState] = useState<HistoryState>({ status: "loading" });
+const useHistoryState = (firstPage: DayHistoryPage): UseHistoryStateResult => {
+  const [state, setState] = useState<HistoryState>({
+    entries: firstPage.entries,
+    nextOffset: firstPage.nextOffset,
+    calorieGoal: firstPage.calorieGoal,
+  });
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   // A ref, not isLoadingMore: two taps in the same frame both read the old
   // state value, so only a ref actually blocks the duplicate request.
   const isFetchingMore = useRef(false);
 
-  useEffect(() => {
-    getDayHistory(0)
-      .then((page) => setState(firstPage(page)))
-      .catch(() => setState({ status: "error" }));
-  }, []);
-
   // Failure here keeps the rows already on screen and reports next to the
-  // button: dropping to the error state would blank page 1 because page 2
+  // button: dropping to an error state would blank page 1 because page 2
   // failed. A duplicate request would append the same page twice, so it
   // costs rows, not just a wasted call.
   const loadMore = useCallback((offset: number): void => {
@@ -72,7 +75,10 @@ const useHistoryState = (): UseHistoryStateResult => {
     setIsLoadingMore(true);
     setLoadMoreFailed(false);
     getDayHistory(offset)
-      .then((page) => setState((previous) => appendPage(previous, page)))
+      .then((page) => {
+        setState((previous) => appendPage(previous, page));
+        recordLoadedPages(offset + HISTORY_PAGE_SIZE);
+      })
       .catch(() => setLoadMoreFailed(true))
       .finally(() => {
         isFetchingMore.current = false;
@@ -143,7 +149,7 @@ const GoalComparison = ({ remaining, isToday }: { remaining: CalorieRemaining; i
   const isOver = remaining.status === "over";
   return (
     <span className={`tabular-nums text-sm ${isOver ? "text-danger" : "text-text-muted"}`}>
-      {remaining.kcal.toLocaleString()} {isOver ? "over" : "under"} goal
+      {formatNumber(remaining.kcal)} {isOver ? "over" : "under"} goal
     </span>
   );
 };
@@ -180,9 +186,9 @@ const LoggedRow = ({ date, totalKcal, calorieGoal, today }: LoggedRowProps) => {
   return (
     <Link href={`/day/${date}`} className={`block py-3 ${FOCUS_RING}`}>
       <span className="flex items-baseline justify-between gap-4">
-        <span className="font-medium text-text">{formatDayLabel(date)}</span>
+        <span className="font-medium text-text">{formatDayLabel(date, today)}</span>
         <span className="flex shrink-0 flex-col items-end gap-0.5">
-          <span className="tabular-nums text-text-muted">{Math.round(totalKcal).toLocaleString()} kcal</span>
+          <span className="tabular-nums text-text-muted">{formatNumber(Math.round(totalKcal))} kcal</span>
           <GoalComparison remaining={remaining} isToday={date === today} />
         </span>
       </span>
@@ -196,9 +202,9 @@ const LoggedRow = ({ date, totalKcal, calorieGoal, today }: LoggedRowProps) => {
 // Muted label and no rail, so a blank day reads as blank at a glance rather
 // than as a day that scored zero. Still a link: it is the way to go and fill
 // it in, which is the whole reason these rows are here.
-const UnloggedRow = ({ date }: { date: string }) => (
+const UnloggedRow = ({ date, today }: { date: string; today: string }) => (
   <Link href={`/day/${date}`} className={`flex items-baseline justify-between gap-4 py-3 ${FOCUS_RING}`}>
-    <span className="text-text-muted">{formatDayLabel(date)}</span>
+    <span className="text-text-muted">{formatDayLabel(date, today)}</span>
     <span className="shrink-0 text-sm text-text-muted">Nothing logged</span>
   </Link>
 );
@@ -217,7 +223,7 @@ const HistoryRowItem = ({ row, calorieGoal, today }: { row: HistoryRow; calorieG
     case "logged":
       return <LoggedRow date={row.date} totalKcal={row.totalKcal} calorieGoal={calorieGoal} today={today} />;
     case "unlogged":
-      return <UnloggedRow date={row.date} />;
+      return <UnloggedRow date={row.date} today={today} />;
     case "gap":
       return <GapRow days={row.days} />;
   }
@@ -292,7 +298,7 @@ const AverageAgainstGoal = ({ averageKcal, calorieGoal }: { averageKcal: number;
     <>
       {" · "}
       <span className={`tabular-nums ${isOver ? "text-danger" : ""}`}>
-        {remaining.kcal.toLocaleString()} {isOver ? "over" : "under"} goal
+        {formatNumber(remaining.kcal)} {isOver ? "over" : "under"} goal
       </span>
     </>
   );
@@ -311,7 +317,7 @@ const WeekSummaryBlock = ({ summary, calorieGoal }: { summary: WeekSummary; calo
     </div>
     <WeekStrip days={summary.days} calorieGoal={calorieGoal} />
     <p className="text-sm text-text-muted">
-      <span className="tabular-nums text-text">{summary.averageKcal.toLocaleString()} kcal</span> a logged day
+      <span className="tabular-nums text-text">{formatNumber(summary.averageKcal)} kcal</span> a logged day
       <AverageAgainstGoal averageKcal={summary.averageKcal} calorieGoal={calorieGoal} />
     </p>
   </section>
@@ -371,30 +377,45 @@ const HistoryReadyBody = ({
   );
 };
 
-interface HistoryBodyProps {
-  state: HistoryState;
-  today: string;
-  isLoadingMore: boolean;
-  loadMoreFailed: boolean;
-  onLoadMore: (offset: number) => void;
-}
-
 // Appending rows changes nothing a screen reader would otherwise notice -
 // no focus move, no route change - so the new count is announced politely.
-const historyStatusMessage = (state: HistoryState, isLoadingMore: boolean): string => {
-  if (isLoadingMore) return "Loading more days";
-  if (state.status !== "ready") return "";
-  return `${state.entries.length} days loaded`;
+const historyStatusMessage = (entryCount: number, isLoadingMore: boolean): string =>
+  isLoadingMore ? "Loading more days" : `${entryCount} days loaded`;
+
+interface HistoryLoadedProps {
+  firstPage: DayHistoryPage;
+  today: string;
+  onStatus: (message: string) => void;
+}
+
+const HistoryLoaded = ({ firstPage, today, onStatus }: HistoryLoadedProps) => {
+  const { state, loadMore, isLoadingMore, loadMoreFailed } = useHistoryState(firstPage);
+  const message = historyStatusMessage(state.entries.length, isLoadingMore);
+  useEffect(() => onStatus(message), [message, onStatus]);
+
+  return (
+    <HistoryReadyBody
+      entries={state.entries}
+      nextOffset={state.nextOffset}
+      calorieGoal={state.calorieGoal}
+      today={today}
+      isLoadingMore={isLoadingMore}
+      loadMoreFailed={loadMoreFailed}
+      onLoadMore={loadMore}
+    />
+  );
 };
 
-// Same delayed-skeleton + fade-in treatment as the day view's DayViewBody.
-const HistoryBody = ({ state, today, isLoadingMore, loadMoreFailed, onLoadMore }: HistoryBodyProps) => {
-  const reduceMotion = useReducedMotion();
-  const showSkeleton = useDelayedSkeleton(state.status === "loading");
+interface HistoryContentProps {
+  load: Promise<HistoryLoad>;
+  today: string;
+  onStatus: (message: string) => void;
+}
 
-  if (state.status === "loading") {
-    return showSkeleton ? <HistorySkeleton /> : null;
-  }
+// Same delayed-skeleton + fade-in treatment as the day view.
+const HistoryContent = ({ load, today, onStatus }: HistoryContentProps) => {
+  const result = use(load);
+  const reduceMotion = useReducedMotion();
 
   return (
     <motion.div
@@ -402,39 +423,28 @@ const HistoryBody = ({ state, today, isLoadingMore, loadMoreFailed, onLoadMore }
       animate={{ opacity: 1 }}
       transition={contentFadeTransition(reduceMotion)}
     >
-      {state.status === "error" ? (
+      {result.status === "error" ? (
         <InlineMessage tone="error">Could not load history. Please try again.</InlineMessage>
       ) : (
-        <HistoryReadyBody
-          entries={state.entries}
-          nextOffset={state.nextOffset}
-          calorieGoal={state.calorieGoal}
-          today={today}
-          isLoadingMore={isLoadingMore}
-          loadMoreFailed={loadMoreFailed}
-          onLoadMore={onLoadMore}
-        />
+        <HistoryLoaded firstPage={result.page} today={today} onStatus={onStatus} />
       )}
     </motion.div>
   );
 };
 
-export const HistoryView = () => {
-  const { state, loadMore, isLoadingMore, loadMoreFailed } = useHistoryState();
-  const today = todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
+// LiveStatus sits outside the Suspense boundary: a live region has to exist
+// before its text changes, and the list mounts only once it is read.
+export const HistoryView = ({ today, load }: { today: string; load: Promise<HistoryLoad> }) => {
+  const [statusMessage, setStatusMessage] = useState("");
 
   return (
     <>
       <AppHeader variant="back" title="History" backHref={`/day/${today}`} />
       <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none">
-        <LiveStatus message={historyStatusMessage(state, isLoadingMore)} />
-        <HistoryBody
-          state={state}
-          today={today}
-          isLoadingMore={isLoadingMore}
-          loadMoreFailed={loadMoreFailed}
-          onLoadMore={loadMore}
-        />
+        <LiveStatus message={statusMessage} />
+        <Suspense fallback={<DelayedFallback><HistorySkeleton /></DelayedFallback>}>
+          <HistoryContent load={load} today={today} onStatus={setStatusMessage} />
+        </Suspense>
       </main>
     </>
   );

@@ -9,7 +9,7 @@ import type { StandardFood } from "@/features/products/actions/products";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { Sheet } from "@/components/ui/sheet";
-import { UnitAmountField } from "@/components/ui/unit-amount-field";
+import { EMPTY_AMOUNT_MESSAGE, UnitAmountField } from "@/components/ui/unit-amount-field";
 import { triggerLogSuccessHaptic } from "@/lib/haptics/log-success";
 import { availableUnits, defaultUnit } from "@/lib/measures/available-units";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
@@ -99,9 +99,13 @@ export const resolveAndSaveCookingFat = async (
   onSaved: () => void,
   callbacks: CookingFatCallbacks,
 ): Promise<void> => {
+  if (input.count.trim() === "") {
+    callbacks.setError(EMPTY_AMOUNT_MESSAGE);
+    return;
+  }
   const resolution = resolveQuantity(input.count, input.unit, input.context);
   if (resolution.kind === "unresolved") {
-    callbacks.setError(`Couldn't work out the amount in "${input.unit}". Try a different unit.`);
+    callbacks.setError(`Couldn’t work out the amount in “${input.unit}”. Try a different unit.`);
     return;
   }
   await saveCookingFat(
@@ -113,7 +117,7 @@ export const resolveAndSaveCookingFat = async (
 };
 
 const COOKING_FAT_SEARCH_ERROR = "Could not search cooking fats. Please try again.";
-const COOKING_FAT_EMPTY_MESSAGE = "No match. Check spelling, or try a broader term like \"olive oil\".";
+const COOKING_FAT_EMPTY_MESSAGE = "No match. Check spelling, or try a broader term like “olive oil”.";
 
 interface CookingFatSearchStageProps {
   search: UseStandardFoodPickerResult;
@@ -173,9 +177,8 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
   );
 
   // Same three groups and the same four-distance ladder as the capture amount
-  // step (see AmountStepFields): 6/12/16/24. The 16px gaps make this body 16px
-  // taller than the flat gap-4 one it replaced; Sheet scrolls at 85dvh, so
-  // that buys grouping without costing reachable content.
+  // step (see AmountStepFields): 6/12/16/24. Sheet scrolls at 85dvh, so the
+  // grouping costs no reachable content.
   return (
     <div className="flex flex-col gap-6">
       {/* "Pick another", the same words the capture step's escape uses: both
@@ -195,7 +198,7 @@ const CookingFatAmountStage = ({ mealId, food, onBack, onSaved }: CookingFatAmou
       <div className="flex flex-col gap-4">
         <AmountPreview preview={preview} />
         {error && <InlineMessage tone="error">{error}</InlineMessage>}
-        <Button disabled={count.trim() === ""} pending={isBusy} onClick={handleSave}>
+        <Button pending={isBusy} onClick={handleSave}>
           Add to meal
         </Button>
       </div>
@@ -229,16 +232,7 @@ const CookingFatSheet = ({ isOpen, stage, mealId, search, onChoose, onBack, onCl
   </Sheet>
 );
 
-interface CookingFatControlProps {
-  mealId: string;
-  onIngredientChanged: () => void;
-}
-
-const buildCookingFatActions = (
-  setIsOpen: (value: boolean) => void,
-  setStage: (value: CookingFatStage) => void,
-  onIngredientChanged: () => void,
-) => {
+const buildCookingFatActions = (setIsOpen: (value: boolean) => void, setStage: (value: CookingFatStage) => void) => {
   const close = () => {
     setIsOpen(false);
     setStage({ kind: "search" });
@@ -247,27 +241,25 @@ const buildCookingFatActions = (
   return {
     open: () => setIsOpen(true),
     close,
-    saved: () => {
-      close();
-      onIngredientChanged();
-    },
+    // saveMealIngredient refreshes the route, so the new row arrives with it.
+    saved: close,
     choose: (food: StandardFood) => setStage({ kind: "amount", food }),
     back: () => setStage({ kind: "search" }),
   };
 };
 
-const useCookingFatControl = (onIngredientChanged: () => void) => {
+const useCookingFatControl = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [stage, setStage] = useState<CookingFatStage>({ kind: "search" });
   const search = useStandardFoodPicker(COOKING_FAT_CATEGORY, COOKING_FAT_SEARCH_ERROR);
 
-  return { isOpen, stage, search, ...buildCookingFatActions(setIsOpen, setStage, onIngredientChanged) };
+  return { isOpen, stage, search, ...buildCookingFatActions(setIsOpen, setStage) };
 };
 
-// The meal-detail affordance itself (spec §8 T4): optional, defaults to
+// The meal-detail affordance itself (spec §8): optional, defaults to
 // nothing added, sits between "Add ingredient" and "Delete meal".
-export const CookingFatControl = ({ mealId, onIngredientChanged }: CookingFatControlProps) => {
-  const control = useCookingFatControl(onIngredientChanged);
+export const CookingFatControl = ({ mealId }: { mealId: string }) => {
+  const control = useCookingFatControl();
 
   return (
     <>

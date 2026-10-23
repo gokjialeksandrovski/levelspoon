@@ -4,6 +4,8 @@ import { type ChangeEvent, useState } from "react";
 
 import { BarcodeIcon, BookmarkSimpleIcon, CameraIcon, CarrotIcon, FeatherIcon, PencilSimpleIcon, type Icon } from "@phosphor-icons/react";
 
+import { DEMO_SCAN_LIMIT_MESSAGE } from "@/features/demo/demo.messages";
+import { useIsGuest } from "@/features/demo/hooks/use-is-guest";
 import { ocrProductName } from "@/features/products/actions/ocr";
 import { matchProduct, searchUserProducts } from "@/features/products/actions/products";
 import type { MatchResult } from "@/features/products/actions/products";
@@ -12,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoPreview, usePreviewUrl } from "@/components/ui/photo-input";
-import { readBarcodeFromPhoto } from "@/components/ui/barcode-scanner";
+import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 
 import type { PathAction } from "../capture-wizard.path";
 import type { WizardAction } from "../capture-wizard.types";
@@ -54,8 +56,12 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
   callbacks.onError(null);
   callbacks.onBusy(READING_NAME_LABEL);
   try {
-    const { text, netWeightText } = await ocrProductName(photo);
-    await resolveProductMatch(text, netWeightText, callbacks.pendingBarcode, callbacks.dispatch);
+    const read = await ocrProductName(photo);
+    if (read.kind === "demo-limit") {
+      callbacks.onError(DEMO_SCAN_LIMIT_MESSAGE);
+      return;
+    }
+    await resolveProductMatch(read.text, read.netWeightText, callbacks.pendingBarcode, callbacks.dispatch);
   } catch {
     callbacks.onError(
       "Couldn't read a name in that photo. Try a closer shot, or type the name.",
@@ -71,6 +77,10 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
 // looks: the margin rule that makes auto-accept safe is matchProduct's, and it
 // scores whole strings. No photo was taken on this path, so no net weight either.
 const handleManualName = async (manualName: string, callbacks: ProductNameCallbacks): Promise<void> => {
+  if (manualName.trim() === "") {
+    callbacks.onError("Type a product name first.");
+    return;
+  }
   callbacks.onError(null);
   callbacks.onBusy(SEARCHING_NAME_LABEL);
   try {
@@ -153,8 +163,15 @@ interface ManualNameEntryProps {
   onSubmit: () => void;
 }
 
+// A form so Enter in the field searches, same as tapping the button.
 const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: ManualNameEntryProps) => (
-  <div className="flex flex-col gap-4">
+  <form
+    className="flex flex-col gap-4"
+    onSubmit={(event) => {
+      event.preventDefault();
+      if (!isLoading) onSubmit();
+    }}
+  >
     <h2 className="text-lg font-semibold">Type the product name</h2>
     <Field
       label="Product name"
@@ -163,10 +180,10 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: M
       onChange={(event) => onChange(event.target.value)}
     />
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
-    <Button disabled={manualName.trim() === ""} pending={isLoading} onClick={onSubmit}>
-      Continue
+    <Button type="submit" pending={isLoading}>
+      Search my products
     </Button>
-  </div>
+  </form>
 );
 
 // No border-radius: this is a full-bleed list row, not a standalone control -
@@ -286,10 +303,10 @@ interface BarcodeAndPhotoRowsProps {
   onSelectBarcode: (photo: File) => void;
 }
 
-// Both rows open the picker from here. Scanning used to be a step of its own
-// with a live camera on it, which meant a dead black rectangle wherever the
-// browser had no camera to give - and a page to read and dismiss before the
-// user could do the one thing the row promised.
+// Both rows open the picker from here, not a live-camera step: that would be
+// a dead black rectangle wherever the browser has no camera to give, and a
+// page to read and dismiss before the user could do the one thing the row
+// promised.
 const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode }: BarcodeAndPhotoRowsProps) => (
   <>
     <PhotoOptionRow
@@ -356,24 +373,29 @@ interface AddMealsRowsProps {
   onLazyTrack: () => void;
 }
 
-const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe, onLazyTrack }: AddMealsRowsProps) => (
-  <>
-    <EntryOptionRow
-      icon={BookmarkSimpleIcon}
-      title="Use one of your recipes"
-      description={hasRecipes ? RECIPE_ROW_DESCRIPTION : RECIPE_ROW_LOCKED_DESCRIPTION}
-      onClick={onPickRecipe}
-      disabled={isLoading || !hasRecipes}
-    />
-    <EntryOptionRow
-      icon={FeatherIcon}
-      title="Lazy track"
-      description={LAZY_TRACK_DESCRIPTION}
-      onClick={onLazyTrack}
-      disabled={isLoading}
-    />
-  </>
-);
+const LAZY_TRACK_DEMO_DESCRIPTION = "Needs AI, which the demo leaves out. Self-host with your own AI key to use it.";
+
+const AddMealsRows = ({ hasRecipes, isLoading, onPickRecipe, onLazyTrack }: AddMealsRowsProps) => {
+  const isGuest = useIsGuest();
+  return (
+    <>
+      <EntryOptionRow
+        icon={BookmarkSimpleIcon}
+        title="Use one of your recipes"
+        description={hasRecipes ? RECIPE_ROW_DESCRIPTION : RECIPE_ROW_LOCKED_DESCRIPTION}
+        onClick={onPickRecipe}
+        disabled={isLoading || !hasRecipes}
+      />
+      <EntryOptionRow
+        icon={FeatherIcon}
+        title="Lazy track"
+        description={isGuest ? LAZY_TRACK_DEMO_DESCRIPTION : LAZY_TRACK_DESCRIPTION}
+        onClick={onLazyTrack}
+        disabled={isLoading || isGuest}
+      />
+    </>
+  );
+};
 
 interface OptionSectionProps {
   title: string;

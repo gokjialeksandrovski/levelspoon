@@ -7,6 +7,8 @@ import {
   cleanCodeTypeAwareRules,
   cleanCodeServerClientRules,
   cleanCodeInteractionRules,
+  cleanCodeMetadataRules,
+  cleanCodePerformanceRules,
   cleanCodeUiPrimitiveRules,
   cleanCodeInfraRules,
   cleanCodeTailwindRules,
@@ -24,8 +26,6 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
-  // Clean Code Principles (~/.claude/CLAUDE.md), mechanically enforced.
-  // Vendored copy: ./clean-code-rules.mjs — see clean-code-lint skill.
   cleanCodeBaseRules,
   cleanCodeTypeScriptRules,
   {
@@ -43,7 +43,6 @@ const eslintConfig = [
     rules: cleanCodeTypeAwareRules.rules,
   },
   {
-    // Tailwind canonical-class check — see clean-code-lint skill.
     files: ["src/**/*.tsx"],
     plugins: { "better-tailwindcss": betterTailwindcss },
     settings: {
@@ -69,12 +68,14 @@ const eslintConfig = [
   {
     // The vendored rules file states its own thresholds (complexity 10,
     // max-depth 4, max-nested-callbacks 3) as literals, which its own
-    // no-magic-numbers rule then flags. It stays a verbatim copy of the
-    // canonical Clean Code rules so it can be re-copied when those change -
-    // naming the constants here would be undone by the next copy.
+    // no-magic-numbers rule then flags, and its AST visitors branch past
+    // the complexity cap. It stays a verbatim copy of the canonical Clean
+    // Code rules so it can be re-copied when those change - fixing either
+    // here would be undone by the next copy.
     files: ["clean-code-rules.mjs"],
     rules: {
       "@typescript-eslint/no-magic-numbers": "off",
+      complexity: "off",
     },
   },
   {
@@ -103,6 +104,22 @@ const eslintConfig = [
     // component trees; meaningless in scripts/ or config files.
     files: ["src/app/**", "src/components/**", "src/features/**"],
     ...cleanCodeInteractionRules,
+  },
+  {
+    // Rule 22: heavy static imports in 'use client' files and independent
+    // sequential awaits. Scoped to code that runs per request or ships to the
+    // browser; scripts/ and seed code are excluded. Payload's
+    // require-query-select is not wired: this project has no Payload.
+    files: ["src/app/**", "src/components/**", "src/features/**", "src/lib/**"],
+    // Tests seed rows then act on them: the order is the point, not a waterfall.
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    ...cleanCodePerformanceRules,
+  },
+  {
+    // Next.js merges metadata shallowly: a page's openGraph/twitter replaces
+    // the layout's object, so pages must spread a shared base.
+    files: ["src/app/**"],
+    ...cleanCodeMetadataRules,
   },
   {
     // Rule 20: components/ui/ is dumb presentational primitives — no

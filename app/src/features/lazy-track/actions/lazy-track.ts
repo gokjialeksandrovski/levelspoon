@@ -1,6 +1,8 @@
 "use server";
 
-import { requireUserId } from "@/lib/auth/require-user";
+import { refresh } from "next/cache";
+
+import { requireAccountUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
 import { UnsupportedImageFormatError } from "@/lib/gemini/image-mime-type";
 import { GeminiMealEstimateProvider } from "@/lib/meal-estimate/gemini-provider";
@@ -31,7 +33,7 @@ const toBuffer = async (photo: Blob | null): Promise<Buffer | null> => (photo ? 
  * is written here: the estimate goes back to the review screen, and only
  * logLazyMeal writes. */
 export const estimateMeal = async (description: string, photo: Blob | null): Promise<EstimateMealResult> => {
-  await requireUserId();
+  await requireAccountUserId();
   if (!canEstimate(description, photo !== null)) {
     return { kind: "nothing_found" };
   }
@@ -64,7 +66,7 @@ const toAmountRow = (productId: string, item: LoggedItem): AmountRow => ({
  * private rows, but a refused write is still cheaper than a nonsense one.
  */
 export const logLazyMeal = async (mealId: string, items: LoggedItem[]): Promise<LogLazyMealResult> => {
-  const userId = await requireUserId();
+  const userId = await requireAccountUserId();
   // Re-parsed, not just re-bounded: a browser can send a string where a number
   // belongs, which isPlausibleItem's types alone would not catch at runtime.
   const parsedItems = parseMealEstimate({ items }).items;
@@ -83,5 +85,6 @@ export const logLazyMeal = async (mealId: string, items: LoggedItem[]): Promise<
     const rows = loggedItems.map((item, index) => toAmountRow(productIds[index], item));
     await appendItemsToMeal(tx, mealId, rows);
   });
+  refresh();
   return { kind: "logged" };
 };

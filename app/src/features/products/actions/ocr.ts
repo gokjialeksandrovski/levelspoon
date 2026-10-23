@@ -1,8 +1,11 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import type { NutritionValues } from "@/types/nutrition";
 import { findStoredMeasures } from "@/features/products/actions/products";
-import { requireUserId } from "@/lib/auth/require-user";
+import { requireUser, requireUserId } from "@/lib/auth/require-user";
+import { clientIp, takeDemoScan } from "@/lib/db/demo-quota";
 import { photoKeysFor } from "@/lib/db/photo-keys";
 import { findPhotoOwner } from "@/lib/db/photo-owner";
 import {
@@ -58,17 +61,34 @@ export type NutritionRead =
       /** Null when the row holding this photo is not one this user may be
        * shown - see findPhotoOwner. */
       ownerName: string | null;
-    };
+    }
+  | DemoLimitReached;
+
+/** A demo user's scans for today are spent (lib/db/demo-quota.ts). */
+export interface DemoLimitReached {
+  kind: "demo-limit";
+}
+
+export type ProductNameRead = { kind: "read"; text: string; netWeightText: string | null } | DemoLimitReached;
+
+const DEMO_LIMIT: DemoLimitReached = { kind: "demo-limit" };
+
+// Only demo users count: OCR runs on the developer's home server.
+const takeScanIfGuest = async (isGuest: boolean): Promise<boolean> =>
+  !isGuest || takeDemoScan(clientIp(await headers()));
 
 const getProvider = (): OcrProvider =>
   process.env.OCR_PROVIDER === "mock" ? new MockOcrProvider() : new HttpOcrProvider();
 
-export const ocrProductName = async (
-  photo: Blob,
-): Promise<{ text: string; netWeightText: string | null }> => {
-  await requireUserId();
-  return getProvider().extractProductName(photo);
+export const ocrProductName = async (photo: Blob): Promise<ProductNameRead> => {
+  const { isGuest } = await requireUser();
+  if (!(await takeScanIfGuest(isGuest))) {
+    return DEMO_LIMIT;
+  }
+  return { kind: "read", ...(await getProvider().extractProductName(photo)) };
 };
+
+type ScaledRead = Exclude<NutritionRead, { kind: "photo-already-used" | "demo-limit" }>;
 
 const GRAM_BASIS_UNIT = "g";
 const GRAM_BASIS_QUANTITY = 100;
@@ -78,7 +98,7 @@ const scaledRead = async (
   perServing: NutritionValues,
   grams: number,
   learned: LearnedMeasures,
-): Promise<Exclude<NutritionRead, { kind: "photo-already-used" }>> => {
+): Promise<ScaledRead> => {
   const values = scalePerServingToPer100g(perServing, grams);
   const { flags } = await getProvider().validate(values);
   return {
@@ -99,7 +119,7 @@ const perUnitRead = async (
   perServing: NutritionValues,
   unitName: string,
   parsedQuantity: number,
-): Promise<Exclude<NutritionRead, { kind: "photo-already-used" }>> => {
+): Promise<ScaledRead> => {
   const values = scaleNutrition(perServing, PER_UNIT_BASIS_QUANTITY / parsedQuantity);
   const { flags } = await getProvider().validate(values);
   return {
@@ -205,7 +225,7 @@ export const ocrNutritionTable = async (
   productNameGuess: string,
   netWeightText: string | null = null,
 ): Promise<NutritionRead> => {
-  const userId = await requireUserId();
+  const { id: userId, isGuest } = await requireUser();
   const buffer = Buffer.from(await photo.arrayBuffer());
   const { proofKey, claimKey } = photoKeysFor(buffer);
   // Refused before the OCR call, not after: the answer would be the other
@@ -213,6 +233,9 @@ export const ocrNutritionTable = async (
   const owner = await findPhotoOwner([proofKey, claimKey], userId);
   if (owner) {
     return { kind: "photo-already-used", ownerName: owner.name };
+  }
+  if (!(await takeScanIfGuest(isGuest))) {
+    return DEMO_LIMIT;
   }
   const read = await getProvider().extractNutritionTable(photo);
   if (read.format === "eu") {
@@ -243,7 +266,7 @@ export const resolveServingSize = async (
   servingSizeText: string,
   perServing: NutritionValues,
   productNameGuess: string,
-): Promise<Exclude<NutritionRead, { kind: "photo-already-used" }>> => {
+): Promise<ScaledRead> => {
   await requireUserId();
   const resolution = resolveGrams(answerText, await contextFor(productNameGuess));
   if (resolution.kind === "unresolved") {

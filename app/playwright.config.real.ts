@@ -1,4 +1,3 @@
-// app/playwright.config.real.ts
 import { config } from "dotenv";
 import { defineConfig, devices } from "@playwright/test";
 

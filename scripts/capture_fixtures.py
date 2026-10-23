@@ -22,7 +22,9 @@ DEBUG_ENDPOINT = f"{SERVICE_URL}/debug/boxes"
 def capture(photo: Path) -> dict:
     with photo.open("rb") as handle:
         response = httpx.post(
-            DEBUG_ENDPOINT, files={"image": (photo.name, handle, "image/jpeg")}, timeout=120.0
+            DEBUG_ENDPOINT,
+            files={"image": (photo.name, handle, "image/jpeg")},
+            timeout=120.0,
         )
     response.raise_for_status()
     return response.json()
@@ -33,7 +35,9 @@ def main() -> None:
     for photo in sorted(PHOTOS.glob("*.jpg")):
         boxes = capture(photo)
         destination = OUTPUT / f"{photo.stem}.json"
-        destination.write_text(json.dumps(boxes, indent=2, ensure_ascii=False), encoding="utf-8")
+        destination.write_text(
+            json.dumps(boxes, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         print(f"{photo.name}: {len(boxes['boxes'])} boxes -> {destination.name}")
         for box in sorted(boxes["boxes"], key=lambda item: item["confidence"])[:5]:
             print(f"   lowest confidence: {box['confidence']:.3f}  {box['text']!r}")

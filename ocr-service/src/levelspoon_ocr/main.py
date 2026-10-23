@@ -59,7 +59,7 @@ def _serialisable(values) -> dict:
     """Render a missing value as JSON null rather than a bare NaN literal.
 
     Python's json module happily writes `NaN`, which is not valid JSON and
-    which JSON.parse rejects - so the M2 client would fail on exactly the
+    which JSON.parse rejects - so the app's client would fail on exactly the
     incomplete-table case §8 requires it to handle gracefully. `null` is also
     what the confirm step wants: a blank, flagged field (spec §8).
     """
@@ -80,13 +80,20 @@ def health(engine=Depends(get_engine)) -> dict:
 
 
 @app.post("/ocr/product-name")
-async def read_product_name(image: UploadFile = File(...), engine=Depends(get_engine)) -> dict:
+async def read_product_name(
+    image: UploadFile = File(...), engine=Depends(get_engine)
+) -> dict:
     result = engine.read(await image.read())
-    return {"text": extract_product_name(result), "net_weight_text": extract_net_weight_text(result)}
+    return {
+        "text": extract_product_name(result),
+        "net_weight_text": extract_net_weight_text(result),
+    }
 
 
 @app.post("/ocr/nutrition-table")
-async def read_nutrition_table(image: UploadFile = File(...), engine=Depends(get_engine)) -> dict:
+async def read_nutrition_table(
+    image: UploadFile = File(...), engine=Depends(get_engine)
+) -> dict:
     result = engine.read(await image.read())
     try:
         reading = parse_nutrition(result)
@@ -136,7 +143,9 @@ async def validate_nutrition(request: ValidateRequest) -> dict:
 
 
 @app.post("/debug/boxes")
-async def debug_boxes(image: UploadFile = File(...), engine=Depends(get_engine)) -> dict:
+async def debug_boxes(
+    image: UploadFile = File(...), engine=Depends(get_engine)
+) -> dict:
     """Raw detections, for recording fixtures (spec §11 fixtures:capture)."""
     result = engine.read(await image.read())
     return {

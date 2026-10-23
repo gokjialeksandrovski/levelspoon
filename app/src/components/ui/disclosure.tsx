@@ -1,7 +1,8 @@
 "use client";
 
 import { CaretDownIcon } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
+import * as motion from "motion/react-m";
 import { useId, useState } from "react";
 
 import { Button } from "./button";

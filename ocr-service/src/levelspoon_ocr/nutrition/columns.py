@@ -1,13 +1,11 @@
 """Locate the per-100g value column on a nutrition label.
 
-The spike took `value_column[1:]`, assuming exactly one header box sat above
-the values. A label with a "per serving" second column, or with no header
-detected at all, shifts every field by one - silently, with no error
-(spec §4.2). Anchoring on the header text removes that assumption - but a
-real multilingual label can print its header phrase aligned with the row
-descriptions rather than the numeric column at all (no header box of its
-own sits above the values), which is what anchoring on the energy figure
-below fixes instead.
+Not a positional `value_column[1:]` slice: a label with a "per serving"
+second column, or with no header detected at all, would shift every field by
+one - silently, with no error (spec §4.2). Nor the header text alone: a real
+multilingual label can print its header phrase aligned with the row
+descriptions rather than the numeric column (no header box of its own sits
+above the values), so the energy figure anchors the column instead.
 """
 
 import re
@@ -72,7 +70,9 @@ def _looks_like_a_value(box: Box) -> bool:
     return any(character.isdigit() for character in box.text)
 
 
-def _reclaim_missing_rows(values: tuple[Box, ...], other_boxes: tuple[Box, ...]) -> tuple[Box, ...]:
+def _reclaim_missing_rows(
+    values: tuple[Box, ...], other_boxes: tuple[Box, ...]
+) -> tuple[Box, ...]:
     """Reunite a value OCR mis-clustered out of the value column.
 
     A digit-bearing box below the header, sitting in the gap between two
@@ -93,10 +93,16 @@ def _reclaim_missing_rows(values: tuple[Box, ...], other_boxes: tuple[Box, ...])
         upper, lower = reclaimed[index], reclaimed[index + 1]
         median_gap = sorted(gaps)[len(gaps) // 2]
         if lower.y - upper.y > GAP_ANOMALY_FACTOR * median_gap:
-            candidates = [box for box in other_boxes if upper.y < box.y < lower.y and _looks_like_a_value(box)]
+            candidates = [
+                box
+                for box in other_boxes
+                if upper.y < box.y < lower.y and _looks_like_a_value(box)
+            ]
             if candidates:
                 midpoint = (upper.y + lower.y) / 2
-                reclaimed.insert(index + 1, min(candidates, key=lambda box: abs(box.y - midpoint)))
+                reclaimed.insert(
+                    index + 1, min(candidates, key=lambda box: abs(box.y - midpoint))
+                )
         index += 1
     return tuple(reclaimed)
 
@@ -110,7 +116,9 @@ def find_per_100g_values(result: OcrResult) -> tuple[Box, ...]:
     for column in columns:
         if anchor in column:
             values = tuple(box for box in column if box.y > header.y)
-            other_boxes = tuple(box for box in result.boxes if box not in values and box.y > header.y)
+            other_boxes = tuple(
+                box for box in result.boxes if box not in values and box.y > header.y
+            )
             return _reclaim_missing_rows(values, other_boxes)
 
     raise ColumnDetectionError("Value column was not assigned to any column")
