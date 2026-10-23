@@ -1,0 +1,5 @@
+# pnpm 12 fails an install on any dependency build script nobody reviewed.
+# Both ship prebuilt platform binaries as optional deps, so their scripts stay off.
+allowBuilds:
+  esbuild: false
+  unrs-resolver: false
