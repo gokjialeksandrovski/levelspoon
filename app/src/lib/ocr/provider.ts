@@ -24,8 +24,22 @@ export type NutritionTableRead =
       servingsPerContainer: number | null;
     };
 
+/**
+ * ocr-service could not decode the upload as an image: HEIC from a browser that
+ * cannot convert it, or a corrupt file. Told apart from a label OCR could not
+ * read, because a sharper shot of the same label fails the same way.
+ */
+export interface UnreadablePhoto {
+  kind: "unreadable-photo";
+}
+
+export const UNREADABLE_PHOTO: UnreadablePhoto = { kind: "unreadable-photo" };
+
+export const isUnreadablePhoto = (value: object): value is UnreadablePhoto =>
+  "kind" in value && value.kind === UNREADABLE_PHOTO.kind;
+
 export interface OcrProvider {
-  extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null }>;
-  extractNutritionTable(photo: Blob): Promise<NutritionTableRead>;
+  extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null } | UnreadablePhoto>;
+  extractNutritionTable(photo: Blob): Promise<NutritionTableRead | UnreadablePhoto>;
   validate(values: NutritionValues, energyKj?: number): Promise<{ flags: string[] }>;
 }

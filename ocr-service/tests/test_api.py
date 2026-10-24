@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from levelspoon_ocr.boxes import Box, OcrResult
+from levelspoon_ocr.boxes import Box, OcrResult, UnreadablePhotoError
 from levelspoon_ocr.main import app, get_engine
 
 
@@ -277,3 +277,25 @@ def test_an_unreadable_photo_still_returns_422(client_with):
     )
     assert response.status_code == 422
     assert isinstance(response.json()["detail"], str)
+
+
+class UndecodableEngine:
+    model_loaded = True
+
+    def read(self, _image_bytes: bytes) -> OcrResult:
+        raise UnreadablePhotoError("Not a decodable image (5 bytes)")
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["/ocr/nutrition-table", "/ocr/product-name", "/debug/boxes"]
+)
+def test_an_undecodable_upload_is_415_not_500(request, endpoint):
+    """A HEIC or corrupt file: retaking the photo would fail the same way, so
+    it must not look like an unreadable label (422)."""
+    app.dependency_overrides[get_engine] = UndecodableEngine
+    request.addfinalizer(app.dependency_overrides.clear)
+    response = TestClient(app).post(
+        endpoint, files={"image": ("x.heic", b"bytes", "image/heic")}
+    )
+    assert response.status_code == 415
+    assert "decodable" in response.json()["detail"]

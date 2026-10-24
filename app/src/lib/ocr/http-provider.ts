@@ -1,6 +1,16 @@
 import type { NutritionValues } from "@/types/nutrition";
 
-import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "./provider";
+import {
+  isUnreadablePhoto,
+  UNREADABLE_PHOTO,
+  type NullableNutritionValues,
+  type NutritionTableRead,
+  type OcrProvider,
+  type UnreadablePhoto,
+} from "./provider";
+
+// ocr-service's answer to an upload it cannot decode as an image.
+const UNSUPPORTED_MEDIA_TYPE = 415;
 
 class OcrServiceError extends Error {
   constructor(endpoint: string, status: number) {
@@ -114,15 +124,18 @@ const ocrServiceUrl = (): string => {
   return url;
 };
 
-const postImage = async (endpoint: string, photo: Blob): Promise<unknown> => {
+const postImage = async <Raw extends object>(endpoint: string, photo: Blob): Promise<Raw | UnreadablePhoto> => {
   const formData = new FormData();
   formData.append("image", photo);
 
   const response = await fetch(`${ocrServiceUrl()}${endpoint}`, { method: "POST", body: formData });
+  if (response.status === UNSUPPORTED_MEDIA_TYPE) {
+    return UNREADABLE_PHOTO;
+  }
   if (!response.ok) {
     throw new OcrServiceError(endpoint, response.status);
   }
-  return response.json();
+  return (await response.json()) as Raw;
 };
 
 const postJson = async (endpoint: string, body: unknown): Promise<unknown> => {
@@ -138,14 +151,14 @@ const postJson = async (endpoint: string, body: unknown): Promise<unknown> => {
 };
 
 export class HttpOcrProvider implements OcrProvider {
-  async extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null }> {
-    const raw = (await postImage("/ocr/product-name", photo)) as RawProductNameResponse;
-    return { text: raw.text, netWeightText: raw.net_weight_text };
+  async extractProductName(photo: Blob): Promise<{ text: string; netWeightText: string | null } | UnreadablePhoto> {
+    const raw = await postImage<RawProductNameResponse>("/ocr/product-name", photo);
+    return isUnreadablePhoto(raw) ? raw : { text: raw.text, netWeightText: raw.net_weight_text };
   }
 
-  async extractNutritionTable(photo: Blob): Promise<NutritionTableRead> {
-    const raw = (await postImage("/ocr/nutrition-table", photo)) as RawNutritionTableResponse;
-    return toNutritionTableRead(raw);
+  async extractNutritionTable(photo: Blob): Promise<NutritionTableRead | UnreadablePhoto> {
+    const raw = await postImage<RawNutritionTableResponse>("/ocr/nutrition-table", photo);
+    return isUnreadablePhoto(raw) ? raw : toNutritionTableRead(raw);
   }
 
   async validate(values: NutritionValues, energyKj?: number): Promise<{ flags: string[] }> {

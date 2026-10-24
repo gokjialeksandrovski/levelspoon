@@ -10,6 +10,7 @@ import { ocrProductName } from "@/features/products/actions/ocr";
 import { matchProduct, searchUserProducts } from "@/features/products/actions/products";
 import type { MatchResult } from "@/features/products/actions/products";
 import { lookupBarcode } from "@/features/products/actions/barcode";
+import { UNREADABLE_PHOTO_MESSAGE } from "@/features/products/products.messages";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -59,6 +60,10 @@ const handlePhotoName = async (photo: File, callbacks: ProductNameCallbacks): Pr
     const read = await ocrProductName(photo);
     if (read.kind === "demo-limit") {
       callbacks.onError(DEMO_SCAN_LIMIT_MESSAGE);
+      return;
+    }
+    if (read.kind === "unreadable-photo") {
+      callbacks.onError(UNREADABLE_PHOTO_MESSAGE);
       return;
     }
     await resolveProductMatch(read.text, read.netWeightText, callbacks.pendingBarcode, callbacks.dispatch);

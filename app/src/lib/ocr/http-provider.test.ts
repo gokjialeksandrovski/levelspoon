@@ -47,6 +47,26 @@ describe("HttpOcrProvider.extractProductName", () => {
   });
 });
 
+// A 415 means ocr-service could not decode the file at all (HEIC, corrupt):
+// data the caller words differently, not a transport failure to throw.
+const stubUndecodableResponse = () =>
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ ok: false, status: 415, json: () => Promise.resolve({ detail: "Not a decodable image" }) }),
+  );
+
+describe("HttpOcrProvider — an upload ocr-service cannot decode", () => {
+  it("reads no name from it", async () => {
+    stubUndecodableResponse();
+    await expect(new HttpOcrProvider().extractProductName(new Blob(["photo"]))).resolves.toEqual({ kind: "unreadable-photo" });
+  });
+
+  it("reads no table from it", async () => {
+    stubUndecodableResponse();
+    await expect(new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]))).resolves.toEqual({ kind: "unreadable-photo" });
+  });
+});
+
 describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
   it("maps ocr-service's snake_case fields to the app's camelCase shape", async () => {
     stubFetchJson({
@@ -85,8 +105,7 @@ describe("HttpOcrProvider.extractNutritionTable — EU labels", () => {
 
     const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
 
-    expect(result.format).toBe("eu");
-    expect(result).toMatchObject({ per100g: { energyKcal: null }, flags: ["energy_kcal"] });
+    expect(result).toMatchObject({ format: "eu", per100g: { energyKcal: null }, flags: ["energy_kcal"] });
   });
 });
 
@@ -156,8 +175,7 @@ describe("HttpOcrProvider.extractNutritionTable — US labels", () => {
 
     const result = await new HttpOcrProvider().extractNutritionTable(new Blob(["photo"]));
 
-    expect(result.format).toBe("us");
-    expect(result).toMatchObject({ servingGrams: 37, servingSizeText: "2 Tbsp (37g)" });
+    expect(result).toMatchObject({ format: "us", servingGrams: 37, servingSizeText: "2 Tbsp (37g)" });
   });
 
   it("maps the servings-per-container count to camelCase", async () => {

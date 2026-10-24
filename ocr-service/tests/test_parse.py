@@ -1,3 +1,4 @@
+import json
 import math
 
 import pytest
@@ -252,3 +253,90 @@ def test_reads_a_per_100ml_label_and_reports_its_basis():
     assert reading.basis_unit == "ml"
     assert reading.per_100g.fat_g == 1.5
     assert reading.per_100g.salt_g == 0.1
+
+
+def _captured(fixtures_dir, name: str) -> OcrResult:
+    """Boxes the real engine produced for one photo (POST /debug/boxes)."""
+    data = json.loads((fixtures_dir / "ocr-boxes" / f"{name}.json").read_text("utf-8"))
+    boxes = tuple(Box(**box) for box in data["boxes"])
+    return OcrResult(boxes, data["image_width"], data["image_height"])
+
+
+def test_reads_an_energy_row_whose_units_are_only_in_its_label(fixtures_dir):
+    """Real bag photo that 422'd: "Energy value (kJ/kcal)" beside a bare
+    "112.71/26.96" cell, so no figure carried a unit."""
+    reading = parse_nutrition(_captured(fixtures_dir, "broccoli-bag-nutrition"))
+    values = reading.per_100g
+    assert (values.energy_kcal, reading.energy_kj) == (26.96, 112.71)
+    assert (values.fat_g, values.saturates_g) == (0.17, 0.08)
+    assert (values.carbohydrate_g, values.sugars_g) == (2.82, 1.35)
+    assert (values.protein_g, values.salt_g) == (3.44, 0.0)
+    assert reading.flags == ()
+
+
+def test_reads_a_declaration_printed_as_running_text(fixtures_dir):
+    """Real bacon photo that 422'd: no table, just "Përmbajtja e yndyrës
+    22.0% Karbohidratet 0.60% ..." beside the same sentence in Cyrillic."""
+    reading = parse_nutrition(_captured(fixtures_dir, "kosiljak-slanina-nutrition"))
+    values = reading.per_100g
+    assert (values.energy_kcal, reading.energy_kj) == (263.0, 1104.0)
+    assert (values.fat_g, values.saturates_g) == (22.0, 8.23)
+    assert (values.carbohydrate_g, values.sugars_g) == (0.6, 0.11)
+    assert (values.protein_g, values.salt_g) == (21.3, 2.2)
+    assert values.fibre_g is None
+    assert reading.basis_unit == "g"
+    assert reading.flags == ()
+
+
+def _prose(*lines: str) -> OcrResult:
+    boxes = tuple(
+        _box(line, 100.0 + index * 40.0, x=500.0) for index, line in enumerate(lines)
+    )
+    return OcrResult(boxes=boxes, image_width=1000, image_height=1400)
+
+
+def test_saturated_fat_in_running_text_is_saturates_not_fat():
+    reading = parse_nutrition(
+        _prose(
+            "Per 100 g: energy 1046 kJ / 250 kcal, fat 10 g,",
+            "saturated fat 4 g, carbohydrate 30 g, sugars 9 g,",
+            "protein 8 g, salt 1,2 g",
+        )
+    )
+    assert (reading.per_100g.fat_g, reading.per_100g.saturates_g) == (10.0, 4.0)
+    assert reading.flags == ()
+
+
+def test_running_text_with_no_per_100_basis_is_refused():
+    """Figures with no stated basis may be per portion."""
+    with pytest.raises(ColumnDetectionError):
+        parse_nutrition(
+            _prose(
+                "Per portion: energy 250 kcal, fat 10 g, saturates 4 g,",
+                "carbohydrate 30 g, sugars 12 g, protein 8 g, salt 1,2 g",
+            )
+        )
+
+
+def test_a_claim_on_the_pack_is_not_a_declaration():
+    with pytest.raises(ColumnDetectionError):
+        parse_nutrition(_prose("High protein: 20 g protein per 100 g"))
+
+
+def test_unread_energy_row_flags_every_position_it_would_have_anchored():
+    """A garbled energy row ("295 K|/70KCcal") stays in the value column and
+    pushes every field down one; nothing shows which, so all are flagged."""
+    result = _label(
+        "295 K|/70KCcal", "2,0 g", "1,2 g", "4,0 g", "4,0 g", "9,0 g", "0,18 g"
+    )
+    reading = parse_nutrition(result)
+    assert math.isnan(reading.per_100g.energy_kcal)
+    assert set(reading.flags) >= {
+        "energy_kcal",
+        "fat_g",
+        "saturates_g",
+        "carbohydrate_g",
+        "sugars_g",
+        "protein_g",
+        "salt_g",
+    }

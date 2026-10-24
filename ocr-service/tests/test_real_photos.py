@@ -72,6 +72,43 @@ def test_real_label_raises_no_validation_flags(fixtures_dir, golden):
     assert body["flags"] == golden["expected_flags"]
 
 
+# Two labels that once 422'd: a value cell holding a bare "112.71/26.96", and
+# a declaration printed as running text with no table at all.
+@pytest.mark.parametrize(
+    ("photo", "expected"),
+    [
+        (
+            "broccoli-bag-nutrition.jpg",
+            {
+                "energy_kcal": 26.96,
+                "fat_g": 0.17,
+                "saturates_g": 0.08,
+                "carbohydrate_g": 2.82,
+                "sugars_g": 1.35,
+                "protein_g": 3.44,
+                "salt_g": 0.0,
+            },
+        ),
+        (
+            "kosiljak-slanina-nutrition.jpg",
+            {
+                "energy_kcal": 263.0,
+                "fat_g": 22.0,
+                "saturates_g": 8.23,
+                "carbohydrate_g": 0.6,
+                "sugars_g": 0.11,
+                "protein_g": 21.3,
+                "salt_g": 2.2,
+            },
+        ),
+    ],
+)
+def test_reads_labels_that_print_no_ordinary_table(fixtures_dir, photo, expected):
+    body = _post("/ocr/nutrition-table", fixtures_dir / "photos" / photo)
+    assert body["per_100g"] == pytest.approx({**expected, "fibre_g": None})
+    assert body["flags"] == []
+
+
 def test_reads_a_product_name_close_enough_to_match_on(fixtures_dir, golden):
     """Asserted on similarity, not equality.
 

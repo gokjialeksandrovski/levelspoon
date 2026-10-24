@@ -96,6 +96,12 @@ describe("reviewLabelRead", () => {
 
     expect(outcome).toMatchObject({ kind: "error", message: expect.stringContaining("Oat biscuits") });
   });
+
+  it("asks for another file, not a retake, when the photo cannot be decoded", () => {
+    const outcome = reviewLabelRead({ kind: "unreadable-photo" }, TYPED);
+
+    expect(outcome).toMatchObject({ kind: "error", message: expect.stringContaining("JPEG or PNG") });
+  });
 });
 
 describe("decideBarcodeOutcome", () => {

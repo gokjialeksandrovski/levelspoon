@@ -19,7 +19,13 @@ import { resolveGrams, type MeasureContext, type Resolution } from "@/lib/measur
 import { scaleNutrition, scalePerServingToPer100g } from "@/lib/nutrition/scale-per-serving";
 import { HttpOcrProvider } from "@/lib/ocr/http-provider";
 import { MockOcrProvider } from "@/lib/ocr/mock-provider";
-import type { NullableNutritionValues, NutritionTableRead, OcrProvider } from "@/lib/ocr/provider";
+import {
+  isUnreadablePhoto,
+  type NullableNutritionValues,
+  type NutritionTableRead,
+  type OcrProvider,
+  type UnreadablePhoto,
+} from "@/lib/ocr/provider";
 
 /**
  * A nutrition read the confirm step can use, or the one question that stands
@@ -62,14 +68,18 @@ export type NutritionRead =
        * shown - see findPhotoOwner. */
       ownerName: string | null;
     }
-  | DemoLimitReached;
+  | DemoLimitReached
+  | UnreadablePhoto;
 
 /** A demo user's scans for today are spent (lib/db/demo-quota.ts). */
 export interface DemoLimitReached {
   kind: "demo-limit";
 }
 
-export type ProductNameRead = { kind: "read"; text: string; netWeightText: string | null } | DemoLimitReached;
+export type ProductNameRead =
+  | { kind: "read"; text: string; netWeightText: string | null }
+  | DemoLimitReached
+  | UnreadablePhoto;
 
 const DEMO_LIMIT: DemoLimitReached = { kind: "demo-limit" };
 
@@ -85,10 +95,11 @@ export const ocrProductName = async (photo: Blob): Promise<ProductNameRead> => {
   if (!(await takeScanIfGuest(isGuest))) {
     return DEMO_LIMIT;
   }
-  return { kind: "read", ...(await getProvider().extractProductName(photo)) };
+  const read = await getProvider().extractProductName(photo);
+  return isUnreadablePhoto(read) ? read : { kind: "read", ...read };
 };
 
-type ScaledRead = Exclude<NutritionRead, { kind: "photo-already-used" | "demo-limit" }>;
+type ScaledRead = Exclude<NutritionRead, { kind: "photo-already-used" | "demo-limit" | "unreadable-photo" }>;
 
 const GRAM_BASIS_UNIT = "g";
 const PER_100_BASIS_QUANTITY = 100;
@@ -238,6 +249,9 @@ export const ocrNutritionTable = async (
     return DEMO_LIMIT;
   }
   const read = await getProvider().extractNutritionTable(photo);
+  if (isUnreadablePhoto(read)) {
+    return read;
+  }
   if (read.format === "eu") {
     return {
       kind: "per100g",

@@ -10,6 +10,7 @@ import { ocrNutritionTable } from "@/features/products/actions/ocr";
 import type { NutritionRead } from "@/features/products/actions/ocr";
 import { attachLabelProof } from "@/features/products/actions/products";
 import type { ProductForCorrection } from "@/features/products/actions/products";
+import { UNREADABLE_PHOTO_MESSAGE } from "@/features/products/products.messages";
 import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -106,6 +107,8 @@ export const reviewLabelRead = (read: NutritionRead, current: FieldValues): Figu
       return { kind: "error", message: photoReuseError(read.ownerName) };
     case "demo-limit":
       return { kind: "error", message: DEMO_SCAN_LIMIT_MESSAGE };
+    case "unreadable-photo":
+      return { kind: "error", message: UNREADABLE_PHOTO_MESSAGE };
     case "needs-serving-size":
       return { kind: "error", message: PER_SERVING_ERROR };
     case "per100g": {

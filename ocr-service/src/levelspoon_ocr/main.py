@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from .boxes import OcrResult, UnreadablePhotoError
 from .nutrition.columns import ColumnDetectionError
 from .nutrition.normalize import NormalizationError
 from .nutrition.parse import parse_nutrition
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from .engine import OcrEngine
 
 UNPROCESSABLE = 422
+UNSUPPORTED_MEDIA_TYPE = 415
 
 
 @asynccontextmanager
@@ -73,6 +75,16 @@ def _optional_values(values) -> dict | None:
     return None if values is None else _serialisable(values)
 
 
+async def _read_photo(image: UploadFile, engine: "OcrEngine") -> OcrResult:
+    """Run OCR, answering an undecodable file with 415 rather than a 500."""
+    try:
+        return engine.read(await image.read())
+    except UnreadablePhotoError as error:
+        raise HTTPException(
+            status_code=UNSUPPORTED_MEDIA_TYPE, detail=str(error)
+        ) from error
+
+
 @app.get("/health")
 def health(engine=Depends(get_engine)) -> dict:
     """Reports model load state, not merely that the process is listening."""
@@ -83,7 +95,7 @@ def health(engine=Depends(get_engine)) -> dict:
 async def read_product_name(
     image: UploadFile = File(...), engine=Depends(get_engine)
 ) -> dict:
-    result = engine.read(await image.read())
+    result = await _read_photo(image, engine)
     return {
         "text": extract_product_name(result),
         "net_weight_text": extract_net_weight_text(result),
@@ -94,7 +106,7 @@ async def read_product_name(
 async def read_nutrition_table(
     image: UploadFile = File(...), engine=Depends(get_engine)
 ) -> dict:
-    result = engine.read(await image.read())
+    result = await _read_photo(image, engine)
     try:
         reading = parse_nutrition(result)
     except (ColumnDetectionError, NormalizationError) as error:
@@ -148,7 +160,7 @@ async def debug_boxes(
     image: UploadFile = File(...), engine=Depends(get_engine)
 ) -> dict:
     """Raw detections, for recording fixtures (spec §11 fixtures:capture)."""
-    result = engine.read(await image.read())
+    result = await _read_photo(image, engine)
     return {
         "image_width": result.image_width,
         "image_height": result.image_height,

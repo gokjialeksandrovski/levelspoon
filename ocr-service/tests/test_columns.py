@@ -127,3 +127,40 @@ def test_a_heading_line_between_the_columns_does_not_merge_them():
         "192kJ/46 kcal",
         "1,5 g",
     ]
+
+
+def test_an_energy_badge_above_the_header_does_not_anchor_the_column():
+    """A front-of-pack "263 kcal" badge sits above the table, often on the
+    other side of the photo; anchoring on it picks the wrong column."""
+    result = _result(
+        _box("263 kcal", 200.0, 50.0),
+        _box("100 g", 900.0, 100.0),
+        _box("1104kJ/263kcal", 900.0, 200.0),
+        _box("22,0 g", 900.0, 300.0),
+    )
+    assert [box.text for box in find_per_100g_values(result)] == [
+        "1104kJ/263kcal",
+        "22,0 g",
+    ]
+
+
+def test_keeps_the_energy_figure_when_ocr_merged_it_into_the_header_box():
+    result = _result(
+        _box("100 g 233kJ/56kcal", 900.0, 100.0),
+        _box("2,0 g", 900.0, 200.0),
+    )
+    assert [box.text for box in find_per_100g_values(result)] == [
+        "100 g 233kJ/56kcal",
+        "2,0 g",
+    ]
+
+
+def test_a_basis_attached_to_an_energy_figure_is_not_a_column_header():
+    """ "263 kCal/100g" in running text is not a table heading; taking it for
+    one maps a prose declaration's figures by position."""
+    result = _result(
+        _box("Energy 263 kCal/100g 1104 KJ/100g", 500.0, 100.0),
+        _box("Fat 22,0 g", 500.0, 200.0),
+    )
+    with pytest.raises(ColumnDetectionError, match="per-100 header"):
+        find_per_100g_values(result)

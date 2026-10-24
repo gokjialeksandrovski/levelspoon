@@ -70,16 +70,23 @@ Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then p
 
 ## Nutrition pipeline (`ocr-service/src/levelspoon_ocr/nutrition/`)
 
-Deterministic: photo → boxes → normalize → parse (EU-first, US-fallback) → validate. `reading.py` shared result shape for both branches.
+Deterministic: photo → boxes → normalize → parse (EU table first, then US label, then running-text declaration) → validate. `reading.py` shared result shape for every branch.
 
 - **Split kJ/kcal energy row is highest-risk parser defect.** Label splitting kJ and kcal into two boxes yields one extra numeric box and shifts every later field by one, silently. `split_energy_row` consumes energy row as one logical row however OCR split it.
+- Energy cell with units only in its row label ("Energy value (kJ/kcal)" beside bare `112.71/26.96`): read as energy only when the pair's ratio is 4.184 within `KJ_TOLERANCE`, larger as kJ.
+- Unread energy is `null` and flagged, never a reason to discard macros read beside it. With no energy row located, every table position is flagged too (nothing shows the column didn't shift), and a column also missing rows is no table at all (`ColumnDetectionError`: a "per 100 g" claim on a front panel).
+- Number regex has no trailing word boundary: a letter touching a figure ("0,60г", OCR's "8,23r") otherwise backtracks and drops the decimals, a silent error Atwater can pass.
 - EU parser maps values positionally. Two named row orders, 7-row (with fibre) and 6-row, picked by value count. No label-text inference: value column drifts on curved packaging. Ceiling: a label printing another optional row (polyols, starch) still shifts.
 - US label: two-pass geometric marker→figure association. `dietary fib(?:er|re)` is the only optional marker (absent → `None`, never `NormalizationError`). Total Carbohydrate normalised to EU convention: `carbohydrate_g = total − fibre_g` (21 CFR 101.9(c)(6)(i)), same shape as `SODIUM_TO_SALT_FACTOR`.
 - `engine.py` only impure module (PaddleOCR wrapper). Everything else pure and directly testable.
 - EU per-100 column detection anchors on energy figure, and clusters columns only from energy row down: a heading line above table ("Average nutritional values in", centred between description and value columns) otherwise chains both into one column.
+- Energy anchor searched only from the header down (a front-of-pack "263 kcal" badge otherwise picks the column), and kept even when OCR merged it into the header box. A "kcal/100g" attached to an energy figure is not a header: it marks running text.
+- **Running-text declaration** (`prose.py`): "Përmbajtja e yndyrës 22.0% Karbohidratet 0.60% …", no table. Reached when no table header is found, or the table's energy cell names a nutrient. Per column (bilingual labels print languages side by side), each mass figure (g/mg/%) goes to the nearest field keyword before it. Latin-script keywords only (English, Albanian, Serbian/Croatian/Bosnian). Needs ≥ 4 of 6 mandatory macros and a stated per-100 basis (figures without one may be per portion). Ceiling: first claim wins, so a QUID percentage in an ingredient list ahead of the declaration ("sugar 2%") is taken for the nutrient; validation and confirm step are the net.
 - Header `100 g` or `100 ml`; reading reports which as `basis_unit`, stored as product's `nutrition_basis_unit` (drinks per 100 ml, same as Open Food Facts path).
 - Decimal-separator recovery runs **only when provably needed** (EU decimal comma; PaddleOCR drops separators).
-- No per-100 header → **fail loudly**, never invent values: `ColumnDetectionError`.
+- No per-100 table, no US markers, no running-text declaration → **fail loudly**, never invent values: `ColumnDetectionError`, HTTP 422.
+- `engine.py` applies EXIF orientation (browser re-encodes, and so rotates, only photos over 2048 px). An upload Pillow cannot decode (HEIC, corrupt) is HTTP 415, which the app returns as `unreadable-photo` with its own message: a retake of the same file fails the same way.
+- Engine pinned to `lang='en'`; the Cyrillic model was measured and rejected (`docs/DECISIONS.md`).
 - Validation: deterministic sanity rules (Atwater ±30%, kJ↔kcal, component total incl. known fibre, negatives; `fibre_g` `None` exempt). No fibre ≤ carbohydrate rule: under EU convention fibre sits outside carbohydrate.
 - FDA-locked unit constants (`fl oz = 30`, not `29.5735`).
 - Constants derived from measurement carry a comment naming evidence.

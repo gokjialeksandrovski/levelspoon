@@ -30,6 +30,15 @@ class OcrResult:
     image_height: int
 
 
+class UnreadablePhotoError(Exception):
+    """The upload is not an image the engine can decode (HEIC, a corrupt file).
+
+    Defined beside OcrResult, not in engine.py, so the HTTP layer can catch it
+    without importing Pillow. A sharper photo of the same label fails the same
+    way, so it must not reach the user as "unreadable label".
+    """
+
+
 # A gap wider than this fraction of the image starts a new column. Tuned to
 # separate a nutrition table's label and value columns while keeping
 # multilingual label fragments ("Energija" / "Energy") together.

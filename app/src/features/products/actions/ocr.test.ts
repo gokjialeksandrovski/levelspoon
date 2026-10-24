@@ -74,6 +74,12 @@ describe("ocrNutritionTable — EU drink label (HttpOcrProvider mocked)", () => 
     vi.unstubAllEnvs();
   });
 
+  it("passes an undecodable photo through for the step to word, not throw", async () => {
+    mockExtractNutritionTable.mockResolvedValue({ kind: "unreadable-photo" });
+    const result = await ocrNutritionTable(new Blob([crypto.randomUUID()]), "Milk");
+    expect(result).toEqual({ kind: "unreadable-photo" });
+  });
+
   it("keeps the label's per-100 ml basis instead of assuming grams", async () => {
     mockExtractNutritionTable.mockResolvedValue({ format: "eu", per100g: PER_SERVING_VALUES, basisUnit: "ml", flags: [] });
     const result = await ocrNutritionTable(new Blob([crypto.randomUUID()]), "Milk");

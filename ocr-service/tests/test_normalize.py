@@ -18,6 +18,10 @@ from levelspoon_ocr.nutrition.normalize import (
         ("72 g", 72.0),
         ("180 mg", 0.18),
         ("180mg", 0.18),
+        # A letter touching the figure must not cut its decimals off.
+        ("0,60г", 0.6),
+        ("2,82gr", 2.82),
+        ("8,23r,", 8.23),
     ],
 )
 def test_converts_label_values_to_grams(raw, expected):
@@ -67,13 +71,26 @@ def test_consumes_only_the_energy_boxes():
     assert len(remaining) == 3
 
 
-def test_raises_when_kcal_figure_is_missing():
+def test_reports_a_missing_kcal_figure_as_none_and_still_consumes_the_kj_box():
     boxes = (_box("295 kJ", 100.0), _box("2,0 g", 200.0))
-    with pytest.raises(NormalizationError, match="kcal"):
-        split_energy_row(boxes)
+    kcal, kj, remaining = split_energy_row(boxes)
+    assert (kcal, kj) == (None, 295.0)
+    assert [box.text for box in remaining] == ["2,0 g"]
 
 
-def test_raises_when_no_energy_row_is_present():
+def test_reports_no_energy_row_as_none_and_consumes_nothing():
     boxes = (_box("2,0 g", 200.0),)
-    with pytest.raises(NormalizationError, match="energy"):
-        split_energy_row(boxes)
+    assert split_energy_row(boxes) == (None, None, boxes)
+
+
+def test_reads_a_unitless_energy_pair_whose_units_sit_in_the_row_label():
+    """Real bag label: "Energy value (kJ/kcal)" beside a bare "112.71/26.96"."""
+    boxes = (_box("112.71/26.96", 100.0), _box("0.17", 200.0))
+    kcal, kj, remaining = split_energy_row(boxes)
+    assert (kcal, kj) == (26.96, 112.71)
+    assert [box.text for box in remaining] == ["0.17"]
+
+
+def test_a_bare_pair_off_the_kj_per_kcal_ratio_is_not_energy():
+    boxes = (_box("1/2", 100.0), _box("0.17", 200.0))
+    assert split_energy_row(boxes) == (None, None, boxes)

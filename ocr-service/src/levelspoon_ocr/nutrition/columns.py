@@ -17,6 +17,11 @@ from .normalize import ENERGY_FIGURE
 # after "g", so "100 gr" still counts; "100 mg" matches neither.
 PER_100_HEADER = re.compile(r"100\s*(ml|g)", re.IGNORECASE)
 
+# "263 kCal/100g" states one figure's basis inside running text, not a column
+# heading. Counted as a header, it sends a prose declaration (no table at all)
+# down the table path, which maps its figures by position.
+ENERGY_PER_100 = re.compile(r"(?:kj|kcal)\s*/\s*100\s*(?:ml|g)", re.IGNORECASE)
+
 # Kept in sync with parse.py's EU_ROW_ORDER (fat/saturates/
 # carbohydrate/sugars/protein/salt - EU Reg 1169/2011's fixed six-row
 # block, before an optional fibre row extends it to seven). Duplicated
@@ -45,7 +50,7 @@ def _header(result: OcrResult) -> tuple[Box, str]:
     headers = [
         (box, match.group(1).lower())
         for box in result.boxes
-        if (match := PER_100_HEADER.search(box.text))
+        if (match := PER_100_HEADER.search(ENERGY_PER_100.sub(" ", box.text)))
     ]
     if not headers:
         raise ColumnDetectionError(
@@ -60,8 +65,8 @@ def per_100_basis_unit(result: OcrResult) -> str:
     return _header(result)[1]
 
 
-def _energy_box(boxes: tuple[Box, ...]) -> Box | None:
-    """The box carrying a kJ or kcal figure, wherever OCR placed it.
+def _energy_box(boxes: tuple[Box, ...], header: Box) -> Box | None:
+    """The topmost box carrying a kJ or kcal figure, from the header down.
 
     Energy is mandatory on every EU label (Reg 1169/2011) and always a
     value, never label text - anchoring the value column on it is more
@@ -70,8 +75,13 @@ def _energy_box(boxes: tuple[Box, ...]) -> Box | None:
     on a real multilingual label: the four-language header phrase joins the
     description column, while the figures sit in a separate column with no
     header of their own).
+
+    Nothing above the header counts: a front-of-pack "263 kcal" badge would
+    otherwise anchor the column on the wrong side of the photo.
     """
-    matches = [box for box in boxes if ENERGY_FIGURE.search(box.text)]
+    matches = [
+        box for box in boxes if box.y >= header.y and ENERGY_FIGURE.search(box.text)
+    ]
     return min(matches, key=lambda box: box.y) if matches else None
 
 
@@ -122,7 +132,8 @@ def _reclaim_missing_rows(
 def find_per_100g_values(result: OcrResult) -> tuple[Box, ...]:
     """Value boxes belonging to the per-100g column, ordered top to bottom."""
     header, _ = _header(result)
-    anchor = _energy_box(result.boxes) or header
+    energy = _energy_box(result.boxes, header)
+    anchor = energy or header
     # Clustered from the first table row down: a heading line above it
     # ("Average nutritional values in", centred between the description and
     # value columns on a real multilingual carton) otherwise bridges the gap
@@ -132,7 +143,9 @@ def find_per_100g_values(result: OcrResult) -> tuple[Box, ...]:
 
     for column in columns:
         if anchor in column:
-            values = tuple(box for box in column if box.y > header.y)
+            # The energy box is kept even when it is the header box itself
+            # ("100 g 233kJ/56kcal" read as one detection).
+            values = tuple(box for box in column if box.y > header.y or box is energy)
             other_boxes = tuple(
                 box for box in result.boxes if box not in values and box.y > header.y
             )

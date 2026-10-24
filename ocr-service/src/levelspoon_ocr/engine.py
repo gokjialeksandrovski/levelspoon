@@ -13,9 +13,26 @@ import io
 from dataclasses import dataclass
 
 import numpy
-from PIL import Image
+from PIL import Image, ImageOps
 
-from .boxes import Box, OcrResult
+from .boxes import Box, OcrResult, UnreadablePhotoError
+
+
+def _decode(image_bytes: bytes) -> Image.Image:
+    """Upright RGB pixels, as the camera saw them.
+
+    Phones store a portrait shot sideways plus an EXIF rotation tag. The
+    browser applies the tag only when it re-encodes (photos over 2048 px), so
+    a smaller photo reaches Paddle sideways unless it is applied here.
+    """
+    try:
+        return ImageOps.exif_transpose(Image.open(io.BytesIO(image_bytes))).convert(
+            "RGB"
+        )
+    except OSError as error:  # PIL's UnidentifiedImageError is an OSError too
+        raise UnreadablePhotoError(
+            f"Not a decodable image ({len(image_bytes)} bytes): {error}"
+        ) from error
 
 
 @dataclass
@@ -41,7 +58,7 @@ class OcrEngine:
 
     def read(self, image_bytes: bytes) -> OcrResult:
         """Detect every text box in one photograph."""
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        image = _decode(image_bytes)
         width, height = image.size
 
         boxes: list[Box] = []

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { DEMO_SCAN_LIMIT_MESSAGE } from "@/features/demo/demo.messages";
 import { ocrNutritionTable } from "@/features/products/actions/ocr";
+import { UNREADABLE_PHOTO_MESSAGE } from "@/features/products/products.messages";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { PhotoInput } from "@/components/ui/photo-input";
 import { NOTHING_LEARNED } from "@/lib/measures/learn";
@@ -82,6 +83,11 @@ const useNutritionPhotoStep = (nameGuess: string, netWeightText: string | null, 
       if (read.kind === "demo-limit") {
         setPhoto(null);
         setError(DEMO_SCAN_LIMIT_MESSAGE);
+        return;
+      }
+      if (read.kind === "unreadable-photo") {
+        setPhoto(null);
+        setError(UNREADABLE_PHOTO_MESSAGE);
         return;
       }
       if (read.kind === "needs-serving-size") {

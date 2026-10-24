@@ -1,0 +1,372 @@
+{
+  "image_width": 1200,
+  "image_height": 1600,
+  "boxes": [
+    {
+      "text": "oca",
+      "x": 760.0,
+      "y": 34.0,
+      "confidence": 0.6436492800712585
+    },
+    {
+      "text": " ",
+      "x": 770.0,
+      "y": 80.0,
+      "confidence": 0.9650508761405945
+    },
+    {
+      "text": "bpben kbae",
+      "x": 761.0,
+      "y": 138.0,
+      "confidence": 0.7932266592979431
+    },
+    {
+      "text": "domawia",
+      "x": 604.5,
+      "y": 210.0,
+      "confidence": 0.7458199262619019
+    },
+    {
+      "text": "C",
+      "x": 1021.0,
+      "y": 190.0,
+      "confidence": 0.9015651941299438
+    },
+    {
+      "text": "",
+      "x": 1093.0,
+      "y": 337.5,
+      "confidence": 0.0
+    },
+    {
+      "text": "HA6YKOBO",
+      "x": 1107.0,
+      "y": 379.5,
+      "confidence": 0.9666695594787598
+    },
+    {
+      "text": "",
+      "x": 1126.0,
+      "y": 419.5,
+      "confidence": 0.0
+    },
+    {
+      "text": "Përberesit:proshute",
+      "x": 887.5,
+      "y": 597.0,
+      "confidence": 0.9284380674362183
+    },
+    {
+      "text": ":   9 ( ",
+      "x": 560.0,
+      "y": 609.0,
+      "confidence": 0.9231618046760559
+    },
+    {
+      "text": "Hamburgu, uje, stabilizues E450/E451, konservu",
+      "x": 998.0,
+      "y": 614.5,
+      "confidence": 0.9605278968811035
+    },
+    {
+      "text": " ), , (450/",
+      "x": 532.0,
+      "y": 629.0,
+      "confidence": 0.9100852608680725
+    },
+    {
+      "text": "E250/E262,dekstroze,",
+      "x": 889.5,
+      "y": 635.0,
+      "confidence": 0.985756516456604
+    },
+    {
+      "text": "451),3(E250/E262), 3,",
+      "x": 537.0,
+      "y": 648.0,
+      "confidence": 0.8773637413978577
+    },
+    {
+      "text": "antioksidant E301, kripë, ereza. Materiet ushqye",
+      "x": 997.0,
+      "y": 653.5,
+      "confidence": 0.9588422775268555
+    },
+    {
+      "text": " 01,,.",
+      "x": 502.5,
+      "y": 668.0,
+      "confidence": 0.8690872192382812
+    },
+    {
+      "text": "Përmbajtja totaleeproteinave",
+      "x": 925.0,
+      "y": 674.0,
+      "confidence": 0.9614462852478027
+    },
+    {
+      "text": "21.3% Përmbajtja e proteinave të mishit 21.3%",
+      "x": 993.5,
+      "y": 691.5,
+      "confidence": 0.971471905708313
+    },
+    {
+      "text": "   100: ",
+      "x": 547.0,
+      "y": 703.0,
+      "confidence": 0.9092247486114502
+    },
+    {
+      "text": "Përmbajtja e kolagjenit në proteinat",
+      "x": 949.0,
+      "y": 712.5,
+      "confidence": 0.9654484987258911
+    },
+    {
+      "text": "B 263 kCal/100g 1104 KJ/100g.",
+      "x": 526.0,
+      "y": 723.0,
+      "confidence": 0.9226062297821045
+    },
+    {
+      "text": "e mishit 10.89% Përmbajtja e ujit 52.8% Permba",
+      "x": 997.5,
+      "y": 731.5,
+      "confidence": 0.9394630789756775
+    },
+    {
+      "text": "2,0,    8,23r,",
+      "x": 544.0,
+      "y": 740.5,
+      "confidence": 0.8978875279426575
+    },
+    {
+      "text": "yndyrës 22.0% Karbohidratet",
+      "x": 919.5,
+      "y": 749.5,
+      "confidence": 0.9817668795585632
+    },
+    {
+      "text": "Jare 0,60   ",
+      "x": 519.0,
+      "y": 760.0,
+      "confidence": 0.8536056876182556
+    },
+    {
+      "text": "0.60% Shegerna 0.11% NaCl në mish dhe produ",
+      "x": 998.0,
+      "y": 769.5,
+      "confidence": 0.9626445174217224
+    },
+    {
+      "text": "0,11,   21,3r,   ",
+      "x": 573.5,
+      "y": 777.0,
+      "confidence": 0.8951485753059387
+    },
+    {
+      "text": "mishit 2.20%",
+      "x": 852.0,
+      "y": 788.0,
+      "confidence": 0.9989826083183289
+    },
+    {
+      "text": " 2,   ",
+      "x": 507.0,
+      "y": 797.0,
+      "confidence": 0.8732976913452148
+    },
+    {
+      "text": "Vlera e energjisë 263 kCal/100g 1104 KJ/100g Ac",
+      "x": 997.0,
+      "y": 809.0,
+      "confidence": 0.9925719499588013
+    },
+    {
+      "text": "  15%,  2,20r   ",
+      "x": 567.5,
+      "y": 814.0,
+      "confidence": 0.9006065130233765
+    },
+    {
+      "text": "52,8%.",
+      "x": 415.0,
+      "y": 838.0,
+      "confidence": 0.9155576229095459
+    },
+    {
+      "text": "ngopurayndyrore8.23%",
+      "x": 901.0,
+      "y": 829.0,
+      "confidence": 0.9999276399612427
+    },
+    {
+      "text": "Udhëzime për perdorim:",
+      "x": 901.5,
+      "y": 865.5,
+      "confidence": 0.9591772556304932
+    },
+    {
+      "text": "  :",
+      "x": 475.0,
+      "y": 872.0,
+      "confidence": 0.9653415083885193
+    },
+    {
+      "text": "Produkti është I trajtuar me nxehtesi. Te ruhet n",
+      "x": 997.5,
+      "y": 886.5,
+      "confidence": 0.9179401993751526
+    },
+    {
+      "text": "temperaturë prej 0 deri +4C. Pas hapjes së prod",
+      "x": 996.5,
+      "y": 906.5,
+      "confidence": 0.9787283539772034
+    },
+    {
+      "text": "    ",
+      "x": 507.0,
+      "y": 926.0,
+      "confidence": 0.9559358358383179
+    },
+    {
+      "text": "ruajeni në frigorifer dhe konsumojeni brenda 7",
+      "x": 993.0,
+      "y": 926.0,
+      "confidence": 0.9973534345626831
+    },
+    {
+      "text": "ditêve.",
+      "x": 825.5,
+      "y": 942.5,
+      "confidence": 0.9782777428627014
+    },
+    {
+      "text": "p  .",
+      "x": 445.0,
+      "y": 947.5,
+      "confidence": 0.7239278554916382
+    },
+    {
+      "text": "PRODHUESI:",
+      "x": 838.5,
+      "y": 978.0,
+      "confidence": 0.9981271028518677
+    },
+    {
+      "text": "",
+      "x": 447.5,
+      "y": 979.5,
+      "confidence": 0.0
+    },
+    {
+      "text": "DIADORA DOOEL INDUSTRIA USHQIMORE KOSILJAK,",
+      "x": 978.5,
+      "y": 1000.0,
+      "confidence": 0.9576061964035034
+    },
+    {
+      "text": "RR. VARAZHDINSKA NR. 3 KUMANOVE, MK",
+      "x": 944.0,
+      "y": 1019.5,
+      "confidence": 0.936508297920227
+    },
+    {
+      "text": "ARKODE",
+      "x": 493.5,
+      "y": 1064.5,
+      "confidence": 0.5721372365951538
+    },
+    {
+      "text": "POK HA TPAEHE",
+      "x": 713.5,
+      "y": 1079.5,
+      "confidence": 0.9880110025405884
+    },
+    {
+      "text": "EAP KOA",
+      "x": 433.0,
+      "y": 1078.5,
+      "confidence": 0.945559024810791
+    },
+    {
+      "text": " ",
+      "x": 958.0,
+      "y": 1085.5,
+      "confidence": 0.5176330804824829
+    },
+    {
+      "text": "21-11-",
+      "x": 1111.5,
+      "y": 1104.5,
+      "confidence": 0.9918445944786072
+    },
+    {
+      "text": "45 HA",
+      "x": 780.0,
+      "y": 1125.0,
+      "confidence": 0.9077488780021667
+    },
+    {
+      "text": "AFATIPERDORIMIT",
+      "x": 958.0,
+      "y": 1105.0,
+      "confidence": 0.956993818283081
+    },
+    {
+      "text": "HETO TEKVIHA:",
+      "x": 940.0,
+      "y": 1143.5,
+      "confidence": 0.8371412754058838
+    },
+    {
+      "text": "802900",
+      "x": 566.5,
+      "y": 1168.5,
+      "confidence": 0.8309000134468079
+    },
+    {
+      "text": "NETO PESHÊ:",
+      "x": 930.5,
+      "y": 1162.5,
+      "confidence": 0.9139180779457092
+    },
+    {
+      "text": "0.290kg",
+      "x": 1095.0,
+      "y": 1195.0,
+      "confidence": 0.9999917149543762
+    },
+    {
+      "text": "20116",
+      "x": 408.0,
+      "y": 1183.0,
+      "confidence": 0.9821184277534485
+    },
+    {
+      "text": "21-11-26",
+      "x": 606.5,
+      "y": 1217.5,
+      "confidence": 0.9999560117721558
+    },
+    {
+      "text": "po0s pazo",
+      "x": 417.5,
+      "y": 1219.5,
+      "confidence": 0.49673667550086975
+    },
+    {
+      "text": "WWW.KOSIJAK.MK",
+      "x": 763.0,
+      "y": 1238.5,
+      "confidence": 0.9770101308822632
+    },
+    {
+      "text": "办",
+      "x": 1175.0,
+      "y": 1243.5,
+      "confidence": 0.21499614417552948
+    }
+  ]
+}
