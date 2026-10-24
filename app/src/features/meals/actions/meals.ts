@@ -184,7 +184,7 @@ const dayMealIngredientSelection = () => ({
 
 const fetchDayMealIngredientRows = async (
   userId: string,
-  logDate: string,
+  logDate: string | SQL,
 ): Promise<DayMealIngredientRow[]> =>
   db
     .select(dayMealIngredientSelection())
@@ -452,7 +452,7 @@ export interface DayEnergy {
 
 // Same day-wide figure the home hero shows for that date - goal minus every
 // meal's kcal that day, not just this one.
-const fetchDayEnergy = async (userId: string, logDate: string): Promise<DayEnergy> => {
+const fetchDayEnergy = async (userId: string, logDate: string | SQL): Promise<DayEnergy> => {
   const [dayRows, calorieGoal] = await Promise.all([
     fetchDayMealIngredientRows(userId, logDate),
     fetchCalorieGoal(userId),
@@ -461,11 +461,16 @@ const fetchDayEnergy = async (userId: string, logDate: string): Promise<DayEnerg
   return { consumedKcal, remaining: calorieRemaining(calorieGoal, consumedKcal) };
 };
 
-/** The day's kcal and what is left of the goal, without the rest of getDayLog:
- * the capture wizard's saved step shows these two figures and nothing else. */
-export const getDayEnergy = async (date: string): Promise<DayEnergy> => {
+/** The meal's day kcal and what is left of the goal, without the rest of
+ * getDayLog: the capture wizard's saved step shows these two figures and
+ * nothing else. The day is read inside the same query, so the page runs this
+ * beside getMealLogDate instead of after it. */
+export const getMealDayEnergy = async (mealId: string): Promise<DayEnergy> => {
   const userId = await requireUserId();
-  return fetchDayEnergy(userId, date);
+  return fetchDayEnergy(
+    userId,
+    sql`(select target.log_date from meals target where target.id = ${mealId} and target.user_id = ${userId})`,
+  );
 };
 
 /** The day a meal counts toward. A meal started on a past day is still open

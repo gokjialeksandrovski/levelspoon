@@ -6,7 +6,7 @@ import * as motion from "motion/react-m";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
-import { discardEmptyMeal, getDayEnergy, type DayEnergy } from "@/features/meals/actions/meals";
+import { discardEmptyMeal, type DayEnergy } from "@/features/meals/actions/meals";
 import { DayCalorieStat } from "@/features/meals/components/day-calorie-stat";
 import type { RecipeSummary } from "@/features/recipes/actions/recipes.store";
 import { Button } from "@/components/ui/button";
@@ -73,20 +73,20 @@ interface SavedMoment {
   dayLabel: string;
 }
 
-// Ingredients count toward the meal's own day, which is not always today.
-// The page reads the opening total on the server; each save reads it again,
-// and the last two are kept so the step can settle from the old total to the
-// new one.
-const useDaySnapshots = (logDate: string, savedCount: number, initialEnergy: DayEnergy | null): DaySnapshot[] => {
-  const [snapshots, setSnapshots] = useState<DaySnapshot[]>(initialEnergy ? [{ ...initialEnergy, savedCount: 0 }] : []);
+// The page reads the meal's day total on the server, and every save's
+// refresh() re-renders it with a fresh read, so a new dayEnergy object is a
+// new total. The last two are kept so the step can settle from the old total
+// to the new one. The action resolves before its refreshed props render, so
+// markSaved has already counted the save when the new total is tagged.
+const useDaySnapshots = (savedCount: number, dayEnergy: DayEnergy | null): DaySnapshot[] => {
+  const [seenEnergy, setSeenEnergy] = useState(dayEnergy);
+  const [snapshots, setSnapshots] = useState<DaySnapshot[]>(dayEnergy ? [{ ...dayEnergy, savedCount }] : []);
 
-  useEffect(() => {
-    if (savedCount === 0) return;
-    getDayEnergy(logDate)
-      .then((energy) => setSnapshots((list) => [...list.slice(-1), { ...energy, savedCount }]))
-      // Harmless: the step still says "Ingredient saved." without the total.
-      .catch((error) => console.error("Loading the day's total failed", error));
-  }, [logDate, savedCount]);
+  if (dayEnergy !== seenEnergy) {
+    setSeenEnergy(dayEnergy);
+    // A failed read is null: the step still says "Ingredient saved." without the total.
+    if (dayEnergy) setSnapshots([...snapshots.slice(-1), { ...dayEnergy, savedCount }]);
+  }
 
   return snapshots;
 };
@@ -374,13 +374,13 @@ const useCaptureWizard = (
   mealId: string,
   logDate: string,
   dayLabel: string,
-  initialEnergy: DayEnergy | null,
+  dayEnergy: DayEnergy | null,
 ): UseCaptureWizardResult => {
   const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
   const [savedCount, setSavedCount] = useState(0);
   const step = path[path.length - 1];
   const exit = useWizardExit(mealId, savedCount, logDate);
-  const snapshots = useDaySnapshots(logDate, savedCount, initialEnergy);
+  const snapshots = useDaySnapshots(savedCount, dayEnergy);
 
   return {
     step,
@@ -403,21 +403,21 @@ interface CaptureWizardProps {
   // "Today", "Yesterday" or a date, resolved on the server against the
   // timezone cookie so it matches the day view's header.
   dayLabel: string;
-  initialEnergy: DayEnergy | null;
+  dayEnergy: DayEnergy | null;
   // Read on the server and refreshed by every recipe write, so the picker
   // opens on a list already in hand. Its length decides whether the recipe
   // row in `Add a meal` is greyed.
   recipes: RecipeSummary[];
 }
 
-export const CaptureWizard = ({ mealId, logDate, dayLabel, initialEnergy, recipes }: CaptureWizardProps) => {
+export const CaptureWizard = ({ mealId, logDate, dayLabel, dayEnergy, recipes }: CaptureWizardProps) => {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(
     mealId,
     logDate,
     dayLabel,
-    initialEnergy,
+    dayEnergy,
   );
 
   return (

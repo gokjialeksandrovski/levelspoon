@@ -18,6 +18,7 @@ import {
   discardEmptyMeal,
   getDayHistory,
   getDayLog,
+  getMealDayEnergy,
   getMealDetail,
   recentAmounts,
   saveMealIngredient,
@@ -394,6 +395,27 @@ describe("saveMealIngredient", () => {
     await expect(
       saveMealIngredient({ mealId, productId, quantity: 150, quantityUnit: "g", quantitySource: "manual", entryCount: 150, entryUnit: "g" }),
     ).rejects.toThrow(NotAuthorizedError);
+  });
+});
+
+describe("getMealDayEnergy", () => {
+  it("sums the meal's own day, and reads no other user's meal for its day", async () => {
+    const userId = await seedUser();
+    const productId = await seedProduct(userId);
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId: pastMealId } = await createMeal(YESTERDAY, "UTC");
+    await saveMealIngredient({ mealId: pastMealId, productId, quantity: 200, quantityUnit: "g", quantitySource: "manual", entryCount: 200, entryUnit: "g" });
+    const { mealId: todayMealId } = await createMeal(TODAY, "UTC");
+    await saveMealIngredient({ mealId: todayMealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
+
+    expect((await getMealDayEnergy(pastMealId)).consumedKcal).toBeCloseTo(140, 5);
+
+    // The other user has a meal on that day too: reading their own total
+    // through someone else's meal id would tell them that meal's day.
+    mockAuth.mockResolvedValue({ user: { id: await seedUser() } });
+    const { mealId: otherMealId } = await createMeal(YESTERDAY, "UTC");
+    await saveMealIngredient({ mealId: otherMealId, productId, quantity: 100, quantityUnit: "g", quantitySource: "manual", entryCount: 100, entryUnit: "g" });
+    expect((await getMealDayEnergy(pastMealId)).consumedKcal).toBe(0);
   });
 });
 

@@ -62,9 +62,9 @@ Server Actions only path from browser to Postgres, storage or Gemini. Files unde
 
 - **Page reads run on server.** Day, meal, history, capture and intake pages read in `page.tsx` and pass data down. Never a Server Action called from `useEffect` on mount: Next dispatches actions one at a time per client, so mount reads queue behind each other and behind any save.
 - **Day, meal, history stream.** Page starts read, passes unresolved promise (`DayLoad`, `MealLoad`, `HistoryLoad`) to client view, which `use()`s it under `Suspense` with `DelayedFallback`. Failed read resolves to `{ status: "error" }`, never rejects. `LiveStatus` sits outside boundary: live region must exist before its text changes.
-- **Capture and intake await** both reads with `Promise.all`; each is a convenience, so a failure degrades to null/empty.
+- **Capture and intake await** their reads with `Promise.all`; convenience reads degrade to null/empty on failure. Capture's `getMealLogDate` is not one: unknown meal is 404.
 - **Writes call `refresh()`** (`next/cache`) when a page shows their data: meal ingredient writes, `restoreMeal`, goals, weight, intake save, recipe writes, `logLazyMeal`. Open page re-renders in same response and client cache drops every other page, so Back never lands on pre-write figures. No client reload callbacks. `deleteMeal` does not refresh: it navigates away, and refresh would first repaint meal as not found. Product corrections refresh client-side (`router.refresh()` in `correction-form.tsx`), keyed remount there depends on it. Vitest mocks `next/cache` in `vitest.setup.ts`.
-- Reads triggered by interaction stay client actions: load-more history, recent amounts, search, `getDayEnergy` after a capture save.
+- Reads triggered by interaction stay client actions: load-more history, recent amounts, search. Capture saved step reads no total itself: save's `refresh()` re-renders capture page with fresh `getMealDayEnergy`, and wizard keeps last two prop values.
 
 ## Bundle
 
