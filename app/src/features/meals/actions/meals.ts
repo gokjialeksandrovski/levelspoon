@@ -20,11 +20,26 @@ import {
   type ProductNutritionRow,
 } from "@/lib/nutrition/totals";
 
-import { computeContribution, HISTORY_PAGE_SIZE, MAX_HISTORY_PAGES } from "./meals.utils";
+import {
+  computeContribution,
+  HISTORY_PAGE_SIZE,
+  isUuid,
+  isValidPasteItems,
+  MAX_HISTORY_PAGES,
+  type PasteItem,
+} from "./meals.utils";
+import { fetchUnavailableProductIds } from "./meals.store";
 import { InvalidLogDateError, NotAuthorizedError } from "./meals.errors";
 import { fetchCalorieGoal, fetchMacroTargets } from "@/features/goals/actions/goals.store";
 import type { MacroTargets } from "@/features/goals/actions/macro-targets.utils";
-import { fetchMealItems, fetchOwnedRecipe, fetchRecipeItems, recipeHasAiItems } from "@/features/recipes/actions/recipes.store";
+import {
+  appendItemsToMeal,
+  fetchMealItems,
+  fetchOwnedMeal,
+  fetchOwnedRecipe,
+  fetchRecipeItems,
+  recipeHasAiItems,
+} from "@/features/recipes/actions/recipes.store";
 import { mealMatchesRecipe, recipeIsSubsetOfMeal } from "@/features/recipes/actions/recipes.utils";
 import { fetchWeightView } from "@/features/weight/actions/weight.store";
 import type { WeightView } from "@/features/weight/actions/weight.utils";
@@ -605,6 +620,44 @@ export const updateMealIngredientQuantity = async (
     })
     .where(eq(mealIngredients.id, mealIngredientId));
   refresh();
+};
+
+export type PasteIngredientsResult =
+  | { kind: "pasted"; count: number }
+  | { kind: "meal_missing" }
+  | { kind: "unavailable"; productIds: string[] }
+  | { kind: "invalid" };
+
+/**
+ * Writes copied rows into a meal, all or none. Every refusal writes nothing,
+ * so the client can drop what failed and offer the rest again.
+ *
+ * Products gate on visibility, never on notAiEstimate: the user's own
+ * lazy-track rows are theirs to reuse (spec §6), and nobody else's AI row
+ * passes visibility at all.
+ */
+export const pasteIngredients = async (
+  mealId: string,
+  items: readonly PasteItem[],
+): Promise<PasteIngredientsResult> => {
+  const userId = await requireUserId();
+  if (!isUuid(mealId) || !isValidPasteItems(items)) {
+    return { kind: "invalid" };
+  }
+  const [meal, unavailableIds] = await Promise.all([
+    fetchOwnedMeal(userId, mealId),
+    fetchUnavailableProductIds(userId, items.map((item) => item.productId)),
+  ]);
+  if (!meal) {
+    refresh();
+    return { kind: "meal_missing" };
+  }
+  if (unavailableIds.length > 0) {
+    return { kind: "unavailable", productIds: unavailableIds };
+  }
+  const count = await db.transaction((tx) => appendItemsToMeal(tx, mealId, items));
+  refresh();
+  return { kind: "pasted", count };
 };
 
 // Five distinct amounts is about a week of one product's habits: enough that
