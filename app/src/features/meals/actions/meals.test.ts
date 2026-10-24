@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { mealIngredients, meals, products, users } from "@/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "@/lib/date/day-bounds";
 
-import { computeContribution, HISTORY_PAGE_SIZE } from "./meals.utils";
+import { computeContribution, HISTORY_PAGE_SIZE, type PasteItem } from "./meals.utils";
 import {
   createMeal,
   deleteMeal,
@@ -20,6 +20,7 @@ import {
   getDayLog,
   getMealDayEnergy,
   getMealDetail,
+  pasteIngredients,
   recentAmounts,
   saveMealIngredient,
   removeMealIngredient,
@@ -1097,5 +1098,170 @@ describe("getMealDetail recipe link", () => {
     const meal = await getMealDetail(mealId);
     expect(meal?.recipe).toBeNull();
     expect(meal?.ingredients).toHaveLength(1);
+  });
+});
+
+describe("pasteIngredients", () => {
+  const BARE_PRODUCT = {
+    name: "Bare Product",
+    nameSearch: "bare product",
+    energyKcal: "70",
+    fatG: "2.0",
+    saturatesG: "1.2",
+    carbohydrateG: "4.0",
+    sugarsG: "4.0",
+    proteinG: "9.0",
+    saltG: "0.18",
+    nutritionPhotoKey: null,
+  };
+
+  // Curated rows belong to a system user and carry no photo or barcode, so
+  // visibleToUser alone would refuse them.
+  const seedStandardProduct = async (): Promise<string> => {
+    const systemUserId = await seedUser();
+    const [product] = await db
+      .insert(products)
+      .values({ ...BARE_PRODUCT, source: "standard", nutritionOrigin: "manual", createdByUserId: systemUserId })
+      .returning({ id: products.id });
+    return product.id;
+  };
+
+  // No photo, no barcode: visible to its owner only.
+  const seedPrivateProduct = async (
+    ownerId: string,
+    overrides: { nutritionOrigin?: "manual" | "ai_estimate" } = {},
+  ): Promise<string> => {
+    const [product] = await db
+      .insert(products)
+      .values({ ...BARE_PRODUCT, nutritionOrigin: overrides.nutritionOrigin ?? "manual", createdByUserId: ownerId })
+      .returning({ id: products.id });
+    return product.id;
+  };
+
+  const pasteItem = (productId: string, overrides: Partial<PasteItem> = {}): PasteItem => ({
+    productId,
+    quantity: 80,
+    quantityUnit: "g",
+    entryCount: null,
+    entryUnit: null,
+    quantitySource: "manual",
+    ...overrides,
+  });
+
+  const liveRows = (mealId: string) =>
+    db
+      .select({
+        productId: mealIngredients.productId,
+        quantity: mealIngredients.quantity,
+        entryCount: mealIngredients.entryCount,
+        entryUnit: mealIngredients.entryUnit,
+        quantitySource: mealIngredients.quantitySource,
+      })
+      .from(mealIngredients)
+      .where(eq(mealIngredients.mealId, mealId))
+      .orderBy(mealIngredients.createdAt);
+
+  const signedInWithMeal = async (): Promise<{ userId: string; mealId: string }> => {
+    const userId = await seedUser();
+    mockAuth.mockResolvedValue({ user: { id: userId } });
+    const { mealId } = await createMeal(TODAY, "UTC");
+    return { userId, mealId };
+  };
+
+  it("pastes rows with amount, entry echo and source", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const productId = await seedProduct(userId);
+
+    const result = await pasteIngredients(mealId, [
+      pasteItem(productId, { entryCount: 2, entryUnit: "slice", quantitySource: "ai_estimated" }),
+    ]);
+
+    expect(result).toEqual({ kind: "pasted", count: 1 });
+    expect(await liveRows(mealId)).toEqual([
+      { productId, quantity: "80.00", entryCount: "2.00", entryUnit: "slice", quantitySource: "ai_estimated" },
+    ]);
+  });
+
+  it("pastes a standard food", async () => {
+    const { mealId } = await signedInWithMeal();
+    const productId = await seedStandardProduct();
+
+    expect(await pasteIngredients(mealId, [pasteItem(productId)])).toEqual({ kind: "pasted", count: 1 });
+  });
+
+  it("pastes the user's own AI-estimate row", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const productId = await seedPrivateProduct(userId, { nutritionOrigin: "ai_estimate" });
+
+    expect(await pasteIngredients(mealId, [pasteItem(productId)])).toEqual({ kind: "pasted", count: 1 });
+  });
+
+  it("refuses another user's private product and writes nothing", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const visibleId = await seedProduct(userId);
+    const privateId = await seedPrivateProduct(await seedUser());
+
+    const result = await pasteIngredients(mealId, [pasteItem(visibleId), pasteItem(privateId)]);
+
+    expect(result).toEqual({ kind: "unavailable", productIds: [privateId] });
+    expect(await liveRows(mealId)).toHaveLength(0);
+  });
+
+  it("reports a repeated unavailable product once", async () => {
+    const { mealId } = await signedInWithMeal();
+    const privateId = await seedPrivateProduct(await seedUser());
+
+    const result = await pasteIngredients(mealId, [pasteItem(privateId), pasteItem(privateId)]);
+
+    expect(result).toEqual({ kind: "unavailable", productIds: [privateId] });
+  });
+
+  it("refuses a meal of another user", async () => {
+    const { mealId } = await signedInWithMeal();
+    const intruderId = await seedUser();
+    const productId = await seedProduct(intruderId);
+    mockAuth.mockResolvedValue({ user: { id: intruderId } });
+
+    expect(await pasteIngredients(mealId, [pasteItem(productId)])).toEqual({ kind: "meal_missing" });
+    expect(await liveRows(mealId)).toHaveLength(0);
+  });
+
+  it("refuses a soft-deleted meal", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const productId = await seedProduct(userId);
+    await deleteMeal(mealId);
+
+    expect(await pasteIngredients(mealId, [pasteItem(productId)])).toEqual({ kind: "meal_missing" });
+  });
+
+  it("refuses invalid items", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const productId = await seedProduct(userId);
+
+    expect(await pasteIngredients(mealId, [pasteItem(productId, { quantity: 0 })])).toEqual({ kind: "invalid" });
+    expect(await pasteIngredients("abc", [pasteItem(productId)])).toEqual({ kind: "invalid" });
+  });
+
+  it("adds a second row for a product already in the meal", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const productId = await seedProduct(userId);
+    await saveMealIngredient({ mealId, productId, quantity: 50, quantityUnit: "g", quantitySource: "manual", entryCount: 50, entryUnit: "g" });
+
+    await pasteIngredients(mealId, [pasteItem(productId)]);
+
+    expect((await liveRows(mealId)).map((row) => row.quantity)).toEqual(["50.00", "80.00"]);
+  });
+
+  it("keeps the meal's recipe link", async () => {
+    const { userId, mealId } = await signedInWithMeal();
+    const productId = await seedProduct(userId);
+    await saveMealIngredient({ mealId, productId, quantity: 50, quantityUnit: "g", quantitySource: "manual", entryCount: 50, entryUnit: "g" });
+    const saved = await saveMealAsRecipe(mealId, "Yogurt");
+    if (saved.kind !== "saved") throw new Error(saved.kind);
+
+    await pasteIngredients(mealId, [pasteItem(await seedProduct(userId))]);
+
+    const [meal] = await db.select({ recipeId: meals.recipeId }).from(meals).where(eq(meals.id, mealId));
+    expect(meal.recipeId).toBe(saved.recipeId);
   });
 });

@@ -6,7 +6,11 @@
 import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { mealIngredients, meals, productOverrides, products } from "@/lib/db/schema";
+import { mealIngredients, meals, productOverrides, products, productSource } from "@/lib/db/schema";
+import { visibleToUser } from "@/lib/db/visibility";
+
+// productSource.enumValues is the tuple ["user", "standard"].
+const STANDARD_SOURCE = productSource.enumValues[1];
 
 export interface DailyKcal {
   /** The user's local calendar day, YYYY-MM-DD. */
@@ -62,4 +66,27 @@ export const dailyKcalTotals = async (
     byDate.set(row.logDate, (byDate.get(row.logDate) ?? 0) + kcal);
   }
   return [...byDate].map(([date, kcal]) => ({ date, kcal }));
+};
+
+/**
+ * The ids among `productIds` this user may not log: missing, or another
+ * user's private row. Each id once, however often it was asked about.
+ *
+ * The standard clause is needed because curated rows belong to a system user
+ * and carry no photo or barcode, so visibleToUser alone refuses a pasted
+ * banana (spec §6 step 4). No notAiEstimate: the user's own lazy-track rows
+ * pass visibleToUser by authorship and are pasteable; nobody else's can be.
+ */
+export const fetchUnavailableProductIds = async (
+  userId: string,
+  productIds: readonly string[],
+): Promise<string[]> => {
+  const distinctIds = [...new Set(productIds)];
+  const result = await db.execute<{ id: string }>(sql`
+    SELECT p.id FROM products p
+    WHERE p.id IN (${sql.join(distinctIds.map((id) => sql`${id}`), sql`, `)})
+      AND (p.source = ${STANDARD_SOURCE} OR ${visibleToUser(userId)})
+  `);
+  const available = new Set(result.rows.map((row) => row.id));
+  return distinctIds.filter((id) => !available.has(id));
 };

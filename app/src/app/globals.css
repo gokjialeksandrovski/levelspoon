@@ -158,6 +158,10 @@ html {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   scrollbar-color: var(--raw-border) transparent;
+  /* A classic scrollbar appearing narrows the viewport, so the centred column
+     jumps sideways whenever a page grows past one screen (opening the Copied
+     tray). Overlay scrollbars (phones) take no gutter either way. */
+  scrollbar-gutter: stable;
 }
 
 /* The browser draws selection and the scrollbar, not any component, so

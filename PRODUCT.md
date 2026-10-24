@@ -59,8 +59,9 @@ reach. Weeks-scale review happens on `/history`.
 - Lazy track: user describes a meal (optional photo), Gemini returns an
   itemized estimate, user fixes grams on a review step, then logs. Guesses
   land on private `ai_estimate` product rows: never shared, searched, matched,
-  barcode-linked or label-proved. Reuse only through recipes, tagged as an
-  estimate. Least accurate logging path on purpose. See `docs/MEALS.md`.
+  barcode-linked or label-proved. Reuse only through recipes or copy and
+  paste, tagged as an estimate. Least accurate logging path on purpose. See
+  `docs/MEALS.md`.
 - Daily calorie goal: optional, hand-set, per user (`users.daily_calorie_goal`,
   null until set). App offers no default and no reset-to-2000 chip — a flat
   number on a button would be the app recommending an intake.

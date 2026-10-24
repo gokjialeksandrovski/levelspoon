@@ -14,6 +14,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { buttonClassName } from "@/components/ui/button";
 import { DelayedFallback } from "@/components/ui/delayed-fallback";
 import { Disclosure } from "@/components/ui/disclosure";
+import { InlineMessage } from "@/components/ui/inline-message";
 import { LiveStatus } from "@/components/ui/live-status";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,9 +22,13 @@ import { contentFadeInitial, contentFadeTransition, listStaggerVariants } from "
 import { formatNumber } from "@/lib/nutrition/format-number";
 import { fibreCoverage, fibreText } from "@/lib/nutrition/totals";
 
+import { useCopiedIngredients, type CopiedIngredientsStore } from "./copied-ingredients";
+import { COPY_LIMIT_MESSAGE, isCopied, toggleRow, type CopiedIngredient } from "./copied-ingredients.utils";
 import { CookingFatControl } from "./cooking-fat-control";
+import { CopyMealButton } from "./copy-meal-button";
 import { DeleteMeal } from "./delete-meal";
-import { IngredientRow, RemovedIngredientRow } from "./ingredient-row";
+import { PasteArea } from "./paste-area";
+import { displayProductName, IngredientRow, RemovedIngredientRow, type RowCopy } from "./ingredient-row";
 import { RecipeControl, RecipeDivergence, RecipeSubtitle } from "./recipe-control";
 import { ShareMealButton } from "./share-meal-button";
 
@@ -96,15 +101,38 @@ const listEntries = (ingredients: MealIngredientDetail[], removals: Removal[]): 
     );
 };
 
+interface CopyControls {
+  copied: CopiedIngredientsStore;
+  onAnnounce: (message: string) => void;
+  onFull: () => void;
+}
+
+// Local only: toggling writes the per-device list and sends no request.
+const rowCopyFor = (ingredient: MealIngredientDetail, { copied, onAnnounce, onFull }: CopyControls): RowCopy => {
+  const isRowCopied = isCopied(copied.items, ingredient.id);
+  return {
+    isCopied: isRowCopied,
+    onToggle: () => {
+      if (copied.replace(toggleRow(copied.items, ingredient)) === "full") {
+        onFull();
+        return;
+      }
+      const name = displayProductName(ingredient.productName);
+      onAnnounce(isRowCopied ? `${name} taken off copied list.` : `${name} copied.`);
+    },
+  };
+};
+
 interface IngredientListProps {
   entries: ListEntry[];
   removals: UseRemovalsResult;
+  copyControls: CopyControls;
 }
 
 // motion.ul orchestrates entrance stagger via variants; AnimatePresence
 // (mode="popLayout") plays each row's own exit animation and lets siblings'
 // `layout` reflow into the gap instead of snapping when one is removed.
-const IngredientList = ({ entries, removals }: IngredientListProps) => {
+const IngredientList = ({ entries, removals, copyControls }: IngredientListProps) => {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -120,6 +148,7 @@ const IngredientList = ({ entries, removals }: IngredientListProps) => {
             <IngredientRow
               key={entry.ingredient.id}
               ingredient={entry.ingredient}
+              copy={rowCopyFor(entry.ingredient, copyControls)}
               onRemoved={() => removals.markRemoved(entry.ingredient, index)}
             />
           ) : (
@@ -231,16 +260,20 @@ interface MealReadyBodyProps {
   onAnnounce: (message: string) => void;
 }
 
-type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId" | "onAnnounce">;
+interface IngredientsSectionProps {
+  meal: MealDetailData;
+  removals: UseRemovalsResult;
+  copyControls: CopyControls;
+}
 
-const IngredientsSection = ({ meal, removals }: IngredientsSectionProps) => {
+const IngredientsSection = ({ meal, removals, copyControls }: IngredientsSectionProps) => {
   const entries = listEntries(meal.ingredients, removals.removals);
   if (entries.length === 0) {
     return <EmptyIngredients />;
   }
   return (
     <>
-      <IngredientList entries={entries} removals={removals} />
+      <IngredientList entries={entries} removals={removals} copyControls={copyControls} />
       {meal.ingredients.length > 0 && <MealTotal meal={meal} />}
     </>
   );
@@ -249,13 +282,16 @@ const IngredientsSection = ({ meal, removals }: IngredientsSectionProps) => {
 interface MealActionsProps {
   meal: MealDetailData;
   mealId: string;
+  copyControls: CopyControls;
+  isCopyFull: boolean;
   onAnnounce: (message: string) => void;
 }
 
 // The meal's own actions sit together; deleting the meal is a different kind of
 // act, set apart by a hairline rather than a wide empty gap - the rule reads as
 // "end of the meal's actions" and still keeps a thumb reaching for "Add" off it.
-const MealActions = ({ meal, mealId, onAnnounce }: MealActionsProps) => (
+// The copy limit notice sits under the tray, where × and Clear make room.
+const MealActions = ({ meal, mealId, copyControls, isCopyFull, onAnnounce }: MealActionsProps) => (
   <div className="mt-8 flex flex-col gap-6">
     <div className="flex flex-col gap-3">
       {/*
@@ -270,26 +306,51 @@ const MealActions = ({ meal, mealId, onAnnounce }: MealActionsProps) => (
         <CarrotIcon size={20} />
         Add ingredient
       </Link>
+      <PasteArea mealId={mealId} />
+      {isCopyFull && <InlineMessage tone="warning">{COPY_LIMIT_MESSAGE}</InlineMessage>}
       <CookingFatControl mealId={mealId} />
       <RecipeControl mealId={mealId} recipe={meal.recipe} ingredients={meal.ingredients} onAnnounce={onAnnounce} />
       <ShareMealButton meal={meal} onAnnounce={onAnnounce} />
+      <CopyMealButton ingredients={meal.ingredients} {...copyControls} />
     </div>
     <DeleteMeal mealId={mealId} mealDate={meal.date} />
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProps) => (
-  <>
-    {meal.recipe && (
-      <div className="mb-4 flex flex-col gap-2">
-        <RecipeDivergence recipe={meal.recipe} />
-        <RecipeSubtitle recipe={meal.recipe} />
-      </div>
-    )}
-    <IngredientsSection meal={meal} removals={removals} />
-    <MealActions meal={meal} mealId={mealId} onAnnounce={onAnnounce} />
-  </>
-);
+interface UseCopyControlsResult {
+  copyControls: CopyControls;
+  isCopyFull: boolean;
+}
+
+// fullAt holds the list a copy was refused against. Any change to the list
+// (×, Clear, a copy in another tab) is a new array, which retires the notice
+// without a reset anywhere.
+const useCopyControls = (onAnnounce: (message: string) => void): UseCopyControlsResult => {
+  const copied = useCopiedIngredients();
+  const [fullAt, setFullAt] = useState<readonly CopiedIngredient[] | null>(null);
+  const onFull = () => {
+    setFullAt(copied.items);
+    onAnnounce(COPY_LIMIT_MESSAGE);
+  };
+  return { copyControls: { copied, onAnnounce, onFull }, isCopyFull: fullAt === copied.items };
+};
+
+const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProps) => {
+  const { copyControls, isCopyFull } = useCopyControls(onAnnounce);
+
+  return (
+    <>
+      {meal.recipe && (
+        <div className="mb-4 flex flex-col gap-2">
+          <RecipeDivergence recipe={meal.recipe} />
+          <RecipeSubtitle recipe={meal.recipe} />
+        </div>
+      )}
+      <IngredientsSection meal={meal} removals={removals} copyControls={copyControls} />
+      <MealActions meal={meal} mealId={mealId} copyControls={copyControls} isCopyFull={isCopyFull} onAnnounce={onAnnounce} />
+    </>
+  );
+};
 
 const SKELETON_ROW_COUNT = 3;
 

@@ -46,6 +46,21 @@ A recipe is a meal the user saved to re-add later, private to that user. Two sur
 - `navigator.share` where browser has it; user closing menu (`AbortError`) does nothing. No share menu, or any other refusal, falls back to clipboard: button reads `Copied`, live region says `Meal copied.`
 - Client only: no Server Action, no request.
 
+## Copy and paste
+
+Copy ingredient rows out of one meal, paste them with their amounts into another. Spec: `docs/superpowers/specs/2026-10-24-copy-paste-ingredients-design.md`.
+
+- Copied list per device: `localStorage` key `levelspoon:copied:<userId>` (`copied-ingredients.ts`, `useSyncExternalStore` + `storage` event). No session user yet means no key, empty list, writes do nothing. Unreadable or malformed value reads as empty; bad entries dropped (`parseCopied`).
+- Entries snapshot at copy time (`CopiedIngredient`, `copied-ingredients.utils.ts`): editing or removing source row later leaves entry as copied. `energyKcal` display only; pasted row reads live nutrition.
+- Row `Copy` / `Copied` toggle between `Edit` and `Remove`, hidden while row edited. `Copy meal` beside `Share meal` adds rows not yet copied; on a fully copied meal it takes that meal's rows off. Both local only, no request.
+- List capped at `MAX_PASTE_ITEMS` (50), what one paste may send. Cap lives in store's one write path (`replace` returns `"full"`, writes nothing). Copy that would pass it is refused whole (meal never half copied); notice under tray says so until list changes.
+- Paste area (`paste-area.tsx`) shown only when list non-empty: top of capture options (above `Add a product to a meal`) and under `Add ingredient` on meal page. Closed tray by default (`Copied` + count and kcal); tap opens list. Copying never opens it. `Paste` / `Paste all N` is its only request. `×` drops one entry; `Clear` collapses to `Copied list cleared` + `Undo`, all local. Capture paste navigates to meal page; meal page paste folds tray closed, list kept.
+- `pasteIngredients` (`features/meals/actions/meals.ts`): shape check first (`isValidPasteItems`, `MAX_PASTE_ITEMS`), then owned meal and product availability together (`fetchUnavailableProductIds`), then one transaction through `appendItemsToMeal`. All or nothing.
+  - Product passes when standard (`p.source = 'standard'`) or `visibleToUser`. Standard clause needed: curated rows have no photo or barcode and belong to system user.
+  - No `notAiEstimate`: user's own AI rows pasteable; nobody else's passes visibility.
+  - Pasting a product already in meal adds second row, never merges. Recipe link untouched.
+- Refusals cross as `PasteIngredientsResult` (`pasted` / `meal_missing` / `unavailable` / `invalid`). On `unavailable` client drops every entry of those products and says what is left to paste.
+
 ## Lazy track (Gemini job 2)
 
 Least accurate logging path, on purpose: user describes meal (+ optional photo), Gemini returns itemized estimate (`estimateMeal`, `features/lazy-track/actions/lazy-track.ts`: meal name, items, grams, eight per-100g figures), user fixes grams, logs. Reached from wizard `Add a meal` section.
@@ -56,7 +71,7 @@ Least accurate logging path, on purpose: user describes meal (+ optional photo),
   - `notAiEstimate` fragment keeps them out of `searchUserProducts`, `matchProduct`, `findSameFigures`, `assertUserProduct`, `findStoredMeasures`.
   - `isProofless` (`attachLabelProof` guard) excludes AI rows; `getProductForCorrection` returns null for one, so `/products/<id>/correct` 404s rather than promoting a guess to a shared, label-proved row.
   - **Any new search, match, barcode or photo-proof writer applies the same guard.**
-- Reuse through recipes only. `(AI estimate)` tag on recipe and `AI estimate` on item derived from origin, never stored; swapping every guess for a real product clears recipe tag.
+- Reuse through recipes and copy/paste only. `(AI estimate)` tag on recipe and `AI estimate` on item derived from origin, never stored; swapping every guess for a real product clears recipe tag.
 - Prompt pins grams and per-100 g to same state (cooked rice never scored as dry), takes stated amounts as given, salt in g never sodium mg.
 - `reasoning_effort: "high"`, most `gemini-3.5-flash-lite` offers: user's own key carries cost. Splits mixed dishes into components; ~9-10 s against ~5 s at default. Thinking counts toward `MAX_RESPONSE_TOKENS`.
 - Figures bounded in `features/lazy-track/actions/lazy-track.utils.ts` (each constant labelled physical or judgment), run on Gemini reply and again in `logLazyMeal`: figures round-trip through browser.

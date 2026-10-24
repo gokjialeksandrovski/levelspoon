@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MeasureContext } from "@/lib/measures/resolve-grams";
 import type { NutritionValues } from "@/types/nutrition";
 
-import { previewContribution } from "./meals.utils";
+import { isValidPasteItems, MAX_PASTE_ITEMS, type PasteItem, previewContribution } from "./meals.utils";
 
 // Per 100 g, deliberately asymmetric so a wrong scale factor can't coincide
 // with a right one.
@@ -172,4 +172,27 @@ describe("previewContribution — nothing to show", () => {
       }).kind,
     ).toBe("unavailable");
   });
+});
+
+describe("isValidPasteItems", () => {
+  const item: PasteItem = {
+    productId: "0b6f6a3e-5c1d-4f7a-9a2b-3c4d5e6f7a8b",
+    quantity: 80,
+    quantityUnit: "g",
+    entryCount: 1,
+    entryUnit: "slice",
+    quantitySource: "manual",
+  };
+  it("accepts a well-formed item", () => expect(isValidPasteItems([item])).toBe(true));
+  it("accepts a row with no entry echo", () =>
+    expect(isValidPasteItems([{ ...item, entryCount: null, entryUnit: null }])).toBe(true));
+  it("refuses an empty list", () => expect(isValidPasteItems([])).toBe(false));
+  it("refuses more than MAX_PASTE_ITEMS", () =>
+    expect(isValidPasteItems(Array.from({ length: MAX_PASTE_ITEMS + 1 }, () => item))).toBe(false));
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 100_000_000])("refuses quantity %s", (quantity) =>
+    expect(isValidPasteItems([{ ...item, quantity }])).toBe(false));
+  it("refuses a non-uuid product id", () => expect(isValidPasteItems([{ ...item, productId: "abc" }])).toBe(false));
+  it("refuses an unknown quantity source", () =>
+    expect(isValidPasteItems([{ ...item, quantitySource: "guess" }])).toBe(false));
+  it.each([null, "x", { 0: item }])("refuses non-array %s", (value) => expect(isValidPasteItems(value)).toBe(false));
 });

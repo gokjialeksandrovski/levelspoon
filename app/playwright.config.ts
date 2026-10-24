@@ -25,6 +25,7 @@ export default defineConfig({
     "measured-burn.spec.ts",
     "recipes.spec.ts",
     "lazy-track.spec.ts",
+    "copy-paste.spec.ts",
   ],
   fullyParallel: false,
   // Every spec file's `beforeEach` truncates the same shared Postgres tables,

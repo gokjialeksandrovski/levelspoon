@@ -25,6 +25,8 @@ import { BARCODE_NUMBER_HINT, parseTypedBarcode, TYPE_INSTEAD_HINT } from "./typ
 interface ProductNameStepProps {
   pendingBarcode: string | null;
   hasRecipes: boolean;
+  /** Copied ingredients, first thing a thumb reaches on a new meal. */
+  pasteArea: React.ReactNode;
   dispatch: (action: WizardAction) => void;
 }
 
@@ -305,6 +307,7 @@ interface PhotoNameEntryProps {
   error: string | null;
   previewUrl: string | null;
   hasRecipes: boolean;
+  pasteArea: React.ReactNode;
   onSelectName: (photo: File) => void;
   onSelectBarcode: (photo: File) => void;
   onTypeBarcode: () => void;
@@ -470,6 +473,7 @@ const EntryOptionList = ({
   isLoading,
   hasRecipes,
   pendingBarcode,
+  pasteArea,
   onSelectName,
   onSelectBarcode,
   onTypeBarcode,
@@ -480,6 +484,7 @@ const EntryOptionList = ({
 }: EntryOptionListProps) => (
   <div className="flex flex-col gap-8">
     {pendingBarcode && <UnknownBarcodeNote barcode={pendingBarcode} />}
+    {pasteArea}
     <OptionSection
       title={ADD_PRODUCT_TITLE}
       description={ADD_PRODUCT_DESCRIPTION}
@@ -524,7 +529,7 @@ const PhotoNameEntry = ({ error, ...body }: PhotoNameEntryProps) => (
   </div>
 );
 
-export const ProductNameStep = ({ pendingBarcode, hasRecipes, dispatch }: ProductNameStepProps) => {
+export const ProductNameStep = ({ pendingBarcode, hasRecipes, pasteArea, dispatch }: ProductNameStepProps) => {
   const { error, busyLabel, callbacks } = useStepRequest(pendingBarcode, dispatch);
   const { previewUrl, showPreview } = usePreviewUrl();
 
@@ -535,6 +540,7 @@ export const ProductNameStep = ({ pendingBarcode, hasRecipes, dispatch }: Produc
       previewUrl={previewUrl}
       hasRecipes={hasRecipes}
       pendingBarcode={pendingBarcode}
+      pasteArea={pasteArea}
       onSelectName={(photo) => {
         showPreview(photo);
         void handlePhotoName(photo, callbacks);
