@@ -3,7 +3,7 @@
 import { XIcon } from "@phosphor-icons/react";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as motion from "motion/react-m";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { pasteIngredients, type PasteIngredientsResult } from "@/features/meals/actions/meals";
 import { AI_ESTIMATE_TAG } from "@/features/lazy-track/actions/lazy-track.utils";
@@ -27,6 +27,11 @@ import {
 import { displayProductName } from "./ingredient-row";
 
 const ICON_BUTTON_CLASS = `${ICON_TAP_TARGET_CLASS} ${ICON_ROW_EDGE_PULL_RIGHT} -my-3 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`;
+
+// Long enough for a screen reader to finish the sentence; same judgment call
+// as meal-detail.tsx's RECIPE_ANNOUNCEMENT_CLEAR_MS. Clearing it is what lets
+// a repeat of the same message ("1 ingredient pasted.") be announced again.
+const ANNOUNCEMENT_CLEAR_MS = 4000;
 
 // Focus would otherwise fall to <body> with the unmounted button; the
 // skip-link target exists on both screens (MealScreen, WizardShell).
@@ -93,14 +98,27 @@ const usePasteArea = (mealId: string, onPasted?: () => void): UsePasteAreaResult
     setUndoItems(null);
   }
 
+  useEffect(() => {
+    if (!announcement) return;
+    const timer = window.setTimeout(() => setAnnouncement(""), ANNOUNCEMENT_CLEAR_MS);
+    return () => window.clearTimeout(timer);
+  }, [announcement]);
+
   const paste = () => {
     const items = copied.items;
     setIsPasting(true);
     setError(null);
     pasteIngredients(mealId, toPasteItems(items))
-      .then((result) => applyPasteResult(result, { items, copied, setError, announce: setAnnouncement, onPasted }))
-      .catch(() => setError("Couldn't paste. Try again."))
-      .finally(() => setIsPasting(false));
+      .then((result) => {
+        applyPasteResult(result, { items, copied, setError, announce: setAnnouncement, onPasted });
+        // Leaving the screen: Paste stays pending until it unmounts, or a tap
+        // during the navigation round trip writes every row a second time.
+        if (!(result.kind === "pasted" && onPasted)) setIsPasting(false);
+      })
+      .catch(() => {
+        setError("Couldn't paste. Try again.");
+        setIsPasting(false);
+      });
   };
 
   const takeOff = (item: CopiedIngredient) => {

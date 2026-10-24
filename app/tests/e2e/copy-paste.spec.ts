@@ -129,14 +129,67 @@ test("paste on the meal page adds a second row and keeps the list", async ({ pag
   await expect(copiedHeading(page)).toBeVisible();
 });
 
+// Holds every request the pattern matches until the returned release runs,
+// so a test can look at the screen while the write or navigation is in flight.
+const holdRequests = async (page: Page, pattern: RegExp, method: string): Promise<() => void> => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(pattern, async (route) => {
+    if (route.request().method() === method) await held;
+    await route.continue();
+  });
+  return release;
+};
+
+// Next runs Server Actions one at a time, so without the pending guard a
+// second tap queues a second write rather than racing the first: the row
+// count alone would pass on its way from 2 to 3. The disabled check while
+// the first write is held is what fails without the guard.
 test("double-tapping Paste writes once", async ({ page }) => {
   await startOnMeal(page);
   await copyRow(page);
+  const releaseWrite = await holdRequests(page, /\/meals\/[^/?]+$/, "POST");
+  const posts = recordPosts(page);
+  const paste = page.getByRole("button", { name: "Paste", exact: true });
 
-  await page.getByRole("button", { name: "Paste", exact: true }).dblclick();
+  await paste.dblclick();
+  await expect(paste).toBeDisabled();
+  releaseWrite();
 
-  await expect(page.getByRole("status").filter({ hasText: "1 ingredient pasted." })).toHaveCount(1);
+  await expect(paste).toBeEnabled();
   await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(2);
+  expect(posts).toHaveLength(1);
+});
+
+test("Paste on capture stays pending until the meal page opens", async ({ page }) => {
+  await startOnMeal(page);
+  await copyRow(page);
+  await startNewMeal(page);
+  const releaseNavigation = await holdRequests(page, /\/meals\/[^/?]+\?_rsc=/, "GET");
+  const paste = page.getByRole("button", { name: "Paste", exact: true });
+
+  await paste.click();
+  await expect(page.getByRole("status").filter({ hasText: "1 ingredient pasted." })).toHaveCount(1);
+  await expect(paste).toBeDisabled();
+  releaseNavigation();
+
+  await page.waitForURL(/\/meals\/[^/]+$/);
+});
+
+test("a repeated paste is announced again", async ({ page }) => {
+  await startOnMeal(page);
+  await copyRow(page);
+  const paste = page.getByRole("button", { name: "Paste", exact: true });
+  const pasted = page.getByRole("status").filter({ hasText: "1 ingredient pasted." });
+
+  await paste.click();
+  await expect(pasted).toHaveCount(1);
+  await expect(pasted).toHaveCount(0, { timeout: 10_000 });
+  await paste.click();
+
+  await expect(pasted).toHaveCount(1);
 });
 
 test("× and Clear with Undo send no request", async ({ page }) => {
