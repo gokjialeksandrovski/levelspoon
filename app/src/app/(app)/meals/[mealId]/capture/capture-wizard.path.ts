@@ -5,6 +5,11 @@ import { INITIAL_WIZARD_STEP, wizardReducer, type WizardAction, type WizardStep 
 export type WizardPath = WizardStep[]; // non-empty; last element is the current step
 export type PathAction = WizardAction | { type: "BACK" };
 
+// A typed code was looked up from a step of its own, which goes when the code
+// turns out unknown: Back from the options must not reopen a number already tried.
+const withoutTypingStep = (path: WizardPath): WizardPath =>
+  path[path.length - 1].kind === "product-barcode" ? path.slice(0, -1) : path;
+
 export const pathReducer = (path: WizardPath, action: PathAction): WizardPath => {
   if (action.type === "BACK") {
     return path.length > 1 ? path.slice(0, -1) : path;
@@ -23,7 +28,8 @@ export const pathReducer = (path: WizardPath, action: PathAction): WizardPath =>
   // photographed from, so it replaces that step rather than stacking a second
   // copy of it that "Back" would pop to with nothing visibly changed.
   if (action.type === "BARCODE_SCANNED" && action.result.kind === "not_found") {
-    return [...path.slice(0, -1), wizardReducer(path[path.length - 1], action)];
+    const entryPath = withoutTypingStep(path);
+    return [...entryPath.slice(0, -1), wizardReducer(entryPath[entryPath.length - 1], action)];
   }
   // The same step with new portion figures, not a step forward - appending
   // would leave Back pointing at the weights the user just replaced.

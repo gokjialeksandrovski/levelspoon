@@ -14,11 +14,13 @@ import { UNREADABLE_PHOTO_MESSAGE } from "@/features/products/products.messages"
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
-import { PhotoPreview, PhotoSourceDivider, SavedPhotoButton, takePickedPhoto, usePreviewUrl } from "@/components/ui/photo-input";
+import { DockedSource, PhotoPreview, PhotoSourceDivider, SavedPhotoButton, takePickedPhoto, TypeInsteadButton, usePreviewUrl } from "@/components/ui/photo-input";
 import { readBarcodeFromPhoto } from "@/lib/barcode/read-photo";
 
 import type { PathAction } from "../capture-wizard.path";
 import type { WizardAction } from "../capture-wizard.types";
+
+import { BARCODE_NUMBER_HINT, parseTypedBarcode, TYPE_INSTEAD_HINT } from "./typed-barcode.utils";
 
 interface ProductNameStepProps {
   pendingBarcode: string | null;
@@ -125,6 +127,16 @@ const lookUpBarcode = async (code: string, callbacks: ProductNameCallbacks): Pro
   }
 };
 
+const handleTypedBarcode = async (typed: string, callbacks: ProductNameCallbacks): Promise<void> => {
+  const parsed = parseTypedBarcode(typed);
+  if (parsed.kind === "refused") {
+    callbacks.onError(parsed.message);
+    return;
+  }
+  callbacks.onError(null);
+  await lookUpBarcode(parsed.barcode, callbacks);
+};
+
 // Decoding and looking up are one wait to the user but two failures: a photo
 // with no readable code never reaches the lookup, and readBarcodeFromPhoto
 // words that failure itself.
@@ -133,7 +145,7 @@ const handleBarcodePhoto = async (photo: File, callbacks: ProductNameCallbacks):
   callbacks.onBusy(READING_BARCODE_LABEL);
   let code: string | null;
   try {
-    code = await readBarcodeFromPhoto(photo, callbacks.onError);
+    code = await readBarcodeFromPhoto(photo, (message) => callbacks.onError(`${message} ${TYPE_INSTEAD_HINT}`));
   } finally {
     callbacks.onBusy(null);
   }
@@ -160,16 +172,18 @@ const useStepRequest = (pendingBarcode: string | null, dispatch: (action: Wizard
   };
 };
 
-interface ManualNameEntryProps {
-  manualName: string;
+interface TypedLookupFormProps {
+  heading: string;
+  submitLabel: string;
+  field: React.ReactNode;
   error: string | null;
   isLoading: boolean;
-  onChange: (value: string) => void;
   onSubmit: () => void;
 }
 
-// A form so Enter in the field searches, same as tapping the button.
-const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: ManualNameEntryProps) => (
+// A form so Enter in the field submits, same as tapping the button. Shared
+// by the typed name and the typed barcode: one shape for "type it instead".
+const TypedLookupForm = ({ heading, submitLabel, field, error, isLoading, onSubmit }: TypedLookupFormProps) => (
   <form
     className="flex flex-col gap-4"
     onSubmit={(event) => {
@@ -177,16 +191,11 @@ const ManualNameEntry = ({ manualName, error, isLoading, onChange, onSubmit }: M
       if (!isLoading) onSubmit();
     }}
   >
-    <h2 className="text-lg font-semibold">Type the product name</h2>
-    <Field
-      label="Product name"
-      name="manual-product-name"
-      value={manualName}
-      onChange={(event) => onChange(event.target.value)}
-    />
+    <h2 className="text-lg font-semibold">{heading}</h2>
+    {field}
     {error && <InlineMessage tone="error">{error}</InlineMessage>}
     <Button type="submit" pending={isLoading}>
-      Search my products
+      {submitLabel}
     </Button>
   </form>
 );
@@ -246,11 +255,13 @@ interface PhotoOptionRowProps {
   subject: string;
   isLoading: boolean;
   onSelect: (photo: File) => void;
+  /** A further source docked before Photos (see DockedSource). */
+  dock?: React.ReactNode;
 }
 
 // Split row: the row opens the camera directly, so the gallery needs a
 // second input (see SavedPhotoButton), docked at the row's end.
-const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject, isLoading, onSelect }: PhotoOptionRowProps) => {
+const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject, isLoading, onSelect, dock }: PhotoOptionRowProps) => {
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => takePickedPhoto(event, onSelect);
   return (
     <div className="flex items-stretch">
@@ -270,6 +281,7 @@ const PhotoOptionRow = ({ icon: RowIcon, title, description, inputLabel, subject
           className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
         />
       </label>
+      <DockedSource dock={dock} />
       <PhotoSourceDivider />
       <SavedPhotoButton subject={subject} disabled={isLoading} onChange={handleChange} className="hover:bg-surface-raised active:bg-surface-raised" />
     </div>
@@ -295,23 +307,27 @@ interface PhotoNameEntryProps {
   hasRecipes: boolean;
   onSelectName: (photo: File) => void;
   onSelectBarcode: (photo: File) => void;
+  onTypeBarcode: () => void;
   onManualEntry: () => void;
   onWholeFood: () => void;
   onPickRecipe: () => void;
   onLazyTrack: () => void;
+  /** A code neither source knew, carried back to these options. */
+  pendingBarcode: string | null;
 }
 
 interface BarcodeAndPhotoRowsProps {
   isLoading: boolean;
   onSelectName: (photo: File) => void;
   onSelectBarcode: (photo: File) => void;
+  onTypeBarcode: () => void;
 }
 
 // Both rows open the picker from here, not a live-camera step: that would be
 // a dead black rectangle wherever the browser has no camera to give, and a
 // page to read and dismiss before the user could do the one thing the row
 // promised.
-const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode }: BarcodeAndPhotoRowsProps) => (
+const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode, onTypeBarcode }: BarcodeAndPhotoRowsProps) => (
   <>
     <PhotoOptionRow
       icon={BarcodeIcon}
@@ -321,6 +337,14 @@ const BarcodeAndPhotoRows = ({ isLoading, onSelectName, onSelectBarcode }: Barco
       subject="the barcode"
       isLoading={isLoading}
       onSelect={onSelectBarcode}
+      dock={
+        <TypeInsteadButton
+          subject="the barcode number"
+          disabled={isLoading}
+          onClick={onTypeBarcode}
+          className="hover:bg-surface-raised active:bg-surface-raised"
+        />
+      }
     />
     <PhotoOptionRow
       icon={CameraIcon}
@@ -429,17 +453,33 @@ interface EntryOptionListProps extends Omit<PhotoNameEntryProps, "busyLabel" | "
   isLoading: boolean;
 }
 
+// Says why the options came back: the code was read and is still in hand for
+// whatever product is added next, it just isn't known yet. Without it a
+// looked-up number lands back here as if nothing had happened.
+const UnknownBarcodeNote = ({ barcode }: { barcode: string }) => (
+  <div role="status" className="flex items-start gap-3 rounded-control bg-surface-raised px-4 py-3">
+    <BarcodeIcon size={20} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+    <p className="text-pretty text-sm text-text">
+      No product has barcode <span className="tabular-nums">{barcode}</span> yet.{" "}
+      <span className="text-text-muted">Add it another way below and you can link the code to it.</span>
+    </p>
+  </div>
+);
+
 const EntryOptionList = ({
   isLoading,
   hasRecipes,
+  pendingBarcode,
   onSelectName,
   onSelectBarcode,
+  onTypeBarcode,
   onManualEntry,
   onWholeFood,
   onPickRecipe,
   onLazyTrack,
 }: EntryOptionListProps) => (
   <div className="flex flex-col gap-8">
+    {pendingBarcode && <UnknownBarcodeNote barcode={pendingBarcode} />}
     <OptionSection
       title={ADD_PRODUCT_TITLE}
       description={ADD_PRODUCT_DESCRIPTION}
@@ -448,6 +488,7 @@ const EntryOptionList = ({
         isLoading={isLoading}
         onSelectName={onSelectName}
         onSelectBarcode={onSelectBarcode}
+        onTypeBarcode={onTypeBarcode}
       />
       <ManualAndWholeFoodRows
         isLoading={isLoading}
@@ -469,20 +510,11 @@ const EntryOptionList = ({
 // The option rows are all disabled while the photo is read, so showing the
 // photo beats four dead rows and a 12px spinner. The caption names the wait
 // the tapped row started - reading a name, reading a code, looking one up.
-const PhotoEntryBody = ({ busyLabel, previewUrl, hasRecipes, onSelectName, onSelectBarcode, onManualEntry, onWholeFood, onPickRecipe, onLazyTrack }: Omit<PhotoNameEntryProps, "error">) =>
+const PhotoEntryBody = ({ busyLabel, previewUrl, ...options }: Omit<PhotoNameEntryProps, "error">) =>
   busyLabel && previewUrl ? (
     <PhotoPreview previewUrl={previewUrl} scanningLabel={busyLabel} />
   ) : (
-    <EntryOptionList
-      isLoading={busyLabel !== null}
-      hasRecipes={hasRecipes}
-      onSelectName={onSelectName}
-      onSelectBarcode={onSelectBarcode}
-      onManualEntry={onManualEntry}
-      onWholeFood={onWholeFood}
-      onPickRecipe={onPickRecipe}
-      onLazyTrack={onLazyTrack}
-    />
+    <EntryOptionList isLoading={busyLabel !== null} {...options} />
   );
 
 const PhotoNameEntry = ({ error, ...body }: PhotoNameEntryProps) => (
@@ -502,6 +534,7 @@ export const ProductNameStep = ({ pendingBarcode, hasRecipes, dispatch }: Produc
       error={error}
       previewUrl={previewUrl}
       hasRecipes={hasRecipes}
+      pendingBarcode={pendingBarcode}
       onSelectName={(photo) => {
         showPreview(photo);
         void handlePhotoName(photo, callbacks);
@@ -510,6 +543,7 @@ export const ProductNameStep = ({ pendingBarcode, hasRecipes, dispatch }: Produc
         showPreview(photo);
         void handleBarcodePhoto(photo, callbacks);
       }}
+      onTypeBarcode={() => dispatch({ type: "BARCODE_ENTRY" })}
       onManualEntry={() => dispatch({ type: "MANUAL_NAME_ENTRY", pendingBarcode })}
       onWholeFood={() => dispatch({ type: "WHOLE_FOOD_SEARCH" })}
       onPickRecipe={() => dispatch({ type: "RECIPE_PICK_OPENED" })}
@@ -528,12 +562,47 @@ export const ManualNameStep = ({ pendingBarcode, dispatch }: ProductSubStepProps
   const [manualName, setManualName] = useState("");
 
   return (
-    <ManualNameEntry
-      manualName={manualName}
+    <TypedLookupForm
+      heading="Type the product name"
+      submitLabel="Search my products"
+      field={
+        <Field
+          label="Product name"
+          name="manual-product-name"
+          value={manualName}
+          onChange={(event) => setManualName(event.target.value)}
+        />
+      }
       error={error}
       isLoading={isLoading}
-      onChange={setManualName}
       onSubmit={() => void handleManualName(manualName, callbacks)}
+    />
+  );
+};
+
+// No autoFocus: the wizard moves focus to the step container once the step
+// has mounted, which would take it straight back off the field.
+export const BarcodeNumberStep = ({ dispatch }: { dispatch: (action: PathAction) => void }) => {
+  const { error, isLoading, callbacks } = useStepRequest(null, dispatch);
+  const [typed, setTyped] = useState("");
+
+  return (
+    <TypedLookupForm
+      heading="Type the barcode number"
+      submitLabel="Look up barcode"
+      field={
+        <Field
+          label="Barcode number"
+          name="barcode-number"
+          inputMode="numeric"
+          helperText={BARCODE_NUMBER_HINT}
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+        />
+      }
+      error={error}
+      isLoading={isLoading}
+      onSubmit={() => void handleTypedBarcode(typed, callbacks)}
     />
   );
 };

@@ -66,7 +66,12 @@ Fires **only** for brand-new product about to write to shared table, or ambiguou
 
 ## Barcode
 
-Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then photo/manual flow. Camera or photo only, no barcode typing. Every barcode is read from a photo by `readBarcodeFromPhoto` (`lib/barcode/read-photo.ts`, `barcode-detector` WASM self-hosted under `public/zxing/`); no live camera scanning. Spec: `docs/superpowers/specs/2026-09-15-barcode-scanning-design.md`.
+Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then photo/manual flow. Spec: `docs/superpowers/specs/2026-09-15-barcode-scanning-design.md`.
+
+- **From a photo**: `readBarcodeFromPhoto` (`lib/barcode/read-photo.ts`, `barcode-detector` WASM self-hosted under `public/zxing/`). No live camera scanning. A failed read points at Type.
+- **Typed**: "Type" (`TypeInsteadButton`, `photo-input.tsx`) docks between camera and Photos on both barcode controls. Entry list pushes `product-barcode` wizard step. Confirm step types inline: a step would remount confirm and drop corrected figures; Cancel or Escape restores tile, sends nothing.
+- `parseTypedBarcode` (`capture/steps/typed-barcode.utils.ts`) strips digit gaps, runs `normalizeBarcode` in browser: wrong length, bad check digit, in-store prefix refused before any request. Server actions re-check.
+- Code neither source knows returns to entry options as `pendingBarcode`, with note naming it. Typed miss drops typing step from path, so Back never reopens a tried number. Confirm checkbox prints the digits: last look before typo binds to shared product.
 
 ## Nutrition pipeline (`ocr-service/src/levelspoon_ocr/nutrition/`)
 

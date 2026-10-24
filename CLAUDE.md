@@ -23,7 +23,7 @@ When a change makes one of these docs wrong, update the doc in the same change. 
 
 ## Scope
 
-Multi-user web app. Log meals built from ingredients. Each ingredient is a "product" in a **shared cross-user table** (name + nutrition per 100g). Product discovery: label photo/OCR, manual entry, curated standard-food search, barcode (internal DB first, Open Food Facts fallback; camera only, no barcode typing).
+Multi-user web app. Log meals built from ingredients. Each ingredient is a "product" in a **shared cross-user table** (name + nutrition per 100g). Product discovery: label photo/OCR, manual entry, curated standard-food search, barcode (internal DB first, Open Food Facts fallback; read from photo or typed digits, no live camera scanning).
 
 Do NOT:
 

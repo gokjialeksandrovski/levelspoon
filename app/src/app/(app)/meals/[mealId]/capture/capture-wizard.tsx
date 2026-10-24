@@ -20,17 +20,18 @@ import { ConfirmStep } from "./steps/confirm-step";
 import { LazyDescribeStep, LazyReviewStep } from "./steps/lazy-track-steps";
 import { MatchResultStep } from "./steps/match-result-step";
 import { NutritionPhotoStep } from "./steps/nutrition-photo-step";
-import { ManualNameStep, ProductNameStep } from "./steps/product-name-step";
+import { BarcodeNumberStep, ManualNameStep, ProductNameStep } from "./steps/product-name-step";
 import { RecipePickStep } from "./steps/recipe-pick-step";
 import { ServingSizeStep } from "./steps/serving-size-step";
 import { StandardFoodSearchStep } from "./steps/standard-food-search-step";
 import { WizardShell } from "./wizard-shell";
 
-// The two product-* steps share a title and progress: alternate ways into
-// one stage, not progress through it.
+// The product-* steps share a progress: alternate ways into one stage, not
+// progress through it.
 const STEP_TITLES: Record<WizardStep["kind"], string> = {
   "product-photo": "Add food",
   "product-manual": "Product name",
+  "product-barcode": "Barcode",
   "standard-food-search": "Whole food",
   "recipe-pick": "Your recipes",
   "match-result": "Which product?",
@@ -49,6 +50,7 @@ const STEP_TITLES: Record<WizardStep["kind"], string> = {
 const STEP_PROGRESS: Record<WizardStep["kind"], number> = {
   "product-photo": 0.2,
   "product-manual": 0.2,
+  "product-barcode": 0.2,
   "standard-food-search": 0.3,
   "recipe-pick": 0.3,
   "match-result": 0.4,
@@ -162,6 +164,8 @@ const renderManualNameStep = (
   step: Extract<WizardStep, { kind: "product-manual" }>,
   dispatch: (action: PathAction) => void,
 ) => <ManualNameStep pendingBarcode={step.pendingBarcode} dispatch={dispatch} />;
+
+const renderBarcodeNumberStep = (dispatch: (action: PathAction) => void) => <BarcodeNumberStep dispatch={dispatch} />;
 
 const renderStandardFoodSearchStep = (dispatch: (action: PathAction) => void) => (
   <StandardFoodSearchStep dispatch={dispatch} />
@@ -282,6 +286,7 @@ const StepView = ({ step, mealId, moment, recipes, onEnteredMeal, dispatch, onSa
   switch (step.kind) {
     case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
+    case "product-barcode": return renderBarcodeNumberStep(dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
     case "recipe-pick": return renderRecipePickStep(mealId, recipes, onEnteredMeal);
     case "match-result": return renderMatchResultStep(step, dispatch);

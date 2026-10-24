@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Request } from "@playwright/test";
 
 import { db } from "../../src/lib/db";
 import { productBarcodes } from "../../src/lib/db/schema";
@@ -73,7 +73,7 @@ test("a barcode neither source has falls through to the normal flow and surfaces
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
   await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
 
-  const checkbox = page.getByLabel("Use the barcode you just scanned for this product");
+  const checkbox = page.getByLabel("Use barcode 0000000000000 for this product");
   await expect(checkbox).toBeChecked();
   await expect(page.getByRole("button", { name: /find this product instantly next time/i })).toHaveCount(0);
 
@@ -94,7 +94,7 @@ test("unchecking the pre-scanned barcode opt-in saves the product with no barcod
   await page.getByRole("button", { name: "Search my products" }).click();
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
 
-  await page.getByLabel("Use the barcode you just scanned for this product").uncheck();
+  await page.getByLabel("Use barcode 0000000000000 for this product").uncheck();
   await page.getByRole("button", { name: "Save product" }).click();
   await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
 
@@ -152,10 +152,9 @@ test("the fresh-scan button at confirm attaches a barcode neither the checkbox n
   await expect(page.getByRole("heading", { name: "Nutrition label" })).toBeVisible();
   await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
   await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
-  await expect(page.getByLabel("Use the barcode you just scanned for this product")).toHaveCount(0);
+  await expect(page.getByLabel(/^Use barcode \d+ for this product$/)).toHaveCount(0);
 
-  await page.getByRole("button", { name: /find this product instantly next time/i }).click();
-  await page.getByLabel(/barcode photo/i).setInputFiles("../fixtures/barcodes/product-barcode.png");
+  await page.getByLabel("Scan the barcode", { exact: true }).setInputFiles("../fixtures/barcodes/product-barcode.png");
   await expect(page.getByText("Barcode captured.")).toBeVisible();
 
   await page.getByRole("button", { name: "Save product" }).click();
@@ -221,4 +220,108 @@ test("accepting the amount-step link offer after another user just bound the cod
 
   const linkedAfterConflict = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, "0000000000000"));
   expect(linkedAfterConflict).toHaveLength(1);
+});
+
+test("typing an already-linked barcode, gaps and all, skips straight to the amount step", async ({ page }) => {
+  await seedProductWithBarcode("5901234123457", "Existing Scanned Product");
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByRole("button", { name: "Type the barcode number" }).click();
+  await page.getByLabel("Barcode number").fill("5 901234 123457");
+  await page.getByRole("button", { name: "Look up barcode" }).click();
+
+  await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
+  await expect(page.getByText("Using Existing Scanned Product")).toBeVisible();
+});
+
+test("a mistyped barcode is refused on the typing step, before any lookup", async ({ page }) => {
+  await signUp(page);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByRole("button", { name: "Type the barcode number" }).click();
+
+  const actionPosts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") actionPosts.push(request.url());
+  });
+  // One digit off the valid 5901234123457: only the check digit catches it.
+  await page.getByLabel("Barcode number").fill("5901234123458");
+  await page.getByRole("button", { name: "Look up barcode" }).click();
+
+  await expect(page.getByText(/aren't a valid barcode/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Type the barcode number" })).toBeVisible();
+  expect(actionPosts).toHaveLength(0);
+});
+
+test("a typed barcode nobody has lands back on the options, naming the code it carries", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByRole("button", { name: "Type the barcode number" }).click();
+  await page.getByLabel("Barcode number").fill("0000000000000");
+  await page.getByRole("button", { name: "Look up barcode" }).click();
+
+  await expect(page.getByRole("heading", { name: "Add a product to a meal" })).toBeVisible();
+  await expect(page.getByText(/No product has barcode 0000000000000 yet/)).toBeVisible();
+  // The typing step left the path with the miss: the header control exits.
+  await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Type a packaged product's name" }).click();
+  await page.getByLabel("Product name").fill("Loose Bread Roll");
+  await page.getByRole("button", { name: "Search my products" }).click();
+  await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
+  await expect(page.getByLabel("Use barcode 0000000000000 for this product")).toBeChecked();
+});
+
+test("Back from the typing step returns to the options without a lookup", async ({ page }) => {
+  await signUp(page);
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByRole("button", { name: "Type the barcode number" }).click();
+  await page.getByLabel("Barcode number").fill("5901234123457");
+
+  await page.getByRole("button", { name: "Back" }).click();
+
+  await expect(page.getByRole("heading", { name: "Add a product to a meal" })).toBeVisible();
+  await expect(page.getByText(/No product has barcode/)).toHaveCount(0);
+});
+
+test("the confirm step takes a typed barcode inline, and Escape leaves typing with nothing sent", async ({ page }) => {
+  await signUp(page);
+
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.getByLabel("Product photo", { exact: true }).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
+  await page.getByLabel(/nutrition table photo/i).setInputFiles("tests/e2e/fixtures/nutrition-valid.jpg");
+  await expect(page.getByRole("heading", { name: "Confirm values" })).toBeVisible();
+  await page.getByLabel("Product name").fill("Typed Code Yogurt");
+
+  const actionPosts: string[] = [];
+  const recordPost = (request: Request) => {
+    if (request.method() === "POST") actionPosts.push(request.url());
+  };
+  page.on("request", recordPost);
+  const typeButton = page.getByRole("button", { name: "Type the barcode number" });
+  await typeButton.click();
+  await page.getByLabel("Barcode number", { exact: true }).fill("5901234123457");
+  await page.getByLabel("Barcode number", { exact: true }).press("Escape");
+  await expect(page.getByLabel("Barcode number", { exact: true })).toHaveCount(0);
+  await expect(typeButton).toBeFocused();
+  page.off("request", recordPost);
+  expect(actionPosts).toHaveLength(0);
+  // Leaving the inline mode kept what the user had already corrected.
+  await expect(page.getByLabel("Product name")).toHaveValue("Typed Code Yogurt");
+
+  await typeButton.click();
+  await page.getByLabel("Barcode number", { exact: true }).fill("5901234123458");
+  await page.getByRole("button", { name: "Use this barcode" }).click();
+  await expect(page.getByText(/aren't a valid barcode/i)).toBeVisible();
+
+  await page.getByLabel("Barcode number", { exact: true }).fill("5 901234 123457");
+  await page.getByRole("button", { name: "Use this barcode" }).click();
+  await expect(page.getByText("Barcode captured.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save product" }).click();
+  await expect(page.getByRole("heading", { name: "Amount" })).toBeVisible();
+
+  const attached = await db.select().from(productBarcodes).where(eq(productBarcodes.barcode, "5901234123457"));
+  expect(attached).toHaveLength(1);
 });

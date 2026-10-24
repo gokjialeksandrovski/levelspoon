@@ -1,6 +1,6 @@
 "use client";
 
-import { CameraIcon, ImagesIcon, XIcon } from "@phosphor-icons/react";
+import { CameraIcon, ImagesIcon, NumpadIcon, XIcon } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import Image from "next/image";
 import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
@@ -72,6 +72,8 @@ interface PhotoInputProps {
    * rows already print a barcode glyph for a code, and a tile asking for the
    * same thing has to read the same way. Defaults to the camera. */
   icon?: Icon;
+  /** A further source docked before Photos (see DockedSource). */
+  dock?: React.ReactNode;
 }
 
 const PREVIEW_SIZE_PX = 300;
@@ -102,6 +104,7 @@ interface PhotoSourceTileProps {
   icon: Icon;
   describedBy: string | undefined;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  dock?: React.ReactNode;
 }
 
 // Clears the input so re-picking the same file still fires `change` -
@@ -120,6 +123,11 @@ export const takePickedPhoto = (event: ChangeEvent<HTMLInputElement>, onPhoto: (
 // list row, where an outset ring is cut off or collides with the next row.
 const INSET_FOCUS_RING = "focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-text";
 
+// A glyph-over-caption column docked at a split control's end, shared so every
+// docked source on one control reads as the same kind of thing.
+const SOURCE_DOCK_CLASS =
+  "relative flex w-18 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 py-3 text-xs font-medium text-text-muted transition-colors hover:text-text";
+
 interface SavedPhotoButtonProps {
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   /** Names the photo when one screen offers several, e.g. "the barcode". */
@@ -134,7 +142,7 @@ interface SavedPhotoButtonProps {
 // own input. Docked to the right of the camera control as one split control:
 // an underlined line under it read as a footnote, not a second way in.
 export const SavedPhotoButton = ({ onChange, subject, disabled, className = "" }: SavedPhotoButtonProps) => (
-  <label className={`relative flex w-18 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 py-3 text-xs font-medium text-text-muted transition-colors hover:text-text has-disabled:pointer-events-none has-disabled:opacity-50 ${INSET_FOCUS_RING} ${className}`}>
+  <label className={`${SOURCE_DOCK_CLASS} has-disabled:pointer-events-none has-disabled:opacity-50 ${INSET_FOCUS_RING} ${className}`}>
     <ImagesIcon size={20} aria-hidden="true" />
     <span>Photos</span>
     <input
@@ -148,8 +156,46 @@ export const SavedPhotoButton = ({ onChange, subject, disabled, className = "" }
   </label>
 );
 
+interface TypeInsteadButtonProps {
+  /** What gets typed, e.g. "the barcode number". */
+  subject: string;
+  onClick: () => void;
+  disabled?: boolean;
+  /** The hover fill of whatever surface the button docks into. */
+  className?: string;
+  /** Only when remounted by the user's own cancel of the typing it opened. */
+  autoFocus?: boolean;
+}
+
+// A docked source that is no photo at all: what the camera could not read, or
+// a device without one, can still be typed off the package. The accessible
+// name starts with the visible caption (WCAG 2.5.3).
+export const TypeInsteadButton = ({ subject, onClick, disabled, className = "", autoFocus }: TypeInsteadButtonProps) => (
+  <button
+    type="button"
+    aria-label={`Type ${subject}`}
+    disabled={disabled}
+    onClick={onClick}
+    autoFocus={autoFocus}
+    className={`${SOURCE_DOCK_CLASS} focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-text disabled:pointer-events-none disabled:opacity-50 ${className}`}
+  >
+    <NumpadIcon size={20} aria-hidden="true" />
+    <span>Type</span>
+  </button>
+);
+
 // The hairline between the two halves of a split photo control.
 export const PhotoSourceDivider = () => <span aria-hidden="true" className="my-3 w-px shrink-0 bg-border" />;
+
+// A further source docked before Photos, which stays last so a column of
+// split controls lines up down the page.
+export const DockedSource = ({ dock }: { dock: React.ReactNode }) =>
+  dock ? (
+    <>
+      <PhotoSourceDivider />
+      {dock}
+    </>
+  ) : null;
 
 // The label wraps the (visually hidden) file input, so the label text is
 // the input's accessible name; the camera glyph is decorative. A raised tile
@@ -159,7 +205,7 @@ export const PhotoSourceDivider = () => <span aria-hidden="true" className="my-3
 // OPTION_ROW_LAYOUT), not a disc behind it: every other icon+label row in the
 // app reads that way, and an icon on a disc on a card is the templated-SaaS
 // tell the design context rejects by name.
-export const PhotoSourceTile = ({ label, icon: TileIcon, describedBy, onChange }: PhotoSourceTileProps) => (
+export const PhotoSourceTile = ({ label, icon: TileIcon, describedBy, onChange, dock }: PhotoSourceTileProps) => (
   <div className="flex min-h-16 items-stretch overflow-hidden rounded-surface bg-surface-raised">
     <label className={`relative flex min-w-0 flex-1 cursor-pointer items-center gap-3 p-4 text-left transition-colors hover:bg-border ${INSET_FOCUS_RING}`}>
       <TileIcon size={24} className="shrink-0 text-text-muted" aria-hidden="true" />
@@ -173,12 +219,13 @@ export const PhotoSourceTile = ({ label, icon: TileIcon, describedBy, onChange }
         className="absolute inset-0 cursor-pointer opacity-0"
       />
     </label>
+    <DockedSource dock={dock} />
     <PhotoSourceDivider />
     <SavedPhotoButton onChange={onChange} className="hover:bg-border" />
   </div>
 );
 
-export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = CameraIcon }: PhotoInputProps) => {
+export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = CameraIcon, dock }: PhotoInputProps) => {
   const { previewUrl, showPreview } = usePreviewUrl();
   const hintId = useId();
   const handleChange = (event: ChangeEvent<HTMLInputElement>) =>
@@ -191,7 +238,7 @@ export const PhotoInput = ({ label, onSelect, hint, scanningLabel, icon = Camera
     <div className="flex flex-col gap-1.5">
       {!scanningLabel && (
         <>
-          <PhotoSourceTile label={label} icon={icon} describedBy={hint ? hintId : undefined} onChange={handleChange} />
+          <PhotoSourceTile label={label} icon={icon} describedBy={hint ? hintId : undefined} onChange={handleChange} dock={dock} />
           {hint && (
             <p id={hintId} className="text-sm/relaxed text-text-muted">
               {hint}

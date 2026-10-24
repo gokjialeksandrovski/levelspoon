@@ -88,6 +88,15 @@ describe("pathReducer", () => {
     expect(scanned).toEqual([{ kind: "product-photo", pendingBarcode: "0000000000000" }]);
   });
 
+  it("drops the typing step too when a typed code is unknown", () => {
+    const typing = pathReducer([INITIAL_WIZARD_STEP], { type: "BARCODE_ENTRY" });
+    expect(typing).toEqual([INITIAL_WIZARD_STEP, { kind: "product-barcode" }]);
+
+    const looked = pathReducer(typing, { type: "BARCODE_SCANNED", result: { kind: "not_found", barcode: "0000000000000" } });
+
+    expect(looked).toEqual([{ kind: "product-photo", pendingBarcode: "0000000000000" }]);
+  });
+
   it("carries Open Food Facts duplicate suggestions onto the confirm step", () => {
     const path = pathReducer([INITIAL_WIZARD_STEP], {
       type: "BARCODE_SCANNED",

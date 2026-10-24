@@ -32,6 +32,9 @@ export type WizardStep =
    * can be popped by "Back"; as local state, Back would exit the wizard
    * entirely. */
   | { kind: "product-manual"; pendingBarcode: string | null }
+  /** A step for the same reason as product-manual. Carries no pending code:
+   * a looked-up number either resolves or becomes the pending code itself. */
+  | { kind: "product-barcode" }
   | { kind: "standard-food-search" }
   /** The recipe list. Picking one writes immediately and navigates to the
    * meal page, so nothing transitions out of here inside the reducer. */
@@ -140,6 +143,7 @@ export type WizardAction =
   | { type: "RECIPE_PICK_OPENED" }
   | { type: "WHOLE_FOOD_CHOSEN"; product: SelectedProduct }
   | { type: "MANUAL_NAME_ENTRY"; pendingBarcode: string | null }
+  | { type: "BARCODE_ENTRY" }
   | { type: "BARCODE_SCANNED"; result: Exclude<LookupBarcodeResult, { kind: "rejected" }> }
   | { type: "PORTIONS_UPDATED"; portions: readonly Portion[] }
   | { type: "LAZY_TRACK_OPENED" }
@@ -269,6 +273,7 @@ export const wizardReducer = (state: WizardStep, action: WizardAction): WizardSt
     case "RECIPE_PICK_OPENED": return { kind: "recipe-pick" };
     case "WHOLE_FOOD_CHOSEN": return { kind: "amount", product: action.product, alternatives: [], pendingBarcode: null };
     case "MANUAL_NAME_ENTRY": return { kind: "product-manual", pendingBarcode: action.pendingBarcode };
+    case "BARCODE_ENTRY": return { kind: "product-barcode" };
     case "BARCODE_SCANNED": return applyBarcodeScanned(action.result);
     case "PORTIONS_UPDATED": return applyPortionsUpdated(state, action.portions);
     case "LAZY_TRACK_OPENED": return { kind: "lazy-describe", description: "", photo: null, previous: null };

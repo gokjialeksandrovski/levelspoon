@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FigureField } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { LabelPhotoStrip } from "@/components/ui/label-photo-strip";
-import { PhotoInput, useDataUrl } from "@/components/ui/photo-input";
+import { PhotoInput, TypeInsteadButton, useDataUrl } from "@/components/ui/photo-input";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import {
   changedNutritionFields,
@@ -30,6 +30,8 @@ import type { NullableNutritionValues } from "@/lib/ocr/provider";
 
 import { toSelectedProduct } from "../capture-wizard.types";
 import type { NutritionOrigin, SelectedProduct, WizardAction } from "../capture-wizard.types";
+
+import { BARCODE_NUMBER_HINT, parseTypedBarcode, TYPE_INSTEAD_HINT } from "./typed-barcode.utils";
 
 interface ConfirmStepProps {
   name: string;
@@ -161,10 +163,31 @@ const readFreshBarcode = async (
   setters.setScanError(null);
   setReading(true);
   try {
-    const code = await readBarcodeFromPhoto(photo, setters.setScanError);
+    const code = await readBarcodeFromPhoto(photo, (message) => setters.setScanError(`${message} ${TYPE_INSTEAD_HINT}`));
     if (code !== null) {
       await detectFreshBarcode(code, setters);
     }
+  } finally {
+    setReading(false);
+  }
+};
+
+// The typed twin of readFreshBarcode: a refusal the digits alone explain
+// sends no request.
+const checkTypedBarcode = async (
+  typed: string,
+  setters: BarcodeAttachmentSetters,
+  setReading: (reading: boolean) => void,
+): Promise<void> => {
+  const parsed = parseTypedBarcode(typed);
+  if (parsed.kind === "refused") {
+    setters.setScanError(parsed.message);
+    return;
+  }
+  setters.setScanError(null);
+  setReading(true);
+  try {
+    await detectFreshBarcode(parsed.barcode, setters);
   } finally {
     setReading(false);
   }
@@ -191,6 +214,8 @@ interface UseBarcodeAttachmentResult {
   scanError: string | null;
   toggleChecked: (checked: boolean) => void;
   handlePhoto: (photo: File) => void;
+  handleTyped: (typed: string) => void;
+  clearScanError: () => void;
 }
 
 const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResult => {
@@ -211,6 +236,8 @@ const useBarcodeAttachment = (props: ConfirmStepProps): UseBarcodeAttachmentResu
     checked, conflict, freshBarcode, isReading, scanError,
     toggleChecked: setChecked,
     handlePhoto: (photo: File) => void readFreshBarcode(photo, setters, setIsReading),
+    handleTyped: (typed: string) => void checkTypedBarcode(typed, setters, setIsReading),
+    clearScanError: () => setScanError(null),
   };
 };
 
@@ -532,7 +559,14 @@ const ConflictNotice = ({ conflict, dispatch }: ConflictNoticeProps) => (
 // min-h-11 puts the whole label row on the 44px floor. The native box is
 // hidden with appearance-none but stays the real input (keyboard, screen
 // reader, form state); the check glyph is drawn over it off peer-checked.
-const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
+// The digits are printed because the code may have been typed: this is the
+// last look before a typo binds to a shared product.
+interface PendingBarcodeCheckboxProps {
+  barcode: string;
+  attachment: UseBarcodeAttachmentResult;
+}
+
+const PendingBarcodeCheckbox = ({ barcode, attachment }: PendingBarcodeCheckboxProps) => (
   <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
     <span className="relative grid size-6 shrink-0 place-items-center">
       <input
@@ -548,7 +582,9 @@ const PendingBarcodeCheckbox = ({ attachment }: { attachment: UseBarcodeAttachme
         className="pointer-events-none absolute text-bg opacity-0 transition-opacity peer-checked:opacity-100"
       />
     </span>
-    Use the barcode you just scanned for this product
+    <span>
+      Use barcode <span className="tabular-nums">{barcode}</span> for this product
+    </span>
   </label>
 );
 
@@ -678,28 +714,95 @@ const SameFiguresNotice = ({ ownerName, acknowledged, onAcknowledge }: SameFigur
   </div>
 );
 
+interface TypedBarcodeEntryProps {
+  isChecking: boolean;
+  onSubmit: (typed: string) => void;
+  onCancel: () => void;
+}
+
+// Inline, not a wizard step of its own: leaving confirm would drop every
+// figure already corrected on it. Cancel, or Escape in the field, puts the
+// tile back with nothing sent.
+const TypedBarcodeEntry = ({ isChecking, onSubmit, onCancel }: TypedBarcodeEntryProps) => {
+  const [typed, setTyped] = useState("");
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!isChecking) onSubmit(typed);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onCancel();
+      }}
+    >
+      {/* autoFocus is safe here: no step change follows to move focus off it. */}
+      <Field
+        label="Barcode number"
+        name="barcode-number"
+        inputMode="numeric"
+        helperText={BARCODE_NUMBER_HINT}
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+        autoFocus
+      />
+      <div className="flex items-center gap-4">
+        <Button type="submit" variant="ghost" className="flex-1" pending={isChecking}>
+          Use this barcode
+        </Button>
+        <Button type="button" variant="ghost" link onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+// "returned" puts focus back on Type after a cancel, so a keyboard user is
+// not dropped at the top of the page.
+type FreshScanMode = "photo" | "typing" | "returned";
+
 // A picker, not a live camera: every other camera option in the wizard opens
 // the platform's own camera-or-library sheet, and a live scanner here meant a
 // dead black rectangle wherever the browser had no camera to give.
-const FreshScanPrompt = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => (
-  <div className="flex flex-col gap-2">
-    <PhotoInput
-      label={BARCODE_ATTACH_LABEL}
-      hint={BARCODE_ATTACH_HINT}
-      icon={BarcodeIcon}
-      onSelect={attachment.handlePhoto}
-      scanningLabel={attachment.isReading ? READING_BARCODE_LABEL : undefined}
-    />
-    {attachment.scanError && <InlineMessage tone="error">{attachment.scanError}</InlineMessage>}
-  </div>
-);
+const FreshScanPrompt = ({ attachment }: { attachment: UseBarcodeAttachmentResult }) => {
+  const [mode, setMode] = useState<FreshScanMode>("photo");
+  const switchTo = (next: FreshScanMode) => {
+    attachment.clearScanError();
+    setMode(next);
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      {mode === "typing" ? (
+        <TypedBarcodeEntry isChecking={attachment.isReading} onSubmit={attachment.handleTyped} onCancel={() => switchTo("returned")} />
+      ) : (
+        <PhotoInput
+          label={BARCODE_ATTACH_LABEL}
+          hint={BARCODE_ATTACH_HINT}
+          icon={BarcodeIcon}
+          onSelect={attachment.handlePhoto}
+          scanningLabel={attachment.isReading ? READING_BARCODE_LABEL : undefined}
+          dock={
+            <TypeInsteadButton
+              subject="the barcode number"
+              onClick={() => switchTo("typing")}
+              autoFocus={mode === "returned"}
+              className="hover:bg-border"
+            />
+          }
+        />
+      )}
+      {attachment.scanError && <InlineMessage tone="error">{attachment.scanError}</InlineMessage>}
+    </div>
+  );
+};
 
 const BarcodeAttachmentControl = ({ pendingBarcode, attachment, dispatch }: BarcodeAttachmentControlProps) => {
   if (attachment.conflict) {
     return <ConflictNotice conflict={attachment.conflict} dispatch={dispatch} />;
   }
   if (pendingBarcode) {
-    return <PendingBarcodeCheckbox attachment={attachment} />;
+    return <PendingBarcodeCheckbox barcode={pendingBarcode} attachment={attachment} />;
   }
   if (attachment.freshBarcode) {
     return <p className="text-sm text-text-muted">Barcode captured.</p>;
