@@ -14,6 +14,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { buttonClassName } from "@/components/ui/button";
 import { DelayedFallback } from "@/components/ui/delayed-fallback";
 import { Disclosure } from "@/components/ui/disclosure";
+import { InlineMessage } from "@/components/ui/inline-message";
 import { LiveStatus } from "@/components/ui/live-status";
 import { SettleNumber } from "@/components/ui/settle-number";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +23,7 @@ import { formatNumber } from "@/lib/nutrition/format-number";
 import { fibreCoverage, fibreText } from "@/lib/nutrition/totals";
 
 import { useCopiedIngredients, type CopiedIngredientsStore } from "./copied-ingredients";
-import { isCopied, toggleRow } from "./copied-ingredients.utils";
+import { COPY_LIMIT_MESSAGE, isCopied, toggleRow, type CopiedIngredient } from "./copied-ingredients.utils";
 import { CookingFatControl } from "./cooking-fat-control";
 import { CopyMealButton } from "./copy-meal-button";
 import { DeleteMeal } from "./delete-meal";
@@ -103,16 +104,20 @@ const listEntries = (ingredients: MealIngredientDetail[], removals: Removal[]): 
 interface CopyControls {
   copied: CopiedIngredientsStore;
   onAnnounce: (message: string) => void;
+  onFull: () => void;
 }
 
 // Local only: toggling writes the per-device list and sends no request.
-const rowCopyFor = (ingredient: MealIngredientDetail, { copied, onAnnounce }: CopyControls): RowCopy => {
+const rowCopyFor = (ingredient: MealIngredientDetail, { copied, onAnnounce, onFull }: CopyControls): RowCopy => {
   const isRowCopied = isCopied(copied.items, ingredient.id);
   return {
     isCopied: isRowCopied,
     onToggle: () => {
+      if (copied.replace(toggleRow(copied.items, ingredient)) === "full") {
+        onFull();
+        return;
+      }
       const name = displayProductName(ingredient.productName);
-      copied.replace(toggleRow(copied.items, ingredient));
       onAnnounce(isRowCopied ? `${name} taken off copied list.` : `${name} copied.`);
     },
   };
@@ -277,14 +282,16 @@ const IngredientsSection = ({ meal, removals, copyControls }: IngredientsSection
 interface MealActionsProps {
   meal: MealDetailData;
   mealId: string;
-  copied: CopiedIngredientsStore;
+  copyControls: CopyControls;
+  isCopyFull: boolean;
   onAnnounce: (message: string) => void;
 }
 
 // The meal's own actions sit together; deleting the meal is a different kind of
 // act, set apart by a hairline rather than a wide empty gap - the rule reads as
 // "end of the meal's actions" and still keeps a thumb reaching for "Add" off it.
-const MealActions = ({ meal, mealId, copied, onAnnounce }: MealActionsProps) => (
+// The copy limit notice sits under the tray, where × and Clear make room.
+const MealActions = ({ meal, mealId, copyControls, isCopyFull, onAnnounce }: MealActionsProps) => (
   <div className="mt-8 flex flex-col gap-6">
     <div className="flex flex-col gap-3">
       {/*
@@ -300,17 +307,36 @@ const MealActions = ({ meal, mealId, copied, onAnnounce }: MealActionsProps) => 
         Add ingredient
       </Link>
       <PasteArea mealId={mealId} />
+      {isCopyFull && <InlineMessage tone="warning">{COPY_LIMIT_MESSAGE}</InlineMessage>}
       <CookingFatControl mealId={mealId} />
       <RecipeControl mealId={mealId} recipe={meal.recipe} ingredients={meal.ingredients} onAnnounce={onAnnounce} />
       <ShareMealButton meal={meal} onAnnounce={onAnnounce} />
-      <CopyMealButton ingredients={meal.ingredients} copied={copied} onAnnounce={onAnnounce} />
+      <CopyMealButton ingredients={meal.ingredients} {...copyControls} />
     </div>
     <DeleteMeal mealId={mealId} mealDate={meal.date} />
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProps) => {
+interface UseCopyControlsResult {
+  copyControls: CopyControls;
+  isCopyFull: boolean;
+}
+
+// fullAt holds the list a copy was refused against. Any change to the list
+// (×, Clear, a copy in another tab) is a new array, which retires the notice
+// without a reset anywhere.
+const useCopyControls = (onAnnounce: (message: string) => void): UseCopyControlsResult => {
   const copied = useCopiedIngredients();
+  const [fullAt, setFullAt] = useState<readonly CopiedIngredient[] | null>(null);
+  const onFull = () => {
+    setFullAt(copied.items);
+    onAnnounce(COPY_LIMIT_MESSAGE);
+  };
+  return { copyControls: { copied, onAnnounce, onFull }, isCopyFull: fullAt === copied.items };
+};
+
+const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProps) => {
+  const { copyControls, isCopyFull } = useCopyControls(onAnnounce);
 
   return (
     <>
@@ -320,8 +346,8 @@ const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProp
           <RecipeSubtitle recipe={meal.recipe} />
         </div>
       )}
-      <IngredientsSection meal={meal} removals={removals} copyControls={{ copied, onAnnounce }} />
-      <MealActions meal={meal} mealId={mealId} copied={copied} onAnnounce={onAnnounce} />
+      <IngredientsSection meal={meal} removals={removals} copyControls={copyControls} />
+      <MealActions meal={meal} mealId={mealId} copyControls={copyControls} isCopyFull={isCopyFull} onAnnounce={onAnnounce} />
     </>
   );
 };

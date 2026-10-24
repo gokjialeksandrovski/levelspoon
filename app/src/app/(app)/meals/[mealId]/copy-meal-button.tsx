@@ -12,10 +12,12 @@ interface CopyMealButtonProps {
   ingredients: readonly MealIngredientDetail[];
   copied: CopiedIngredientsStore;
   onAnnounce: (message: string) => void;
+  onFull: () => void;
 }
 
 // Local only, no request. Nothing to copy in a meal with no ingredients.
-export const CopyMealButton = ({ ingredients, copied, onAnnounce }: CopyMealButtonProps) => {
+// All or none: a meal that doesn't fit under the limit is not half copied.
+export const CopyMealButton = ({ ingredients, copied, onAnnounce, onFull }: CopyMealButtonProps) => {
   if (ingredients.length === 0) {
     return null;
   }
@@ -23,8 +25,11 @@ export const CopyMealButton = ({ ingredients, copied, onAnnounce }: CopyMealButt
   const isCopied = isMealCopied(copied.items, ingredients);
   const toggle = () => {
     const next = toggleMeal(copied.items, ingredients);
+    if (copied.replace(next) === "full") {
+      onFull();
+      return;
+    }
     const changed = ingredientCount(Math.abs(next.length - copied.items.length));
-    copied.replace(next);
     onAnnounce(isCopied ? `${changed} taken off copied list.` : `${changed} copied.`);
   };
 

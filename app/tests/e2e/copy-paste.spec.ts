@@ -223,6 +223,48 @@ test("× and Clear with Undo send no request", async ({ page }) => {
   expect(posts).toEqual([]);
 });
 
+// Seeded straight into storage, not copied fifty times: a full list is the
+// starting state this test needs, not the thing it tests.
+const fillCopiedList = async (page: Page) => {
+  await page.evaluate(async () => {
+    const session = await fetch("/api/auth/session").then((response) => response.json());
+    const entries = Array.from({ length: 50 }, (_, index) => ({
+      sourceIngredientId: `seeded-${index}`,
+      productId: crypto.randomUUID(),
+      productName: "Seeded",
+      quantity: 10,
+      quantityUnit: "g",
+      entryCount: null,
+      entryUnit: null,
+      quantitySource: "manual",
+      energyKcal: 1,
+      isAiEstimate: false,
+    }));
+    localStorage.setItem(`levelspoon:copied:${session.user.id}`, JSON.stringify(entries));
+  });
+  await page.reload();
+};
+
+test("a full copied list refuses another copy until it has room", async ({ page }) => {
+  await startOnMeal(page);
+  await fillCopiedList(page);
+  const copy = page.getByRole("button", { name: `Copy ${NAME}`, exact: true });
+  // Not the live region, which says the same words to a screen reader.
+  const notice = page.locator("p:not([role=status])", { hasText: /holds 50 ingredients at most/ });
+
+  await copy.click();
+  await expect(notice).toBeVisible();
+  await expect(copy).toBeVisible();
+  await page.getByRole("button", { name: "Copy meal", exact: true }).click();
+  await expect(trayTrigger(page)).toContainText("50 ingredients");
+
+  await openTray(page);
+  await page.getByRole("button", { name: "Take Seeded off copied list", exact: true }).first().click();
+  await expect(notice).toHaveCount(0);
+  await copy.click();
+  await expect(page.getByRole("button", { name: `Copied ${NAME}`, exact: true })).toBeVisible();
+});
+
 test("copied list shows after a hard reload of capture", async ({ page }) => {
   await startOnMeal(page);
   await copyRow(page);

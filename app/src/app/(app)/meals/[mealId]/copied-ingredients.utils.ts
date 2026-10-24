@@ -1,5 +1,5 @@
 import type { MealIngredientDetail } from "@/features/meals/actions/meals";
-import type { PasteItem } from "@/features/meals/actions/meals.utils";
+import { MAX_PASTE_ITEMS, type PasteItem } from "@/features/meals/actions/meals.utils";
 
 /** One copied row, snapshot at copy time: editing or removing the source row
  * later leaves the entry as copied, so the list shows what paste will write. */
@@ -137,6 +137,8 @@ export const copiedSummary = (items: readonly CopiedIngredient[]): string =>
   `${ingredientCount(items.length)} · ${Math.round(items.reduce((sum, item) => sum + item.energyKcal, 0))} kcal`;
 
 export const pasteLabel = (count: number): string => (count === 1 ? "Paste" : `Paste all ${count}`);
+
+export const COPY_LIMIT_MESSAGE = `The copied list holds ${MAX_PASTE_ITEMS} ingredients at most. Take some off or clear it to copy more.`;
 
 const droppedSentence = (droppedCount: number): string =>
   droppedCount === 1
