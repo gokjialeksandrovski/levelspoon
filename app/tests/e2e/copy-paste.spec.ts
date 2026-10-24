@@ -84,3 +84,84 @@ test("row actions fit a 320 px screen", async ({ page }) => {
   expect(edit.x + edit.width).toBeLessThanOrEqual(copy.x);
   expect(copy.x + copy.width).toBeLessThanOrEqual(remove.x);
 });
+
+const copyRow = async (page: Page) => {
+  await page.getByRole("button", { name: `Copy ${NAME}`, exact: true }).click();
+  await expect(page.getByRole("button", { name: `Copied ${NAME}`, exact: true })).toBeVisible();
+};
+
+const startNewMeal = async (page: Page) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New meal" }).click();
+  await page.waitForURL(/\/meals\/[^/]+\/capture$/);
+};
+
+const copiedHeading = (page: Page) => page.getByRole("heading", { name: "Copied", exact: true });
+
+test("paste from capture options lands on the meal with the row", async ({ page }) => {
+  await startOnMeal(page);
+  const sourceUrl = page.url();
+  await copyRow(page);
+  await startNewMeal(page);
+
+  await expect(copiedHeading(page)).toBeVisible();
+  const copiedSection = page.getByRole("region", { name: "Copied" });
+  await expect(copiedSection.getByText(/200 ?g/)).toBeVisible();
+  const headingBox = await copiedHeading(page).boundingBox();
+  const barcodeBox = await page.getByText("Scan the barcode").boundingBox();
+  expect(headingBox!.y).toBeLessThan(barcodeBox!.y);
+
+  await page.getByRole("button", { name: "Paste", exact: true }).click();
+
+  await page.waitForURL(/\/meals\/[^/]+$/);
+  expect(page.url()).not.toBe(sourceUrl);
+  await expect(page.getByRole("heading", { name: "Meal 2" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(1);
+});
+
+test("paste on the meal page adds a second row and keeps the list", async ({ page }) => {
+  await startOnMeal(page);
+  await copyRow(page);
+
+  await page.getByRole("button", { name: "Paste", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(2);
+  await expect(copiedHeading(page)).toBeVisible();
+});
+
+test("double-tapping Paste writes once", async ({ page }) => {
+  await startOnMeal(page);
+  await copyRow(page);
+
+  await page.getByRole("button", { name: "Paste", exact: true }).dblclick();
+
+  await expect(page.getByRole("status").filter({ hasText: "1 ingredient pasted." })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(2);
+});
+
+test("× and Clear with Undo send no request", async ({ page }) => {
+  await startOnMeal(page);
+  await copyRow(page);
+  await startNewMeal(page);
+  await expect(copiedHeading(page)).toBeVisible();
+  const posts = recordPosts(page);
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByText("Copied list cleared", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(copiedHeading(page)).toBeVisible();
+
+  await page.getByRole("button", { name: `Take ${NAME} off copied list`, exact: true }).click();
+  await expect(copiedHeading(page)).toHaveCount(0);
+  expect(posts).toEqual([]);
+});
+
+test("copied list shows after a hard reload of capture", async ({ page }) => {
+  await startOnMeal(page);
+  await copyRow(page);
+  await startNewMeal(page);
+
+  await page.reload();
+
+  await expect(copiedHeading(page)).toBeVisible();
+});

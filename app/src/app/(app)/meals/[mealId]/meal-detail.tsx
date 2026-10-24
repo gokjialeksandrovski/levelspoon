@@ -26,6 +26,7 @@ import { isCopied, toggleRow } from "./copied-ingredients.utils";
 import { CookingFatControl } from "./cooking-fat-control";
 import { CopyMealButton } from "./copy-meal-button";
 import { DeleteMeal } from "./delete-meal";
+import { PasteArea } from "./paste-area";
 import { displayProductName, IngredientRow, RemovedIngredientRow, type RowCopy } from "./ingredient-row";
 import { RecipeControl, RecipeDivergence, RecipeSubtitle } from "./recipe-control";
 import { ShareMealButton } from "./share-meal-button";
@@ -298,6 +299,7 @@ const MealActions = ({ meal, mealId, copied, onAnnounce }: MealActionsProps) => 
         <CarrotIcon size={20} />
         Add ingredient
       </Link>
+      <PasteArea mealId={mealId} />
       <CookingFatControl mealId={mealId} />
       <RecipeControl mealId={mealId} recipe={meal.recipe} ingredients={meal.ingredients} onAnnounce={onAnnounce} />
       <ShareMealButton meal={meal} onAnnounce={onAnnounce} />

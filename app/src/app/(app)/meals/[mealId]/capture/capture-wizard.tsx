@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { slideInitial, slideTransition } from "@/lib/motion/step-transition";
 import { formatNumber } from "@/lib/nutrition/format-number";
 
+import { PasteArea } from "../paste-area";
+
 import { pathReducer, type PathAction } from "./capture-wizard.path";
 import { INITIAL_WIZARD_STEP, type WizardStep } from "./capture-wizard.types";
 import { AmountStep } from "./steps/amount-step";
@@ -151,8 +153,9 @@ const SavedStep = ({ moment, dispatch, onDone }: SavedStepProps) => (
 const renderProductPhotoStep = (
   step: Extract<WizardStep, { kind: "product-photo" }>,
   hasRecipes: boolean,
+  pasteArea: React.ReactNode,
   dispatch: (action: PathAction) => void,
-) => <ProductNameStep pendingBarcode={step.pendingBarcode} hasRecipes={hasRecipes} dispatch={dispatch} />;
+) => <ProductNameStep pendingBarcode={step.pendingBarcode} hasRecipes={hasRecipes} pasteArea={pasteArea} dispatch={dispatch} />;
 
 const renderRecipePickStep = (mealId: string, recipes: RecipeSummary[], onEntered: () => void) => (
   <RecipePickStep mealId={mealId} recipes={recipes} onEntered={onEntered} />
@@ -280,7 +283,7 @@ interface StepViewProps {
 // eslint-disable-next-line complexity
 const StepView = ({ step, mealId, moment, recipes, onEnteredMeal, dispatch, onSaved, onDone }: StepViewProps) => {
   switch (step.kind) {
-    case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, dispatch);
+    case "product-photo": return renderProductPhotoStep(step, recipes.length > 0, <PasteArea mealId={mealId} onPasted={onEnteredMeal} />, dispatch);
     case "product-manual": return renderManualNameStep(step, dispatch);
     case "standard-food-search": return renderStandardFoodSearchStep(dispatch);
     case "recipe-pick": return renderRecipePickStep(mealId, recipes, onEnteredMeal);
