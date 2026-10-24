@@ -5,6 +5,7 @@ import { ZERO_NUTRITION } from "@/lib/nutrition/totals";
 
 import {
   copiedStorageKey,
+  copiedSummary,
   dropProducts,
   ingredientCount,
   isCopied,
@@ -102,6 +103,11 @@ describe("copied ingredients", () => {
     expect(pasteLabel(3)).toBe("Paste all 3");
     expect(ingredientCount(1)).toBe("1 ingredient");
     expect(ingredientCount(3)).toBe("3 ingredients");
+  });
+
+  it("sums the closed tray's kcal before rounding", () => {
+    const fractional = [oats, milk].map((row) => toCopiedIngredient({ ...row, contribution: { ...ZERO_NUTRITION, energyKcal: 100.4 } }));
+    expect(copiedSummary(fractional)).toBe("2 ingredients · 201 kcal");
   });
 
   it("words the unavailable message by what is left", () => {

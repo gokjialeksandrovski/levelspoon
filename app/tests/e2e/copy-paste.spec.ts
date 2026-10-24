@@ -96,7 +96,15 @@ const startNewMeal = async (page: Page) => {
   await page.waitForURL(/\/meals\/[^/]+\/capture$/);
 };
 
-const copiedHeading = (page: Page) => page.getByRole("heading", { name: "Copied", exact: true });
+const copiedTray = (page: Page) => page.getByRole("region", { name: "Copied ingredients" });
+
+// The tray is closed until asked for; its trigger names the list ("Copied 1 ingredient · 470 kcal").
+const trayTrigger = (page: Page) => page.getByRole("button", { name: /^Copied\s?\d+ ingredients?/ });
+
+const openTray = async (page: Page) => {
+  await expect(trayTrigger(page)).toHaveAttribute("aria-expanded", "false");
+  await trayTrigger(page).click();
+};
 
 test("paste from capture options lands on the meal with the row", async ({ page }) => {
   await startOnMeal(page);
@@ -104,13 +112,13 @@ test("paste from capture options lands on the meal with the row", async ({ page 
   await copyRow(page);
   await startNewMeal(page);
 
-  await expect(copiedHeading(page)).toBeVisible();
-  const copiedSection = page.getByRole("region", { name: "Copied" });
-  await expect(copiedSection.getByText(/200 ?g/)).toBeVisible();
-  const headingBox = await copiedHeading(page).boundingBox();
+  await expect(copiedTray(page)).toBeVisible();
+  const trayBox = await copiedTray(page).boundingBox();
   const barcodeBox = await page.getByText("Scan the barcode").boundingBox();
-  expect(headingBox!.y).toBeLessThan(barcodeBox!.y);
+  expect(trayBox!.y).toBeLessThan(barcodeBox!.y);
 
+  await openTray(page);
+  await expect(copiedTray(page).getByText(/200 ?g/)).toBeVisible();
   await page.getByRole("button", { name: "Paste", exact: true }).click();
 
   await page.waitForURL(/\/meals\/[^/]+$/);
@@ -119,14 +127,16 @@ test("paste from capture options lands on the meal with the row", async ({ page 
   await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(1);
 });
 
-test("paste on the meal page adds a second row and keeps the list", async ({ page }) => {
+test("paste on the meal page adds a second row and keeps the list, folded", async ({ page }) => {
   await startOnMeal(page);
   await copyRow(page);
 
+  await openTray(page);
   await page.getByRole("button", { name: "Paste", exact: true }).click();
 
   await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(2);
-  await expect(copiedHeading(page)).toBeVisible();
+  await expect(copiedTray(page)).toBeVisible();
+  await expect(trayTrigger(page)).toHaveAttribute("aria-expanded", "false");
 });
 
 // Holds every request the pattern matches until the returned release runs,
@@ -154,11 +164,12 @@ test("double-tapping Paste writes once", async ({ page }) => {
   const posts = recordPosts(page);
   const paste = page.getByRole("button", { name: "Paste", exact: true });
 
+  await openTray(page);
   await paste.dblclick();
   await expect(paste).toBeDisabled();
   releaseWrite();
 
-  await expect(paste).toBeEnabled();
+  await expect(trayTrigger(page)).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("button", { name: `Remove ${NAME}`, exact: true })).toHaveCount(2);
   expect(posts).toHaveLength(1);
 });
@@ -170,6 +181,7 @@ test("Paste on capture stays pending until the meal page opens", async ({ page }
   const releaseNavigation = await holdRequests(page, /\/meals\/[^/?]+\?_rsc=/, "GET");
   const paste = page.getByRole("button", { name: "Paste", exact: true });
 
+  await openTray(page);
   await paste.click();
   await expect(page.getByRole("status").filter({ hasText: "1 ingredient pasted." })).toHaveCount(1);
   await expect(paste).toBeDisabled();
@@ -184,9 +196,11 @@ test("a repeated paste is announced again", async ({ page }) => {
   const paste = page.getByRole("button", { name: "Paste", exact: true });
   const pasted = page.getByRole("status").filter({ hasText: "1 ingredient pasted." });
 
+  await openTray(page);
   await paste.click();
   await expect(pasted).toHaveCount(1);
   await expect(pasted).toHaveCount(0, { timeout: 10_000 });
+  await openTray(page);
   await paste.click();
 
   await expect(pasted).toHaveCount(1);
@@ -196,16 +210,16 @@ test("× and Clear with Undo send no request", async ({ page }) => {
   await startOnMeal(page);
   await copyRow(page);
   await startNewMeal(page);
-  await expect(copiedHeading(page)).toBeVisible();
   const posts = recordPosts(page);
 
+  await openTray(page);
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByText("Copied list cleared", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Undo" }).click();
-  await expect(copiedHeading(page)).toBeVisible();
+  await expect(trayTrigger(page)).toHaveAttribute("aria-expanded", "true");
 
   await page.getByRole("button", { name: `Take ${NAME} off copied list`, exact: true }).click();
-  await expect(copiedHeading(page)).toHaveCount(0);
+  await expect(copiedTray(page)).toHaveCount(0);
   expect(posts).toEqual([]);
 });
 
@@ -216,5 +230,5 @@ test("copied list shows after a hard reload of capture", async ({ page }) => {
 
   await page.reload();
 
-  await expect(copiedHeading(page)).toBeVisible();
+  await expect(copiedTray(page)).toBeVisible();
 });

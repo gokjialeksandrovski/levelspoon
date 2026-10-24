@@ -31,24 +31,39 @@ interface DisclosureTriggerProps {
   onToggle: () => void;
 }
 
+interface DisclosureChevronProps {
+  isOpen: boolean;
+  reduceMotion: boolean | null;
+}
+
+export const DisclosureChevron = ({ isOpen, reduceMotion }: DisclosureChevronProps) => (
+  <motion.span
+    animate={{ rotate: isOpen ? CHEVRON_OPEN_ROTATE_DEGREES : CHEVRON_CLOSED_ROTATE_DEGREES }}
+    transition={{ duration: reduceMotion ? 0 : CHEVRON_ROTATE_DURATION_SECONDS }}
+    className="inline-flex shrink-0"
+  >
+    <CaretDownIcon size={CHEVRON_ICON_SIZE} />
+  </motion.span>
+);
+
 const DisclosureTrigger = ({ label, isOpen, contentId, reduceMotion, onToggle }: DisclosureTriggerProps) => (
   <Button variant="ghost" link aria-expanded={isOpen} aria-controls={contentId} onClick={onToggle}>
     <span className="inline-flex items-center gap-1">
       {label}
-      <motion.span
-        animate={{ rotate: isOpen ? CHEVRON_OPEN_ROTATE_DEGREES : CHEVRON_CLOSED_ROTATE_DEGREES }}
-        transition={{ duration: reduceMotion ? 0 : CHEVRON_ROTATE_DURATION_SECONDS }}
-        className="inline-flex"
-      >
-        <CaretDownIcon size={CHEVRON_ICON_SIZE} />
-      </motion.span>
+      <DisclosureChevron isOpen={isOpen} reduceMotion={reduceMotion} />
     </span>
   </Button>
 );
 
 // grid-template-rows (0fr -> 1fr), not height directly, per the app's motion
 // rule against animating layout properties - see DESIGN.md Motion.
-const DisclosurePanel = ({ contentId, isOpen, children }: { contentId: string; isOpen: boolean; children: React.ReactNode }) => (
+interface DisclosurePanelProps {
+  contentId: string;
+  isOpen: boolean;
+  children: React.ReactNode;
+}
+
+export const DisclosurePanel = ({ contentId, isOpen, children }: DisclosurePanelProps) => (
   <div
     id={contentId}
     className={`grid transition-[grid-template-rows] duration-(--duration-step) ease-out-quart ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}

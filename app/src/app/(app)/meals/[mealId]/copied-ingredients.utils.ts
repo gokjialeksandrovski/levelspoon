@@ -133,6 +133,9 @@ export const toPasteItems = (items: readonly CopiedIngredient[]): PasteItem[] =>
 export const ingredientCount = (count: number): string =>
   count === 1 ? "1 ingredient" : `${count} ingredients`;
 
+export const copiedSummary = (items: readonly CopiedIngredient[]): string =>
+  `${ingredientCount(items.length)} · ${Math.round(items.reduce((sum, item) => sum + item.energyKcal, 0))} kcal`;
+
 export const pasteLabel = (count: number): string => (count === 1 ? "Paste" : `Paste all ${count}`);
 
 const droppedSentence = (droppedCount: number): string =>
