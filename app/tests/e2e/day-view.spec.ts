@@ -101,7 +101,7 @@ test("a meal started on yesterday is logged against yesterday, not today", async
   await page.getByRole("button", { name: "New meal for yesterday" }).click();
   await page.getByLabel("Product photo", { exact: true }).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
   await page.getByLabel("Amount", { exact: true }).fill("200");
-  await page.getByRole("button", { name: /save/i }).click();
+  await page.getByRole("button", { name: "Save ingredient" }).click();
   await page.getByRole("button", { name: /done/i }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
 

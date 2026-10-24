@@ -154,7 +154,7 @@ export const logOneIngredient = async (page: Page) => {
   await page.getByRole("button", { name: "New meal" }).click();
   await page.getByLabel("Product photo", { exact: true }).setInputFiles("tests/e2e/fixtures/confident-product.jpg");
   await page.getByLabel("Amount", { exact: true }).fill("200");
-  await page.getByRole("button", { name: /save/i }).click();
+  await page.getByRole("button", { name: "Save ingredient" }).click();
   await page.getByRole("button", { name: /done/i }).click();
   await page.waitForURL(/\/meals\/[^/]+$/);
   return page.url();
