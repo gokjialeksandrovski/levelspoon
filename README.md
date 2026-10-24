@@ -1,6 +1,16 @@
 # levelspoon
 
-Meal-logging app: meals built from ingredients, nutrition per 100 g, read from labels by OCR rather than typed.
+levelspoon is a meal-logging web app built for a phone held in one hand. You build each meal from ingredients. Every ingredient is a product stored with its nutrition per 100 g, and the app works out the totals from how much you ate.
+
+You rarely type a nutrition figure. Take a photo of the label and an OCR service reads it. Take a photo of the barcode, or type its digits, and the app looks in its own database first and Open Food Facts second. Loose food like apples or rice comes from a list of 232 standard foods.
+
+Products are shared between users, so a label one person scans is already there for the next. If a figure looks wrong to you, correct it for your account only. Nobody else's numbers change.
+
+AI is optional and does two things, both with your own Gemini API key. It can estimate how many grams you ate from a photo, and it can give a rough, itemized guess for a meal you describe when you can't be bothered to log it properly. Those guesses stay private and are marked as estimates. Label figures never come from an LLM.
+
+You can set a calorie goal and macro targets yourself, save a meal as a recipe, log your weight, and look back over past weeks. The app won't hand out streaks or badges, and it won't tell you what to eat.
+
+Built with Next.js 16, React 19, Postgres and Drizzle, Auth.js, a FastAPI + PaddleOCR service, and S3-compatible photo storage (MinIO locally).
 
 - What it is and for whom: `PRODUCT.md`
 - How it's built, every command, env vars: `docs/ARCHITECTURE.md`
