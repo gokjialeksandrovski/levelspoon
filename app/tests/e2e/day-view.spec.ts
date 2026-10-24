@@ -5,7 +5,7 @@ import { db } from "../../src/lib/db";
 import { mealIngredients, meals, products, users } from "../../src/lib/db/schema";
 import { addCalendarDays, todayLocalDateString } from "../../src/lib/date/day-bounds";
 
-import { freshEmail, seedConfidentProduct, signUp, truncateAll } from "./support";
+import { freshEmail, seedConfidentProduct, seedStandardFood, signUp, truncateAll } from "./support";
 
 const localToday = () => todayLocalDateString(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
@@ -112,6 +112,34 @@ test("a meal started on yesterday is logged against yesterday, not today", async
 
   await page.goto(`/day/${localToday()}`);
   await expect(page.getByText(/log what you eat/i)).toBeVisible();
+});
+
+test("saving to a past-day meal settles that day's total, not today's", async ({ page }) => {
+  await seedStandardFood("Banana");
+  await signUp(page);
+
+  await page.goto(`/day/${addCalendarDays(localToday(), -1)}`);
+  await page.getByRole("button", { name: "New meal for yesterday" }).click();
+  await page.getByRole("button", { name: "Whole food, no packaging" }).click();
+  await page.getByLabel("Food name").fill("Banana");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Banana" }).click();
+  await page.getByLabel("Amount", { exact: true }).fill("200");
+  await page.getByRole("button", { name: "Save ingredient" }).click();
+
+  await expect(page.getByText("Yesterday", { exact: true })).toBeVisible();
+  await expect(page.getByText("+140 kcal from this ingredient")).toBeVisible();
+});
+
+test("abandoning a meal started on a past day returns to that day", async ({ page }) => {
+  await signUp(page);
+  const yesterday = addCalendarDays(localToday(), -1);
+
+  await page.goto(`/day/${yesterday}`);
+  await page.getByRole("button", { name: "New meal for yesterday" }).click();
+  await page.waitForURL(/\/capture$/);
+  await page.getByRole("button", { name: "Close" }).click();
+  await page.waitForURL(`**/day/${yesterday}`);
 });
 
 test("home redirects to today", async ({ page }) => {

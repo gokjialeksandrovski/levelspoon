@@ -70,22 +70,23 @@ interface DaySnapshot extends DayEnergy {
 interface SavedMoment {
   snapshots: DaySnapshot[];
   savedCount: number;
+  dayLabel: string;
 }
 
-// Ingredients count toward the day they are logged on, which is always today.
+// Ingredients count toward the meal's own day, which is not always today.
 // The page reads the opening total on the server; each save reads it again,
 // and the last two are kept so the step can settle from the old total to the
 // new one.
-const useTodaySnapshots = (today: string, savedCount: number, initialEnergy: DayEnergy | null): DaySnapshot[] => {
+const useDaySnapshots = (logDate: string, savedCount: number, initialEnergy: DayEnergy | null): DaySnapshot[] => {
   const [snapshots, setSnapshots] = useState<DaySnapshot[]>(initialEnergy ? [{ ...initialEnergy, savedCount: 0 }] : []);
 
   useEffect(() => {
     if (savedCount === 0) return;
-    getDayEnergy(today)
+    getDayEnergy(logDate)
       .then((energy) => setSnapshots((list) => [...list.slice(-1), { ...energy, savedCount }]))
       // Harmless: the step still says "Ingredient saved." without the total.
-      .catch((error) => console.error("Loading today's total failed", error));
-  }, [today, savedCount]);
+      .catch((error) => console.error("Loading the day's total failed", error));
+  }, [logDate, savedCount]);
 
   return snapshots;
 };
@@ -95,10 +96,10 @@ const SAVE_PULSE_SECONDS = 0.36;
 
 // The log-success pulse, on the number the save changed rather than a
 // full-screen flash. Reduced motion skips it; the settle and haptic remain.
-const TodayTotal = ({ moment }: { moment: SavedMoment }) => {
+const DayTotal = ({ moment }: { moment: SavedMoment }) => {
   const reduceMotion = useReducedMotion();
   const current = moment.snapshots.at(-1);
-  // useTodaySnapshots keeps at most two, so a second one is always the newer.
+  // useDaySnapshots keeps at most two, so a second one is always the newer.
   const previous = moment.snapshots.length > 1 ? moment.snapshots[0] : undefined;
   if (!current) return null;
   const isSettled = current.savedCount === moment.savedCount;
@@ -106,7 +107,7 @@ const TodayTotal = ({ moment }: { moment: SavedMoment }) => {
 
   return (
     <div>
-      <p className="mb-1 text-xs text-text-muted">Today</p>
+      <p className="mb-1 text-xs text-text-muted">{moment.dayLabel}</p>
       <motion.div
         className="origin-left"
         animate={isSettled && !reduceMotion ? { scale: [1, SAVE_PULSE_SCALE, 1] } : undefined}
@@ -135,7 +136,7 @@ const SavedStep = ({ moment, dispatch, onDone }: SavedStepProps) => (
       <CheckCircleIcon weight="fill" className="text-accent-success" />
       Ingredient saved.
     </p>
-    <TodayTotal moment={moment} />
+    <DayTotal moment={moment} />
     <div className="flex gap-2">
       <Button variant="primary" className="flex-1" onClick={() => dispatch({ type: "ADD_ANOTHER" })}>
         Add another
@@ -338,7 +339,7 @@ const AnimatedStep = ({ stepKind, reduceMotion, children }: AnimatedStepProps) =
 
 // A meal created by the action bar but never filled in is deleted on the way
 // out so it never shows up as an empty row on the day view.
-const useWizardExit = (mealId: string, savedCount: number, today: string) => {
+const useWizardExit = (mealId: string, savedCount: number, logDate: string) => {
   const router = useRouter();
 
   return async () => {
@@ -353,7 +354,7 @@ const useWizardExit = (mealId: string, savedCount: number, today: string) => {
       // anyway, and createMeal's own sweep collects it on the next attempt.
       console.error("discardEmptyMeal failed", error);
     }
-    router.replace(`/day/${today}`);
+    router.replace(`/day/${logDate}`);
   };
 };
 
@@ -369,12 +370,17 @@ interface UseCaptureWizardResult {
 
 // Bundles path/save-count state and exit strategy so CaptureWizard's body
 // reads as layout only.
-const useCaptureWizard = (mealId: string, today: string, initialEnergy: DayEnergy | null): UseCaptureWizardResult => {
+const useCaptureWizard = (
+  mealId: string,
+  logDate: string,
+  dayLabel: string,
+  initialEnergy: DayEnergy | null,
+): UseCaptureWizardResult => {
   const [path, dispatch] = useReducer(pathReducer, [INITIAL_WIZARD_STEP]);
   const [savedCount, setSavedCount] = useState(0);
   const step = path[path.length - 1];
-  const exit = useWizardExit(mealId, savedCount, today);
-  const snapshots = useTodaySnapshots(today, savedCount, initialEnergy);
+  const exit = useWizardExit(mealId, savedCount, logDate);
+  const snapshots = useDaySnapshots(logDate, savedCount, initialEnergy);
 
   return {
     step,
@@ -387,13 +393,16 @@ const useCaptureWizard = (mealId: string, today: string, initialEnergy: DayEnerg
     // the meal is no longer empty, so exit() keeps it.
     markSaved: () => setSavedCount((count) => count + 1),
     finish: () => void exit(),
-    moment: { snapshots, savedCount },
+    moment: { snapshots, savedCount, dayLabel },
   };
 };
 
 interface CaptureWizardProps {
   mealId: string;
-  today: string;
+  logDate: string;
+  // "Today", "Yesterday" or a date, resolved on the server against the
+  // timezone cookie so it matches the day view's header.
+  dayLabel: string;
   initialEnergy: DayEnergy | null;
   // Read on the server and refreshed by every recipe write, so the picker
   // opens on a list already in hand. Its length decides whether the recipe
@@ -401,10 +410,15 @@ interface CaptureWizardProps {
   recipes: RecipeSummary[];
 }
 
-export const CaptureWizard = ({ mealId, today, initialEnergy, recipes }: CaptureWizardProps) => {
+export const CaptureWizard = ({ mealId, logDate, dayLabel, initialEnergy, recipes }: CaptureWizardProps) => {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
-  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(mealId, today, initialEnergy);
+  const { step, dispatch, handleBack, backExits, markSaved, finish, moment } = useCaptureWizard(
+    mealId,
+    logDate,
+    dayLabel,
+    initialEnergy,
+  );
 
   return (
     <WizardShell title={STEP_TITLES[step.kind]} progress={STEP_PROGRESS[step.kind]} onBack={handleBack} exits={backExits}>

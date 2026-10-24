@@ -468,6 +468,17 @@ export const getDayEnergy = async (date: string): Promise<DayEnergy> => {
   return fetchDayEnergy(userId, date);
 };
 
+/** The day a meal counts toward. A meal started on a past day is still open
+ * to capture, so the wizard reads this rather than assuming today. */
+export const getMealLogDate = async (mealId: string): Promise<string | null> => {
+  const userId = await requireUserId();
+  const [meal] = await db
+    .select({ logDate: meals.logDate })
+    .from(meals)
+    .where(and(eq(meals.id, mealId), eq(meals.userId, userId), isNull(meals.deletedAt)));
+  return meal?.logDate ?? null;
+};
+
 const fetchMealRecipeLink = async (
   userId: string,
   mealId: string,
