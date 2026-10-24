@@ -21,9 +21,12 @@ import { contentFadeInitial, contentFadeTransition, listStaggerVariants } from "
 import { formatNumber } from "@/lib/nutrition/format-number";
 import { fibreCoverage, fibreText } from "@/lib/nutrition/totals";
 
+import { useCopiedIngredients, type CopiedIngredientsStore } from "./copied-ingredients";
+import { isCopied, toggleRow } from "./copied-ingredients.utils";
 import { CookingFatControl } from "./cooking-fat-control";
+import { CopyMealButton } from "./copy-meal-button";
 import { DeleteMeal } from "./delete-meal";
-import { IngredientRow, RemovedIngredientRow } from "./ingredient-row";
+import { displayProductName, IngredientRow, RemovedIngredientRow, type RowCopy } from "./ingredient-row";
 import { RecipeControl, RecipeDivergence, RecipeSubtitle } from "./recipe-control";
 import { ShareMealButton } from "./share-meal-button";
 
@@ -96,15 +99,34 @@ const listEntries = (ingredients: MealIngredientDetail[], removals: Removal[]): 
     );
 };
 
+interface CopyControls {
+  copied: CopiedIngredientsStore;
+  onAnnounce: (message: string) => void;
+}
+
+// Local only: toggling writes the per-device list and sends no request.
+const rowCopyFor = (ingredient: MealIngredientDetail, { copied, onAnnounce }: CopyControls): RowCopy => {
+  const isRowCopied = isCopied(copied.items, ingredient.id);
+  return {
+    isCopied: isRowCopied,
+    onToggle: () => {
+      const name = displayProductName(ingredient.productName);
+      copied.replace(toggleRow(copied.items, ingredient));
+      onAnnounce(isRowCopied ? `${name} taken off copied list.` : `${name} copied.`);
+    },
+  };
+};
+
 interface IngredientListProps {
   entries: ListEntry[];
   removals: UseRemovalsResult;
+  copyControls: CopyControls;
 }
 
 // motion.ul orchestrates entrance stagger via variants; AnimatePresence
 // (mode="popLayout") plays each row's own exit animation and lets siblings'
 // `layout` reflow into the gap instead of snapping when one is removed.
-const IngredientList = ({ entries, removals }: IngredientListProps) => {
+const IngredientList = ({ entries, removals, copyControls }: IngredientListProps) => {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -120,6 +142,7 @@ const IngredientList = ({ entries, removals }: IngredientListProps) => {
             <IngredientRow
               key={entry.ingredient.id}
               ingredient={entry.ingredient}
+              copy={rowCopyFor(entry.ingredient, copyControls)}
               onRemoved={() => removals.markRemoved(entry.ingredient, index)}
             />
           ) : (
@@ -231,16 +254,20 @@ interface MealReadyBodyProps {
   onAnnounce: (message: string) => void;
 }
 
-type IngredientsSectionProps = Omit<MealReadyBodyProps, "mealId" | "onAnnounce">;
+interface IngredientsSectionProps {
+  meal: MealDetailData;
+  removals: UseRemovalsResult;
+  copyControls: CopyControls;
+}
 
-const IngredientsSection = ({ meal, removals }: IngredientsSectionProps) => {
+const IngredientsSection = ({ meal, removals, copyControls }: IngredientsSectionProps) => {
   const entries = listEntries(meal.ingredients, removals.removals);
   if (entries.length === 0) {
     return <EmptyIngredients />;
   }
   return (
     <>
-      <IngredientList entries={entries} removals={removals} />
+      <IngredientList entries={entries} removals={removals} copyControls={copyControls} />
       {meal.ingredients.length > 0 && <MealTotal meal={meal} />}
     </>
   );
@@ -249,13 +276,14 @@ const IngredientsSection = ({ meal, removals }: IngredientsSectionProps) => {
 interface MealActionsProps {
   meal: MealDetailData;
   mealId: string;
+  copied: CopiedIngredientsStore;
   onAnnounce: (message: string) => void;
 }
 
 // The meal's own actions sit together; deleting the meal is a different kind of
 // act, set apart by a hairline rather than a wide empty gap - the rule reads as
 // "end of the meal's actions" and still keeps a thumb reaching for "Add" off it.
-const MealActions = ({ meal, mealId, onAnnounce }: MealActionsProps) => (
+const MealActions = ({ meal, mealId, copied, onAnnounce }: MealActionsProps) => (
   <div className="mt-8 flex flex-col gap-6">
     <div className="flex flex-col gap-3">
       {/*
@@ -273,23 +301,28 @@ const MealActions = ({ meal, mealId, onAnnounce }: MealActionsProps) => (
       <CookingFatControl mealId={mealId} />
       <RecipeControl mealId={mealId} recipe={meal.recipe} ingredients={meal.ingredients} onAnnounce={onAnnounce} />
       <ShareMealButton meal={meal} onAnnounce={onAnnounce} />
+      <CopyMealButton ingredients={meal.ingredients} copied={copied} onAnnounce={onAnnounce} />
     </div>
     <DeleteMeal mealId={mealId} mealDate={meal.date} />
   </div>
 );
 
-const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProps) => (
-  <>
-    {meal.recipe && (
-      <div className="mb-4 flex flex-col gap-2">
-        <RecipeDivergence recipe={meal.recipe} />
-        <RecipeSubtitle recipe={meal.recipe} />
-      </div>
-    )}
-    <IngredientsSection meal={meal} removals={removals} />
-    <MealActions meal={meal} mealId={mealId} onAnnounce={onAnnounce} />
-  </>
-);
+const MealReadyBody = ({ meal, mealId, removals, onAnnounce }: MealReadyBodyProps) => {
+  const copied = useCopiedIngredients();
+
+  return (
+    <>
+      {meal.recipe && (
+        <div className="mb-4 flex flex-col gap-2">
+          <RecipeDivergence recipe={meal.recipe} />
+          <RecipeSubtitle recipe={meal.recipe} />
+        </div>
+      )}
+      <IngredientsSection meal={meal} removals={removals} copyControls={{ copied, onAnnounce }} />
+      <MealActions meal={meal} mealId={mealId} copied={copied} onAnnounce={onAnnounce} />
+    </>
+  );
+};
 
 const SKELETON_ROW_COUNT = 3;
 

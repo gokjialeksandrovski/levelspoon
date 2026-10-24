@@ -1,0 +1,86 @@
+import { expect, test, type Page } from "@playwright/test";
+
+import { logOneIngredient, seedConfidentProduct, signUp, truncateAll } from "./support";
+
+const NAME = "Olympus Greek Yogurt 2% Fat";
+
+test.beforeEach(truncateAll);
+
+const startOnMeal = async (page: Page) => {
+  await seedConfidentProduct();
+  await signUp(page);
+  await logOneIngredient(page);
+};
+
+// Server Actions are POSTs, so a copy control that sends nothing leaves this empty.
+const recordPosts = (page: Page): string[] => {
+  const posts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST") posts.push(request.url());
+  });
+  return posts;
+};
+
+test("row Copy toggles and sends no request", async ({ page }) => {
+  await startOnMeal(page);
+  const copy = page.getByRole("button", { name: `Copy ${NAME}`, exact: true });
+  await expect(copy).toBeVisible();
+  const posts = recordPosts(page);
+
+  await copy.click();
+  const copied = page.getByRole("button", { name: `Copied ${NAME}`, exact: true });
+  await expect(copied).toHaveText("Copied");
+
+  await copied.click();
+  await expect(page.getByRole("button", { name: `Copy ${NAME}`, exact: true })).toBeVisible();
+  expect(posts).toEqual([]);
+});
+
+test("Copy meal copies every row and toggles back", async ({ page }) => {
+  await startOnMeal(page);
+
+  await page.getByRole("button", { name: "Copy meal", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Copied ${NAME}`, exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Copied", exact: true }).click();
+  await expect(page.getByRole("button", { name: `Copy ${NAME}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy meal", exact: true })).toBeVisible();
+});
+
+test("Copy is hidden while the row is edited", async ({ page }) => {
+  await startOnMeal(page);
+  const copy = page.getByRole("button", { name: `Copy ${NAME}`, exact: true });
+  await expect(copy).toBeVisible();
+
+  await page.getByRole("button", { name: `Edit ${NAME} amount` }).click();
+
+  await expect(copy).toHaveCount(0);
+});
+
+test("copied state survives reload", async ({ page }) => {
+  await startOnMeal(page);
+  await page.getByRole("button", { name: `Copy ${NAME}`, exact: true }).click();
+
+  await page.reload();
+
+  await expect(page.getByRole("button", { name: `Copied ${NAME}`, exact: true })).toBeVisible();
+});
+
+test("row actions fit a 320 px screen", async ({ page }) => {
+  await startOnMeal(page);
+  await page.setViewportSize({ width: 320, height: 640 });
+
+  const boxes = await Promise.all(
+    [`Edit ${NAME} amount`, `Copy ${NAME}`, `Remove ${NAME}`].map(async (name) => {
+      const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+      if (!box) throw new Error(`${name} has no box`);
+      return box;
+    }),
+  );
+
+  for (const box of boxes) expect(box.x + box.width).toBeLessThanOrEqual(320);
+  const [edit, copy, remove] = boxes;
+  expect(edit.x + edit.width).toBeLessThanOrEqual(copy.x);
+  expect(copy.x + copy.width).toBeLessThanOrEqual(remove.x);
+});

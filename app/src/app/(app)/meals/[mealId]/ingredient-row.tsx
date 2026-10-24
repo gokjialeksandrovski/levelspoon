@@ -237,7 +237,7 @@ const useIngredientEditing = (ingredient: MealIngredientDetail, onRemoved?: () =
 // "Snickers Bar") so a shouty label doesn't clash with the warm-journal tone
 // next to a naturally-cased one. Mixed-case names pass through untouched;
 // the stored string itself is never rewritten.
-const displayProductName = (name: string): string =>
+export const displayProductName = (name: string): string =>
   name === name.toUpperCase() && name !== name.toLowerCase()
     ? name.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
     : name;
@@ -321,8 +321,15 @@ interface QuantitySummaryProps {
   quantitySource: MealIngredientDetail["quantitySource"];
   isAiEstimate: boolean;
   isBusy: boolean;
+  copy: RowCopy;
   onEdit: () => void;
   onRemove: () => void;
+}
+
+/** Whether this row sits in the copied list, and the local-only toggle. */
+export interface RowCopy {
+  isCopied: boolean;
+  onToggle: () => void;
 }
 
 interface RowActionProps {
@@ -370,26 +377,41 @@ const QuantityLine = ({ quantity, quantityUnit, entryCount, entryUnit, energyKca
 interface RowActionsGroupProps {
   productName: string;
   isBusy: boolean;
+  copy: RowCopy;
   onEdit: () => void;
   onRemove: () => void;
 }
 
+// No aria-pressed on Copy: the label already changes with the text, and an
+// accessible name must contain the visible text (WCAG 2.5.3).
+const CopyRowAction = ({ productName, copy }: { productName: string; copy: RowCopy }) => {
+  const verb = copy.isCopied ? "Copied" : "Copy";
+  return (
+    <RowAction label={`${verb} ${productName}`} variant="ghost" onClick={copy.onToggle}>
+      {verb}
+    </RowAction>
+  );
+};
+
 // gap-5, not gap-3: each RowAction's hit box reaches 4px past its text
 // (TAP_HIT_AREA_SM), so a tighter gap leaves targets under the 8px minimum.
-const RowActionsGroup = ({ productName, isBusy, onEdit, onRemove }: RowActionsGroupProps) => (
-  <div className="flex gap-5">
+// shrink-0 + ml-auto: on a narrow screen the amount line wraps, the group
+// never does, and a wrapped group stays at the right edge.
+const RowActionsGroup = ({ productName, isBusy, copy, onEdit, onRemove }: RowActionsGroupProps) => (
+  <div className="ml-auto flex shrink-0 gap-5">
     <RowAction label={`Edit ${productName} amount`} variant="ghost" onClick={onEdit}>
       Edit
     </RowAction>
+    <CopyRowAction productName={productName} copy={copy} />
     <RowAction label={`Remove ${productName}`} variant="danger" disabled={isBusy} onClick={onRemove}>
       Remove
     </RowAction>
   </div>
 );
 
-const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entryUnit, contribution, quantitySource, isAiEstimate, isBusy, onEdit, onRemove }: QuantitySummaryProps) => (
+const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entryUnit, contribution, quantitySource, isAiEstimate, isBusy, copy, onEdit, onRemove }: QuantitySummaryProps) => (
   <div className="flex flex-col gap-1">
-    <div className="flex items-center justify-between text-sm text-text-muted">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-text-muted">
       <QuantityLine
         quantity={quantity}
         quantityUnit={quantityUnit}
@@ -398,7 +420,7 @@ const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entr
         energyKcal={contribution.energyKcal}
         sourceNote={isAiEstimate ? AI_ESTIMATE_TAG : AMOUNT_SOURCE_NOTE[quantitySource]}
       />
-      <RowActionsGroup productName={productName} isBusy={isBusy} onEdit={onEdit} onRemove={onRemove} />
+      <RowActionsGroup productName={productName} isBusy={isBusy} copy={copy} onEdit={onEdit} onRemove={onRemove} />
     </div>
     <MacroLine contribution={contribution} />
   </div>
@@ -407,6 +429,7 @@ const QuantitySummary = ({ productName, quantity, quantityUnit, entryCount, entr
 interface QuantityControlsProps {
   ingredient: MealIngredientDetail;
   editing: UseIngredientEditingResult;
+  copy: RowCopy;
   onRequestRemove: () => void;
 }
 
@@ -427,7 +450,7 @@ const EditingControls = ({ ingredient, editing }: EditingControlsProps) => (
   />
 );
 
-const SummaryControls = ({ ingredient, editing, onRequestRemove }: QuantityControlsProps) => (
+const SummaryControls = ({ ingredient, editing, copy, onRequestRemove }: QuantityControlsProps) => (
   <QuantitySummary
     productName={displayProductName(ingredient.productName)}
     quantity={ingredient.quantity}
@@ -438,16 +461,17 @@ const SummaryControls = ({ ingredient, editing, onRequestRemove }: QuantityContr
     quantitySource={ingredient.quantitySource}
     isAiEstimate={ingredient.isAiEstimate}
     isBusy={editing.isBusy}
+    copy={copy}
     onEdit={editing.startEditing}
     onRemove={onRequestRemove}
   />
 );
 
-const QuantityControls = ({ ingredient, editing, onRequestRemove }: QuantityControlsProps) =>
+const QuantityControls = ({ ingredient, editing, copy, onRequestRemove }: QuantityControlsProps) =>
   editing.isEditing ? (
     <EditingControls ingredient={ingredient} editing={editing} />
   ) : (
-    <SummaryControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
+    <SummaryControls ingredient={ingredient} editing={editing} copy={copy} onRequestRemove={onRequestRemove} />
   );
 
 // `block` is explicit: vertical margin is a no-op on inline elements, so
@@ -464,16 +488,12 @@ const CorrectionLink = ({ productId, productName }: { productId: string; product
   </div>
 );
 
-interface IngredientRowContentProps {
-  ingredient: MealIngredientDetail;
-  editing: UseIngredientEditingResult;
-  onRequestRemove: () => void;
-}
+type IngredientRowContentProps = QuantityControlsProps;
 
-const IngredientRowContent = ({ ingredient, editing, onRequestRemove }: IngredientRowContentProps) => (
+const IngredientRowContent = ({ ingredient, editing, copy, onRequestRemove }: IngredientRowContentProps) => (
   <>
     <IngredientHeader productName={ingredient.productName} />
-    <QuantityControls ingredient={ingredient} editing={editing} onRequestRemove={onRequestRemove} />
+    <QuantityControls ingredient={ingredient} editing={editing} copy={copy} onRequestRemove={onRequestRemove} />
     {/* Hidden while editing: it navigates away mid-edit, which is not an exit,
         and a row being edited is not the moment to offer it. Hidden on an AI
         row outright: saveNutritionOverride refuses those, so the link would
@@ -487,6 +507,7 @@ const IngredientRowContent = ({ ingredient, editing, onRequestRemove }: Ingredie
 
 interface IngredientRowProps {
   ingredient: MealIngredientDetail;
+  copy: RowCopy;
   onRemoved: () => void;
 }
 
@@ -494,13 +515,13 @@ interface IngredientRowProps {
 // entrance rise is timed by the parent's stagger (meal-detail.tsx).
 const rowExit = (reduceMotion: boolean | null) => (reduceMotion ? undefined : { opacity: 0 });
 
-export const IngredientRow = ({ ingredient, onRemoved }: IngredientRowProps) => {
+export const IngredientRow = ({ ingredient, copy, onRemoved }: IngredientRowProps) => {
   const editing = useIngredientEditing(ingredient, onRemoved);
   const reduceMotion = useReducedMotion();
 
   return (
     <motion.li layout={!reduceMotion} variants={rowEnterVariants} exit={rowExit(reduceMotion)} className="flex flex-col gap-2 py-4">
-      <IngredientRowContent ingredient={ingredient} editing={editing} onRequestRemove={editing.remove} />
+      <IngredientRowContent ingredient={ingredient} editing={editing} copy={copy} onRequestRemove={editing.remove} />
     </motion.li>
   );
 };
