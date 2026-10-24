@@ -466,7 +466,7 @@ describe("RECIPE_PICK_OPENED", () => {
   });
 });
 
-const ESTIMATE = { mealName: "Bowl", items: [] };
+const ESTIMATE = { mealName: "Bowl", items: [], droppedCount: 0 };
 
 describe("lazy track transitions", () => {
   it("opens the describe step empty", () => {

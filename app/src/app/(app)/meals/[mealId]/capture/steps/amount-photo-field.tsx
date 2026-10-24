@@ -6,7 +6,7 @@ import * as motion from "motion/react-m";
 import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { estimateQuantity } from "@/features/quantity/actions/quantity";
+import { estimateQuantity, type EstimateQuantityResult } from "@/features/quantity/actions/quantity";
 import { Button } from "@/components/ui/button";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { AttachedPhoto, PhotoSourceTile, takePickedPhoto, useDataUrl } from "@/components/ui/photo-input";
@@ -107,15 +107,27 @@ const useAmountPhotoGate = (onSelect: (photo: File) => void) => {
 
 export type AmountPhotoState =
   | { kind: "idle" }
-  | { kind: "failed" }
+  | { kind: "failed"; message: string }
   | { kind: "estimating"; photo: File }
   | { kind: "estimated"; photo: File; grams: number };
 
 const IDLE: AmountPhotoState = { kind: "idle" };
 
+// Each says whether another photo, a retry later, or neither can help: a
+// refused key fails the same way on every photo.
+const ESTIMATE_FAILURES: Record<Exclude<EstimateQuantityResult["kind"], "estimated">, string> = {
+  no_estimate: "Couldn't judge the amount from that photo. Type the amount, or try another photo.",
+  photo_unreadable: "That photo format can't be read. Use JPEG, PNG or WebP, or type the amount.",
+  key_missing: "AI estimates aren't set up here. Type the amount.",
+  key_rejected: "The AI key was refused. Type the amount.",
+  rate_limited: "The AI key has reached its usage limit. Type the amount, or try again later.",
+  timed_out: "The estimate took too long. Type the amount, or try again.",
+  unavailable: "Couldn't estimate right now. Type the amount, or try again.",
+};
+
 // A server action cannot be aborted, so cancelling retires the request
 // instead: a reply whose id is no longer current is dropped unread.
-export const useAmountEstimate = (onEstimated: (grams: number) => void) => {
+export const useAmountEstimate = (foodName: string, onEstimated: (grams: number) => void) => {
   const [state, setState] = useState<AmountPhotoState>(IDLE);
   const currentRequest = useRef(0);
 
@@ -123,14 +135,18 @@ export const useAmountEstimate = (onEstimated: (grams: number) => void) => {
     const requestId = ++currentRequest.current;
     setState({ kind: "estimating", photo });
     try {
-      const { grams } = await estimateQuantity(photo);
+      const result = await estimateQuantity(photo, foodName);
       if (requestId !== currentRequest.current) return;
-      onEstimated(grams);
-      setState({ kind: "estimated", photo, grams });
+      if (result.kind !== "estimated") {
+        setState({ kind: "failed", message: ESTIMATE_FAILURES[result.kind] });
+        return;
+      }
+      onEstimated(result.grams);
+      setState({ kind: "estimated", photo, grams: result.grams });
     } catch (error) {
       if (requestId !== currentRequest.current) return;
       console.error("Quantity estimation failed", error);
-      setState({ kind: "failed" });
+      setState({ kind: "failed", message: ESTIMATE_FAILURES.unavailable });
     }
   };
 
@@ -211,7 +227,6 @@ export const AiEstimateProgress = ({ photo, label, slowHint, onCancel }: AiEstim
 const PHOTO_LABEL = "Amount photo (optional)";
 const ESTIMATING_LABEL = "Estimating the grams";
 const SLOW_HINT = "Taking longer than usual. You can type the amount instead.";
-const ESTIMATE_FAILED = "Couldn't estimate from that photo. Type the amount, or try another photo.";
 
 interface AmountPhotoFieldProps {
   state: AmountPhotoState;
@@ -219,7 +234,7 @@ interface AmountPhotoFieldProps {
   onReset: () => void;
 }
 
-const AmountPhotoPicker = ({ onSelect, hasFailed }: { onSelect: (photo: File) => void; hasFailed: boolean }) => {
+const AmountPhotoPicker = ({ onSelect, failure }: { onSelect: (photo: File) => void; failure: string | null }) => {
   const hintId = useId();
   return (
     <div className="flex flex-col gap-1.5">
@@ -227,7 +242,7 @@ const AmountPhotoPicker = ({ onSelect, hasFailed }: { onSelect: (photo: File) =>
       <p id={hintId} className="text-sm/relaxed text-text-muted">
         {DISCLAIMER}
       </p>
-      {hasFailed && <InlineMessage tone="error">{ESTIMATE_FAILED}</InlineMessage>}
+      {failure && <InlineMessage tone="error">{failure}</InlineMessage>}
     </div>
   );
 };
@@ -235,8 +250,9 @@ const AmountPhotoPicker = ({ onSelect, hasFailed }: { onSelect: (photo: File) =>
 const AmountPhotoBody = ({ state, onSelect, onReset }: AmountPhotoFieldProps) => {
   switch (state.kind) {
     case "idle":
+      return <AmountPhotoPicker onSelect={onSelect} failure={null} />;
     case "failed":
-      return <AmountPhotoPicker onSelect={onSelect} hasFailed={state.kind === "failed"} />;
+      return <AmountPhotoPicker onSelect={onSelect} failure={state.message} />;
     case "estimating":
       return <AiEstimateProgress photo={state.photo} label={ESTIMATING_LABEL} slowHint={SLOW_HINT} onCancel={onReset} />;
     case "estimated":

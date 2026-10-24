@@ -8,7 +8,12 @@ Not fallback. Accepting AI value unedited → `quantity_source = ai_estimated`; 
 
 ## Amount photo (Gemini job 1)
 
-`estimateQuantity` (`app/src/features/quantity/actions/quantity.ts`) returns grams from an amount-used photo. Provider seam `QuantityProvider` in `app/src/lib/quantity/`. MIME type sniffed from bytes (`imageMimeType`), never hardcoded.
+`estimateQuantity(photo, foodName)` (`app/src/features/quantity/actions/quantity.ts`) returns grams from an amount-used photo. Provider seam `QuantityProvider` in `app/src/lib/quantity/`. MIME type sniffed from bytes (`imageMimeType`), never hardcoded.
+
+- Product name sent with photo: prompt weighs only that food, edible part, no container. Name in, grams out: still job 1.
+- Reply is JSON `{ grams }` via `response_format`, never free text (`parseFloat("1,250")` is 1). 0 or past 5000 g → `no_estimate`.
+- `reasoning_effort: "medium"`: same ~4.5 s as default minimal, which does no thinking here. Thinking counts toward `MAX_RESPONSE_TOKENS`.
+- Result is `EstimateQuantityResult`, never thrown: `estimated` / `no_estimate` plus `geminiFailureKind` kinds (`lib/gemini/client.ts`). Amount step copy says per kind whether another photo, retry or neither helps.
 
 Wait state (`useAmountEstimate`, `amount-photo-field.tsx`): photo shown with scan sweep, Cancel beside status. Cancel, or any typed amount, unit or chip, retires request: late reply dropped unread. Lazy track's estimate wait uses same `AiEstimateProgress`.
 

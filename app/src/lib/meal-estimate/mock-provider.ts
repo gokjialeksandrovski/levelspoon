@@ -10,9 +10,9 @@ export const MOCK_UNAVAILABLE_MARKER = "[mock:unavailable]";
 const MOCK_ESTIMATE = {
   mealName: "Chicken rice bowl",
   items: [
-    { name: "Chicken breast", grams: 150, per100g: { energyKcal: 165, fatG: 3.6, saturatesG: 1, carbohydrateG: 0, sugarsG: 0, proteinG: 31, saltG: 0.2, fibreG: 0 } },
-    { name: "White rice, cooked", grams: 200, per100g: { energyKcal: 130, fatG: 0.3, saturatesG: 0.1, carbohydrateG: 28, sugarsG: 0.1, proteinG: 2.7, saltG: 0, fibreG: 0.4 } },
-    { name: "Olive oil", grams: 10, per100g: { energyKcal: 884, fatG: 100, saturatesG: 14, carbohydrateG: 0, sugarsG: 0, proteinG: 0, saltG: 0, fibreG: null } },
+    { name: "Chicken breast", grams: 150, per100g: { energyKcal: 165, fatG: 3.6, saturatesG: 1, carbohydrateG: 0, sugarsG: 0, proteinG: 31, saltG: 0.2, fibreG: 0, alcoholG: 0 } },
+    { name: "White rice, cooked", grams: 200, per100g: { energyKcal: 130, fatG: 0.3, saturatesG: 0.1, carbohydrateG: 28, sugarsG: 0.1, proteinG: 2.7, saltG: 0, fibreG: 0.4, alcoholG: 0 } },
+    { name: "Olive oil", grams: 10, per100g: { energyKcal: 884, fatG: 100, saturatesG: 14, carbohydrateG: 0, sugarsG: 0, proteinG: 0, saltG: 0, fibreG: null, alcoholG: 0 } },
   ],
 };
 

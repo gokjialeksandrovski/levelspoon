@@ -19,7 +19,7 @@ vi.stubEnv("MEAL_ESTIMATE_PROVIDER", "mock");
 const item = (patch: Partial<LoggedItem> = {}): LoggedItem => ({
   name: "Chicken breast",
   grams: 150,
-  per100g: { energyKcal: 165, fatG: 3.6, saturatesG: 1, carbohydrateG: 0, sugarsG: 0, proteinG: 31, saltG: 0.2, fibreG: 0 },
+  per100g: { energyKcal: 165, fatG: 3.6, saturatesG: 1, carbohydrateG: 0, sugarsG: 0, proteinG: 31, saltG: 0.2, fibreG: 0, alcoholG: 0 },
   gramsEdited: false,
   ...patch,
 });
@@ -65,6 +65,15 @@ describe("estimateMeal", () => {
     vi.stubEnv("GEMINI_API_KEY", "test-key");
     const heic = new Blob([Buffer.from("....ftypheic", "ascii")]);
     expect(await estimateMeal("pasta", heic)).toEqual({ kind: "photo_unreadable" });
+    vi.stubEnv("MEAL_ESTIMATE_PROVIDER", "mock");
+  });
+
+  // "Try again" would be wrong copy here: a missing key fails every retry.
+  it("reports a missing key apart from an outage", async () => {
+    signedInAs(await seedUser());
+    vi.stubEnv("MEAL_ESTIMATE_PROVIDER", "gemini");
+    vi.stubEnv("GEMINI_API_KEY", "");
+    expect(await estimateMeal("pasta", null)).toEqual({ kind: "key_missing" });
     vi.stubEnv("MEAL_ESTIMATE_PROVIDER", "mock");
   });
 });

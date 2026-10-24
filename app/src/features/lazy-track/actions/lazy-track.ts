@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 
 import { requireAccountUserId } from "@/lib/auth/require-user";
 import { db } from "@/lib/db";
-import { UnsupportedImageFormatError } from "@/lib/gemini/image-mime-type";
+import { geminiFailureKind, type GeminiFailureKind } from "@/lib/gemini/client";
 import { GeminiMealEstimateProvider } from "@/lib/meal-estimate/gemini-provider";
 import { MockMealEstimateProvider } from "@/lib/meal-estimate/mock-provider";
 import type { MealEstimateProvider } from "@/lib/meal-estimate/provider";
@@ -16,8 +16,8 @@ import { canEstimate, parseMealEstimate, quantitySourceFor, type LoggedItem, typ
 export type EstimateMealResult =
   | { kind: "estimated"; estimate: MealEstimateView }
   | { kind: "nothing_found" }
-  | { kind: "photo_unreadable" }
-  | { kind: "unavailable" };
+  | { kind: "implausible_figures" }
+  | { kind: GeminiFailureKind };
 
 export type LogLazyMealResult =
   | { kind: "logged" }
@@ -29,6 +29,13 @@ const getProvider = (): MealEstimateProvider =>
 
 const toBuffer = async (photo: Blob | null): Promise<Buffer | null> => (photo ? Buffer.from(await photo.arrayBuffer()) : null);
 
+// No items and none dropped means no food was described; no items with some
+// dropped means food was found but every figure failed the bounds.
+const toEstimateResult = (estimate: MealEstimateView): EstimateMealResult => {
+  if (estimate.items.length > 0) return { kind: "estimated", estimate };
+  return estimate.droppedCount > 0 ? { kind: "implausible_figures" } : { kind: "nothing_found" };
+};
+
 /** The second of Gemini's two jobs (CLAUDE.md, "AI usage boundary"). Nothing
  * is written here: the estimate goes back to the review screen, and only
  * logLazyMeal writes. */
@@ -39,14 +46,10 @@ export const estimateMeal = async (description: string, photo: Blob | null): Pro
   }
   try {
     const raw = await getProvider().estimate(description.trim(), await toBuffer(photo));
-    const estimate = parseMealEstimate(raw);
-    return estimate.items.length === 0 ? { kind: "nothing_found" } : { kind: "estimated", estimate };
+    return toEstimateResult(parseMealEstimate(raw));
   } catch (error) {
-    if (error instanceof UnsupportedImageFormatError) {
-      return { kind: "photo_unreadable" };
-    }
     console.error("estimateMeal failed", error);
-    return { kind: "unavailable" };
+    return { kind: geminiFailureKind(error) };
   }
 };
 

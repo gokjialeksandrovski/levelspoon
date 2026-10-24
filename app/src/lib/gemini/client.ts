@@ -1,4 +1,4 @@
-import { imageMimeType } from "./image-mime-type";
+import { imageMimeType, UnsupportedImageFormatError } from "./image-mime-type";
 
 const GEMINI_CHAT_COMPLETIONS_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
@@ -22,7 +22,20 @@ const RETRYABLE_STATUS = 503;
 const MAX_FETCH_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 300;
 
+const UNAUTHORIZED_STATUS = 401;
+const FORBIDDEN_STATUS = 403;
+const KEY_REJECTED_STATUSES = new Set([UNAUTHORIZED_STATUS, FORBIDDEN_STATUS]);
+const BAD_REQUEST_STATUS = 400;
+const RATE_LIMITED_STATUS = 429;
+// The OpenAI-compatible endpoint answers a bad key with 400 INVALID_ARGUMENT,
+// "Please pass a valid API key", and no reason code: the text is the only signal.
+const INVALID_KEY_MESSAGE = /api key/i;
+
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Why an AI call failed, in the terms a user can act on. Each becomes a
+ * result-union member in the action that made the call. */
+export type GeminiFailureKind = "photo_unreadable" | "key_missing" | "key_rejected" | "rate_limited" | "timed_out" | "unavailable";
 
 export class MissingApiKeyError extends Error {
   constructor() {
@@ -31,12 +44,31 @@ export class MissingApiKeyError extends Error {
   }
 }
 
+const requestFailureKind = (status: number, body: string): GeminiFailureKind => {
+  if (KEY_REJECTED_STATUSES.has(status)) return "key_rejected";
+  if (status === BAD_REQUEST_STATUS && INVALID_KEY_MESSAGE.test(body)) return "key_rejected";
+  return status === RATE_LIMITED_STATUS ? "rate_limited" : "unavailable";
+};
+
 export class GeminiRequestError extends Error {
-  constructor(status: number) {
-    super(`Gemini API request failed with status ${status}`);
+  readonly kind: GeminiFailureKind;
+
+  constructor(status: number, body: string) {
+    const kind = requestFailureKind(status, body);
+    super(`Gemini API request failed with status ${status} (${kind})`);
     this.name = "GeminiRequestError";
+    this.kind = kind;
   }
 }
+
+// Walks the cause chain: each provider wraps transport errors in its own class.
+export const geminiFailureKind = (error: unknown): GeminiFailureKind => {
+  if (error instanceof UnsupportedImageFormatError) return "photo_unreadable";
+  if (error instanceof MissingApiKeyError) return "key_missing";
+  if (error instanceof GeminiRequestError) return error.kind;
+  if (error instanceof DOMException && error.name === "TimeoutError") return "timed_out";
+  return error instanceof Error && error.cause !== undefined ? geminiFailureKind(error.cause) : "unavailable";
+};
 
 export class TruncatedResponseError extends Error {
   constructor(maxTokens: number) {
@@ -100,7 +132,7 @@ const requestWithRetry = async (apiKey: string, body: unknown): Promise<Response
 export const postChatCompletion = async (apiKey: string, body: unknown): Promise<GeminiResponse> => {
   const response = await requestWithRetry(apiKey, body);
   if (!response.ok) {
-    throw new GeminiRequestError(response.status);
+    throw new GeminiRequestError(response.status, await response.text());
   }
   return (await response.json()) as GeminiResponse;
 };

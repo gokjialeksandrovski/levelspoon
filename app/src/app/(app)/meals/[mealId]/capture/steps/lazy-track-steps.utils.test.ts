@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { MAX_ITEM_GRAMS } from "@/features/lazy-track/actions/lazy-track.utils";
 
-import { gramsFieldError, parseGrams, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows } from "./lazy-track-steps.utils";
+import { droppedItemsNotice, gramsFieldError, parseGrams, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows } from "./lazy-track-steps.utils";
 
 const rice = {
   name: "Rice",
   grams: 200,
-  per100g: { energyKcal: 130, fatG: 0.3, saturatesG: 0.1, carbohydrateG: 28, sugarsG: 0.1, proteinG: 2.7, saltG: 0, fibreG: 0.4 },
+  per100g: { energyKcal: 130, fatG: 0.3, saturatesG: 0.1, carbohydrateG: 28, sugarsG: 0.1, proteinG: 2.7, saltG: 0, fibreG: 0.4, alcoholG: 0 },
 };
 
 describe("review draft", () => {
@@ -51,5 +51,12 @@ describe("review draft", () => {
   it("prices a row from its typed grams", () => {
     expect(rowKcal({ item: rice, gramsText: "100" })).toBe(130);
     expect(rowKcal({ item: rice, gramsText: "" })).toBeNull();
+  });
+});
+
+describe("droppedItemsNotice", () => {
+  it("counts one item or several", () => {
+    expect(droppedItemsNotice(1)).toBe("1 item was left out because its figures didn't add up. Add it by search after logging.");
+    expect(droppedItemsNotice(2)).toBe("2 items were left out because their figures didn't add up. Add them by search after logging.");
   });
 });

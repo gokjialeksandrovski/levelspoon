@@ -11,7 +11,7 @@ const ESTIMATE = { mealName: "Bowl", items: [{ name: "Rice", grams: 200, per100g
 const stubFetchSequence = (responses: Array<{ ok: boolean; status: number; body: unknown }>) => {
   const fetchMock = vi.fn();
   for (const { ok, status, body } of responses) {
-    fetchMock.mockResolvedValueOnce({ ok, status, json: () => Promise.resolve(body) });
+    fetchMock.mockResolvedValueOnce({ ok, status, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
   }
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -34,7 +34,6 @@ describe("GeminiMealEstimateProvider.estimate", () => {
     expect(JSON.stringify(body.messages)).toContain("rice bowl");
     expect(JSON.stringify(body.messages)).not.toContain("image_url");
   });
-
   it("attaches the photo when given", async () => {
     const fetchMock = stubFetchSequence([{ ok: true, status: 200, body: reply(JSON.stringify(ESTIMATE)) }]);
     await new GeminiMealEstimateProvider().estimate("", jpegPhoto);

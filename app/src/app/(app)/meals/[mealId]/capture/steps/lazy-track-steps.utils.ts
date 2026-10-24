@@ -47,6 +47,11 @@ export const toLoggedItems = (rows: readonly ReviewRow[]): LoggedItem[] =>
     return { ...row.item, grams, gramsEdited: grams !== row.item.grams };
   });
 
+export const droppedItemsNotice = (count: number): string =>
+  count === 1
+    ? "1 item was left out because its figures didn't add up. Add it by search after logging."
+    : `${count} items were left out because their figures didn't add up. Add them by search after logging.`;
+
 export const rowKcal = (row: ReviewRow): number | null => {
   const grams = parseGrams(row.gramsText);
   return grams === null ? null : scaleNutrition(row.item.per100g, grams / PER_100G).energyKcal;

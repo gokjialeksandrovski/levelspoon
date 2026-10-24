@@ -295,7 +295,7 @@ const useAmountStepForm = (
   const [source, setSource] = useState<"ai_estimated" | "manual">("manual");
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const estimate = useAmountEstimate((grams) => {
+  const estimate = useAmountEstimate(product.name, (grams) => {
     setCount(String(grams));
     setUnit("g");
     setSource("ai_estimated");

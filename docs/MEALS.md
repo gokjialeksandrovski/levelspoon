@@ -57,10 +57,16 @@ Least accurate logging path, on purpose: user describes meal (+ optional photo),
   - `isProofless` (`attachLabelProof` guard) excludes AI rows; `getProductForCorrection` returns null for one, so `/products/<id>/correct` 404s rather than promoting a guess to a shared, label-proved row.
   - **Any new search, match, barcode or photo-proof writer applies the same guard.**
 - Reuse through recipes only. `(AI estimate)` tag on recipe and `AI estimate` on item derived from origin, never stored; swapping every guess for a real product clears recipe tag.
+- Prompt pins grams and per-100 g to same state (cooked rice never scored as dry), takes stated amounts as given, salt in g never sodium mg.
+- `reasoning_effort: "high"`, most `gemini-3.5-flash-lite` offers: user's own key carries cost. Splits mixed dishes into components; ~9-10 s against ~5 s at default. Thinking counts toward `MAX_RESPONSE_TOKENS`.
 - Figures bounded in `features/lazy-track/actions/lazy-track.utils.ts` (each constant labelled physical or judgment), run on Gemini reply and again in `logLazyMeal`: figures round-trip through browser.
+  - kcal between 0.75x and 1.2x Atwater energy of macros (+25 kcal untracked, e.g. vinegar): catches per-100 g kcal beside per-serving macros, either way.
+  - `alcoholG` (7 kcal/g) read by bounds only, never stored (`docs/DECISIONS.md`): without it every drink fails ceiling.
+  - Rounding slack on every limit (USDA lard is 902 kcal).
+  - Dropped item counted (`droppedCount`); review says how many left out. All dropped → `implausible_figures`, never `nothing_found`.
 - Review edits: grams, remove, re-ask. No name or per-100g edits, no correction link, no portion overrides on AI rows.
 - Consent reuses `AiConsentSheet` / `levelspoon:ai-photo-consent`, asked before text-only requests too. Meal photo sent, never stored.
 - No usage cap, on purpose: AI is BYOK only, user's own key carries cost (`docs/DECISIONS.md`).
-- Refusals cross as `EstimateMealResult` / `LogLazyMealResult`.
+- Refusals cross as `EstimateMealResult` / `LogLazyMealResult`. Provider failures map through `geminiFailureKind` (`lib/gemini/client.ts`): missing key, refused key, quota, timeout, unreadable photo each own kind. Copy says "try again" only where a retry can work.
 - `MEAL_ESTIMATE_PROVIDER` picks mock vs Gemini; `.env.example` defaults `mock`.
 - Spec: `docs/superpowers/specs/2026-09-25-lazy-track-design.md`.

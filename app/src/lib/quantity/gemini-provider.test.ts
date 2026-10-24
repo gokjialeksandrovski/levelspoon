@@ -9,10 +9,12 @@ import { GeminiQuantityProvider } from "./gemini-provider";
 // content is irrelevant to these tests.
 const jpegPhoto = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
+const FOOD = "Rolled oats";
+
 const stubFetchSequence = (responses: Array<{ ok: boolean; status: number; body: unknown }>) => {
   const fetchMock = vi.fn();
   for (const { ok, status, body } of responses) {
-    fetchMock.mockResolvedValueOnce({ ok, status, json: () => Promise.resolve(body) });
+    fetchMock.mockResolvedValueOnce({ ok, status, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
   }
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -21,24 +23,27 @@ const stubFetchSequence = (responses: Array<{ ok: boolean; status: number; body:
 const stubFetchJson = (body: unknown, ok = true, status = 200) =>
   stubFetchSequence([{ ok, status, body }]);
 
+const reply = (content: string | null, finishReason = "stop") => ({ choices: [{ finish_reason: finishReason, message: { content } }] });
+
+const gramsReply = (grams: unknown) => reply(JSON.stringify({ grams }));
+
+const estimate = (photo = jpegPhoto) => new GeminiQuantityProvider().estimateGrams(photo, FOOD);
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("GeminiQuantityProvider.estimateGrams", () => {
   it("posts a bearer-authenticated request with the pinned model and parses grams", async () => {
-    const fetchMock = stubFetchJson({
-      choices: [{ finish_reason: "stop", message: { content: "184" } }],
-    });
+    const fetchMock = stubFetchJson(gramsReply(184));
 
-    const grams = await new GeminiQuantityProvider().estimateGrams(jpegPhoto);
-
-    expect(grams).toBe(184);
+    expect(await estimate()).toEqual({ kind: "estimated", grams: 184 });
     const [url, requestInit] = fetchMock.mock.calls[0];
     expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
     expect(requestInit.headers.Authorization).toBe("Bearer test-key");
     const body = JSON.parse(requestInit.body as string);
     expect(body.model).toBe("gemini-3.5-flash-lite");
+    expect(body.response_format.type).toBe("json_schema");
     const imagePart = body.messages[0].content.find(
       (part: { type: string }) => part.type === "image_url",
     );
@@ -47,15 +52,20 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
     );
   });
 
+  // On a plate of several foods, the name is what says which one to weigh.
+  it("names the food being logged in the prompt", async () => {
+    const fetchMock = stubFetchJson(gramsReply(184));
+    await estimate();
+    expect(fetchMock.mock.calls[0][1].body as string).toContain(`Food: ${FOOD}`);
+  });
+
   // The pinned default is load-bearing: if GEMINI_MODEL is absent from an
   // environment, falling back to a retired model is a 404 in production.
   it("falls back to the pinned default model when GEMINI_MODEL is unset", async () => {
     vi.stubEnv("GEMINI_MODEL", "");
-    const fetchMock = stubFetchJson({
-      choices: [{ finish_reason: "stop", message: { content: "184" } }],
-    });
+    const fetchMock = stubFetchJson(gramsReply(184));
 
-    await new GeminiQuantityProvider().estimateGrams(jpegPhoto);
+    await estimate();
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.model).toBe("gemini-3.5-flash-lite");
@@ -63,34 +73,45 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
     vi.stubEnv("GEMINI_MODEL", "gemini-3.5-flash-lite");
   });
 
+  it("answers no_estimate when the model gives 0", async () => {
+    stubFetchJson(gramsReply(0));
+    expect(await estimate()).toEqual({ kind: "no_estimate" });
+  });
+
+  it("answers no_estimate past the gram ceiling rather than filling the field with it", async () => {
+    stubFetchJson(gramsReply(25000));
+    expect(await estimate()).toEqual({ kind: "no_estimate" });
+  });
+
   // Regression: a reasoning model once consumed the whole token budget and
   // returned content: null with finish_reason: "length"; the old parser
   // coerced that to "" and reported a misleading "non-numeric response".
-  it("reports truncation, not a non-numeric reply, when the budget runs out", async () => {
-    stubFetchJson({ choices: [{ finish_reason: "length", message: { content: null } }] });
+  it("reports truncation, not a bad reply, when the budget runs out", async () => {
+    stubFetchJson(reply(null, "length"));
 
-    await expect(
-      new GeminiQuantityProvider().estimateGrams(jpegPhoto),
-    ).rejects.toMatchObject({
+    await expect(estimate()).rejects.toMatchObject({
       message: "Quantity estimation failed",
       cause: expect.objectContaining({ name: "TruncatedResponseError" }),
     });
   });
 
-  it("throws QuantityEstimationError when the reply is non-numeric", async () => {
-    stubFetchJson({ choices: [{ finish_reason: "stop", message: { content: "not a number" } }] });
+  // Free text read with parseFloat once turned "1,250" into 1 g.
+  it("refuses a reply that is not the JSON object asked for", async () => {
+    stubFetchJson(reply("1,250"));
+    await expect(estimate()).rejects.toThrow("Quantity estimation failed");
+  });
 
-    await expect(
-      new GeminiQuantityProvider().estimateGrams(jpegPhoto),
-    ).rejects.toThrow("Quantity estimation failed");
+  it("refuses a gram figure that is not a number", async () => {
+    stubFetchJson(gramsReply("about 200"));
+    await expect(estimate()).rejects.toMatchObject({
+      cause: expect.objectContaining({ name: "InvalidGramsReplyError" }),
+    });
   });
 
   it("wraps a non-ok response with the status in its cause", async () => {
     const fetchMock = stubFetchJson({}, false, 429);
 
-    await expect(
-      new GeminiQuantityProvider().estimateGrams(jpegPhoto),
-    ).rejects.toMatchObject({
+    await expect(estimate()).rejects.toMatchObject({
       message: "Quantity estimation failed",
       cause: expect.objectContaining({ message: expect.stringContaining("429") }),
     });
@@ -106,12 +127,10 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
   it("retries after a 503 and succeeds on the next attempt", async () => {
     const fetchMock = stubFetchSequence([
       { ok: false, status: 503, body: {} },
-      { ok: true, status: 200, body: { choices: [{ finish_reason: "stop", message: { content: "184" } }] } },
+      { ok: true, status: 200, body: gramsReply(184) },
     ]);
 
-    const grams = await new GeminiQuantityProvider().estimateGrams(jpegPhoto);
-
-    expect(grams).toBe(184);
+    expect(await estimate()).toEqual({ kind: "estimated", grams: 184 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -122,9 +141,7 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
       { ok: false, status: 503, body: {} },
     ]);
 
-    await expect(
-      new GeminiQuantityProvider().estimateGrams(jpegPhoto),
-    ).rejects.toMatchObject({
+    await expect(estimate()).rejects.toMatchObject({
       message: "Quantity estimation failed",
       cause: expect.objectContaining({ message: expect.stringContaining("503") }),
     });
@@ -133,20 +150,16 @@ describe("GeminiQuantityProvider.estimateGrams", () => {
 
   it("throws immediately and unwrapped when GEMINI_API_KEY is unset", async () => {
     vi.stubEnv("GEMINI_API_KEY", "");
-    stubFetchJson({ choices: [{ finish_reason: "stop", message: { content: "150" } }] });
+    stubFetchJson(gramsReply(150));
 
-    await expect(
-      new GeminiQuantityProvider().estimateGrams(jpegPhoto),
-    ).rejects.toThrow("Missing required environment variable: GEMINI_API_KEY");
+    await expect(estimate()).rejects.toThrow("Missing required environment variable: GEMINI_API_KEY");
 
     vi.stubEnv("GEMINI_API_KEY", "test-key");
   });
 
   it("rejects a payload that is not a supported image", async () => {
-    stubFetchJson({ choices: [{ finish_reason: "stop", message: { content: "150" } }] });
+    stubFetchJson(gramsReply(150));
 
-    await expect(
-      new GeminiQuantityProvider().estimateGrams(Buffer.from("plain text", "ascii")),
-    ).rejects.toThrow("Unsupported image format");
+    await expect(estimate(Buffer.from("plain text", "ascii"))).rejects.toThrow("Unsupported image format");
   });
 });

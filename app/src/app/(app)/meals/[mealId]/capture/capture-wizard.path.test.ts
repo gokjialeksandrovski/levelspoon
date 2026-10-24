@@ -141,14 +141,14 @@ describe("recipe-pick on the path", () => {
 describe("LAZY_ESTIMATED", () => {
   it("keeps the typed text on the describe step Back returns to", () => {
     const path = pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" });
-    const reviewed = pathReducer(path, { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate: { mealName: "Bowl", items: [] } });
+    const reviewed = pathReducer(path, { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate: { mealName: "Bowl", items: [], droppedCount: 0 } });
     const back = pathReducer(reviewed, { type: "BACK" });
-    expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null, previous: { mealName: "Bowl", items: [] } });
+    expect(back.at(-1)).toEqual({ kind: "lazy-describe", description: "rice bowl", photo: null, previous: { mealName: "Bowl", items: [], droppedCount: 0 } });
     expect(back).toHaveLength(2);
   });
 
   it("returns to the same estimate from the describe step it left", () => {
-    const estimate = { mealName: "Bowl", items: [] };
+    const estimate = { mealName: "Bowl", items: [], droppedCount: 0 };
     const reviewed = pathReducer(pathReducer([INITIAL_WIZARD_STEP], { type: "LAZY_TRACK_OPENED" }), { type: "LAZY_ESTIMATED", description: "rice bowl", photo: null, estimate });
     const describe = pathReducer(reviewed, { type: "BACK" }).at(-1);
     if (describe?.kind !== "lazy-describe" || describe.previous === null) throw new Error("expected a describe step holding the estimate");
@@ -169,7 +169,7 @@ describe("LAZY_ESTIMATED", () => {
       type: "LAZY_ESTIMATED",
       description: "rice bowl",
       photo: null,
-      estimate: { mealName: "Bowl", items: [] },
+      estimate: { mealName: "Bowl", items: [], droppedCount: 0 },
     });
 
     expect(late).toBe(backToOptions);

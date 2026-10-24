@@ -15,7 +15,7 @@ import { ICON_TAP_TARGET_CLASS } from "@/components/ui/tap-target";
 import type { PathAction } from "../capture-wizard.path";
 import { hasAcceptedAiPhotoConsent, recordAiPhotoConsent } from "./ai-photo-consent";
 import { AiConsentSheet, AiEstimateProgress } from "./amount-photo-field";
-import { gramsFieldError, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
+import { droppedItemsNotice, gramsFieldError, reviewDraftIsLoggable, rowKcal, toLoggedItems, toReviewRows, type ReviewRow } from "./lazy-track-steps.utils";
 
 const DESCRIPTION_LABEL = "What did you eat, and what was in it?";
 const DESCRIPTION_HINT = "More detail gives a better estimate, e.g. portion size, cooking oil, sauces.";
@@ -27,9 +27,16 @@ const NOTHING_TO_ESTIMATE = "Describe the meal or add a photo first.";
 const ESTIMATING_LABEL = "Estimating your meal";
 const SLOW_HINT = "Taking longer than usual. You can cancel and add items by search instead.";
 
+// A refused or missing key fails the same way on every retry, so only the
+// passing failures say "try again".
 const ESTIMATE_ERRORS: Record<Exclude<EstimateMealResult["kind"], "estimated">, string> = {
   nothing_found: "Couldn't pick out any food. Say what was on the plate.",
+  implausible_figures: "Couldn't put sensible figures on that meal. Add detail and try again, or add items by search.",
   photo_unreadable: "That photo format can't be read. Use JPEG, PNG or WebP, or leave the photo out.",
+  key_missing: "AI estimates aren't set up here. Add items by search instead.",
+  key_rejected: "The AI key was refused. Add items by search instead.",
+  rate_limited: "The AI key has reached its usage limit. Your text is kept, so try again later or add items by search.",
+  timed_out: "The estimate took too long. Your text is kept, so try again or add items by search.",
   unavailable: ESTIMATE_FAILED,
 };
 
@@ -242,6 +249,9 @@ const useReviewRows = (estimate: MealEstimateView) => {
   return { rows, setGrams, remove, totalKcal };
 };
 
+const DroppedItemsNotice = ({ count }: { count: number }) =>
+  count > 0 ? <InlineMessage tone="warning">{droppedItemsNotice(count)}</InlineMessage> : null;
+
 // Add detail sits beside Log, not as a link in the body: it is the other way
 // out of this screen, and a pair reads as "this, or that" at a glance.
 export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyReviewStepProps) => {
@@ -264,6 +274,7 @@ export const LazyReviewStep = ({ mealId, estimate, onLogged, dispatch }: LazyRev
           ))}
         </div>
       </section>
+      <DroppedItemsNotice count={estimate.droppedCount} />
       <StickyActionBar>
         {logging.error && <InlineMessage tone="error">{logging.error}</InlineMessage>}
         <div className="flex gap-3">
