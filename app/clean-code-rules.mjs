@@ -779,6 +779,33 @@ export const cleanCodePerformanceRules = {
   },
 }
 
+// The Vercel React best practices (vercel-react-best-practices skill) that an
+// existing plugin already checks. No `plugins` key: eslint-config-next
+// registers `react` and `react-hooks` itself; any other React project
+// registers eslint-plugin-react and eslint-plugin-react-hooks 7+ first. Listed
+// even where a preset already turns a rule on, so dropping the preset cannot
+// silently drop the check. `react/jsx-no-leaked-render`
+// (rendering-conditional-render) was tried and left out: 97 hits on its first
+// project, every sampled one a boolean or string condition. The real defect,
+// `count && <X />` rendering "0", stays self-review.
+export const cleanCodeReactRules = {
+  rules: {
+    // rerender-no-inline-components: a component defined during render
+    // remounts, losing its state, on every parent render. The react rule
+    // sees inline definitions; the react-hooks one only sees components
+    // returned by a call (`const Row = pick(kind)`).
+    'react/no-unstable-nested-components': 'error',
+    'react-hooks/static-components': 'error',
+    // rerender-derived-state-no-effect: derive during render; an effect
+    // that sets state from props renders twice and shows a stale frame.
+    'react-hooks/set-state-in-effect': 'error',
+    'react-hooks/no-deriving-state-in-effects': 'error',
+    // rerender-memo-with-default-value: an `= {}` or `= []` default is a new
+    // reference every render, so memo and effect dependencies never settle.
+    'react/no-object-type-as-default-prop': 'error',
+  },
+}
+
 // Payload CMS projects only. With no options it checks every collection; a
 // project passes `{ collections: [...] }` to name the ones with heavy fields
 // (rich text, upload arrays), plus any collection whose relation populates

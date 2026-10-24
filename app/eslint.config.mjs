@@ -9,6 +9,7 @@ import {
   cleanCodeInteractionRules,
   cleanCodeMetadataRules,
   cleanCodePerformanceRules,
+  cleanCodeReactRules,
   cleanCodeUiPrimitiveRules,
   cleanCodeInfraRules,
   cleanCodeTailwindRules,
@@ -114,6 +115,12 @@ const eslintConfig = [
     // Tests seed rows then act on them: the order is the point, not a waterfall.
     ignores: ["**/*.test.ts", "**/*.test.tsx"],
     ...cleanCodePerformanceRules,
+  },
+  {
+    // Vercel React best practices an existing plugin checks; eslint-config-next
+    // registers both plugins. Hooks live in .ts files too.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    rules: cleanCodeReactRules.rules,
   },
   {
     // Next.js merges metadata shallowly: a page's openGraph/twitter replaces
