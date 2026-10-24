@@ -4,6 +4,7 @@ vi.mock("@/auth", () => ({ auth: () => mockAuth() }));
 import { describe, expect, it, vi } from "vitest";
 
 import { GuestNotAllowedError } from "@/lib/auth/require-user";
+import { MockQuantityProvider } from "@/lib/quantity/mock-provider";
 
 vi.stubEnv("QUANTITY_PROVIDER", "mock");
 
@@ -18,6 +19,14 @@ describe("estimateQuantity", () => {
     signedIn();
     const result = await estimateQuantity(photo(), "Rice");
     expect(result.kind === "estimated" && result.grams > 0).toBe(true);
+  });
+
+  it("caps the food name before it reaches the prompt", async () => {
+    signedIn();
+    const estimateGrams = vi.spyOn(MockQuantityProvider.prototype, "estimateGrams");
+    await estimateQuantity(photo(), `  ${"a".repeat(10_000)}  `);
+    expect(estimateGrams.mock.calls[0][1]).toBe("a".repeat(200));
+    estimateGrams.mockRestore();
   });
 
   it("refuses a demo user", async () => {
