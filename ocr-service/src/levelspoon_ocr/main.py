@@ -41,11 +41,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     executes when the real app actually starts up. The `getattr` guard lets
     a test pre-set `app.state.engine` to a stub before startup runs, so the
     real (paddle-requiring) construction never happens under test.
+
+    The Cyrillic engine reads product names only: on nutrition labels it
+    broke every table the en engine parses (docs/DECISIONS.md).
     """
     if getattr(app.state, "engine", None) is None:
         from .engine import OcrEngine
 
         app.state.engine = OcrEngine()
+        app.state.cyrillic_engine = OcrEngine(lang="mk")
     yield
 
 
@@ -55,6 +59,10 @@ app = FastAPI(title="levelspoon OCR", version="0.1.0", lifespan=lifespan)
 def get_engine(request: Request) -> "OcrEngine":
     """Return the engine built once at startup by `lifespan`."""
     return request.app.state.engine
+
+
+def get_cyrillic_engine(request: Request) -> "OcrEngine":
+    return request.app.state.cyrillic_engine
 
 
 def _serialisable(values) -> dict:
@@ -75,10 +83,10 @@ def _optional_values(values) -> dict | None:
     return None if values is None else _serialisable(values)
 
 
-async def _read_photo(image: UploadFile, engine: "OcrEngine") -> OcrResult:
+def _read_photo(photo: bytes, engine: "OcrEngine") -> OcrResult:
     """Run OCR, answering an undecodable file with 415 rather than a 500."""
     try:
-        return engine.read(await image.read())
+        return engine.read(photo)
     except UnreadablePhotoError as error:
         raise HTTPException(
             status_code=UNSUPPORTED_MEDIA_TYPE, detail=str(error)
@@ -86,19 +94,25 @@ async def _read_photo(image: UploadFile, engine: "OcrEngine") -> OcrResult:
 
 
 @app.get("/health")
-def health(engine=Depends(get_engine)) -> dict:
+def health(
+    engine=Depends(get_engine), cyrillic_engine=Depends(get_cyrillic_engine)
+) -> dict:
     """Reports model load state, not merely that the process is listening."""
-    return {"status": "ok", "model_loaded": engine.model_loaded}
+    loaded = engine.model_loaded and cyrillic_engine.model_loaded
+    return {"status": "ok", "model_loaded": loaded}
 
 
 @app.post("/ocr/product-name")
 async def read_product_name(
-    image: UploadFile = File(...), engine=Depends(get_engine)
+    image: UploadFile = File(...),
+    engine=Depends(get_engine),
+    cyrillic_engine=Depends(get_cyrillic_engine),
 ) -> dict:
-    result = await _read_photo(image, engine)
+    photo = await image.read()
+    latin = _read_photo(photo, engine)
     return {
-        "text": extract_product_name(result),
-        "net_weight_text": extract_net_weight_text(result),
+        "text": extract_product_name(latin, _read_photo(photo, cyrillic_engine)),
+        "net_weight_text": extract_net_weight_text(latin),
     }
 
 
@@ -106,7 +120,7 @@ async def read_product_name(
 async def read_nutrition_table(
     image: UploadFile = File(...), engine=Depends(get_engine)
 ) -> dict:
-    result = await _read_photo(image, engine)
+    result = _read_photo(await image.read(), engine)
     try:
         reading = parse_nutrition(result)
     except (ColumnDetectionError, NormalizationError) as error:
@@ -157,12 +171,18 @@ async def validate_nutrition(request: ValidateRequest) -> dict:
 
 @app.post("/debug/boxes")
 async def debug_boxes(
-    image: UploadFile = File(...), engine=Depends(get_engine)
+    image: UploadFile = File(...),
+    engine=Depends(get_engine),
+    cyrillic_engine=Depends(get_cyrillic_engine),
 ) -> dict:
-    """Raw detections, for recording fixtures (spec §11 fixtures:capture)."""
-    result = await _read_photo(image, engine)
+    """Raw detections from both engines, for recording fixtures (spec §11
+    fixtures:capture)."""
+    photo = await image.read()
+    result = _read_photo(photo, engine)
+    cyrillic = _read_photo(photo, cyrillic_engine)
     return {
         "image_width": result.image_width,
         "image_height": result.image_height,
         "boxes": [asdict(box) for box in result.boxes],
+        "cyrillic_boxes": [asdict(box) for box in cyrillic.boxes],
     }

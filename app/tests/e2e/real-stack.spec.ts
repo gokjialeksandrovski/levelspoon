@@ -18,10 +18,8 @@ test("real stack: real photos through real OCR produce the golden nutrition valu
 
   await page.getByLabel(/product photo/i).setInputFiles("../fixtures/photos/olympus-greek-2pct-front.jpg");
 
-  // The real product-name OCR never detects "%" on this photo (main spec's
-  // known, honest M1 finding) - it reads as a bare "2", which won't match any
-  // seeded product on a fresh test database, so this always takes the
-  // no-match path. That's expected and is what this test exercises.
+  // beforeEach truncated products, so the name read off this photo matches
+  // nothing and the flow always takes the no-match path this test exercises.
   await page.getByLabel(/nutrition table photo/i).setInputFiles("../fixtures/photos/olympus-greek-2pct-nutrition.jpg");
   await expect(page.getByText("Confirm nutrition (per 100 g)")).toBeVisible({ timeout: 30_000 });
 

@@ -1,0 +1,43 @@
+[
+  { "photo": "bella_farm_yoghurt.jpg", "name": "Bella Farm Yoghurt 2,8% m.m" },
+  { "photo": "doritos-front.jpg", "name": "Doritos Nacho Cheese Tortilla Chips" },
+  { "photo": "haribos-front.jpg", "name": "Haribo Goldbears Gummicandy" },
+  {
+    "photo": "hot-sauce-front.jpg",
+    "name": "Lhenny Tabasco",
+    "ceiling": "LHENNY is the arched McILHENNY CO. maker line, as tall as the brand"
+  },
+  { "photo": "kitkat-front.jpg", "name": "KitKat" },
+  { "photo": "lays-front.jpg", "name": "Lay's Classic Potato Chips" },
+  {
+    "photo": "maggi-noodles-front.jpg",
+    "name": "Maggi 2-Minute Truly Good Iron Masala",
+    "ceiling": "TRULY GOOD and IRON are prominent marketing words no closed list names; OCR reads the type line as 'Noodes'"
+  },
+  {
+    "photo": "mandms-front.jpg",
+    "name": "crispy m&m's",
+    "ceiling": "words follow print order, and 'crispy' sits above the logo"
+  },
+  { "photo": "mayo-front.jpg", "name": "Hellmann's Real·vraie Mayonnaise" },
+  { "photo": "olympus-greek-2pct-front.jpg", "name": "Olympus Greek Recipe Yogurt Strained 2% fat" },
+  { "photo": "pringles-front.jpg", "name": "Pringles Original" },
+  {
+    "photo": "red-bull-front.jpg",
+    "name": "RedBull Energydrink Vtalizes",
+    "ceiling": "OCR glues 'Red Bull' and 'ENERGY DRINK', and keeps the slogan's first line"
+  },
+  { "photo": "snickers-front.jpg", "name": "Snickers" },
+  { "photo": "snickers.png", "name": "Snickers BAR" },
+  { "photo": "toblerone-front.jpg", "name": "Toblerone" },
+  {
+    "photo": "jogurt.png",
+    "name": "bimilk Битолски јогурт Shop",
+    "ceiling": "web-shop listing image: the BIG SHOP watermark reads as a word"
+  },
+  {
+    "photo": "kosiljak-slanina-front.jpg",
+    "name": "Ћосињак мєсна ннаустриа Домашна Саанина Чадена Набуково Дрво",
+    "ceiling": "cropped from kosiljak-slanina-nutrition.jpg; stylised logo letters misread (Косиљак, Месна индустрија, сланина), and the maker line and 'Чадена на буково дрво' badge print as large as the name"
+  }
+]

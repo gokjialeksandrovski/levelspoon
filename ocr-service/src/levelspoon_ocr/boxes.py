@@ -15,6 +15,9 @@ class Box:
     x: float
     y: float
     confidence: float
+    # Text line height in pixels. Only the name reader ranks on it; the 0.0
+    # default keeps nutrition fixtures recorded before it existed loadable.
+    height: float = 0.0
 
 
 @dataclass(frozen=True)

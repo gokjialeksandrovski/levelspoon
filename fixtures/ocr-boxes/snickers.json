@@ -1,0 +1,92 @@
+{
+  "image_width": 800,
+  "image_height": 800,
+  "boxes": [
+    {
+      "text": "250",
+      "x": 103.0,
+      "y": 344.0,
+      "confidence": 0.999995231628418,
+      "height": 36.0
+    },
+    {
+      "text": "SNICKERS",
+      "x": 334.5,
+      "y": 397.0,
+      "confidence": 0.9999505281448364,
+      "height": 124.0
+    },
+    {
+      "text": "CALORIES",
+      "x": 104.0,
+      "y": 367.5,
+      "confidence": 0.9975609183311462,
+      "height": 17.0
+    },
+    {
+      "text": "PER PACK",
+      "x": 103.5,
+      "y": 378.5,
+      "confidence": 0.9960199594497681,
+      "height": 15.0
+    },
+    {
+      "text": "NET WT 1.86 0Z (52.7g)",
+      "x": 178.0,
+      "y": 464.0,
+      "confidence": 0.9776125550270081,
+      "height": 32.01562118716424
+    },
+    {
+      "text": "BAR",
+      "x": 535.5,
+      "y": 476.0,
+      "confidence": 0.886206328868866,
+      "height": 16.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "250",
+      "x": 103.5,
+      "y": 344.5,
+      "confidence": 0.9989925026893616,
+      "height": 39.0
+    },
+    {
+      "text": "SNICKERS",
+      "x": 333.5,
+      "y": 398.5,
+      "confidence": 0.9844163060188293,
+      "height": 119.0
+    },
+    {
+      "text": "CALORIES",
+      "x": 104.0,
+      "y": 367.5,
+      "confidence": 0.994342565536499,
+      "height": 17.0
+    },
+    {
+      "text": "PER PACK",
+      "x": 103.5,
+      "y": 378.5,
+      "confidence": 0.9547765254974365,
+      "height": 11.0
+    },
+    {
+      "text": "NET WT 1.8 0Z (52.7g)",
+      "x": 178.5,
+      "y": 465.0,
+      "confidence": 0.903421938419342,
+      "height": 32.0
+    },
+    {
+      "text": "BAR",
+      "x": 535.5,
+      "y": 475.5,
+      "confidence": 0.9516958594322205,
+      "height": 15.0
+    }
+  ]
+}

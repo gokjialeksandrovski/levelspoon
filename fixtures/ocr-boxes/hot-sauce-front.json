@@ -1,0 +1,50 @@
+{
+  "image_width": 447,
+  "image_height": 447,
+  "boxes": [
+    {
+      "text": "LHENNY",
+      "x": 220.5,
+      "y": 263.5,
+      "confidence": 0.9998757243156433,
+      "height": 22.02271554554524
+    },
+    {
+      "text": "TABASCO",
+      "x": 219.5,
+      "y": 298.5,
+      "confidence": 0.9995377659797668,
+      "height": 29.0
+    },
+    {
+      "text": "BRAND",
+      "x": 217.5,
+      "y": 317.5,
+      "confidence": 0.9999853372573853,
+      "height": 15.0
+    },
+    {
+      "text": "EST.1880",
+      "x": 217.0,
+      "y": 326.0,
+      "confidence": 0.7415547966957092,
+      "height": 10.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "TABASCO",
+      "x": 220.0,
+      "y": 299.5,
+      "confidence": 0.9797395467758179,
+      "height": 25.0
+    },
+    {
+      "text": "BRAND",
+      "x": 218.0,
+      "y": 318.5,
+      "confidence": 0.9950922131538391,
+      "height": 11.0
+    }
+  ]
+}

@@ -10,6 +10,7 @@ for no accuracy benefit on this input.
 """
 
 import io
+import math
 from dataclasses import dataclass
 
 import numpy
@@ -33,6 +34,12 @@ def _decode(image_bytes: bytes) -> Image.Image:
         raise UnreadablePhotoError(
             f"Not a decodable image ({len(image_bytes)} bytes): {error}"
         ) from error
+
+
+def _line_height(poly) -> float:
+    """The detection quad's short side: a tilted line's real height, which its
+    axis-aligned bounding box would inflate."""
+    return float(min(math.dist(poly[0], poly[1]), math.dist(poly[1], poly[2])))
 
 
 @dataclass
@@ -76,6 +83,7 @@ class OcrEngine:
                         x=(min(xs) + max(xs)) / 2,
                         y=(min(ys) + max(ys)) / 2,
                         confidence=float(score),
+                        height=_line_height(poly),
                     )
                 )
 

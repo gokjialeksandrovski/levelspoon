@@ -1,0 +1,71 @@
+{
+  "image_width": 447,
+  "image_height": 447,
+  "boxes": [
+    {
+      "text": "250",
+      "x": 57.0,
+      "y": 191.5,
+      "confidence": 0.9999838471412659,
+      "height": 23.0
+    },
+    {
+      "text": "CALORIESES",
+      "x": 58.0,
+      "y": 207.5,
+      "confidence": 0.8111858367919922,
+      "height": 19.0
+    },
+    {
+      "text": "SNICKERS",
+      "x": 185.5,
+      "y": 222.0,
+      "confidence": 0.9999597072601318,
+      "height": 66.0
+    },
+    {
+      "text": "NET WIT 1.86 0Z (52.7g)",
+      "x": 99.5,
+      "y": 259.0,
+      "confidence": 0.8870517611503601,
+      "height": 18.0
+    },
+    {
+      "text": "LA",
+      "x": 298.0,
+      "y": 265.0,
+      "confidence": 0.4723362922668457,
+      "height": 8.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "250",
+      "x": 57.5,
+      "y": 192.5,
+      "confidence": 0.9992626309394836,
+      "height": 25.0
+    },
+    {
+      "text": "SNICKERS",
+      "x": 183.5,
+      "y": 223.0,
+      "confidence": 0.9725099802017212,
+      "height": 71.00704190430693
+    },
+    {
+      "text": "CALAS",
+      "x": 57.5,
+      "y": 207.5,
+      "confidence": 0.38122090697288513,
+      "height": 23.0
+    },
+    {
+      "text": "MET WT 186 02 (52.72)",
+      "x": 99.0,
+      "y": 259.0,
+      "confidence": 0.7359601259231567,
+      "height": 18.0
+    }
+  ]
+}

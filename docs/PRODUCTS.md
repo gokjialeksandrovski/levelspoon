@@ -73,6 +73,20 @@ Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then p
 - `parseTypedBarcode` (`capture/steps/typed-barcode.utils.ts`) strips digit gaps, runs `normalizeBarcode` in browser: wrong length, bad check digit, in-store prefix refused before any request. Server actions re-check.
 - Code neither source knows returns to entry options as `pendingBarcode`, with note naming it. Typed miss drops typing step from path, so Back never reopens a tried number. Confirm checkbox prints the digits: last look before typo binds to shared product.
 
+## Product name read (`ocr-service/src/levelspoon_ocr/product_name.py`)
+
+Brand, what product is, fat percentage: "Bella Farm Yoghurt 2,8% m.m". Words in reading order (top to bottom, left to right along a line: a slanted shot lifts a line's right-hand word), fat percentage last. Deterministic, no LLM. Rules key on how packaging is printed, never on strings seen in one photo.
+
+- **Prominence.** `Box.height` is detection quad's short side (tilt-proof). Word under `PROMINENCE_RATIO` of tallest word drops, unless it names a product type (`PRODUCT_TYPE`: chips, yogurt, mayonnaise, noodles, ...): "TORTILLA CHIPS" often sits in small print under giant logo.
+- **Fixed formats drop**: quantities in any unit, `/kg` prices, net weight; calorie badges; founding years; nutrition claims (EU 1924/2006 wording: low, high, rich in, source of, free, no added); promotions and pack sizes (new, family, share size, gratis, akcija); "brand".
+- **Slogans drop**: line holding a function word (English, German, French, South Slavic Latin, Albanian), or over `MAX_WORDS`. Fragments under `MIN_LETTERS` drop.
+- **Figures**: no bare number or percentage joins the name except fat percentage. Read from a percentage whose nearest box is a lone fat keyword (fat, m.m, mm, masti, yndyrë, fett, cocoa, kakao), or one box "10% FAT". Bare "2" beside "FAT" reads "2% fat": OCR drops a stylised "%". Figure below prominence floor ignored: front reference-intake badge ("Fat 13g 19%") is share of daily intake.
+- **Casing**: all-caps word of 4+ letters capitalised ("Hellmann's"). Acronyms ("UHT") and mixed-case wordmarks ("KitKat", "m&m's") stay as printed.
+- **Script**: front photo read twice, by `en` engine and Cyrillic engine (`lang='mk'`, PP-OCRv5 server det + `cyrillic_PP-OCRv5_mobile_rec`). Cyrillic reading's name wins when half its words or more hold Cyrillic: Latin brand often fronts Cyrillic name ("bimilk Битолски јогурт"), Latin pack misread as Cyrillic loses one stylised word (Doritos "NACHO" → "ПАСНО"). Name stays in printed script; app search transliterates (`lib/db/search-text.ts`).
+- **Cyrillic repair** (`cyrillic.py`): reader's dictionary holds Latin twins, so stylised print mixes scripts in one word ("jorypт"). Latin letter in word holding Cyrillic maps to twin, upright (o→о, p→р) or cursive (u→и, n→п, m→т, r→г): "јогурт". Below first letter, capital twin becomes small letter (н, к, т print like small-caps H, K, T). Own confidence floor `MIN_CYRILLIC_CONFIDENCE` 0.4 for words holding Cyrillic: probability splits between twins, so right reads score 0.45–0.79. All-Latin word from either reader meets `MIN_NAME_CONFIDENCE`. Word still mixing scripts after repair drops ("врbеп": b has no twin). Same rules as Latin, with Cyrillic units (г, кг, мл, л), claims (ново, без, акција), function words (и, со, на, од, во), types (јогурт, млеко, сирење, ...), fat keyword м.м.
+- **Golden names**: `fixtures/golden/product-names.json`. Tier 1 runs recorded boxes (`fixtures/ocr-boxes/`), tier 4 posts photos to live service; both exact. Entry's `ceiling` names a known imperfection. New front photo: add to `fixtures/photos/`, `pnpm run fixtures:capture <photo>`, add golden entry.
+- **Ceilings**: type not printed on front (Milka, KitKat) gives brand + variant only. Stylised Cyrillic logo letters misread past repair ("Сланина" → "Саанина"). Two-word Latin name with one word misread as Cyrillic reads Cyrillic. Flavour named with function word ("Cookies and Cream") drops. Web-shop watermark on a listing image reads as words. Words OCR glued ("ENERGYDRINK") stay glued.
+
 ## Nutrition pipeline (`ocr-service/src/levelspoon_ocr/nutrition/`)
 
 Deterministic: photo → boxes → normalize → parse (EU table first, then US label, then running-text declaration) → validate. `reading.py` shared result shape for every branch.
@@ -91,7 +105,7 @@ Deterministic: photo → boxes → normalize → parse (EU table first, then US 
 - Decimal-separator recovery runs **only when provably needed** (EU decimal comma; PaddleOCR drops separators).
 - No per-100 table, no US markers, no running-text declaration → **fail loudly**, never invent values: `ColumnDetectionError`, HTTP 422.
 - `engine.py` applies EXIF orientation (browser re-encodes, and so rotates, only photos over 2048 px). An upload Pillow cannot decode (HEIC, corrupt) is HTTP 415, which the app returns as `unreadable-photo` with its own message: a retake of the same file fails the same way.
-- Engine pinned to `lang='en'`; the Cyrillic model was measured and rejected (`docs/DECISIONS.md`).
+- Nutrition engine pinned to `lang='en'`; Cyrillic model measured and rejected for labels (`docs/DECISIONS.md`). It reads product names only.
 - Validation: deterministic sanity rules (Atwater ±30%, kJ↔kcal, component total incl. known fibre, negatives; `fibre_g` `None` exempt). No fibre ≤ carbohydrate rule: under EU convention fibre sits outside carbohydrate.
 - FDA-locked unit constants (`fl oz = 30`, not `29.5735`).
 - Constants derived from measurement carry a comment naming evidence.

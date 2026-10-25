@@ -1,0 +1,22 @@
+{
+  "image_width": 411,
+  "image_height": 486,
+  "boxes": [
+    {
+      "text": "TOBLERONE",
+      "x": 224.5,
+      "y": 246.0,
+      "confidence": 0.9999761581420898,
+      "height": 46.2709412050371
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "TOBLERONE",
+      "x": 224.0,
+      "y": 245.5,
+      "confidence": 0.9833703637123108,
+      "height": 48.373546489791295
+    }
+  ]
+}

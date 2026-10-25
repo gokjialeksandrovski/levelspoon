@@ -1,0 +1,260 @@
+{
+  "image_width": 381,
+  "image_height": 524,
+  "boxes": [
+    {
+      "text": "Maggi",
+      "x": 191.5,
+      "y": 93.5,
+      "confidence": 0.9994086027145386,
+      "height": 33.015148038438355
+    },
+    {
+      "text": "ASTNNSOE",
+      "x": 39.0,
+      "y": 162.5,
+      "confidence": 0.7548842430114746,
+      "height": 10.0
+    },
+    {
+      "text": "2-Minute ",
+      "x": 198.0,
+      "y": 190.0,
+      "confidence": 0.8575037121772766,
+      "height": 82.00609733428362
+    },
+    {
+      "text": "Your Favourite Masala Taste",
+      "x": 219.5,
+      "y": 236.0,
+      "confidence": 0.8743255138397217,
+      "height": 46.04345773288535
+    },
+    {
+      "text": "TRULY",
+      "x": 78.5,
+      "y": 291.5,
+      "confidence": 0.9999915957450867,
+      "height": 15.132745950421556
+    },
+    {
+      "text": "GOOD",
+      "x": 79.5,
+      "y": 301.5,
+      "confidence": 0.9957857131958008,
+      "height": 15.132745950421556
+    },
+    {
+      "text": "Moade with chokses!",
+      "x": 81.5,
+      "y": 323.0,
+      "confidence": 0.8443653583526611,
+      "height": 14.142135623730951
+    },
+    {
+      "text": "pudltyspon",
+      "x": 83.5,
+      "y": 331.0,
+      "confidence": 0.7173908352851868,
+      "height": 11.180339887498949
+    },
+    {
+      "text": "with Goodness of",
+      "x": 87.0,
+      "y": 371.5,
+      "confidence": 0.9878714084625244,
+      "height": 14.142135623730951
+    },
+    {
+      "text": "IRON",
+      "x": 89.0,
+      "y": 383.0,
+      "confidence": 0.9987351298332214,
+      "height": 20.09975124224178
+    },
+    {
+      "text": "SUGGESTED GARNISHING",
+      "x": 255.0,
+      "y": 405.5,
+      "confidence": 0.9939006567001343,
+      "height": 15.297058540778355
+    },
+    {
+      "text": "Mase",
+      "x": 93.5,
+      "y": 425.0,
+      "confidence": 0.46101272106170654,
+      "height": 10.0
+    },
+    {
+      "text": "Find  re",
+      "x": 149.5,
+      "y": 444.5,
+      "confidence": 0.751880407333374,
+      "height": 15.0
+    },
+    {
+      "text": "11",
+      "x": 127.0,
+      "y": 441.5,
+      "confidence": 0.5698580145835876,
+      "height": 7.0
+    },
+    {
+      "text": "KoGdle Dly Amon",
+      "x": 95.5,
+      "y": 458.5,
+      "confidence": 0.5165545344352722,
+      "height": 11.0
+    },
+    {
+      "text": "30",
+      "x": 128.5,
+      "y": 449.0,
+      "confidence": 0.7603244185447693,
+      "height": 10.0
+    },
+    {
+      "text": "Masala",
+      "x": 277.5,
+      "y": 456.0,
+      "confidence": 0.999761164188385,
+      "height": 22.0
+    },
+    {
+      "text": "average adutt (2000 kzal)",
+      "x": 95.5,
+      "y": 467.0,
+      "confidence": 0.6341234445571899,
+      "height": 10.0
+    },
+    {
+      "text": "Instant Noodes with Seasoning",
+      "x": 307.5,
+      "y": 472.5,
+      "confidence": 0.8813662528991699,
+      "height": 13.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "Maggi",
+      "x": 191.5,
+      "y": 96.5,
+      "confidence": 0.9893717765808105,
+      "height": 32.01562118716424
+    },
+    {
+      "text": "OS",
+      "x": 39.0,
+      "y": 165.5,
+      "confidence": 0.4108533561229706,
+      "height": 10.0
+    },
+    {
+      "text": "2",
+      "x": 133.5,
+      "y": 197.5,
+      "confidence": 0.44054386019706726,
+      "height": 30.265491900843113
+    },
+    {
+      "text": "-Minute",
+      "x": 216.5,
+      "y": 183.0,
+      "confidence": 0.9838887453079224,
+      "height": 28.0178514522438
+    },
+    {
+      "text": "nodles",
+      "x": 218.0,
+      "y": 203.5,
+      "confidence": 0.8981103301048279,
+      "height": 24.020824298928627
+    },
+    {
+      "text": "TRULY",
+      "x": 79.0,
+      "y": 292.5,
+      "confidence": 0.9934858083724976,
+      "height": 11.180339887498949
+    },
+    {
+      "text": "GOODD",
+      "x": 79.5,
+      "y": 302.0,
+      "confidence": 0.8233290910720825,
+      "height": 13.152946437965905
+    },
+    {
+      "text": "Malunh doost",
+      "x": 82.0,
+      "y": 324.0,
+      "confidence": 0.5958372950553894,
+      "height": 10.198039027185569
+    },
+    {
+      "text": "py",
+      "x": 84.0,
+      "y": 332.0,
+      "confidence": 0.4207799434661865,
+      "height": 9.055385138137417
+    },
+    {
+      "text": "th Goodness ol",
+      "x": 89.0,
+      "y": 372.0,
+      "confidence": 0.9324359893798828,
+      "height": 10.04987562112089
+    },
+    {
+      "text": "IRON",
+      "x": 87.5,
+      "y": 384.0,
+      "confidence": 0.8795998692512512,
+      "height": 19.1049731745428
+    },
+    {
+      "text": "SUNGESTED GARNISHING",
+      "x": 255.0,
+      "y": 406.0,
+      "confidence": 0.8668928146362305,
+      "height": 15.524174696260024
+    },
+    {
+      "text": "laewa",
+      "x": 94.0,
+      "y": 425.5,
+      "confidence": 0.31941553950309753,
+      "height": 7.0
+    },
+    {
+      "text": "aou o pu",
+      "x": 149.5,
+      "y": 446.0,
+      "confidence": 0.3343624472618103,
+      "height": 11.0
+    },
+    {
+      "text": "Arourtsof",
+      "x": 117.0,
+      "y": 459.0,
+      "confidence": 0.9442562460899353,
+      "height": 8.0
+    },
+    {
+      "text": "Masala",
+      "x": 275.5,
+      "y": 457.5,
+      "confidence": 0.998978316783905,
+      "height": 19.0
+    },
+    {
+      "text": "Instant Noodes withSeasong",
+      "x": 307.5,
+      "y": 473.5,
+      "confidence": 0.8613294363021851,
+      "height": 13.0
+    }
+  ]
+}
