@@ -15,6 +15,8 @@ const CLASS_BY_SLUG: Readonly<Record<string, PortionClass>> = {
   "bread-white": "bread-slice",
   "bread-whole-wheat": "bread-slice",
   "rye-bread": "bread-slice",
+  "bread-sourdough": "bread-slice",
+  "bread-multigrain": "bread-slice",
   "cheddar-cheese": "cheese-slice",
   "mozzarella-cheese": "cheese-slice",
   "parmesan-cheese": "cheese-slice",
