@@ -8,7 +8,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4g
+          # en + Cyrillic engines peaked at 3.4 GB reading 33 photos in a row.
+          memory: 6g
 
   postgres:
     image: postgres:16

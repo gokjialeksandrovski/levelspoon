@@ -1,0 +1,120 @@
+{
+  "image_width": 397,
+  "image_height": 503,
+  "boxes": [
+    {
+      "text": "Doritos",
+      "x": 199.0,
+      "y": 169.5,
+      "confidence": 0.9993193745613098,
+      "height": 77.00649323271382
+    },
+    {
+      "text": "NACHO",
+      "x": 282.0,
+      "y": 233.5,
+      "confidence": 0.9973998069763184,
+      "height": 21.0
+    },
+    {
+      "text": "CHEESE",
+      "x": 278.5,
+      "y": 250.5,
+      "confidence": 0.9999589920043945,
+      "height": 17.0
+    },
+    {
+      "text": "FLAVORED",
+      "x": 293.0,
+      "y": 263.5,
+      "confidence": 0.999876081943512,
+      "height": 11.0
+    },
+    {
+      "text": "Digs elapd",
+      "x": 274.0,
+      "y": 419.5,
+      "confidence": 0.702830970287323,
+      "height": 13.0
+    },
+    {
+      "text": "dr",
+      "x": 275.0,
+      "y": 427.5,
+      "confidence": 0.25600889325141907,
+      "height": 11.0
+    },
+    {
+      "text": "TORTILLA CHIPS",
+      "x": 69.0,
+      "y": 467.5,
+      "confidence": 0.9942101836204529,
+      "height": 15.0
+    },
+    {
+      "text": "NET WT. 9% 0Z. (262.2 g)",
+      "x": 312.5,
+      "y": 467.0,
+      "confidence": 0.8757237792015076,
+      "height": 18.027756377319946
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "Doritos",
+      "x": 199.0,
+      "y": 172.5,
+      "confidence": 0.8647276163101196,
+      "height": 77.02596964660685
+    },
+    {
+      "text": "ПАСНО",
+      "x": 281.5,
+      "y": 234.5,
+      "confidence": 0.9792084693908691,
+      "height": 21.0
+    },
+    {
+      "text": "CHEESE",
+      "x": 278.5,
+      "y": 251.5,
+      "confidence": 0.9937610626220703,
+      "height": 17.0
+    },
+    {
+      "text": "FLAVORED",
+      "x": 293.5,
+      "y": 264.5,
+      "confidence": 0.951268196105957,
+      "height": 11.0
+    },
+    {
+      "text": "B2orran",
+      "x": 274.0,
+      "y": 427.5,
+      "confidence": 0.38785818219184875,
+      "height": 11.045361017187261
+    },
+    {
+      "text": "Digseliapd",
+      "x": 274.0,
+      "y": 420.0,
+      "confidence": 0.7132459878921509,
+      "height": 10.0
+    },
+    {
+      "text": "JORTILLA CHIPS",
+      "x": 69.0,
+      "y": 468.0,
+      "confidence": 0.9501252770423889,
+      "height": 14.0
+    },
+    {
+      "text": "NETWT.9%0Z. (262.20)",
+      "x": 312.0,
+      "y": 468.5,
+      "confidence": 0.8532254099845886,
+      "height": 13.0
+    }
+  ]
+}

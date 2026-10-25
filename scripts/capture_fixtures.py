@@ -4,10 +4,13 @@ Run deliberately - never as part of a test run. Refreshing fixtures from
 whatever the model currently produces would let a regression silently
 rewrite the expectations meant to catch it.
 
-Usage: pnpm run fixtures:capture   (requires: pnpm run ocr:up)
+Usage: pnpm run fixtures:capture [photo names...]   (requires: pnpm run ocr:up)
+Names given: record only those photos, so adding one leaves every other
+recording untouched. None given: every .jpg.
 """
 
 import json
+import sys
 from pathlib import Path
 
 import httpx
@@ -32,7 +35,8 @@ def capture(photo: Path) -> dict:
 
 def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    for photo in sorted(PHOTOS.glob("*.jpg")):
+    named = [PHOTOS / name for name in sys.argv[1:]]
+    for photo in named or sorted(PHOTOS.glob("*.jpg")):
         boxes = capture(photo)
         destination = OUTPUT / f"{photo.stem}.json"
         destination.write_text(

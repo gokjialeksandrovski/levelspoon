@@ -1,0 +1,155 @@
+{
+  "image_width": 447,
+  "image_height": 447,
+  "boxes": [
+    {
+      "text": "NO COLORS",
+      "x": 166.0,
+      "y": 66.5,
+      "confidence": 0.9899516701698303,
+      "height": 11.045361017187261
+    },
+    {
+      "text": "ARTIFICIAL SOURCES",
+      "x": 167.0,
+      "y": 77.5,
+      "confidence": 0.985673189163208,
+      "height": 11.0
+    },
+    {
+      "text": "-EST–",
+      "x": 225.0,
+      "y": 69.0,
+      "confidence": 0.6818587183952332,
+      "height": 10.0
+    },
+    {
+      "text": "1938",
+      "x": 224.5,
+      "y": 77.5,
+      "confidence": 0.999992311000824,
+      "height": 13.0
+    },
+    {
+      "text": "ARTIFICIAL",
+      "x": 267.0,
+      "y": 71.5,
+      "confidence": 0.9973345994949341,
+      "height": 7.0
+    },
+    {
+      "text": "Lay's",
+      "x": 228.0,
+      "y": 141.5,
+      "confidence": 0.997828483581543,
+      "height": 84.5931439302264
+    },
+    {
+      "text": "CLASSIC",
+      "x": 225.0,
+      "y": 220.5,
+      "confidence": 0.9998418688774109,
+      "height": 22.02271554554524
+    },
+    {
+      "text": "REAL POTATOES",
+      "x": 226.5,
+      "y": 254.0,
+      "confidence": 0.9879529476165771,
+      "height": 10.0
+    },
+    {
+      "text": "POTATO CHIPS",
+      "x": 140.5,
+      "y": 413.0,
+      "confidence": 0.9991611838340759,
+      "height": 14.0
+    },
+    {
+      "text": "NET WT 8 OZ. (226.8 g)",
+      "x": 292.0,
+      "y": 413.0,
+      "confidence": 0.9551219940185547,
+      "height": 14.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "NO COLORS",
+      "x": 167.0,
+      "y": 68.5,
+      "confidence": 0.9354465007781982,
+      "height": 7.0
+    },
+    {
+      "text": "ARTIFICIAL SOURCES",
+      "x": 167.0,
+      "y": 79.5,
+      "confidence": 0.9644905924797058,
+      "height": 7.0
+    },
+    {
+      "text": "1938",
+      "x": 226.0,
+      "y": 77.0,
+      "confidence": 0.9996271133422852,
+      "height": 12.0
+    },
+    {
+      "text": "ARTIFICIA",
+      "x": 266.5,
+      "y": 71.5,
+      "confidence": 0.8807393312454224,
+      "height": 7.0
+    },
+    {
+      "text": "FREE",
+      "x": 305.0,
+      "y": 79.0,
+      "confidence": 0.9812718629837036,
+      "height": 8.0
+    },
+    {
+      "text": "iten",
+      "x": 310.5,
+      "y": 71.0,
+      "confidence": 0.7763591408729553,
+      "height": 8.0
+    },
+    {
+      "text": "Lay's",
+      "x": 232.5,
+      "y": 145.5,
+      "confidence": 0.9540058374404907,
+      "height": 64.13267497929586
+    },
+    {
+      "text": "CLASSIC",
+      "x": 226.5,
+      "y": 223.0,
+      "confidence": 0.99131840467453,
+      "height": 20.0
+    },
+    {
+      "text": "REAL POTATOES",
+      "x": 226.5,
+      "y": 255.0,
+      "confidence": 0.9594218730926514,
+      "height": 10.0
+    },
+    {
+      "text": "POTATO CHIPS",
+      "x": 141.0,
+      "y": 414.0,
+      "confidence": 0.9896073937416077,
+      "height": 14.0
+    },
+    {
+      "text": "NET WT 8 0Z. (226.8 g)",
+      "x": 291.5,
+      "y": 413.0,
+      "confidence": 0.904210090637207,
+      "height": 14.0
+    }
+  ]
+}

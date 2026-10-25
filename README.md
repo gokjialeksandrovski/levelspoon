@@ -2,7 +2,7 @@
 
 levelspoon is a meal-logging web app built for a phone held in one hand. You build each meal from ingredients. Every ingredient is a product stored with its nutrition per 100 g, and the app works out the totals from how much you ate.
 
-You rarely type a nutrition figure. Take a photo of the label and an OCR service reads it. Take a photo of the barcode, or type its digits, and the app looks in its own database first and Open Food Facts second. Loose food like apples or rice comes from a list of 232 standard foods.
+You rarely type a nutrition figure. Take a photo of the label and an OCR service reads it. Take a photo of the barcode, or type its digits, and the app looks in its own database first and Open Food Facts second. Loose food like apples or rice comes from a list of 246 standard foods.
 
 Products are shared between users, so a label one person scans is already there for the next. If a figure looks wrong to you, correct it for your account only. Nobody else's numbers change.
 
@@ -47,7 +47,7 @@ docker exec levelspoon-minio-1 mc mb local/levelspoon-photos
 Then:
 
 ```bash
-pnpm run db:reset    # drop, migrate, seed (test user + 232 standard foods)
+pnpm run db:reset    # drop, migrate, seed (test user + 246 standard foods)
 pnpm run dev:app     # Next.js dev server
 ```
 

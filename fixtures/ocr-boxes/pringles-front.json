@@ -1,0 +1,36 @@
+{
+  "image_width": 225,
+  "image_height": 225,
+  "boxes": [
+    {
+      "text": "PRINGLES",
+      "x": 112.5,
+      "y": 85.0,
+      "confidence": 0.9998904466629028,
+      "height": 26.0
+    },
+    {
+      "text": "ORIGINAL",
+      "x": 112.0,
+      "y": 104.0,
+      "confidence": 0.9994364380836487,
+      "height": 10.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "PRINGLES",
+      "x": 111.0,
+      "y": 85.5,
+      "confidence": 0.9980627298355103,
+      "height": 25.0
+    },
+    {
+      "text": "ORIGINAL",
+      "x": 111.5,
+      "y": 104.5,
+      "confidence": 0.9860870838165283,
+      "height": 7.0
+    }
+  ]
+}

@@ -1,20 +1,27 @@
 """Tier-4 gate: the real service reading the real photographs (spec §9.5).
 
-Local only - excluded from CI by the 'real' marker, since a 133MB model and
+Local only - excluded from CI by the 'real' marker, since two OCR models (~230MB) and
 ~10s per photo buy little on every push. Required green before any deploy.
 
 Requires: pnpm run ocr:up
 """
 
 import json
-from difflib import SequenceMatcher
+from pathlib import Path
 
 import httpx
 import pytest
 
 SERVICE_URL = "http://localhost:8000"
 REQUEST_TIMEOUT_SECONDS = 120.0
-NAME_SIMILARITY_FLOOR = 0.6
+GOLDEN_NAMES = json.loads(
+    (
+        Path(__file__).resolve().parents[2]
+        / "fixtures"
+        / "golden"
+        / "product-names.json"
+    ).read_text("utf-8")
+)
 
 pytestmark = pytest.mark.real
 
@@ -109,19 +116,12 @@ def test_reads_labels_that_print_no_ordinary_table(fixtures_dir, photo, expected
     assert body["flags"] == []
 
 
-def test_reads_a_product_name_close_enough_to_match_on(fixtures_dir, golden):
-    """Asserted on similarity, not equality.
-
-    Word order need only be stable enough for trigram matching (spec §4.2),
-    so demanding an exact string would overfit to one photo.
-    """
-    text = _post(
-        "/ocr/product-name", fixtures_dir / "photos" / "olympus-greek-2pct-front.jpg"
-    )["text"]
-    upper = text.upper()
-
-    for token in golden["name_tokens_required"]:
-        assert token in upper, f"{token!r} missing from {text!r}"
-
-    similarity = SequenceMatcher(None, upper, golden["product"].upper()).ratio()
-    assert similarity >= NAME_SIMILARITY_FLOOR, f"{similarity:.2f} for {text!r}"
+@pytest.mark.parametrize(
+    "golden_name", GOLDEN_NAMES, ids=[entry["photo"] for entry in GOLDEN_NAMES]
+)
+def test_reads_the_product_name_off_a_real_package_front(fixtures_dir, golden_name):
+    """Exact, unlike the old similarity floor: the same model on the same photo
+    gives the same boxes, and a drift here means the model changed under the
+    recorded fixtures test_product_name.py reads."""
+    body = _post("/ocr/product-name", fixtures_dir / "photos" / golden_name["photo"])
+    assert body["text"] == golden_name["name"]

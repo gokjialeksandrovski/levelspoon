@@ -10,12 +10,12 @@ COPY pyproject.toml ./
 COPY src/ ./src/
 RUN pip install --no-cache-dir ".[ocr]"
 
-# Bake the model into an image layer (spec §13.2). Without this, every
-# deploy and restart begins by downloading ~133MB before serving a request.
+# Bake both models into an image layer (spec §13.2). Without this, every
+# deploy and restart begins by downloading ~230MB before serving a request.
 RUN python -c "\
 from paddleocr import PaddleOCR; \
-PaddleOCR(lang='en', use_doc_orientation_classify=False, \
-use_doc_unwarping=False, use_textline_orientation=False)"
+[PaddleOCR(lang=lang, use_doc_orientation_classify=False, \
+use_doc_unwarping=False, use_textline_orientation=False) for lang in ('en', 'mk')]"
 
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=5 \

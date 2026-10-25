@@ -1,0 +1,141 @@
+{
+  "image_width": 447,
+  "image_height": 447,
+  "boxes": [
+    {
+      "text": "HELLMANN'S",
+      "x": 222.0,
+      "y": 198.5,
+      "confidence": 0.9954967498779297,
+      "height": 46.010868281309364
+    },
+    {
+      "text": "REAL·VRAIE",
+      "x": 222.5,
+      "y": 276.5,
+      "confidence": 0.9988258481025696,
+      "height": 27.0
+    },
+    {
+      "text": "MAYONNAISE",
+      "x": 222.5,
+      "y": 298.0,
+      "confidence": 0.9996784329414368,
+      "height": 14.0
+    },
+    {
+      "text": "4Ha",
+      "x": 342.5,
+      "y": 320.5,
+      "confidence": 0.2900795042514801,
+      "height": 11.0
+    },
+    {
+      "text": "870mL",
+      "x": 137.5,
+      "y": 335.5,
+      "confidence": 0.8671277761459351,
+      "height": 19.0
+    },
+    {
+      "text": "CANDLADIL-FAITAVEC DESOSUEEDEPOULESEN",
+      "x": 222.0,
+      "y": 334.0,
+      "confidence": 0.7959302663803101,
+      "height": 10.0
+    },
+    {
+      "text": "HADE WITH CANADLAN FRRE-BUN EODSA",
+      "x": 222.5,
+      "y": 327.5,
+      "confidence": 0.8063096404075623,
+      "height": 7.0
+    },
+    {
+      "text": "LISERTENDELHUILECECANOLSGUCANADA",
+      "x": 222.5,
+      "y": 339.5,
+      "confidence": 0.7125419974327087,
+      "height": 10.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "HELLMANNS",
+      "x": 222.5,
+      "y": 200.0,
+      "confidence": 0.9567978978157043,
+      "height": 43.01162633521314
+    },
+    {
+      "text": "",
+      "x": 344.5,
+      "y": 209.5,
+      "confidence": 0.0,
+      "height": 7.0
+    },
+    {
+      "text": "EST.",
+      "x": 149.0,
+      "y": 248.0,
+      "confidence": 0.954201877117157,
+      "height": 12.0
+    },
+    {
+      "text": "1913",
+      "x": 294.5,
+      "y": 248.0,
+      "confidence": 0.9770665168762207,
+      "height": 12.0
+    },
+    {
+      "text": "",
+      "x": 340.5,
+      "y": 290.5,
+      "confidence": 0.0,
+      "height": 17.029386365926403
+    },
+    {
+      "text": "REALVRAIE",
+      "x": 223.0,
+      "y": 278.0,
+      "confidence": 0.9894038438796997,
+      "height": 24.0
+    },
+    {
+      "text": "MAYONNAISE",
+      "x": 223.0,
+      "y": 299.0,
+      "confidence": 0.9810279011726379,
+      "height": 14.0
+    },
+    {
+      "text": "8%0 omL",
+      "x": 139.0,
+      "y": 336.5,
+      "confidence": 0.6195408701896667,
+      "height": 16.0312195418814
+    },
+    {
+      "text": "CANDLA OIL·FAIT AVEC DES CEUSEDE POSLESE",
+      "x": 221.0,
+      "y": 335.0,
+      "confidence": 0.8119291067123413,
+      "height": 10.0
+    },
+    {
+      "text": "HADE WITR GANADIAN FREE-BUN EODTA",
+      "x": 222.0,
+      "y": 328.0,
+      "confidence": 0.8626964688301086,
+      "height": 10.0
+    },
+    {
+      "text": "LIBERTES DE LHUILE CE CANOLE OUCANADA",
+      "x": 221.5,
+      "y": 340.0,
+      "confidence": 0.7165014147758484,
+      "height": 10.0
+    }
+  ]
+}

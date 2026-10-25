@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from levelspoon_ocr.boxes import Box, OcrResult, UnreadablePhotoError
-from levelspoon_ocr.main import app, get_engine
+from levelspoon_ocr.main import app, get_cyrillic_engine, get_engine
 
 
 class StubEngine:
@@ -40,10 +40,14 @@ def _us_label_result_without_grams() -> OcrResult:
     return OcrResult(boxes=tuple(boxes), image_width=1000, image_height=1600)
 
 
+NOTHING_READ = OcrResult(boxes=(), image_width=1200, image_height=1600)
+
+
 @pytest.fixture
 def client_with(request):
-    def _build(result: OcrResult) -> TestClient:
+    def _build(result: OcrResult, cyrillic: OcrResult = NOTHING_READ) -> TestClient:
         app.dependency_overrides[get_engine] = lambda: StubEngine(result)
+        app.dependency_overrides[get_cyrillic_engine] = lambda: StubEngine(cyrillic)
         request.addfinalizer(app.dependency_overrides.clear)
         return TestClient(app)
 
@@ -87,7 +91,20 @@ def test_product_name_endpoint_returns_text(client_with):
     response = client_with(result).post(
         "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
-    assert response.json() == {"text": "OLYMPUS Greek", "net_weight_text": None}
+    assert response.json() == {"text": "Olympus Greek", "net_weight_text": None}
+
+
+def test_product_name_endpoint_reads_a_cyrillic_pack_in_cyrillic(client_with):
+    latin = OcrResult(
+        boxes=(Box("jorypt", 600.0, 300.0, 0.94),), image_width=1200, image_height=1600
+    )
+    cyrillic = OcrResult(
+        boxes=(Box("jorypт", 600.0, 300.0, 0.66),), image_width=1200, image_height=1600
+    )
+    response = client_with(latin, cyrillic).post(
+        "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
+    )
+    assert response.json()["text"] == "јогурт"
 
 
 def test_product_name_endpoint_reports_a_printed_net_weight(client_with):
@@ -103,7 +120,7 @@ def test_product_name_endpoint_reports_a_printed_net_weight(client_with):
         "/ocr/product-name", files={"image": ("x.jpg", b"bytes", "image/jpeg")}
     )
     assert response.json() == {
-        "text": "SNICKERS",
+        "text": "Snickers",
         "net_weight_text": "NET WT 1.86 0Z (52.7g)",
     }
 
@@ -293,6 +310,7 @@ def test_an_undecodable_upload_is_415_not_500(request, endpoint):
     """A HEIC or corrupt file: retaking the photo would fail the same way, so
     it must not look like an unreadable label (422)."""
     app.dependency_overrides[get_engine] = UndecodableEngine
+    app.dependency_overrides[get_cyrillic_engine] = UndecodableEngine
     request.addfinalizer(app.dependency_overrides.clear)
     response = TestClient(app).post(
         endpoint, files={"image": ("x.heic", b"bytes", "image/heic")}

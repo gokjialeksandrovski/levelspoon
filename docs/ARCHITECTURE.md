@@ -21,7 +21,7 @@ Nothing deployed. No CI.
 |---|---|
 | `app/` | Next.js app |
 | `ocr-service/` | OCR + nutrition parser. `src/levelspoon_ocr/nutrition/` is the parser (`docs/PRODUCTS.md`). |
-| `fixtures/` | Committed test corpus: real label photos, OCR boxes, golden per-100g values, `standard-foods.json` (232 curated rows) |
+| `fixtures/` | Committed test corpus: real label and package-front photos, OCR boxes, golden per-100g values and product names, `standard-foods.json` (246 curated rows) |
 | `scripts/` | Dev/verification scripts. `venv-run.mjs` runs Python via `.venv`. |
 | `docs/` | This doc set, `DECISIONS.md`, `ROADMAP.md`, `superpowers/specs/` (approved design specs per shipped feature) |
 | `PRODUCT.md`, `DESIGN.md` | Root on purpose: impeccable skill reads them there |
@@ -130,11 +130,11 @@ Run from repo root unless noted. Docker Desktop must run (installed per-user: `d
 | `pnpm run dev:up` / `dev:down` | Postgres (host port **15432**, remapped to dodge native PG18) + MinIO (9000, console 9001) + OCR service (8000). `dev:up` rebuilds OCR image from source. |
 | `pnpm run dev:app` | Next.js dev server |
 | `pnpm run db:migrate` | Apply Drizzle migrations |
-| `pnpm run db:seed` | Test user, 2%/10% variant pair, 232 standard foods |
-| `npx tsx scripts/seed.ts --standard-only` (in `app/`, `DATABASE_URL` set) | System user + 232 standard foods only. For deployed DBs: no dev fixtures in shared table |
+| `pnpm run db:seed` | Test user, 2%/10% variant pair, 246 standard foods |
+| `npx tsx scripts/seed.ts --standard-only` (in `app/`, `DATABASE_URL` set) | System user + 246 standard foods only. For deployed DBs: no dev fixtures in shared table |
 | `pnpm run db:reset` | Drop, migrate, seed |
 | `pnpm run ocr:build` / `ocr:up` / `ocr:down` | OCR image alone (first build slow: bakes model) |
-| `pnpm run fixtures:capture` | Record real PaddleOCR box output into `fixtures/ocr-boxes/` |
+| `pnpm run fixtures:capture [photo...]` | Record real PaddleOCR box output into `fixtures/ocr-boxes/`: named photos only, else every `.jpg` |
 | `pnpm run test` | Tier-2 Vitest against real local Postgres (delegates into `app/`) |
 | `pnpm run test:e2e` | Playwright, mocked providers, only Postgres needed |
 | `pnpm run test:e2e:real` | Playwright against real OCR stack |
@@ -143,7 +143,7 @@ Run from repo root unless noted. Docker Desktop must run (installed per-user: `d
 | `pnpm run lint` | Ruff (Python) **only** |
 | `cd app && pnpm run lint` | ESLint + Clean Code rules for the app |
 | `pnpm run report:photo-debt` | Derived JSON, one entry per product with a reformulation claim |
-| `cd app && pnpm run check:portion-classes` | Portion-class gate over 232 curated foods, must exit 0 |
+| `cd app && pnpm run check:portion-classes` | Portion-class gate over 246 curated foods, must exit 0 |
 
 Python setup (`ocr-service`): see `README.md`. paddlepaddle is **not** installed locally, lives only in container. Unit tests import pure modules; verify gate talks HTTP to running container.
 
@@ -156,11 +156,11 @@ Python setup (`ocr-service`): see `README.md`. paddlepaddle is **not** installed
 
 ## Tests
 
-Verification tiers: 1 unit (no Docker) · 2 real Postgres · 3 e2e mock · 4 real photos through real OCR · 5 real stack. Tiers 4–5 run locally before deploy (133 MB model, ~10 s per photo).
+Verification tiers: 1 unit (no Docker) · 2 real Postgres · 3 e2e mock · 4 real photos through real OCR · 5 real stack. Tiers 4–5 run locally before deploy (two OCR models, ~230 MB; ~10 s per photo).
 
 - Local Postgres must be up before any Vitest or Playwright run; most test files hit real DB. e2e `TRUNCATE`s shared DB mid-run.
 - No `@testing-library/react`, no `.test.tsx`. Logic tested as pure functions (Vitest, node env). Component behaviour via Playwright e2e.
 - Per-module `.test.ts` / `.test.py` beside the module.
-- Real photos and golden per-100g values committed in `fixtures/`.
+- Real photos, golden per-100g values and golden product names committed in `fixtures/`.
 - Some client-side specs fail when run **alone** (`pnpm exec vitest run <one file>`) with `Cannot find module 'next/server' imported from next-auth/lib/env.js`: ESM resolution artifact, not a broken test (`amount-step.test.ts` is one). Run the suite or a directory.
 - `app/playwright.config.ts` has an explicit `testMatch` allowlist. A new spec file must be added or it collects as "No tests found" and suite still passes. `workers: 1` / `fullyParallel: false` because every spec truncates same tables.

@@ -1,0 +1,64 @@
+{
+  "image_width": 225,
+  "image_height": 225,
+  "boxes": [
+    {
+      "text": "COCOA",
+      "x": 170.5,
+      "y": 64.5,
+      "confidence": 0.9833379983901978,
+      "height": 7.0
+    },
+    {
+      "text": "ST",
+      "x": 169.5,
+      "y": 59.5,
+      "confidence": 0.4448277950286865,
+      "height": 7.0
+    },
+    {
+      "text": "MILK'SFAVORITECOOKIE",
+      "x": 114.0,
+      "y": 91.5,
+      "confidence": 0.9808470010757446,
+      "height": 13.038404810405298
+    },
+    {
+      "text": "ORE",
+      "x": 115.0,
+      "y": 111.5,
+      "confidence": 0.9843590259552002,
+      "height": 32.55764119219941
+    },
+    {
+      "text": "",
+      "x": 51.0,
+      "y": 178.0,
+      "confidence": 0.0,
+      "height": 10.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "coco",
+      "x": 169.0,
+      "y": 65.5,
+      "confidence": 0.5859920978546143,
+      "height": 7.0
+    },
+    {
+      "text": "OREO",
+      "x": 113.5,
+      "y": 113.0,
+      "confidence": 0.9826847314834595,
+      "height": 32.38826948140329
+    },
+    {
+      "text": "C",
+      "x": 48.5,
+      "y": 178.5,
+      "confidence": 0.20155800879001617,
+      "height": 7.0
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "image_width": 387,
+  "image_height": 516,
+  "boxes": [
+    {
+      "text": "Share size",
+      "x": 321.5,
+      "y": 32.5,
+      "confidence": 0.9895027875900269,
+      "height": 25.019992006393608
+    },
+    {
+      "text": "HARIBO",
+      "x": 192.0,
+      "y": 106.0,
+      "confidence": 0.9997921586036682,
+      "height": 86.0
+    },
+    {
+      "text": "Goldbears",
+      "x": 193.5,
+      "y": 180.5,
+      "confidence": 0.9999825954437256,
+      "height": 53.0
+    },
+    {
+      "text": "The Original",
+      "x": 253.0,
+      "y": 226.5,
+      "confidence": 0.9800865650177002,
+      "height": 17.11724276862369
+    },
+    {
+      "text": "since 1922",
+      "x": 256.0,
+      "y": 239.0,
+      "confidence": 0.9999338388442993,
+      "height": 14.142135623730951
+    },
+    {
+      "text": "Kids and grown-ups love it so",
+      "x": 119.5,
+      "y": 264.5,
+      "confidence": 0.9999569654464722,
+      "height": 13.0
+    },
+    {
+      "text": "... the happy world of Haribo!®",
+      "x": 123.0,
+      "y": 412.5,
+      "confidence": 0.9797167181968689,
+      "height": 14.0
+    },
+    {
+      "text": "NATURAL AND ARTIFICIAL FRUIT FLAVORS",
+      "x": 199.0,
+      "y": 428.0,
+      "confidence": 0.9908018112182617,
+      "height": 10.0
+    },
+    {
+      "text": "GUMMICANDY",
+      "x": 100.0,
+      "y": 451.0,
+      "confidence": 0.9999257326126099,
+      "height": 18.0
+    },
+    {
+      "text": "NET WT 5 OZ (142 g)",
+      "x": 272.5,
+      "y": 451.5,
+      "confidence": 0.9370181560516357,
+      "height": 21.0
+    }
+  ],
+  "cyrillic_boxes": [
+    {
+      "text": "Share size",
+      "x": 322.0,
+      "y": 33.5,
+      "confidence": 0.9226964712142944,
+      "height": 25.019992006393608
+    },
+    {
+      "text": "HARIBO",
+      "x": 191.5,
+      "y": 108.0,
+      "confidence": 0.9877321124076843,
+      "height": 82.00609733428362
+    },
+    {
+      "text": "Goldbears",
+      "x": 194.0,
+      "y": 183.0,
+      "confidence": 0.9993167519569397,
+      "height": 53.009433122794285
+    },
+    {
+      "text": "The Original",
+      "x": 254.0,
+      "y": 227.5,
+      "confidence": 0.9991850852966309,
+      "height": 14.142135623730951
+    },
+    {
+      "text": "since 1922",
+      "x": 255.5,
+      "y": 240.0,
+      "confidence": 0.965868353843689,
+      "height": 13.152946437965905
+    },
+    {
+      "text": "Kids and grown-ups love it so",
+      "x": 118.5,
+      "y": 264.5,
+      "confidence": 0.9967025518417358,
+      "height": 13.0
+    },
+    {
+      "text": ".. the happy world of Haribo!",
+      "x": 123.5,
+      "y": 413.5,
+      "confidence": 0.9562608003616333,
+      "height": 13.038404810405298
+    },
+    {
+      "text": "NATURAL AND ARTIRCIALFRUIT RAVOSS",
+      "x": 199.0,
+      "y": 428.5,
+      "confidence": 0.9328540563583374,
+      "height": 7.0
+    },
+    {
+      "text": "GUMMI CANDY",
+      "x": 101.0,
+      "y": 452.0,
+      "confidence": 0.9666742086410522,
+      "height": 18.0
+    },
+    {
+      "text": "NET WT 5 OZ (142g)",
+      "x": 272.0,
+      "y": 452.0,
+      "confidence": 0.9164090752601624,
+      "height": 19.0
+    }
+  ]
+}
