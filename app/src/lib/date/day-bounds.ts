@@ -6,7 +6,7 @@
  * instead of each hand-rolling `Date` arithmetic that breaks across DST.
  */
 
-export interface DayBounds {
+interface DayBounds {
   start: Date; // UTC instant of local midnight starting `date` in `timezone`
   end: Date; // UTC instant of local midnight starting the next calendar day
 }

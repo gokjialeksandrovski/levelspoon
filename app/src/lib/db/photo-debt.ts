@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 
 import { db } from ".";
 
-export interface PhotoDebtEntry {
+interface PhotoDebtEntry {
   productId: string;
   productName: string;
   /** The stored proof the correction screen compares against. */

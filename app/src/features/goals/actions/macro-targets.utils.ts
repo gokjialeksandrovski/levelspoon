@@ -23,7 +23,7 @@ export type MacroTargetsDraft = Record<MacroKey, string>;
 // Published: Atwater general factors, as EU Regulation 1169/2011 Annex XIV
 // fixes them for label energy. The only bridge between a share of kcal and
 // grams, in either direction.
-export const KCAL_PER_GRAM: Record<MacroKey, number> = { protein: 4, carbs: 4, fat: 9 };
+const KCAL_PER_GRAM: Record<MacroKey, number> = { protein: 4, carbs: 4, fat: 9 };
 
 export const WHOLE_PCT = 100;
 
@@ -91,7 +91,7 @@ export const readTargetsDraft = (draft: MacroTargetsDraft, unit: MacroTargetUnit
 export const pctToGrams = (pct: number, calorieGoal: number, key: MacroKey): number =>
   Math.round((calorieGoal * pct) / WHOLE_PCT / KCAL_PER_GRAM[key]);
 
-export const gramsToPct = (grams: number, calorieGoal: number, key: MacroKey): number =>
+const gramsToPct = (grams: number, calorieGoal: number, key: MacroKey): number =>
   Math.round(((grams * KCAL_PER_GRAM[key]) / calorieGoal) * WHOLE_PCT);
 
 const CONVERTERS: Record<MacroTargetUnit, typeof pctToGrams> = { g: pctToGrams, pct: gramsToPct };
@@ -126,6 +126,6 @@ export const gramTargets = ({ unit, values }: MacroTargets, calorieGoal: number 
 // PUBLISHED - Morton RW et al., Br J Sports Med 2018;52:376: lean-mass gains
 // plateau near 1.6 g/kg/day, upper 95% CI 2.2. 1.8 sits inside that range, so
 // a recomp starts there rather than at an edge of it.
-export const RECOMP_PROTEIN_G_PER_KG = 1.8;
+const RECOMP_PROTEIN_G_PER_KG = 1.8;
 
 export const recompProteinGrams = (weightKg: number): number => Math.round(weightKg * RECOMP_PROTEIN_G_PER_KG);

@@ -23,7 +23,7 @@ Deployed on developer's home server (`docs/DEPLOY.md`). No CI.
 | `ocr-service/` | OCR + nutrition parser. `src/levelspoon_ocr/nutrition/` is the parser (`docs/PRODUCTS.md`). |
 | `fixtures/` | Committed test corpus: real label and package-front photos, OCR boxes, golden per-100g values and product names, `standard-foods.json` (246 curated rows) |
 | `scripts/` | Dev/verification scripts. `venv-run.mjs` runs Python via `.venv`. |
-| `docs/` | This doc set, `DECISIONS.md`, `ROADMAP.md`, `superpowers/specs/` (approved design specs per shipped feature) |
+| `docs/` | This doc set, `DECISIONS.md`, `ROADMAP.md`, `specs/` (approved design specs per shipped feature) |
 | `PRODUCT.md`, `DESIGN.md` | Root on purpose: impeccable skill reads them there |
 
 ## App structure (`app/src/`)

@@ -29,7 +29,7 @@ class OcrResponseShapeError extends Error {
 }
 
 // ocr-service's actual wire shape (per-field, per-100g) - snake_case, matching
-// its validate.py flag naming that confirm-step.tsx's FLAG_TO_FIELD already
+// its validate.py flag naming that nutrition-fields.ts's FLAG_TO_FIELD already
 // documents - not NullableNutritionValues's camelCase shape. Only tier-5 (real
 // ocr-service, no mock) catches a mismatch, since MockOcrProvider hardcodes the
 // camelCase shape directly.

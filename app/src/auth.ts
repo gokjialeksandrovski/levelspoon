@@ -38,7 +38,7 @@ const startGuest = async (request: Request) => {
   return guest;
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signOut } = NextAuth({
   // Required whenever a Credentials provider is present - Auth.js throws
   // UnsupportedStrategy otherwise (spec §15).
   session: { strategy: "jwt" },

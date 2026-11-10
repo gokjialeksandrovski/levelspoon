@@ -1,6 +1,6 @@
 import { normalizeBarcode, type NormalizeBarcodeResult } from "@/lib/barcode/normalize";
 
-export type TypedBarcodeResult = { kind: "ok"; barcode: string } | { kind: "refused"; message: string };
+type TypedBarcodeResult = { kind: "ok"; barcode: string } | { kind: "refused"; message: string };
 
 export const BARCODE_NUMBER_HINT = "The digits printed under the bars, usually 13 of them.";
 

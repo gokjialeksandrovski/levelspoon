@@ -22,7 +22,7 @@ export class GuestNotAllowedError extends Error {
   }
 }
 
-export interface SessionUser {
+interface SessionUser {
   id: string;
   isGuest: boolean;
 }

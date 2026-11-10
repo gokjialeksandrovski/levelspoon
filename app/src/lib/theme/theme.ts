@@ -1,7 +1,7 @@
 // Per-device (localStorage) theme override. Default is "system" - CSS alone
 // follows prefers-color-scheme until the user picks an explicit theme here.
 
-export type Theme = "system" | "light" | "dark";
+type Theme = "system" | "light" | "dark";
 
 const THEME_STORAGE_KEY = "levelspoon:theme";
 

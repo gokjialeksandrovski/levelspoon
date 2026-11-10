@@ -198,7 +198,7 @@ const hasSameFigures = (left: ComparableNutrition, right: ComparableNutrition): 
   left.basisQuantity === right.basisQuantity &&
   NUTRITION_FIELDS.every((field) => left.nutrition[field] === right.nutrition[field]);
 
-export type DuplicateVerdict =
+type DuplicateVerdict =
   | { kind: "insert" }
   | { kind: "same-product" }
   | { kind: "same-figures" };
@@ -839,12 +839,12 @@ export const renameOwnProduct = async (productId: string, name: string): Promise
   assertUpdated(updated, productId);
 };
 
-export type AttachLabelProofResult =
+type AttachLabelProofResult =
   | { kind: "attached" }
   | { kind: "photo_already_used"; ownerName: string | null }
   | { kind: "not_attachable" };
 
-export interface LabelProofFigures {
+interface LabelProofFigures {
   nutritionPer100g: NutritionValues;
   /** True when the user accepted what OCR read off this photo, so the row
    * stops calling its figures typed. False keeps their own numbers, and the

@@ -1,6 +1,6 @@
 import { resolveGrams, type MeasureContext } from "./resolve-grams";
 
-export type QuantityResolution =
+type QuantityResolution =
   | { kind: "resolved"; quantity: number; quantityUnit: string }
   | { kind: "unresolved" };
 

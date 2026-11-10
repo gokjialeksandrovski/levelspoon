@@ -31,22 +31,17 @@ import { ChangeRow } from "./figure-changes";
  * whenever there is none - it adds a way to find the product without
  * rewriting anything about it.
  */
-export interface ProofOptions {
+interface ProofOptions {
   label: boolean;
   barcode: boolean;
 }
 
-export type ProofSubject = Pick<ProductForCorrection, "nutritionPhotoKey" | "hasBarcode">;
+type ProofSubject = Pick<ProductForCorrection, "nutritionPhotoKey" | "hasBarcode">;
 
 export const proofOptions = ({ nutritionPhotoKey, hasBarcode }: ProofSubject): ProofOptions => ({
   label: nutritionPhotoKey === null && !hasBarcode,
   barcode: !hasBarcode,
 });
-
-export const hasProofToOffer = (subject: ProofSubject): boolean => {
-  const options = proofOptions(subject);
-  return options.label || options.barcode;
-};
 
 const DISCLOSURE_LABEL = "Help others find this product";
 const PRIVATE_INTRO =

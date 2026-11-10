@@ -140,7 +140,7 @@ const resultsStatus = (results: StandardFood[] | null, isLoading: boolean): stri
   return results.length === 1 ? "1 match" : `${results.length} matches`;
 };
 
-export interface StandardFoodPickerProps {
+interface StandardFoodPickerProps {
   fieldName: string;
   picker: UseStandardFoodPickerResult;
   emptyMessage: string;

@@ -76,7 +76,7 @@ export interface DemoLimitReached {
   kind: "demo-limit";
 }
 
-export type ProductNameRead =
+type ProductNameRead =
   | { kind: "read"; text: string; netWeightText: string | null }
   | DemoLimitReached
   | UnreadablePhoto;

@@ -34,7 +34,7 @@ A recipe is a meal the user saved to re-add later, private to that user. Two sur
 - No unique constraint on `(user_id, name)`. Two recipes called "Oats" are user's business, told apart by kcal and macro line in picker.
 - Refusals cross as `SaveRecipeResult` / `EnterRecipeResult` / `SaveRecipeEditResult`, never thrown classes. Each union's `failed` variant declared but never constructed: actions map named errors and rethrow anything else, so a DB failure reaches client as bare `Error`. Both sheets carry a real `catch`, not just the union arm.
 - Imports: `meals → recipes` (store and utils only, never the `"use server"` module) and `recipes → lib` only. `recipes.store.ts` carries no `"use server"`.
-- Spec: `docs/superpowers/specs/2026-09-24-recipes-design.md`.
+- Spec: `docs/specs/2026-09-24-recipes-design.md`.
 
 ## Share meal
 
@@ -48,7 +48,7 @@ A recipe is a meal the user saved to re-add later, private to that user. Two sur
 
 ## Copy and paste
 
-Copy ingredient rows out of one meal, paste them with their amounts into another. Spec: `docs/superpowers/specs/2026-10-24-copy-paste-ingredients-design.md`.
+Copy ingredient rows out of one meal, paste them with their amounts into another. Spec: `docs/specs/2026-10-24-copy-paste-ingredients-design.md`.
 
 - Copied list per device: `localStorage` key `levelspoon:copied:<userId>` (`copied-ingredients.ts`, `useSyncExternalStore` + `storage` event). No session user yet means no key, empty list, writes do nothing. Unreadable or malformed value reads as empty; bad entries dropped (`parseCopied`).
 - Entries snapshot at copy time (`CopiedIngredient`, `copied-ingredients.utils.ts`): editing or removing source row later leaves entry as copied. `energyKcal` display only; pasted row reads live nutrition.
@@ -84,4 +84,4 @@ Least accurate logging path, on purpose: user describes meal (+ optional photo),
 - No usage cap, on purpose: AI is BYOK only, user's own key carries cost (`docs/DECISIONS.md`).
 - Refusals cross as `EstimateMealResult` / `LogLazyMealResult`. Provider failures map through `geminiFailureKind` (`lib/gemini/client.ts`): missing key, refused key, quota, timeout, unreadable photo each own kind. Copy says "try again" only where a retry can work.
 - `MEAL_ESTIMATE_PROVIDER` picks mock vs Gemini; `.env.example` defaults `mock`.
-- Spec: `docs/superpowers/specs/2026-09-25-lazy-track-design.md`.
+- Spec: `docs/specs/2026-09-25-lazy-track-design.md`.

@@ -36,7 +36,7 @@ One sheet (`goal-sheet.tsx`, titled "Daily goals") holds both. `No calorie goal`
 - `danger` on exactly one control: armed `Delete` in row's expanded panel, only while armed. Resting `Delete goal` as quiet as `Edit goal`; arming fires no request; `Cancel` un-arms. Setup sheet carries no destructive control: a delete met while reading a form gets hit instead of cancelling.
 - Refusals cross as `SaveWeightGoalResult` / `LogWeightResult`.
 - Weigh-in dismissal per-device `localStorage` (`levelspoon:weigh-in-dismissed:<date>`). ✕ fires no request and does not mark check-in done, so daily cadence asks again tomorrow. No back-off after repeated dismissals (`DECISIONS.md`).
-- Spec: `docs/superpowers/specs/2026-09-21-weight-goal-design.md`.
+- Spec: `docs/specs/2026-09-21-weight-goal-design.md`.
 
 ## Intake estimate
 
@@ -51,7 +51,7 @@ Optional page `/calories/estimate`, reached only from `GoalSheet`'s `Work out th
 - Rails: no estimate under 18 or in pregnancy/breastfeeding; maintenance only below BMI 18.5; deficit floors at `max(BMR, 1200 F / 1500 M)` and never above maintenance. Typed pace past cap is stated, not refused.
 - **Typed intake is second maintenance source.** `current_intake_kcal` + `weight_trend` (+ `weight_trend_kg_per_week` for down/up only), stored only with consent; three CHECKs keep them paired. Maintenance = intake ± rate · `KCAL_PER_KG` / 7. `resolveMaintenance` precedence: measured > reported > formula. Reported figure below BMR refused (under-report, not a body). Band 15% of figure (judgment, open study). Skips activity factor and metabolism correction. Details always name winning source and say why typed figure went unused. Empty intake sends no trend: never silent fallback on half an answer.
 - Refusals cross as `SaveIntakeResult`.
-- Spec: `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
+- Spec: `docs/specs/2026-09-21-intake-estimate-design.md`.
 
 ### Measured burn
 
@@ -64,4 +64,4 @@ Maintenance worked out from user's own logged meals and weigh-ins, in place of f
 - **Nothing stored.** Recomputed each read.
 - Measured figure bypasses activity factor, body-fat stage and metabolism correction (measured burn already contains them). BMR still computed: deficit floor reads it. Every spec §7 rail still applies.
 - Meal reads via `features/meals/actions/meals.store.ts` (userId-taking, no `"use server"`).
-- Spec: `docs/superpowers/specs/2026-09-23-measured-burn-design.md`.
+- Spec: `docs/specs/2026-09-23-measured-burn-design.md`.

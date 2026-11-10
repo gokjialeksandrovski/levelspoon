@@ -14,7 +14,7 @@ const TRAILING_ICON_SIZE = 18;
  * it; what it means (clear, cancel, ...) is the caller's, so the caller owns
  * the label.
  */
-export interface FieldTrailingAction {
+interface FieldTrailingAction {
   label: string;
   onClick: () => void;
   disabled?: boolean;

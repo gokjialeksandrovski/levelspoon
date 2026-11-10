@@ -1,18 +1,18 @@
 # levelspoon
 
-levelspoon is a meal-logging web app built for a phone held in one hand. You build each meal from ingredients. Every ingredient is a product stored with its nutrition per 100 g, and the app works out the totals from how much you ate.
+levelspoon is a meal-logging web app built for a phone held in one hand. You build each meal from ingredients. Each ingredient is a product with its nutrition per 100 g, and the app works out the totals from how much of it you ate.
 
-You rarely type a nutrition figure. Take a photo of the label and an OCR service reads it. Take a photo of the barcode, or type its digits, and the app looks in its own database first and Open Food Facts second. Loose food like apples or rice comes from a list of 246 standard foods.
+You rarely type a nutrition figure in. Take a photo of the label and an OCR service reads it. Photograph the barcode or type its digits, and the app checks its own database first and Open Food Facts second. Loose food like apples or rice comes from a list of 246 standard foods.
 
-Products are shared between users, so a label one person scans is already there for the next. If a figure looks wrong to you, correct it for your account only. Nobody else's numbers change.
+Products are shared between users, so a label one person scans is already there for the next. If a figure looks wrong, you can correct it, but the correction only applies to your account. Nobody else's numbers change.
 
 AI is optional and does two things, both with your own Gemini API key. It can estimate how many grams you ate from a photo, and it can give a rough, itemized guess for a meal you describe when you can't be bothered to log it properly. Those guesses stay private and are marked as estimates. Label figures never come from an LLM.
 
-You can set a calorie goal and macro targets yourself, save a meal as a recipe, log your weight, and look back over past weeks. The app won't hand out streaks or badges, and it won't tell you what to eat.
+You can set your own calorie goal and macro targets, save a meal as a recipe, log your weight, and look back over past weeks. There are no streaks or badges, and the app doesn't tell you what to eat.
 
-Built with Next.js 16, React 19, Postgres and Drizzle, Auth.js, a FastAPI + PaddleOCR service, and S3-compatible photo storage (MinIO locally).
+The stack is Next.js 16, React 19, Postgres with Drizzle, Auth.js, a FastAPI + PaddleOCR service, and S3-compatible photo storage (MinIO locally).
 
-- What it is and for whom: `PRODUCT.md`
+- What it is and who it's for: `PRODUCT.md`
 - How it's built, every command, env vars: `docs/ARCHITECTURE.md`
 - Working rules for agents: `CLAUDE.md`
 - Why it's shaped this way: `docs/DECISIONS.md`
@@ -20,7 +20,7 @@ Built with Next.js 16, React 19, Postgres and Drizzle, Auth.js, a FastAPI + Padd
 
 ## Quick start
 
-Needs Docker Desktop, Node, Python 3.12.
+You need Docker Desktop, Node and Python 3.12.
 
 ```bash
 # Python (OCR service unit tests)
@@ -37,7 +37,7 @@ cd app && pnpm install && cd ..
 pnpm run dev:up
 ```
 
-Create the photo bucket once (MinIO does not auto-create it). Either via console at `http://localhost:9001` (login `levelspoon` / `levelspoon_minio`), or:
+MinIO doesn't create the photo bucket for you, so make it once. Use the console at `http://localhost:9001` (login `levelspoon` / `levelspoon_minio`), or run:
 
 ```bash
 docker exec levelspoon-minio-1 mc alias set local http://localhost:9000 levelspoon levelspoon_minio
@@ -61,4 +61,4 @@ pnpm run lint               # Ruff only
 cd app && pnpm run lint     # ESLint + Clean Code
 ```
 
-Full command list: `docs/ARCHITECTURE.md`.
+The full command list is in `docs/ARCHITECTURE.md`.

@@ -91,18 +91,18 @@ export const saveMealAsRecipe = async (mealId: string, name: string): Promise<Sa
   }
 };
 
-export type EnterRecipeResult =
+type EnterRecipeResult =
   | { kind: "entered"; addedCount: number }
   | { kind: "recipe_missing" }
   | { kind: "meal_missing" }
   | { kind: "failed" };
 
-export type RenameRecipeResult =
+type RenameRecipeResult =
   | { kind: "renamed"; name: string }
   | { kind: "invalid_name" }
   | { kind: "recipe_missing" };
 
-export type DeleteRecipeResult = { kind: "deleted" } | { kind: "recipe_missing" };
+type DeleteRecipeResult = { kind: "deleted" } | { kind: "recipe_missing" };
 
 /** Writes immediately - picking a recipe is the commit, and the meal page it
  * lands on is where anything about it gets changed. One transaction, so a

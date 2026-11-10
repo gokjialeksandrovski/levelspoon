@@ -18,11 +18,11 @@ import {
   type WeightView,
 } from "./weight.utils";
 
-export type SaveWeightGoalResult =
+type SaveWeightGoalResult =
   | { kind: "saved"; view: WeightView }
   | { kind: "invalid"; reason: InvalidGoalReason };
 
-export type LogWeightResult = { kind: "logged"; view: WeightView } | { kind: "invalid" };
+type LogWeightResult = { kind: "logged"; view: WeightView } | { kind: "invalid" };
 
 // The thrown classes never leave this module: a Server Action's error reaches a
 // client component as a plain Error with its subclass and message stripped, so

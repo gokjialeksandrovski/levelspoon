@@ -9,7 +9,7 @@ const SOLID_BASIS_UNIT = "g";
 const MISSING_NUTRIENT_VALUE = 0;
 const APP_VERSION = "0.1.0";
 
-export class OpenFoodFactsError extends Error {
+class OpenFoodFactsError extends Error {
   constructor(barcode: string, status: number) {
     super(`Open Food Facts lookup for ${barcode} failed with status ${status}`);
     this.name = "OpenFoodFactsError";

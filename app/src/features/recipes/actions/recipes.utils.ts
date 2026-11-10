@@ -4,7 +4,7 @@ import type { AmountRow } from "./recipes.store";
 
 /** An amount as either side of the comparison states it: the product, and how
  * much of it, already read out of `numeric` into a JS number. */
-export interface RecipeAmount {
+interface RecipeAmount {
   productId: string;
   quantity: number;
 }

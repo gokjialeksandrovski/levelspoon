@@ -95,7 +95,7 @@ const lmsToOklab = (l: number, m: number, s: number): { l: number; a: number; b:
   };
 };
 
-export const hexToOklab = (hex: string): { l: number; a: number; b: number } => {
+const hexToOklab = (hex: string): { l: number; a: number; b: number } => {
   const [r, g, b] = hexToRgb(hex).map(srgbChannelToLinear);
   const [lms_l, lms_m, lms_s] = linearToLms(r, g, b);
   return lmsToOklab(lms_l, lms_m, lms_s);

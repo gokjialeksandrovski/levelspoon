@@ -22,9 +22,9 @@ export const MAX_BAND_KG = COLUMN_CEILING;
 // A cadence is any whole number of days. Daily is offered: a daily reading is
 // mostly water, which the app states rather than smooths, and a one-week
 // floor would be the app deciding for the user.
-export const MIN_CHECKIN_INTERVAL_DAYS = 1;
+const MIN_CHECKIN_INTERVAL_DAYS = 1;
 // Past a year the "in 400 days" countdown is a typo's output, not a schedule.
-export const MAX_CHECKIN_INTERVAL_DAYS = 365;
+const MAX_CHECKIN_INTERVAL_DAYS = 365;
 
 export type WeightUnit = "kg" | "lb";
 

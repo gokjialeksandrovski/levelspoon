@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from ".";
 import { visibleToUser } from "./visibility";
 
-export interface PhotoOwner {
+interface PhotoOwner {
   /** Null when a row holds this photo but is not one this user may be shown -
    * naming it would leak another user's private product or private claim. */
   name: string | null;

@@ -66,7 +66,7 @@ Fires **only** for brand-new product about to write to shared table, or ambiguou
 
 ## Barcode
 
-Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then photo/manual flow. Spec: `docs/superpowers/specs/2026-09-15-barcode-scanning-design.md`.
+Internal crowd-sourced `product_barcodes` first, Open Food Facts on miss, then photo/manual flow. Spec: `docs/specs/2026-09-15-barcode-scanning-design.md`.
 
 - **From a photo**: `readBarcodeFromPhoto` (`lib/barcode/read-photo.ts`, `barcode-detector` WASM self-hosted under `public/zxing/`). No live camera scanning. A failed read points at Type.
 - **Typed**: "Type" (`TypeInsteadButton`, `photo-input.tsx`) docks between camera and Photos on both barcode controls. Entry list pushes `product-barcode` wizard step. Confirm step types inline: a step would remount confirm and drop corrected figures; Cancel or Escape restores tile, sends nothing.
@@ -110,4 +110,4 @@ Deterministic: photo → boxes → normalize → parse (EU table first, then US 
 - FDA-locked unit constants (`fl oz = 30`, not `29.5735`).
 - Constants derived from measurement carry a comment naming evidence.
 
-Spec: `docs/superpowers/specs/2026-09-24-fibre-design.md`.
+Spec: `docs/specs/2026-09-24-fibre-design.md`.

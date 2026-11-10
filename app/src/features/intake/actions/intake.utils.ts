@@ -124,7 +124,7 @@ export interface IntakeReady {
   weeksToGoal: number | null;
 }
 
-export type IntakeEstimate = { kind: "refused"; reason: RefusalReason } | IntakeReady;
+type IntakeEstimate = { kind: "refused"; reason: RefusalReason } | IntakeReady;
 
 // Bump when the consent copy in intake-form.tsx changes, so a stored consent
 // can be traced to the wording it was given against (spec §13).
@@ -219,12 +219,12 @@ const MAX_HEIGHT_CM = 250;
 const MIN_BODY_FAT_PCT = 3;
 const MAX_BODY_FAT_PCT = 60;
 const MIN_METABOLISM_ADJUST_PCT = 1;
-export const MAX_METABOLISM_ADJUST_PCT = 30;
+const MAX_METABOLISM_ADJUST_PCT = 30;
 const MAX_STRENGTH_DAYS = 7;
 // Mirrors intake_tracking_period in the schema. A year, the same ceiling a
 // weigh-in cadence has: any whole number of days, like that field.
-export const MIN_TRACKING_PERIOD_DAYS = 1;
-export const MAX_TRACKING_PERIOD_DAYS = 365;
+const MIN_TRACKING_PERIOD_DAYS = 1;
+const MAX_TRACKING_PERIOD_DAYS = 365;
 // Typing guards, like MAX_AGE: no adult eats under 500 or over 10,000 a day as
 // a habit, so a figure past either is a slipped keystroke. Mirrored by
 // intake_current_intake in the schema.

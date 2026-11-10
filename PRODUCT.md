@@ -73,19 +73,19 @@ reach. Weeks-scale review happens on `/history`.
   shown as a range that narrows with each answer. A goal weight saves a
   target weight goal; Maintain's band saves a hold goal, optionally with
   Recomp. Answers stored only with explicit consent (`intake_profiles`). See
-  `docs/superpowers/specs/2026-09-21-intake-estimate-design.md`.
+  `docs/specs/2026-09-21-intake-estimate-design.md`.
 - Measured calorie burn: when a user has logged meals and
   weighed in for long enough, the estimate works their maintenance out from
   those rows by energy balance instead of from the formula, and says so. Too
   little or too noisy data and it says that instead of guessing. Shown only in
   the estimate's Details; nothing is stored. See
-  `docs/superpowers/specs/2026-09-23-measured-burn-design.md`.
+  `docs/specs/2026-09-23-measured-burn-design.md`.
 - Amounts: grams, millilitres, learned label servings, curated portion classes
   (a slice, an egg grade, a cup where density is genuinely known), and recent
   amounts per product.
 - Weight tracking: optional; app fully usable without it.
   Deliberately carries no arithmetic to or from the calorie goal — see
-  `docs/superpowers/specs/2026-09-21-weight-goal-design.md`. Stored in kg
+  `docs/specs/2026-09-21-weight-goal-design.md`. Stored in kg
   always; `users.weight_unit` picks kg or lb for entry and display. Pace, band
   and weigh-in cadence are each a typed figure with preset shortcuts — no
   fixed set, and no floor above one day.

@@ -3,7 +3,7 @@
 // reuses the first's numbers instead of restating them.
 import type { Transition } from "motion/react";
 
-export const SLIDE_OFFSET_PX = 24;
+const SLIDE_OFFSET_PX = 24;
 
 const TRANSITION_DURATION_SECONDS = 0.26; // matches globals.css --duration-step
 

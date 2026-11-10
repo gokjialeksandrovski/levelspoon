@@ -4,7 +4,7 @@
 const MAX_PHOTO_EDGE_PX = 2048;
 const JPEG_QUALITY = 0.85;
 
-export interface PixelSize {
+interface PixelSize {
   width: number;
   height: number;
 }

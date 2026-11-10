@@ -16,7 +16,7 @@ Read `docs/ARCHITECTURE.md` before doing anything. It covers stack, repo and app
 | `docs/DECISIONS.md` | Before proposing an approach: check it wasn't already rejected or deferred |
 | `docs/ROADMAP.md` | Planning next work, or M4 hosting |
 | `docs/DEPLOY.md` | Touching the hosted instance: home-server containers, ports, secrets, migrate/seed/update commands |
-| `docs/superpowers/specs/` | Changing a shipped feature: its approved design spec |
+| `docs/specs/` | Changing a shipped feature: its approved design spec |
 | `app/AGENTS.md` | Before using any Next.js API (this Next.js differs from training data; read `app/node_modules/next/dist/docs/`) |
 
 When a change makes one of these docs wrong, update the doc in the same change. Docs describe what exists, not plans. A rejected or superseded approach goes in `docs/DECISIONS.md` with its reason.

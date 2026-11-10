@@ -4,7 +4,7 @@ import * as motion from "motion/react-m";
 
 import { TAP_HIT_AREA_SM } from "./tap-target";
 
-export type ButtonVariant = "primary" | "ghost" | "danger" | "fat";
+type ButtonVariant = "primary" | "ghost" | "danger" | "fat";
 
 // motion.button redefines onDrag*/onAnimation* with incompatible signatures,
 // so they're omitted here; no call site passes them anyway.

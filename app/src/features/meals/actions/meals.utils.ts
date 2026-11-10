@@ -73,7 +73,7 @@ export type ContributionPreview =
   | { kind: "ready"; contribution: NutritionValues }
   | { kind: "unavailable" };
 
-export interface ContributionPreviewInput {
+interface ContributionPreviewInput {
   count: string;
   unit: string;
   context: MeasureContext;

@@ -45,7 +45,7 @@ interface CookingFatCallbacks {
   setIsBusy: (isBusy: boolean) => void;
 }
 
-export interface SaveCookingFatInput {
+interface SaveCookingFatInput {
   mealId: string;
   productId: string;
   quantity: number;
@@ -86,7 +86,7 @@ export const saveCookingFat = async (
   }
 };
 
-export interface ResolveAndSaveCookingFatInput {
+interface ResolveAndSaveCookingFatInput {
   mealId: string;
   productId: string;
   count: string;

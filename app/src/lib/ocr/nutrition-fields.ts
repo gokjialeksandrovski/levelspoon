@@ -35,7 +35,7 @@ export const INDENTED_FIELDS: ReadonlySet<keyof NullableNutritionValues> = new S
 // adds it when a known fibre figure pushes the total past 100g, and
 // _negative_flags yields it for a negative figure. A flag with no entry here is
 // dropped by flaggedFieldSet, so the field would never be highlighted.
-export const FLAG_TO_FIELD: Record<string, keyof NullableNutritionValues> = {
+const FLAG_TO_FIELD: Record<string, keyof NullableNutritionValues> = {
   energy_kcal: "energyKcal",
   fat_g: "fatG",
   saturates_g: "saturatesG",

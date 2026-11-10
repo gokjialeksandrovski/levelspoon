@@ -36,7 +36,7 @@ export type LookupBarcodeResult =
   | { kind: "not_found"; barcode: string }
   | { kind: "rejected" };
 
-export type LinkBarcodeResult =
+type LinkBarcodeResult =
   | { kind: "linked" }
   | { kind: "already_linked_elsewhere"; product: ProductCandidate };
 
@@ -125,7 +125,7 @@ export const linkBarcode = async (rawCode: string, productId: string): Promise<L
   }
 };
 
-export type CheckBarcodeBindingResult =
+type CheckBarcodeBindingResult =
   | { kind: "available"; barcode: string }
   | { kind: "already_linked_elsewhere"; product: ProductCandidate }
   | { kind: "rejected" };

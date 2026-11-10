@@ -26,7 +26,7 @@ const PNG_SIGNATURE = Buffer.from("89504e47", "hex");
 export const extensionFromBytes = (buffer: Buffer): string =>
   buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ? PNG_EXTENSION : JPEG_EXTENSION;
 
-export interface PhotoKeyPair {
+interface PhotoKeyPair {
   proofKey: string;
   claimKey: string;
 }

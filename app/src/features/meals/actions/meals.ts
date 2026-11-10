@@ -46,7 +46,7 @@ import type { WeightView } from "@/features/weight/actions/weight.utils";
 import { calorieRemaining, type CalorieRemaining } from "@/features/goals/actions/goals.utils";
 import type { NutritionValues } from "@/types/nutrition";
 
-export interface SaveMealIngredientInput {
+interface SaveMealIngredientInput {
   mealId: string;
   productId: string;
   quantity: number;

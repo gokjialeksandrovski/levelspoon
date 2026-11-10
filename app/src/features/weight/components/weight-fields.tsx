@@ -64,7 +64,7 @@ export const UnitSuffix = ({ children }: { children: string }) => (
   </span>
 );
 
-export interface PresetFieldProps {
+interface PresetFieldProps {
   label: string;
   name: string;
   suffix: string;

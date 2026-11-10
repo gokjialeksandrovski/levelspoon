@@ -12,7 +12,7 @@ import { visibleToUser } from "@/lib/db/visibility";
 // productSource.enumValues is the tuple ["user", "standard"].
 const STANDARD_SOURCE = productSource.enumValues[1];
 
-export interface DailyKcal {
+interface DailyKcal {
   /** The user's local calendar day, YYYY-MM-DD. */
   date: string;
   kcal: number;

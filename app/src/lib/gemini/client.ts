@@ -70,7 +70,7 @@ export const geminiFailureKind = (error: unknown): GeminiFailureKind => {
   return error instanceof Error && error.cause !== undefined ? geminiFailureKind(error.cause) : "unavailable";
 };
 
-export class TruncatedResponseError extends Error {
+class TruncatedResponseError extends Error {
   constructor(maxTokens: number) {
     super(`Gemini response hit the ${maxTokens}-token budget before returning any content`);
     this.name = "TruncatedResponseError";

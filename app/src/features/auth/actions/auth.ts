@@ -29,7 +29,7 @@ const isUniqueViolation = (error: unknown): boolean => {
 };
 
 
-export interface RegisterUserInput {
+interface RegisterUserInput {
   email: string;
   password: string;
   name: string;
