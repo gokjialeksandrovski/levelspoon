@@ -10,10 +10,10 @@ Stack, layout, data, routes, env vars, local commands and test setup.
 | `ocr-service/` | FastAPI + PaddleOCR (Python 3.12). Warm, always-on. |
 | Database | Postgres via Drizzle ORM. Migrations in `app/drizzle/`. |
 | Auth | Auth.js v5, Credentials providers (email/password; `guest` for demo mode), JWT sessions. |
-| Photo storage | One S3-compatible client (`app/src/lib/s3.ts`). MinIO locally. `S3_ENDPOINT` only difference between environments, no branching in app code. Prod host undecided (`docs/ROADMAP.md`). |
+| Photo storage | One S3-compatible client (`app/src/lib/s3.ts`). MinIO locally. `S3_ENDPOINT` only difference between environments, no branching in app code. Prod: Garage (`docs/DEPLOY.md`). |
 | AI | Gemini, direct call, pinned model. Two jobs only (see CLAUDE.md). |
 
-Nothing deployed. No CI.
+Deployed on developer's home server (`docs/DEPLOY.md`). No CI.
 
 ## Repo layout
 

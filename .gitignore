@@ -16,3 +16,5 @@ skills-lock.json
 test-output.txt
 product-photo-debt.json
 graphify-out/
+.impeccable/
+.claude/settings.local.json
