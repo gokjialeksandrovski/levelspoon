@@ -9,7 +9,7 @@ Requires: pnpm run ocr:up
 import json
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 SERVICE_URL = "http://localhost:8000"
@@ -35,7 +35,7 @@ def golden(fixtures_dir):
 
 def _post(endpoint: str, photo_path):
     with photo_path.open("rb") as handle:
-        response = httpx.post(
+        response = httpx2.post(
             f"{SERVICE_URL}{endpoint}",
             files={"image": (photo_path.name, handle, "image/jpeg")},
             timeout=REQUEST_TIMEOUT_SECONDS,
@@ -45,7 +45,7 @@ def _post(endpoint: str, photo_path):
 
 
 def test_service_is_healthy_with_its_model_loaded():
-    health = httpx.get(f"{SERVICE_URL}/health", timeout=REQUEST_TIMEOUT_SECONDS).json()
+    health = httpx2.get(f"{SERVICE_URL}/health", timeout=REQUEST_TIMEOUT_SECONDS).json()
     assert health["model_loaded"] is True
 
 

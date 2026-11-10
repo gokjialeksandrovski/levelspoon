@@ -13,7 +13,7 @@ import json
 import sys
 from pathlib import Path
 
-import httpx
+import httpx2
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PHOTOS = REPO_ROOT / "fixtures" / "photos"
@@ -24,7 +24,7 @@ DEBUG_ENDPOINT = f"{SERVICE_URL}/debug/boxes"
 
 def capture(photo: Path) -> dict:
     with photo.open("rb") as handle:
-        response = httpx.post(
+        response = httpx2.post(
             DEBUG_ENDPOINT,
             files={"image": (photo.name, handle, "image/jpeg")},
             timeout=120.0,

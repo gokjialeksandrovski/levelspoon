@@ -6,7 +6,7 @@ Stack, layout, data, routes, env vars, local commands and test setup.
 
 | Part | What |
 |---|---|
-| `app/` | Next.js 16 (App Router), React 19, TypeScript 5. UI, auth, business logic. |
+| `app/` | Next.js 16 (App Router), React 19, TypeScript 6. UI, auth, business logic. |
 | `ocr-service/` | FastAPI + PaddleOCR (Python 3.12). Warm, always-on. |
 | Database | Postgres via Drizzle ORM. Migrations in `app/drizzle/`. |
 | Auth | Auth.js v5, Credentials providers (email/password; `guest` for demo mode), JWT sessions. |

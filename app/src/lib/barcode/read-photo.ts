@@ -2,7 +2,7 @@ import type { BarcodeDetector as BarcodeDetectorApi } from "barcode-detector/pon
 
 const WASM_PUBLIC_PATH = "/zxing";
 
-// .wasm copied from node_modules/zxing-wasm@3.1.3's dist/reader/ into
+// .wasm copied from node_modules/zxing-wasm@3.1.6's dist/reader/ into
 // public/zxing/ - re-copy after any barcode-detector / zxing-wasm version
 // bump. Self-hosted so a CDN outage can't break scanning.
 const locateWasm = (path: string, prefix: string): string =>
