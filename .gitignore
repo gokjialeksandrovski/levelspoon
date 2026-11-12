@@ -5,3 +5,9 @@ __pycache__/
 *.egg-info/
 .env
 product-photo-debt.json
+
+# Private until public launch
+docs/DECISIONS.md
+docs/ROADMAP.md
+docs/DEPLOY.md
+docs/specs/
